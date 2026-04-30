@@ -57,17 +57,20 @@ async function getFactorHistorico(mes, anio) {
   const [rows] = await db.pool.query(
     `SELECT porcentaje
      FROM tasas_descuentos
-     WHERE fecha_vigencia > ?
-     ORDER BY fecha_vigencia ASC`,
+     WHERE fecha_corte > ?
+     ORDER BY fecha_corte ASC`,
     [fechaCorte]
   );
 
-  // Producto encadenado: factor = (1 - t1/100) × (1 - t2/100) × ...
+  // Producto encadenado: factor = 1/(1+t1/100) × 1/(1+t2/100) × ...
+  // Cada tasa representa un AUMENTO aplicado posteriormente (ej. 7 → precios subieron 7%).
+  // Para "deshacer" ese aumento se divide por (1 + tasa/100), equivalente a multiplicar
+  // por 1/(1+tasa/100).  Usar (1 - tasa/100) sería incorrecto: daría 0.93 en vez de 1/1.07.
   let factor = 1;
   for (const r of rows) {
     const tasa = Number(r.porcentaje);
-    if (tasa > 0 && tasa < 100) {
-      factor *= (1 - tasa / 100);
+    if (tasa > 0) {
+      factor *= 1 / (1 + tasa / 100);
     }
   }
 

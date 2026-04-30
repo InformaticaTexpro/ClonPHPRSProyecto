@@ -456,6 +456,7 @@ router.get('/ventas-mes', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
   if (!codigos.length) return res.json({ ok: true, ventas: [] });
   try {
+    const factor         = await getFactorHistorico(mes, anio);
     const foliosCompPct  = await getFoliosCompartidosConPct(codigos, mes, anio);
     const foliosComp     = foliosCompPct.map(r => r.folio);
     const extraFolios    = foliosComp.length ? `OR h.Folio IN (${foliosComp.join(',')})` : '';
@@ -472,9 +473,9 @@ router.get('/ventas-mes', async (req, res) => {
         ROUND(SUM(
           CASE
             WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-              THEN t.PrecioVta * 1.10 * m.CantFacturada
+              THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
             WHEN ISNULL(t.PrecioVta, 0) > 0
-              THEN t.PrecioVta * m.CantFacturada
+              THEN t.PrecioVta * ${factor} * m.CantFacturada
             ELSE m.TotLinea
           END
         ), 0)                                                   AS neto_lista,
@@ -483,9 +484,9 @@ router.get('/ventas-mes', async (req, res) => {
             WHEN SUM(
               CASE
                 WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-                  THEN t.PrecioVta * 1.10 * m.CantFacturada
+                  THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
                 WHEN ISNULL(t.PrecioVta, 0) > 0
-                  THEN t.PrecioVta * m.CantFacturada
+                  THEN t.PrecioVta * ${factor} * m.CantFacturada
                 ELSE m.TotLinea
               END
             ) > 0
@@ -495,9 +496,9 @@ router.get('/ventas-mes', async (req, res) => {
                 SUM(
                   CASE
                     WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-                      THEN t.PrecioVta * 1.10 * m.CantFacturada
+                      THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
                     WHEN ISNULL(t.PrecioVta, 0) > 0
-                      THEN t.PrecioVta * m.CantFacturada
+                      THEN t.PrecioVta * ${factor} * m.CantFacturada
                     ELSE m.TotLinea
                   END
                 )
@@ -520,13 +521,19 @@ router.get('/ventas-mes', async (req, res) => {
       ORDER BY h.Fecha DESC, h.Folio
     `);
     const ventas = result.recordset.map(v => {
+      const montoBase = Math.round(Number(v.monto) * factor);
       if (v.es_compartido) {
         const pctInfo = foliosCompPct.find(r => r.folio === Number(v.Folio));
-        if (pctInfo) return { ...v, monto_asignado: Math.round(Number(v.monto) * pctInfo.porcentaje / 100), porcentaje_asignado: pctInfo.porcentaje };
+        if (pctInfo) return {
+          ...v,
+          monto:          montoBase,
+          monto_asignado: Math.round(montoBase * pctInfo.porcentaje / 100),
+          porcentaje_asignado: pctInfo.porcentaje,
+        };
       }
-      return v;
+      return { ...v, monto: montoBase };
     });
-    res.json({ ok: true, ventas });
+    res.json({ ok: true, ventas, factor });
   } catch (err) {
     console.error('[GET /api/dashboard/ventas-mes]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener ventas del mes' });

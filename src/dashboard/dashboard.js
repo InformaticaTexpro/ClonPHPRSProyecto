@@ -353,14 +353,14 @@
       const data = await res.json();
       if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
       if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Sin líneas</td></tr>'; return; }
-      const total = data.detalle.reduce((s,l)=>s+(Number(l.TotLinea)||0),0);
+      const total = data.detalle.reduce((s,l)=>s+(Number(l.valor_historico_linea)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
           <td><code>${l.CodProd||'—'}</code></td>
           <td>${l.DesProd||'—'}</td>
           <td style="text-align:center">${l.CantFacturada??'—'}</td>
-          <td style="text-align:right">${formatCLP(l.precio_unitario_cobrado)}</td>
-          <td style="text-align:right"><strong>${formatCLP(l.TotLinea)}</strong></td>
+          <td style="text-align:right">${formatCLP(l.precio_unitario_historico)}</td>
+          <td style="text-align:right"><strong>${formatCLP(l.valor_historico_linea)}</strong></td>
         </tr>`).join('');
       setText('modalTotalValor', formatCLP(total));
     } catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; }
