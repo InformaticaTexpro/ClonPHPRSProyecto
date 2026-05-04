@@ -19,15 +19,20 @@ const validarMesAnio = (mes, anio) => {
   const ahora = new Date();
 
   // Usar valores actuales como default cuando el parámetro no viene
-  const mStr = (mes  === undefined || mes  === null || mes  === '') ? String(ahora.getMonth() + 1) : mes;
-  const aStr = (anio === undefined || anio === null || anio === '') ? String(ahora.getFullYear())  : anio;
+  const mStr = (mes  === undefined || mes  === null || mes  === '') ? String(ahora.getMonth() + 1) : String(mes).trim();
+  const aStr = (anio === undefined || anio === null || anio === '') ? String(ahora.getFullYear())  : String(anio).trim();
+
+  // Validación estricta: solo dígitos — rechaza inyección SQL ("1; DROP TABLE...")
+  if (!/^\d+$/.test(mStr)) {
+    throw new Error(`Mes inválido: "${mes}". Debe ser un número entero entre 1 y 12.`);
+  }
+  if (!/^\d+$/.test(aStr)) {
+    throw new Error(`Año inválido: "${anio}". Debe ser un número entero entre 2000 y 2100.`);
+  }
 
   const m = parseInt(mStr, 10);
   const a = parseInt(aStr, 10);
 
-  if (isNaN(m) || isNaN(a)) {
-    throw new Error('Parámetros mes/anio deben ser números enteros');
-  }
   if (m < 1 || m > 12) {
     throw new Error(`Mes inválido: ${mStr}. Debe estar entre 1 y 12`);
   }

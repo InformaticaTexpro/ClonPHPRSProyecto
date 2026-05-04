@@ -5,3 +5,6 @@
  * Pendiente: validar getSoftlandPool y closeSoftlandPool con stubs/mocks.
  */
 
+test.todo('getSoftlandPool — retorna conexión activa');
+test.todo('closeSoftlandPool — cierra la conexión sin error');
+
