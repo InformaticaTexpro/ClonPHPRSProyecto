@@ -104,11 +104,6 @@ async function getFoliosCompartidosConPct(codigos, mes, anio) {
   }));
 }
 
-async function getFoliosCompartidos(codigos, mes, anio) {
-  const lista = await getFoliosCompartidosConPct(codigos, mes, anio);
-  return lista.map(r => r.folio);
-}
-
 async function getFoliosYaAsignados(codigosCoord, mes, anio) {
   if (!codigosCoord.length) return [];
   const placeholders = codigosCoord.map(() => '?').join(',');

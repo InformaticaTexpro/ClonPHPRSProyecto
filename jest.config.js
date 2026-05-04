@@ -2,7 +2,7 @@
 module.exports = {
   rootDir: '.',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
   moduleFileExtensions: ['js', 'json'],
   collectCoverage: false,

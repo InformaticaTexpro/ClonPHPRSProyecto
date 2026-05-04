@@ -43,12 +43,12 @@ describe('validarMesAnio — validación de parámetros de fecha', () => {
     expect(() => validarMesAnio("1; DROP TABLE DTE_Ventas--", '2026')).toThrow();
   });
 
-  test('string vacío lanza error', () => {
-    expect(() => validarMesAnio('', '2026')).toThrow();
+  test('string vacío usa mes actual como default (no lanza)', () => {
+    expect(() => validarMesAnio('', '2026')).not.toThrow();
   });
 
-  test('undefined lanza error', () => {
-    expect(() => validarMesAnio(undefined, '2026')).toThrow();
+  test('undefined usa mes actual como default (no lanza)', () => {
+    expect(() => validarMesAnio(undefined, '2026')).not.toThrow();
   });
 });
 

@@ -25,7 +25,11 @@ const COD_VENDEDOR_RE = /^[A-Za-z0-9-]{1,20}$/;
  * @returns {number}
  */
 function validateFolio(value) {
-  const n = parseInt(value, 10);
+  const s = String(value ?? '').trim();
+  if (!/^\d+$/.test(s)) {
+    throw new Error(`Folio inválido: "${value}". Debe ser un entero positivo.`);
+  }
+  const n = parseInt(s, 10);
   if (!Number.isFinite(n) || n <= 0 || n > 9_999_999) {
     throw new Error(`Folio inválido: "${value}". Debe ser un entero positivo.`);
   }
@@ -65,7 +69,11 @@ function validatePorcentaje(value) {
  * @returns {number}
  */
 function validateId(value) {
-  const n = parseInt(value, 10);
+  const s = String(value ?? '').trim();
+  if (!/^\d+$/.test(s)) {
+    throw new Error(`ID inválido: "${value}". Debe ser un entero positivo.`);
+  }
+  const n = parseInt(s, 10);
   if (!Number.isFinite(n) || n <= 0) {
     throw new Error(`ID inválido: "${value}". Debe ser un entero positivo.`);
   }
