@@ -4,13 +4,19 @@
  * venta.js — Modelo de Ventas
  * Todas las queries apuntan a [PRODIN].[softland].*
  * Conexión via mssql (getSoftlandPool)
+ *
+ * Reglas de negocio aplicadas:
+ *  1. Precio histórico: PrecioVta vigente se divide por el acumulado de alzas
+ *     posteriores a la fecha del documento (tasas_descuentos en MySQL).
+ *  2. Productos NC% (LIKE 'NC%'): el precio real es TotLinea/CantFacturada.
+ *  3. Canal 301: precio de lista base se multiplica x1.1 antes del divisor.
+ *  4. Estado <> 'A': se excluyen documentos anulados en todos los cálculos.
  */
 
 const { getSoftlandPool, sql } = require('../config/db.softland');
+const db                       = require('../config/db');
+const { buildPrecioListaRealCASE, buildDivisorCASE } = require('../utils/precioHistorico');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: construye IN ($p1,$p2,...) para arrays de códigos de vendedor
-// ─────────────────────────────────────────────────────────────────────────────
 function buildInParams(request, codigos, prefijo = 'cod') {
   const names = codigos.map((c, i) => {
     const name = `${prefijo}${i}`;
@@ -20,11 +26,6 @@ function buildInParams(request, codigos, prefijo = 'cod') {
   return names.join(',');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Total Ventas del mes para uno o varios vendedores
-//    FIX: usa SUM(TotLinea) desde iw_gmovi (JOIN iw_gsaen)
-//         agrega filtro Estado <> 'A' para excluir documentos anulados
-// ─────────────────────────────────────────────────────────────────────────────
 async function getTotalVentas({ codigos, mes, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
@@ -49,9 +50,6 @@ async function getTotalVentas({ codigos, mes, anio }) {
   return result.recordset[0]?.total_ventas ?? 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Resumen ventas agrupado por vendedor
-// ─────────────────────────────────────────────────────────────────────────────
 async function getResumenPorVendedor({ codigos, mes, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
@@ -60,23 +58,45 @@ async function getResumenPorVendedor({ codigos, mes, anio }) {
   request.input('anio', sql.Int, Number(anio));
   const inCods = buildInParams(request, codigos);
 
+  const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
+    campoFecha:     'gsaen.Fecha',
+    campoCodProd:   'gmovi.CodProd',
+    campoTotLinea:  'gmovi.TotLinea',
+    campoCant:      'gmovi.CantFacturada',
+    campoPrecioVta: 'tprod.PrecioVta',
+    campoCodCan:    'cvl.CodCan',
+  });
+
   const result = await request.query(`
     SELECT
-      gsaen.CodVendedor              AS codigo_vendedor,
-      cwtvend.VenDes                 AS nombre_vendedor,
-      ROUND(SUM(tprod.PrecioVta), 0) AS precio_vta,
-      ROUND(SUM(gmovi.TotLinea), 0)  AS total_ventas
+      gsaen.CodVendedor                                          AS codigo_vendedor,
+      cwtvend.VenDes                                             AS nombre_vendedor,
+      ROUND(SUM(
+        gmovi.CantFacturada * (${precioListaRealCASE})
+      ), 0)                                                      AS precio_vta,
+      ROUND(SUM(gmovi.TotLinea), 0)                              AS total_ventas,
+      CASE
+        WHEN SUM(gmovi.CantFacturada * (${precioListaRealCASE})) > 0
+        THEN ROUND(
+          (1 - SUM(gmovi.TotLinea)
+             / NULLIF(SUM(gmovi.CantFacturada * (${precioListaRealCASE})), 0)
+          ) * 100, 2)
+        ELSE 0
+      END                                                        AS pct_descuento
     FROM [PRODIN].[softland].[iw_gmovi] gmovi
     INNER JOIN [PRODIN].[softland].[iw_gsaen] gsaen
       ON gsaen.Tipo    = gmovi.Tipo
-      AND gsaen.NroInt = gmovi.NroInt
+     AND gsaen.NroInt  = gmovi.NroInt
     INNER JOIN [PRODIN].[softland].[cwtvend] cwtvend
       ON cwtvend.VenCod = gsaen.CodVendedor
     INNER JOIN [PRODIN].[softland].[iw_tprod] tprod
       ON tprod.CodProd = gmovi.CodProd
-    WHERE gsaen.Tipo IN ('F','N','D')
-      AND MONTH(gsaen.Fecha) = @mes
-      AND YEAR(gsaen.Fecha)  = @anio
+    LEFT JOIN [PRODIN].[softland].[cwtcvcl] cvl
+      ON cvl.CodAux = gsaen.CodAux
+    WHERE gsaen.Tipo         IN ('F','N','D')
+      AND gsaen.Estado       <>  'A'
+      AND MONTH(gsaen.Fecha) =   @mes
+      AND YEAR(gsaen.Fecha)  =   @anio
       AND gsaen.CodVendedor  IN (${inCods})
     GROUP BY gsaen.CodVendedor, cwtvend.VenDes
     ORDER BY gsaen.CodVendedor
@@ -85,9 +105,6 @@ async function getResumenPorVendedor({ codigos, mes, anio }) {
   return result.recordset;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Clientes asociados al usuario (agrupado por vendedor + cliente + fecha)
-// ─────────────────────────────────────────────────────────────────────────────
 async function getClientesPorVendedor({ codigos, mes, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
@@ -107,9 +124,10 @@ async function getClientesPorVendedor({ codigos, mes, anio }) {
       ON cwtauxi.codaux = iw_gsaen.codaux
     INNER JOIN [PRODIN].[softland].[cwtvend] cwtvend
       ON cwtvend.VenCod = iw_gsaen.CodVendedor
-    WHERE iw_gsaen.Tipo IN ('F','N','D')
-      AND MONTH(iw_gsaen.fecha) = @mes
-      AND YEAR(iw_gsaen.fecha)  = @anio
+    WHERE iw_gsaen.Tipo         IN ('F','N','D')
+      AND iw_gsaen.Estado       <>  'A'
+      AND MONTH(iw_gsaen.fecha) =   @mes
+      AND YEAR(iw_gsaen.fecha)  =   @anio
       AND iw_gsaen.CodVendedor  IN (${inCods})
     GROUP BY
       iw_gsaen.CodVendedor,
@@ -123,9 +141,6 @@ async function getClientesPorVendedor({ codigos, mes, anio }) {
   return result.recordset;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Ventas Softland — lista de folios para uno o varios códigos de vendedor
-// ─────────────────────────────────────────────────────────────────────────────
 async function getVentas({ codigos, mes, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
@@ -145,47 +160,53 @@ async function getVentas({ codigos, mes, anio }) {
     FROM [PRODIN].[softland].[iw_gsaen] gsaen
     INNER JOIN [PRODIN].[softland].[cwtauxi] cwtauxi
       ON cwtauxi.codaux = gsaen.codaux
-    WHERE gsaen.CodVendedor IN (${inCods})
-      AND MONTH(gsaen.Fecha) = @mes
-      AND YEAR(gsaen.Fecha)  = @anio
-      AND gsaen.Tipo IN ('F','N','D')
+    WHERE gsaen.CodVendedor  IN (${inCods})
+      AND MONTH(gsaen.Fecha) =   @mes
+      AND YEAR(gsaen.Fecha)  =   @anio
+      AND gsaen.Tipo         IN ('F','N','D')
+      AND gsaen.Estado       <>  'A'
     ORDER BY gsaen.Fecha DESC
   `);
 
   return result.recordset;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. Monto total de un folio específico
-// ─────────────────────────────────────────────────────────────────────────────
 async function getMontoFolio({ folio, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
 
   request.input('folio', sql.Int, Number(folio));
-  request.input('anio',  sql.Int,         Number(anio));
+  request.input('anio',  sql.Int, Number(anio));
 
   const result = await request.query(`
     SELECT
       SubTotal,
       COALESCE(TotDesc, 0) AS descuento
     FROM [PRODIN].[softland].[iw_gsaen]
-    WHERE Folio = @folio
+    WHERE Folio  =  @folio
       AND YEAR(Fecha) = @anio
-      AND Tipo IN ('F','N','D')
+      AND Tipo   IN ('F','N','D')
+      AND Estado <>  'A'
   `);
 
   return result.recordset[0] ?? null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. Detalle de folio: información de venta por folio
-// ─────────────────────────────────────────────────────────────────────────────
 async function getDetalleFolio({ folio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
 
   request.input('folio', sql.Int, Number(folio));
+
+  const divisorCASE         = await buildDivisorCASE(db, 'gsaen.Fecha');
+  const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
+    campoFecha:     'gsaen.Fecha',
+    campoCodProd:   'gmovi.CodProd',
+    campoTotLinea:  'gmovi.TotLinea',
+    campoCant:      'gmovi.CantFacturada',
+    campoPrecioVta: 'tprod.PrecioVta',
+    campoCodCan:    'cvl.CodCan',
+  });
 
   const result = await request.query(`
   WITH base AS (
@@ -194,70 +215,63 @@ async function getDetalleFolio({ folio }) {
       gsaen.Fecha,
       gsaen.CodVendedor,
       gsaen.CanCod,
-      cwtauxi.nomAux                                          AS Cliente,
+      cvl.CodCan,
+      cwtauxi.nomAux                                              AS Cliente,
       gmovi.CodProd,
       tprod.DesProd,
       gmovi.CantFacturada,
       gmovi.TotLinea,
       tprod.PrecioVta,
-      CASE
-        WHEN gsaen.Fecha < '2023-03-01' THEN (1.07 * 1.07 * 1.05 * 1.17)
-        WHEN gsaen.Fecha < '2024-03-01' THEN (1.07 * 1.07 * 1.05)
-        WHEN gsaen.Fecha < '2025-03-01' THEN (1.07 * 1.07)
-        WHEN gsaen.Fecha < '2026-03-01' THEN (1.07)
-        ELSE 1.0
-      END                                                     AS divisor_historico,
-      CASE WHEN gsaen.CanCod <> '300' THEN 1.10 ELSE 1.0 END AS factor_canal
+      ${divisorCASE}                                              AS divisor_historico,
+      CASE WHEN cvl.CodCan = 301 THEN 1.10 ELSE 1.0 END          AS factor_canal,
+      (${precioListaRealCASE})                                    AS precio_lista_real
     FROM [PRODIN].[softland].[iw_gmovi] gmovi
     INNER JOIN [PRODIN].[softland].[iw_gsaen] gsaen
       ON gsaen.NroInt = gmovi.NroInt
-      AND gsaen.Tipo  = gmovi.Tipo
+     AND gsaen.Tipo   = gmovi.Tipo
     INNER JOIN [PRODIN].[softland].[iw_tprod] tprod
       ON tprod.CodProd = gmovi.CodProd
     INNER JOIN [PRODIN].[softland].[cwtauxi] cwtauxi
       ON cwtauxi.CodAux = gsaen.CodAux
-    WHERE gsaen.Tipo IN ('F','N','D')
-      AND gsaen.Folio = @folio
+    LEFT JOIN [PRODIN].[softland].[cwtcvcl] cvl
+      ON cvl.CodAux = gsaen.CodAux
+    WHERE gsaen.Tipo   IN ('F','N','D')
+      AND gsaen.Estado <>  'A'
+      AND gsaen.Folio  =   @folio
   ),
   calc AS (
     SELECT *,
-      ROUND(TotLinea / NULLIF(CantFacturada, 0), 4)                        AS precio_unitario_cobrado,
-      ROUND((TotLinea / NULLIF(CantFacturada, 0)) / divisor_historico, 4)  AS precio_unitario_cobrado_hist,
-      ROUND(PrecioVta / divisor_historico, 4)                              AS precio_historico_base,
-      ROUND((PrecioVta / divisor_historico) * factor_canal, 4)             AS precio_historico_ajustado
+      ROUND(TotLinea / NULLIF(CantFacturada, 0), 4)                         AS precio_unitario_cobrado,
+      ROUND(
+        (TotLinea / NULLIF(CantFacturada, 0)) / NULLIF(divisor_historico, 0)
+      , 4)                                                                   AS precio_unitario_cobrado_hist,
+      ROUND(precio_lista_real, 4)                                            AS precio_historico_ajustado
     FROM base
   )
   SELECT
     Folio,
-    CONVERT(VARCHAR(10), Fecha, 103)                          AS Fecha,
-    CodVendedor,
-    CanCod,
-    Cliente,
-    CodProd,
-    DesProd,
-    CantFacturada,
-    TotLinea,
+    CONVERT(VARCHAR(10), Fecha, 103)                              AS Fecha,
+    CodVendedor, CanCod, CodCan, Cliente,
+    CodProd, DesProd, CantFacturada, TotLinea,
     precio_unitario_cobrado,
     precio_unitario_cobrado_hist,
-    precio_historico_base,
+    precio_lista_real                                             AS precio_historico_base,
     precio_historico_ajustado,
-    ROUND(precio_historico_ajustado - precio_unitario_cobrado_hist, 4)      AS descuento_unitario_pesos,
+    ROUND(precio_historico_ajustado - precio_unitario_cobrado_hist, 4)       AS descuento_unitario_pesos,
     ROUND(
       (precio_historico_ajustado - precio_unitario_cobrado_hist)
       / NULLIF(precio_historico_ajustado, 0) * 100
-    , 2)                                                                    AS pct_descuento,
+    , 2)                                                                     AS pct_descuento,
     ROUND(
       (precio_historico_ajustado - precio_unitario_cobrado_hist) * CantFacturada
-    , 0)                                                                    AS descuento_total_pesos
+    , 0)                                                                     AS descuento_total_pesos
   FROM calc
   ORDER BY CodProd
-`);
+  `);
+
   return result.recordset;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 11. Descuentos por vendedor: pct promedio y monto total de descuento
-// ─────────────────────────────────────────────────────────────────────────────
 async function getDescuentosVendedor({ codigos, mes, anio }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
@@ -266,23 +280,43 @@ async function getDescuentosVendedor({ codigos, mes, anio }) {
   request.input('anio', sql.Int, Number(anio));
   const inCods = buildInParams(request, codigos);
 
+  const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
+    campoFecha:     'gsaen.Fecha',
+    campoCodProd:   'gmovi.CodProd',
+    campoTotLinea:  'gmovi.TotLinea',
+    campoCant:      'gmovi.CantFacturada',
+    campoPrecioVta: 'tprod.PrecioVta',
+    campoCodCan:    'cvl.CodCan',
+  });
+
   const result = await request.query(`
     SELECT
-      gsaen.CodVendedor                        AS codigo_vendedor,
-      cwtvend.VenDes                           AS nombre_vendedor,
-      COUNT(gsaen.Folio)                       AS cantidad_folios,
-      ROUND(SUM(COALESCE(gsaen.TotDesc, 0)), 0) AS total_descuento,
-      ROUND(SUM(gsaen.SubTotal), 0)             AS total_ventas,
+      gsaen.CodVendedor                                          AS codigo_vendedor,
+      cwtvend.VenDes                                             AS nombre_vendedor,
+      COUNT(DISTINCT gsaen.Folio)                                AS cantidad_folios,
+      ROUND(SUM(gmovi.TotLinea), 0)                              AS total_ventas,
+      ROUND(SUM(
+        gmovi.CantFacturada * (${precioListaRealCASE})
+      ), 0)                                                      AS total_lista_real,
       ROUND(
-        SUM(COALESCE(gsaen.TotDesc, 0))
-        / NULLIF(SUM(gsaen.SubTotal + COALESCE(gsaen.TotDesc, 0)), 0) * 100
-      , 2)                                      AS pct_descuento_promedio
+        (1 - SUM(gmovi.TotLinea)
+           / NULLIF(SUM(gmovi.CantFacturada * (${precioListaRealCASE})), 0)
+        ) * 100
+      , 2)                                                       AS pct_descuento_promedio
     FROM [PRODIN].[softland].[iw_gsaen] gsaen
+    INNER JOIN [PRODIN].[softland].[iw_gmovi] gmovi
+      ON gmovi.NroInt = gsaen.NroInt
+     AND gmovi.Tipo   = gsaen.Tipo
     INNER JOIN [PRODIN].[softland].[cwtvend] cwtvend
       ON cwtvend.VenCod = gsaen.CodVendedor
-    WHERE gsaen.Tipo IN ('F','N','D')
-      AND MONTH(gsaen.Fecha) = @mes
-      AND YEAR(gsaen.Fecha)  = @anio
+    INNER JOIN [PRODIN].[softland].[iw_tprod] tprod
+      ON tprod.CodProd = gmovi.CodProd
+    LEFT JOIN [PRODIN].[softland].[cwtcvcl] cvl
+      ON cvl.CodAux = gsaen.CodAux
+    WHERE gsaen.Tipo         IN ('F','N','D')
+      AND gsaen.Estado       <>  'A'
+      AND MONTH(gsaen.Fecha) =   @mes
+      AND YEAR(gsaen.Fecha)  =   @anio
       AND gsaen.CodVendedor  IN (${inCods})
     GROUP BY gsaen.CodVendedor, cwtvend.VenDes
     ORDER BY pct_descuento_promedio DESC

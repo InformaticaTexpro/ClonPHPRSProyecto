@@ -1,99 +1,112 @@
 'use strict';
 
 /**
- * utils/precioHistorico.js
+ * precioHistorico.js
+ * Genera dinámicamente el CASE SQL para el divisor histórico de precios,
+ * leyendo los períodos de alza desde la tabla tasas_descuentos (MySQL bdtexpro).
  *
- * Capa centralizada de normalización de precios históricos.
- *
- * Contexto de negocio:
- *   Cada año en marzo se aplica un aumento de precios registrado en la
- *   tabla MySQL `tasas_descuentos`. Cuando se consultan datos históricos
- *   anteriores a esos aumentos, los precios de lista (iw_tprod.PrecioVta)
- *   ya reflejan los aumentos posteriores, por lo que se deben "deshacer"
- *   multiplicando por el factor acumulado de todas las tasas que aún no
- *   habían ocurrido en el período consultado.
- *
- * Regla de acumulación:
- *   Para un período (mes, anio), se acumulan como descuento TODAS las
- *   tasas cuya fecha_vigencia sea POSTERIOR a la fecha de ese período.
- *
- *   Ejemplo:
- *     Consulta enero 2023 → aplican: 2023 + 2024 + 2025 + 2026
- *     Consulta abril 2023 → aplican: 2024 + 2025 + 2026  (la de 2023 ya fue)
- *     Consulta junio 2024 → aplican: 2025 + 2026
- *     Consulta hoy 2026   → factor = 1 (sin descuento)
- *
- * Fórmula:
- *   factor = ∏ (1 - tasa_i / 100)   para cada tasa posterior al período
- *
- * API:
- *   getFactorHistorico(mes, anio) → Promise<number>  (ej: 0.6777)
- *   aplicarFactor(valor, factor)  → number redondeado a 0 decimales
+ * Regla de negocio:
+ *   - iw_tprod.PrecioVta siempre contiene el precio VIGENTE HOY.
+ *   - Para comparar contra ventas históricas, se debe dividir ese precio
+ *     por el producto acumulado de todas las alzas ocurridas DESPUÉS
+ *     de la fecha del documento consultado.
+ *   - Cada alza es independiente (ej: 7%, 7%, 5%, 17%) y se multiplican
+ *     en cadena: divisor = 1.07 × 1.07 × 1.05 × 1.17
+ *   - Excepción NC%: productos con CodProd LIKE 'NC%' usan TotLinea/CantFacturada
+ *     como precio real (no se aplica divisor).
+ *   - Canal 301: si cvl.CodCan = 301, el precio de lista base se multiplica × 1.1
+ *     antes de aplicar el divisor histórico.
  */
-
-const db = require('../config/db');
-
-// Cache en memoria: clave "YYYY-MM" → factor (number)
-// Se limpia en cada reinicio del proceso. Para producción de alto tráfico
-// se puede migrar a Redis, pero para uso interno de Texpro es suficiente.
-const _cache = new Map();
 
 /**
- * Calcula el factor multiplicador acumulado para un período dado.
+ * Carga las tasas desde MySQL y construye el CASE SQL acumulado.
  *
- * @param {number} mes   - Mes del período consultado (1-12)
- * @param {number} anio  - Año del período consultado (ej: 2023)
- * @returns {Promise<number>} Factor entre 0 y 1 (ej: 0.8649 para una tasa del 13.51%)
+ * @param {object} db         - Conexión MySQL (bdtexpro)
+ * @param {string} campoFecha - Nombre del campo fecha en la query SQL Server (ej: 'enc.Fecha')
+ * @returns {Promise<string>} - Fragmento SQL con el CASE del divisor histórico
+ *
+ * Ejemplo de output:
+ *   CASE
+ *     WHEN enc.Fecha >= '2026-03-01' THEN 1.070000
+ *     WHEN enc.Fecha >= '2025-03-01' THEN 1.144900
+ *     WHEN enc.Fecha >= '2024-03-01' THEN 1.225043
+ *     WHEN enc.Fecha >= '2023-03-01' THEN 1.433300
+ *     ELSE 1.0
+ *   END
  */
-async function getFactorHistorico(mes, anio) {
-  const cacheKey = `${anio}-${String(mes).padStart(2, '0')}`;
-  if (_cache.has(cacheKey)) return _cache.get(cacheKey);
-
-  // Primer día del período consultado — punto de corte
-  // Las tasas con fecha_vigencia POSTERIOR a esta fecha aún no habían ocurrido
-  // cuando se registraron esos precios, por lo que deben aplicarse como descuento.
-  const fechaCorte = new Date(anio, mes - 1, 1); // mes es 0-indexed en Date()
-
-  const [rows] = await db.pool.query(
-    `SELECT porcentaje
+async function buildDivisorCASE(db, campoFecha = 'enc.Fecha') {
+  const [tasas] = await db.query(
+    `SELECT fecha_corte, porcentaje
      FROM tasas_descuentos
-     WHERE fecha_corte > ?
-     ORDER BY fecha_corte ASC`,
-    [fechaCorte]
+     ORDER BY fecha_corte ASC`
   );
 
-  // Producto encadenado: factor = 1/(1+t1/100) × 1/(1+t2/100) × ...
-  // Cada tasa representa un AUMENTO aplicado posteriormente (ej. 7 → precios subieron 7%).
-  // Para "deshacer" ese aumento se divide por (1 + tasa/100), equivalente a multiplicar
-  // por 1/(1+tasa/100).  Usar (1 - tasa/100) sería incorrecto: daría 0.93 en vez de 1/1.07.
-  let factor = 1;
-  for (const r of rows) {
-    const tasa = Number(r.porcentaje);
-    if (tasa > 0) {
-      factor *= 1 / (1 + tasa / 100);
-    }
-  }
+  if (!tasas.length) return '1.0';
 
-  _cache.set(cacheKey, factor);
-  return factor;
+  const ramas = tasas.map((tasa) => {
+    const fechaCorte = tasa.fecha_corte instanceof Date
+      ? tasa.fecha_corte.toISOString().slice(0, 10)
+      : String(tasa.fecha_corte).slice(0, 10);
+
+    const tasasPosteriores = tasas.filter(t => {
+      const fc = t.fecha_corte instanceof Date
+        ? t.fecha_corte.toISOString().slice(0, 10)
+        : String(t.fecha_corte).slice(0, 10);
+      return fc >= fechaCorte;
+    });
+
+    const divisorAcumulado = tasasPosteriores
+      .reduce((acc, t) => acc * (1 + Number(t.porcentaje) / 100), 1)
+      .toFixed(6);
+
+    return `WHEN ${campoFecha} >= '${fechaCorte}' THEN ${divisorAcumulado}`;
+  });
+
+  ramas.reverse();
+
+  return `CASE\n        ${ramas.join('\n        ')}\n        ELSE 1.0\n      END`;
 }
 
 /**
- * Aplica el factor histórico a un valor monetario y redondea a entero.
+ * Construye el CASE completo de PrecioListaReal que combina:
+ *   1. Excepción NC%  → precio = TotLinea / CantFacturada
+ *   2. Factor canal 301 → PrecioVta × 1.1
+ *   3. Divisor histórico acumulado desde tasas_descuentos
  *
- * @param {number} valor  - Precio o monto original (precio lista Softland)
- * @param {number} factor - Factor obtenido de getFactorHistorico()
- * @returns {number} Valor ajustado redondeado a 0 decimales
+ * @param {object} db
+ * @param {object} opts
+ * @param {string} opts.campoFecha
+ * @param {string} opts.campoCodProd
+ * @param {string} opts.campoTotLinea
+ * @param {string} opts.campoCant
+ * @param {string} opts.campoPrecioVta
+ * @param {string} opts.campoCodCan
+ * @returns {Promise<string>} fragmento SQL
  */
-function aplicarFactor(valor, factor) {
-  return Math.round(Number(valor) * factor);
+async function buildPrecioListaRealCASE(db, opts = {}) {
+  const {
+    campoFecha     = 'enc.Fecha',
+    campoCodProd   = 'm.CodProd',
+    campoTotLinea  = 'm.TotLinea',
+    campoCant      = 'm.CantFacturada',
+    campoPrecioVta = 't.PrecioVta',
+    campoCodCan    = 'cvl.CodCan',
+  } = opts;
+
+  const divisorCASE = await buildDivisorCASE(db, campoFecha);
+
+  return `
+    CASE
+      -- Productos NC: precio real = lo que se cobró (sin ajuste de lista)
+      WHEN ${campoCodProd} LIKE 'NC%'
+        THEN ${campoTotLinea} / NULLIF(${campoCant}, 0)
+      -- Canal 301: precio de lista base + 10%, ajustado históricamente
+      WHEN ${campoCodCan} = 301
+        THEN (${campoPrecioVta} / NULLIF(${divisorCASE}, 0)) * 1.1
+      -- Resto: precio de lista ajustado históricamente
+      ELSE
+        ${campoPrecioVta} / NULLIF(${divisorCASE}, 0)
+    END`;
 }
 
-/**
- * Limpia el caché de factores (útil para tests o forzar recarga).
- */
-function limpiarCache() {
-  _cache.clear();
-}
-
-module.exports = { getFactorHistorico, aplicarFactor, limpiarCache };
+module.exports = { buildDivisorCASE, buildPrecioListaRealCASE };
