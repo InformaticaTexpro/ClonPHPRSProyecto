@@ -11,7 +11,7 @@
 (function () {
   'use strict';
 
-  const API_BASE = window.API_BASE || 'http://localhost:3000';
+  const API_BASE = window.API_BASE || window.location.origin;
 
   // Referencias de pasos
   const steps     = [null, 'step1', 'step2', 'step3', 'step4'];
