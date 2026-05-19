@@ -28,6 +28,10 @@ const alertasRoutes         = require('./routes/alertas');
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
 
+// ── Proxy confiable (Render / Railway usan proxy inverso)
+// Necesario para que express-rate-limit lea correctamente X-Forwarded-For
+app.set('trust proxy', 1);
+
 const CDN_SCRIPTS = [
   'https://cdn.jsdelivr.net',
   'https://cdnjs.cloudflare.com',
