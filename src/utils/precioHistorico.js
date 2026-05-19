@@ -18,10 +18,12 @@
  *     antes de aplicar el divisor histórico.
  */
 
+const db = require('../config/db');
+
 /**
  * Carga las tasas desde MySQL y construye el CASE SQL acumulado.
  *
- * @param {object} db         - Conexión MySQL (bdtexpro)
+ * @param {object} dbConn     - Conexión MySQL (bdtexpro)
  * @param {string} campoFecha - Nombre del campo fecha en la query SQL Server (ej: 'enc.Fecha')
  * @returns {Promise<string>} - Fragmento SQL con el CASE del divisor histórico
  *
@@ -34,8 +36,8 @@
  *     ELSE 1.0
  *   END
  */
-async function buildDivisorCASE(db, campoFecha = 'enc.Fecha') {
-  const [tasas] = await db.query(
+async function buildDivisorCASE(dbConn, campoFecha = 'enc.Fecha') {
+  const [tasas] = await dbConn.query(
     `SELECT fecha_corte, porcentaje
      FROM tasas_descuentos
      ORDER BY fecha_corte ASC`
@@ -73,7 +75,7 @@ async function buildDivisorCASE(db, campoFecha = 'enc.Fecha') {
  *   2. Factor canal 301 → PrecioVta × 1.1
  *   3. Divisor histórico acumulado desde tasas_descuentos
  *
- * @param {object} db
+ * @param {object} dbConn
  * @param {object} opts
  * @param {string} opts.campoFecha
  * @param {string} opts.campoCodProd
@@ -83,7 +85,7 @@ async function buildDivisorCASE(db, campoFecha = 'enc.Fecha') {
  * @param {string} opts.campoCodCan
  * @returns {Promise<string>} fragmento SQL
  */
-async function buildPrecioListaRealCASE(db, opts = {}) {
+async function buildPrecioListaRealCASE(dbConn, opts = {}) {
   const {
     campoFecha     = 'enc.Fecha',
     campoCodProd   = 'm.CodProd',
@@ -93,7 +95,7 @@ async function buildPrecioListaRealCASE(db, opts = {}) {
     campoCodCan    = 'cvl.CodCan',
   } = opts;
 
-  const divisorCASE = await buildDivisorCASE(db, campoFecha);
+  const divisorCASE = await buildDivisorCASE(dbConn, campoFecha);
 
   return `
     CASE
@@ -109,4 +111,53 @@ async function buildPrecioListaRealCASE(db, opts = {}) {
     END`;
 }
 
-module.exports = { buildDivisorCASE, buildPrecioListaRealCASE };
+/**
+ * getFactorHistorico(mes, anio)
+ *
+ * Calcula el factor numérico acumulado para ajustar precios de un período
+ * histórico al valor equivalente HOY.
+ *
+ * Lógica:
+ *   - Carga todas las tasas de tasas_descuentos ordenadas ASC
+ *   - Toma como fecha de referencia el día 1 del mes/anio consultado
+ *   - Multiplica en cadena SOLO las tasas cuya fecha_corte es POSTERIOR
+ *     a la fecha de referencia (alzas que aún no habían ocurrido)
+ *   - Retorna 1 si no hay alzas posteriores (período actual o futuro)
+ *
+ * Ejemplo:
+ *   Tasas: 2024-03-01→7%, 2025-03-01→7%, 2026-03-01→5%
+ *   getFactorHistorico(1, 2024) → 1.07 × 1.07 × 1.05 = 1.199...
+ *   getFactorHistorico(3, 2025) → 1.05 (solo alza posterior)
+ *   getFactorHistorico(5, 2026) → 1   (no hay alzas posteriores)
+ *
+ * @param {number} mes  - Mes del período consultado (1-12)
+ * @param {number} anio - Año del período consultado
+ * @returns {Promise<number>} Factor acumulado (>= 1)
+ */
+async function getFactorHistorico(mes, anio) {
+  const [tasas] = await db.pool.query(
+    `SELECT fecha_corte, porcentaje
+     FROM tasas_descuentos
+     ORDER BY fecha_corte ASC`
+  );
+
+  if (!tasas.length) return 1;
+
+  // Fecha de inicio del período consultado (día 1 del mes/anio)
+  const mesStr  = String(mes).padStart(2, '0');
+  const fechaPeriodo = `${anio}-${mesStr}-01`;
+
+  // Multiplicar solo las tasas con fecha_corte ESTRICTAMENTE posterior al período
+  const factor = tasas
+    .filter(t => {
+      const fc = t.fecha_corte instanceof Date
+        ? t.fecha_corte.toISOString().slice(0, 10)
+        : String(t.fecha_corte).slice(0, 10);
+      return fc > fechaPeriodo;
+    })
+    .reduce((acc, t) => acc * (1 + Number(t.porcentaje) / 100), 1);
+
+  return factor;
+}
+
+module.exports = { buildDivisorCASE, buildPrecioListaRealCASE, getFactorHistorico };
