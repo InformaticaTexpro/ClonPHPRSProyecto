@@ -679,6 +679,255 @@
     } catch(err) { console.error('[cargarFoliosCompartidos]',err); }
   }
 
+  // ── VENTAS DETALLE (migrado de ventas.js) ──────────────────────────────────
+  const API_VENTAS   = '/api/ventas';
+  const POR_PAGINA_V = 20;
+
+  const estadoV = {
+    ventas:          [],
+    ventasFiltradas: [],
+    paginaActual:    1,
+    sortCol:         'fecha_formato',
+    sortDir:         'desc',
+  };
+
+  function formatPct(v) {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    if (isNaN(n)) return '—';
+    return n.toFixed(2) + '%';
+  }
+
+  // Tabla vendedores enriquecida con barras de progreso y badges de descuento
+  async function cargarVendedoresDetalle() {
+    try {
+      const res  = await fetch(`${API_VENTAS}/resumen-vendedores?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (data.ok) renderTablaVendedoresDetalle(data.vendedores);
+    } catch(err) { console.error('[cargarVendedoresDetalle]', err); }
+  }
+
+  function renderTablaVendedoresDetalle(vendedores) {
+    const tbody = document.getElementById('tbodyVendedoresDetalle');
+    if (!tbody) return;
+    if (!vendedores || !vendedores.length) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin datos para el período seleccionado</td></tr>';
+      return;
+    }
+    const maxCobrado = Math.max(...vendedores.map(v => Number(v.totalVentasCobrado) || 0), 1);
+    tbody.innerHTML = vendedores.map(v => {
+      const cobrado = Number(v.totalVentasCobrado) || 0;
+      const lista   = Number(v.ventaRealLista)     || 0;
+      const pct     = Number(v.pctDescuento)       || 0;
+      const descAbs = lista - cobrado;
+      const barPct  = Math.round((cobrado / maxCobrado) * 100);
+      const badgeBg    = pct > 15 ? 'rgba(220,53,69,0.12)'  : pct > 5 ? 'rgba(245,166,35,0.12)'  : 'rgba(0,200,140,0.12)';
+      const badgeColor = pct > 15 ? '#dc3545'               : pct > 5 ? '#b07000'                : '#00885a';
+      const badgeBorder= pct > 15 ? 'rgba(220,53,69,0.35)'  : pct > 5 ? 'rgba(245,166,35,0.35)' : 'rgba(0,200,140,0.35)';
+      return `
+        <tr>
+          <td><span style="display:inline-block;background:var(--color-bg-offset,#f3f4f6);color:var(--color-text,#1a1a2e);font-weight:700;font-size:0.8rem;padding:2px 9px;border-radius:4px;letter-spacing:0.04em">${v.codVendedor||'—'}</span></td>
+          <td>${v.nombreVendedor||'—'}</td>
+          <td style="text-align:center">${v.totalFolios||0}</td>
+          <td style="text-align:right">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+              <span>${formatCLP(cobrado)}</span>
+              <div style="width:100%;max-width:90px;height:4px;background:rgba(0,0,0,0.08);border-radius:2px;overflow:hidden">
+                <div style="width:${barPct}%;height:100%;background:var(--color-primary,#00E2A7);border-radius:2px"></div>
+              </div>
+            </div>
+          </td>
+          <td style="text-align:right">${formatCLP(lista)}</td>
+          <td style="text-align:right">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+              <span style="display:inline-block;background:${badgeBg};color:${badgeColor};border:1px solid ${badgeBorder};font-weight:600;font-size:0.78rem;padding:2px 8px;border-radius:20px">${formatPct(pct)}</span>
+              <span style="font-size:0.72rem;color:var(--color-text-muted,#6b7280)">${formatCLP(descAbs)}</span>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  // Tabla ventas detalle paginada y ordenable
+  function sortVentasDetalle(arr) {
+    return [...arr].sort((a, b) => {
+      let va = a[estadoV.sortCol] ?? '';
+      let vb = b[estadoV.sortCol] ?? '';
+      if (!isNaN(Number(va)) && !isNaN(Number(vb))) { va = Number(va); vb = Number(vb); }
+      if (va < vb) return estadoV.sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return estadoV.sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+  }
+
+  function aplicarFiltrosVentasDetalle() {
+    const codVend  = (document.getElementById('filtroVendedorDetalle')?.value || '').trim();
+    const busqueda = (document.getElementById('tablaVentasBusqueda')?.value  || '').toLowerCase().trim();
+    let datos = estadoV.ventas;
+    if (codVend)  datos = datos.filter(v => String(v.CodVendedor||'').trim() === codVend);
+    if (busqueda) datos = datos.filter(v =>
+      String(v.Folio||'').toLowerCase().includes(busqueda) ||
+      String(v.cliente||'').toLowerCase().includes(busqueda) ||
+      String(v.CodVendedor||'').toLowerCase().includes(busqueda)
+    );
+    estadoV.ventasFiltradas = datos;
+    estadoV.paginaActual    = 1;
+    renderTablaVentasDetalle();
+  }
+
+  function renderTablaVentasDetalle() {
+    const tbody = document.getElementById('ventasTbody');
+    if (!tbody) return;
+    const datos  = sortVentasDetalle(estadoV.ventasFiltradas);
+    const total  = datos.length;
+    const inicio = (estadoV.paginaActual - 1) * POR_PAGINA_V;
+    const pagina = datos.slice(inicio, inicio + POR_PAGINA_V);
+    setText('tablaVentasTotal', `${total.toLocaleString('es-CL')} registros`);
+    if (!pagina.length) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin resultados</td></tr>';
+      renderPaginacionVentas(0); return;
+    }
+    tbody.innerHTML = pagina.map(v => `
+      <tr>
+        <td><strong>${v.Folio||'—'}</strong></td>
+        <td>${v.fecha_formato||'—'}</td>
+        <td>${v.cliente||'—'}</td>
+        <td>${v.CodVendedor||'—'}</td>
+        <td style="text-align:right">${formatCLP(v.monto)}</td>
+        <td style="text-align:right">${formatCLP(v.descuento)}</td>
+        <td style="text-align:center">
+          <button class="btn-detalle" data-folio="${v.Folio}" title="Ver detalle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('.btn-detalle').forEach(btn =>
+      btn.addEventListener('click', () => abrirDetalleVentas(btn.dataset.folio))
+    );
+    renderPaginacionVentas(total);
+  }
+
+  function renderPaginacionVentas(total) {
+    const paginacion = document.getElementById('paginacionVentas');
+    if (!paginacion) return;
+    const totalPags = Math.ceil(total / POR_PAGINA_V);
+    if (totalPags <= 1) { paginacion.innerHTML = ''; return; }
+    let html = `<button ${estadoV.paginaActual === 1 ? 'disabled' : ''} data-pag="prev">&lsaquo;</button>`;
+    for (let i = 1; i <= totalPags; i++)
+      html += `<button class="${i === estadoV.paginaActual ? 'active' : ''}" data-pag="${i}">${i}</button>`;
+    html += `<button ${estadoV.paginaActual === totalPags ? 'disabled' : ''} data-pag="next">&rsaquo;</button>`;
+    paginacion.innerHTML = html;
+    paginacion.querySelectorAll('button').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const p = btn.dataset.pag;
+        if (p === 'prev') estadoV.paginaActual--;
+        else if (p === 'next') estadoV.paginaActual++;
+        else estadoV.paginaActual = Number(p);
+        renderTablaVentasDetalle();
+      })
+    );
+  }
+
+  function initSortVentasDetalle() {
+    document.querySelectorAll('.ventas-detalle-tabla th[data-col]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        estadoV.sortDir = estadoV.sortCol === col && estadoV.sortDir === 'asc' ? 'desc' : 'asc';
+        estadoV.sortCol = col;
+        document.querySelectorAll('.ventas-detalle-tabla th').forEach(t =>
+          t.classList.remove('sorted-asc', 'sorted-desc'));
+        th.classList.add(`sorted-${estadoV.sortDir}`);
+        estadoV.paginaActual = 1;
+        renderTablaVentasDetalle();
+      });
+    });
+  }
+
+  async function abrirDetalleVentas(folio) {
+    try {
+      const res  = await fetch(`${API_VENTAS}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) return;
+      const modal  = document.getElementById('modalDetalleVentas');
+      const titulo = document.getElementById('modalTituloVentas');
+      const cuerpo = document.getElementById('modalCuerpoVentas');
+      if (!modal) return;
+      titulo.textContent = `Detalle Folio #${folio}`;
+      if (!data.detalle || !data.detalle.length) {
+        cuerpo.innerHTML = '<p style="text-align:center;color:var(--color-text-muted)">Sin líneas de detalle.</p>';
+      } else {
+        const cab = data.detalle[0];
+        cuerpo.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem 1.5rem;margin-bottom:1.25rem;padding:.75rem;background:var(--color-bg-offset,#f8f8f6);border-radius:8px">
+            <div><span style="font-size:.75rem;color:var(--color-text-muted,#6b7280);display:block">Cliente</span><span style="font-weight:600">${cab.cliente||'—'}</span></div>
+            <div><span style="font-size:.75rem;color:var(--color-text-muted,#6b7280);display:block">Vendedor</span><span style="font-weight:600">${cab.CodVendedor||'—'}</span></div>
+            <div><span style="font-size:.75rem;color:var(--color-text-muted,#6b7280);display:block">Fecha</span><span style="font-weight:600">${cab.fecha_formato||'—'}</span></div>
+            <div><span style="font-size:.75rem;color:var(--color-text-muted,#6b7280);display:block">Total Folio</span><span style="font-weight:600">${formatCLP(cab.monto)}</span></div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="dash-tabla modal-tabla">
+              <thead><tr><th>Producto</th><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. Lista</th><th style="text-align:right">P. Cobrado</th><th style="text-align:right">Desc. %</th><th style="text-align:right">Total Línea</th></tr></thead>
+              <tbody>
+                ${data.detalle.map(d => `
+                  <tr>
+                    <td>${d.CodProducto||'—'}</td>
+                    <td>${d.descripcion||'—'}</td>
+                    <td style="text-align:right">${d.CantFacturada??'—'}</td>
+                    <td style="text-align:right">${formatCLP(d.precioLista)}</td>
+                    <td style="text-align:right">${formatCLP(d.PrecioUnitario)}</td>
+                    <td style="text-align:right">${formatPct(d.pctDescLinea)}</td>
+                    <td style="text-align:right">${formatCLP(d.TotLinea)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }
+      modal.classList.add('modal--open');
+    } catch(err) { console.error('[abrirDetalleVentas]', err); }
+  }
+
+  function cerrarModalVentas() {
+    const modal = document.getElementById('modalDetalleVentas');
+    if (modal) modal.classList.remove('modal--open');
+  }
+
+  function exportarCSV() {
+    const datos = estadoV.ventasFiltradas;
+    if (!datos.length) return;
+    const cabecera = ['Folio','Fecha','Cliente','Vendedor','Monto','Descuento'];
+    const filas = datos.map(v => [
+      v.Folio, v.fecha_formato, v.cliente, v.CodVendedor, v.monto, v.descuento
+    ].map(c => `"${String(c??'').replace(/"/g,'""')}"`).join(','));
+    const csv  = [cabecera.join(','), ...filas].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `ventas_${getParams().mes}_${getParams().anio}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function cargarVentasDetalleData() {
+    try {
+      const { mes, anio } = getParams();
+      const vendActivo = document.getElementById('filtroVendedorDetalle')?.value || '';
+      // Usa GET /api/ventas (raíz) — endpoint correcto para lista de folios del mes
+      const res  = await fetch(`${API_VENTAS}?${new URLSearchParams({ mes, anio })}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (data.ok) {
+        estadoV.ventas       = data.ventas || [];
+        estadoV.paginaActual = 1;
+        const sel = document.getElementById('filtroVendedorDetalle');
+        if (sel) {
+          const codigos = [...new Set(estadoV.ventas.map(v => v.CodVendedor).filter(Boolean))].sort();
+          sel.innerHTML = '<option value="">Todos los vendedores</option>' +
+            codigos.map(c => `<option value="${c}"${c === vendActivo ? ' selected' : ''}>${c}</option>`).join('');
+        }
+        aplicarFiltrosVentasDetalle();
+      }
+    } catch(err) { console.error('[cargarVentasDetalleData]', err); }
+  }
+
   // ── Cargar todo ───────────────────────────────────────────────────────────
   async function cargarTodo(usuario) {
     mostrarCarga();
@@ -689,6 +938,8 @@
         cargarCartera(),
         cargarVendedores(),
         cargarVentasMes(),
+        cargarVendedoresDetalle(),
+        cargarVentasDetalleData(),
         esCoordinador(usuario)
           ? Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ])
           : cargarFoliosCompartidos()
@@ -740,9 +991,20 @@
     if (modalCerrar) modalCerrar.addEventListener('click', cerrarModal);
     const modalOverlay = document.getElementById('modalOverlay');
     if (modalOverlay) modalOverlay.addEventListener('click', e => { if (e.target===e.currentTarget) cerrarModal(); });
-    document.addEventListener('keydown', e => { if (e.key==='Escape') cerrarModal(); });
+    document.addEventListener('keydown', e => { if (e.key==='Escape') { cerrarModal(); cerrarModalVentas(); } });
     const btnAct = document.getElementById('btnActualizar');
     if (btnAct) btnAct.addEventListener('click', () => cargarTodo(usuario));
+
+    // Controles sección ventas detalle
+    const tablaVentasBusq = document.getElementById('tablaVentasBusqueda');
+    if (tablaVentasBusq) tablaVentasBusq.addEventListener('input', aplicarFiltrosVentasDetalle);
+    const filtroVendDet = document.getElementById('filtroVendedorDetalle');
+    if (filtroVendDet) filtroVendDet.addEventListener('change', aplicarFiltrosVentasDetalle);
+    document.getElementById('btnExportarCSV')?.addEventListener('click', exportarCSV);
+    document.getElementById('modalCerrarVentas')?.addEventListener('click', cerrarModalVentas);
+    const modalVentas = document.getElementById('modalDetalleVentas');
+    if (modalVentas) modalVentas.addEventListener('click', e => { if (e.target === e.currentTarget) cerrarModalVentas(); });
+    initSortVentasDetalle();
 
     cargarTodo(usuario);
   }
