@@ -312,96 +312,8 @@
         </div>
       </section>
 
-      <!-- Panel Folios Recibidos -->
-      <section class="panel-compartidos" id="panelCompartidos" style="display:none">
-        <div class="panel-coord-header">
-          <h2 class="panel-coord-titulo">📥 Folios recibidos</h2>
-          <p class="panel-coord-sub">Folios que un coordinador te ha asignado este mes</p>
-        </div>
-        <div class="tabla-card">
-          <div class="tabla-wrapper">
-            <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>Folio</th><th>Fecha</th><th>Cliente</th><th>Coordinador</th>
-                  <th style="text-align:right">%</th>
-                  <th style="text-align:right">Monto asignado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyCompartidos"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="tabla-footer"><span class="tabla-total" id="totalCompartidos">0 registros</span></div>
-        </div>
-      </section>
 
-      <!-- ══ VENDEDORES DETALLE ══════════════════════════════════════════════════════════ -->
-      <section class="tabla-seccion" id="seccionVendedoresDetalle">
-        <div class="tabla-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">Vendedores — Análisis de Descuentos</h3>
-          </div>
-          <div class="tabla-wrapper">
-            <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>Cód. Vendedor</th><th>Nombre</th>
-                  <th style="text-align:center">Folios</th>
-                  <th style="text-align:right">Total Cobrado</th>
-                  <th style="text-align:right">Venta Real (Lista)</th>
-                  <th style="text-align:right">% Descuento</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyVendedoresDetalle">
-                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-      <!-- ══ FIN VENDEDORES DETALLE ══════════════════════════════════════════════════ -->
 
-      <!-- ══ VENTAS DETALLE (paginada, ordenable, CSV) ══════════════════════════ -->
-      <section class="tabla-seccion" id="seccionVentasDetalle">
-        <div class="tabla-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">Detalle de Ventas</h3>
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <input class="tabla-busqueda" type="text" id="tablaVentasBusqueda" placeholder="Buscar folio o cliente..." />
-              <select class="filtro-select filtro-select--sm" id="filtroVendedorDetalle">
-                <option value="">Todos los vendedores</option>
-              </select>
-              <button class="btn-buscar" id="btnExportarCSV" title="Exportar a CSV" style="padding:0 .85rem;gap:.4rem">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                CSV
-              </button>
-            </div>
-          </div>
-          <div class="tabla-wrapper">
-            <table class="dash-tabla ventas-detalle-tabla">
-              <thead>
-                <tr>
-                  <th data-col="Folio" style="cursor:pointer">Folio</th>
-                  <th data-col="fecha_formato" style="cursor:pointer">Fecha</th>
-                  <th data-col="cliente" style="cursor:pointer">Cliente</th>
-                  <th data-col="CodVendedor" style="cursor:pointer">Vendedor</th>
-                  <th data-col="monto" style="text-align:right;cursor:pointer">Monto</th>
-                  <th data-col="descuento" style="text-align:right;cursor:pointer">Descuento</th>
-                  <th>Detalle</th>
-                </tr>
-              </thead>
-              <tbody id="ventasTbody">
-                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="tabla-footer" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
-            <span class="tabla-total" id="tablaVentasTotal">0 registros</span>
-            <div class="paginacion" id="paginacionVentas"></div>
-          </div>
-        </div>
-      </section>
-      <!-- ══ FIN VENTAS DETALLE ═════════════════════════════════════════════════════════ -->
 
     </main>
   </div>
@@ -463,72 +375,9 @@
       color: #fff;
       border-color: var(--color-primary, #01696f);
     }
-    .filtro-select--sm { font-size: .82rem; padding: .3rem .5rem; height: 34px; }
-
-    /* ── Columnas ordenables (ventas detalle) ────────────────────────────── */
-    .ventas-detalle-tabla th[data-col]:hover { background: var(--color-bg-offset, #f3f4f6); }
-    .ventas-detalle-tabla th.sorted-asc::after  { content: ' ▲'; font-size:.7rem; }
-    .ventas-detalle-tabla th.sorted-desc::after { content: ' ▼'; font-size:.7rem; }
-
-    /* ── Paginación ─────────────────────────────────────────────────────── */
-    .paginacion { display: flex; gap: .3rem; flex-wrap: wrap; }
-    .paginacion button {
-      padding: .2rem .55rem;
-      font-size: .8rem;
-      border: 1px solid var(--color-border, #d4d1ca);
-      border-radius: 4px;
-      background: transparent;
-      color: var(--color-text, #1a1a2e);
-      cursor: pointer;
-      transition: background 120ms;
-    }
-    .paginacion button:hover:not(:disabled) { background: var(--color-bg-offset, #f3f4f6); }
-    .paginacion button.active {
-      background: var(--color-primary, #00E2A7);
-      color: #000;
-      border-color: var(--color-primary, #00E2A7);
-      font-weight: 700;
-    }
-    .paginacion button:disabled { opacity: .35; cursor: default; }
-
-    /* ── Modal Detalle Ventas ────────────────────────────────────────────── */
-    .modal-detalle-ventas {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      background: rgba(0,0,0,0.55);
-      overflow-y: auto;
-      padding: 2rem 1rem;
-    }
-    .modal-detalle-ventas.modal--open {
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-    }
-    .modal-detalle-ventas__inner {
-      background: var(--color-surface, #fff);
-      border-radius: 12px;
-      width: 100%;
-      max-width: 960px;
-      padding: 1.5rem;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
   </style>
 
-  <!-- ══ MODAL DETALLE VENTAS (precio lista + cobrado + desc% por línea) ══ -->
-  <div class="modal-detalle-ventas" id="modalDetalleVentas">
-    <div class="modal-detalle-ventas__inner">
-      <div class="modal-header">
-        <h2 class="modal-titulo" id="modalTituloVentas">Detalle del Folio</h2>
-        <button class="modal-cerrar" id="modalCerrarVentas" aria-label="Cerrar">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="modal-body" id="modalCuerpoVentas"></div>
-    </div>
-  </div>
-  <!-- ══ FIN MODAL DETALLE VENTAS ══════════════════════════════════════════ -->
+
 
   <script src="dashboard.js?v=2.3.1"></script>
   <script src="../assets/js/inactividad.js?v=2.3.0"></script>
