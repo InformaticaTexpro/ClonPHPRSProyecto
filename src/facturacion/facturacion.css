@@ -1,0 +1,251 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Módulo Facturación — facturacion.css
+   Estilos específicos del módulo. Layout base: dashboard.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grid 2 columnas ─────────────────────────────────────────────────────── */
+.fac-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+@media (max-width: 960px) {
+  .fac-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Barra de filtros inline (sobre tabla facturas) ──────────────────────── */
+.fac-filtros {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: .75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border, #e9e8e4);
+  background: var(--color-bg-offset, #f9f9f7);
+}
+
+/* ── Submenú interno del módulo ─────────────────────────────────────────── */
+.fac-submenu {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.fac-submenu-btn {
+  border: 1px solid var(--color-border, #d4d1ca);
+  background: #fff;
+  color: var(--color-text, #1a1a2e);
+  border-radius: 8px;
+  height: 36px;
+  padding: 0 .95rem;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.fac-submenu-btn:hover {
+  border-color: var(--color-primary, #00885a);
+}
+.fac-submenu-btn--active {
+  background: var(--color-primary, #00885a);
+  color: #fff;
+  border-color: var(--color-primary, #00885a);
+}
+
+.fac-subpanel {
+  display: none;
+}
+.fac-subpanel--active {
+  display: block;
+}
+
+.fac-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: .9rem;
+}
+.fac-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.fac-label {
+  font-size: .76rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.fac-msg {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--color-primary, #00885a);
+}
+
+.fac-pioneta-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #00885a);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.fac-pioneta-btn:hover {
+  text-decoration: underline;
+}
+
+.fac-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .65rem;
+  margin: .85rem 1.25rem 0;
+}
+.fac-resumen-item {
+  border: 1px solid var(--color-border, #e9e8e4);
+  background: var(--color-bg-offset, #f9f9f7);
+  border-radius: 10px;
+  padding: .6rem .75rem;
+}
+.fac-resumen-item .label {
+  display: block;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--color-text-muted, #6b7280);
+  margin-bottom: .2rem;
+}
+.fac-resumen-item .valor {
+  font-size: .98rem;
+  font-weight: 700;
+  color: var(--color-text, #1a1a2e);
+}
+
+/* ── Chip de código ──────────────────────────────────────────────────────── */
+.fac-codigo {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: .73rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: var(--color-bg-offset, #f3f4f6);
+  border: 1px solid var(--color-border, #d4d1ca);
+  border-radius: 4px;
+  color: var(--color-text, #1a1a2e);
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+/* ── Badges de estado ────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  font-size: .71rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+.badge--verde {
+  background: rgba(0, 200, 140, 0.12);
+  color: #00885a;
+  border: 1px solid rgba(0, 200, 140, 0.35);
+}
+.badge--naranja {
+  background: rgba(245, 166, 35, 0.12);
+  color: #b07000;
+  border: 1px solid rgba(245, 166, 35, 0.35);
+}
+.badge--gris {
+  background: rgba(107, 114, 128, 0.10);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.25);
+}
+.badge--rojo {
+  background: rgba(239, 68, 68, 0.10);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+}
+.badge--azul {
+  background: rgba(59, 130, 246, 0.10);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+/* ── Barra mini de progreso en tabla ─────────────────────────────────────── */
+.mini-barra-bg {
+  display: inline-block;
+  width: 72px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: .35rem;
+}
+.mini-barra-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .45s;
+}
+.mini-pct {
+  font-size: .72rem;
+  color: var(--color-text-muted, #6b7280);
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* ── Barra de progreso en KPI ────────────────────────────────────────────── */
+.progreso-barra-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: .4rem;
+}
+.progreso-barra-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .5s;
+  background: var(--color-primary, #00885a);
+}
+
+/* ── Sección de tabla con margen inferior ───────────────────────────────── */
+.tabla-seccion {
+  margin-bottom: 1.25rem;
+}
+
+/* ── Placeholder sección Fórmulas ────────────────────────────────────────── */
+.fac-placeholder {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: var(--color-text-muted, #6b7280);
+}
+.fac-placeholder h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+  color: var(--color-text, #1a1a2e);
+}
+.fac-placeholder p {
+  font-size: .85rem;
+  line-height: 1.65;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.fac-chip-dev {
+  display: inline-block;
+  margin-top: .9rem;
+  font-size: .74rem;
+  font-weight: 700;
+  padding: 3px 14px;
+  background: rgba(59, 130, 246, 0.10);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.30);
+  border-radius: 20px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
