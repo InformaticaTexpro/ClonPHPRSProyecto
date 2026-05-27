@@ -309,10 +309,11 @@
     const tbody = document.getElementById('tbodyVentasMes');
     if (!tbody) return;
     setText('totalVentasMes', `${lista.length.toLocaleString('es-CL')} registros`);
-    if (!lista.length) { tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin registros</td></tr>'; return; }
+    if (!lista.length) { tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin registros</td></tr>'; return; }
     tbody.innerHTML = lista.map(v => {
       const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
+      const totLineaReal = Number(v.TotLineaReal || 0);
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
@@ -322,6 +323,7 @@
         <td>${v.cliente||'—'}</td>
         <td>${v.CodVendedor||'—'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
+        <td style="text-align:right">${formatCLP(totLineaReal)}</td>
         <td style="text-align:right">${pctDesc}</td>
         <td style="text-align:center">
           <button class="btn-detalle" data-folio="${v.Folio}" title="Ver detalle">
