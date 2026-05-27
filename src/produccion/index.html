@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro — Producción</title>
+  <link rel="icon" type="image/png" href="../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/styles/tokens.css?v=2.3.0" />
+  <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
+  <link rel="stylesheet" href="produccion.css?v=1.0.0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════ SIDEBAR ══════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro"
+           class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════ MAIN WRAPPER ═════════════════════════════ -->
+  <div class="main-wrapper" id="mainWrapper">
+
+    <!-- Header -->
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" x2="20" y1="6"  y2="6"/>
+            <line x1="4" x2="20" y1="12" y2="12"/>
+            <line x1="4" x2="20" y1="18" y2="18"/>
+          </svg>
+        </button>
+        <h1 class="header-title">Producción</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">?</div>
+          <span class="chip-name" id="chipName">...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ══════════════════════════ CONTENIDO ══════════════════════════════ -->
+    <main class="main-content">
+
+      <!-- Welcome bar + filtros -->
+      <div class="welcome-bar">
+        <div class="welcome-text">
+          <h2 id="welcomeTitle">Producción ⚙️</h2>
+          <p  id="welcomeSubtitle">Control mensual de producción</p>
+        </div>
+        <div class="welcome-filtros">
+          <select class="filtro-select" id="filtroMes"  aria-label="Mes"></select>
+          <select class="filtro-select" id="filtroAnio" aria-label="Año"></select>
+          <button class="btn-buscar" id="btnActualizar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            Actualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- ── KPIs ──────────────────────────────────────────────────────── -->
+      <section class="kpis-grid">
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--verde">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect width="8" height="4" x="8" y="2" rx="1"/>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+              <path d="m9 14 2 2 4-4"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Total Producido</span>
+            <span class="kpi-valor" id="kpiTotalProducido">— u</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--azul">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Meta Mensual</span>
+            <span class="kpi-valor" id="kpiMeta">— u</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--naranja">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <div class="kpi-info" style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
+              <span class="kpi-label">Cumplimiento</span>
+              <span class="kpi-valor" id="kpiCumplimiento" style="font-size:1rem">0%</span>
+            </div>
+            <div class="progreso-barra-bg">
+              <div class="progreso-barra-fill" id="progresoProdFill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--rojo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" x2="12"    y1="8"  y2="12"/>
+              <line x1="12" x2="12.01" y1="16" y2="16"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Prod. Pendientes</span>
+            <span class="kpi-valor" id="kpiPendientes">—</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ── Gráfico diario + Procesos de envío (2 columnas) ─────────── -->
+      <div class="prod-grid-2">
+
+        <!-- Gráfico de producción diaria -->
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">📈 Producción Diaria del Mes</h3>
+          </div>
+          <div style="padding:.75rem 1.25rem 1rem;height:260px;position:relative">
+            <canvas id="graficoProduccion"></canvas>
+          </div>
+        </div>
+
+        <!-- Procesos para envío -->
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">📦 Procesos para Envío</h3>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Orden</th>
+                  <th>Producto</th>
+                  <th style="text-align:right">Cant.</th>
+                  <th>Destino</th>
+                  <th>Despacho</th>
+                  <th style="text-align:center">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyEnvios">
+                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Catálogo de Productos ─────────────────────────────────────── -->
+      <section class="tabla-seccion">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">🧪 Catálogo de Productos</h3>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th style="text-align:center">Unidad</th>
+                  <th style="text-align:right">Stock Actual</th>
+                  <th style="text-align:right">Meta Mes</th>
+                  <th style="min-width:130px">Progreso</th>
+                  <th style="text-align:center">Estado</th>
+                  <th style="text-align:center">Lotes Hoy</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyProductos">
+                <tr class="tabla-empty"><td colspan="8">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Registro de producción ────────────────────────────────────── -->
+      <section class="tabla-seccion">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">✏️ Registrar Producción</h3>
+          </div>
+          <div style="padding:1rem 1.25rem 1.5rem">
+            <form id="formRegistro" autocomplete="off">
+              <div class="prod-form">
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formProducto">Producto</label>
+                  <select class="filtro-select" id="formProducto" required style="width:100%">
+                    <option value="">— Selecciona —</option>
+                    <option value="CLG-001">CLG-001 · Cloro Granulado 90%</option>
+                    <option value="SAL-002">SAL-002 · Sulfato de Aluminio</option>
+                    <option value="HNS-003">HNS-003 · Hipoclorito de Sodio 10%</option>
+                    <option value="ACM-004">ACM-004 · Ácido Muriático 32%</option>
+                    <option value="PLF-005">PLF-005 · Polímero Floculante</option>
+                    <option value="SDC-006">SDC-006 · Soda Cáustica 50%</option>
+                  </select>
+                </div>
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formCantidad">Cantidad</label>
+                  <input class="tabla-busqueda" type="number" id="formCantidad"
+                         min="1" required style="width:100%" placeholder="ej: 100" />
+                </div>
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formFecha">Fecha</label>
+                  <input class="tabla-busqueda" type="date" id="formFecha"
+                         required style="width:100%" />
+                </div>
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formOperario">Operario</label>
+                  <input class="tabla-busqueda" type="text" id="formOperario"
+                         style="width:100%" placeholder="Nombre del operario" />
+                </div>
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formTurno">Turno</label>
+                  <select class="filtro-select" id="formTurno" style="width:100%">
+                    <option value="Mañana">Mañana</option>
+                    <option value="Tarde">Tarde</option>
+                    <option value="Noche">Noche</option>
+                  </select>
+                </div>
+
+                <div class="prod-form-group">
+                  <label class="prod-label" for="formObservacion">Observación</label>
+                  <input class="tabla-busqueda" type="text" id="formObservacion"
+                         style="width:100%" placeholder="Sin novedad" />
+                </div>
+
+              </div>
+
+              <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem;flex-wrap:wrap">
+                <button class="btn-buscar" type="submit" style="height:38px;padding:0 1.5rem">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15"
+                       viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" x2="12" y1="5"  y2="19"/>
+                    <line x1="5"  x2="19" y1="12" y2="12"/>
+                  </svg>
+                  Registrar
+                </button>
+                <span class="prod-mensaje" id="formMensaje"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Historial de producción ───────────────────────────────────── -->
+      <section class="tabla-seccion">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">📊 Historial de Producción</h3>
+            <button class="btn-buscar" id="btnReporte"
+                    style="height:34px;padding:0 1rem;gap:.4rem;font-size:.82rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+              </svg>
+              Generar Reporte CSV
+            </button>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th style="text-align:right">Cantidad</th>
+                  <th style="text-align:center">Turno</th>
+                  <th>Operario</th>
+                  <th>Lote</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyRegistros">
+                <tr class="tabla-empty"><td colspan="7">Sin registros para este período</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="main-footer">
+      <span>Texpro Productos Químicos y Tratamiento de Aguas</span>
+      <span class="footer-version">v1.0.0</span>
+    </footer>
+
+  </div><!-- /main-wrapper -->
+
+  <script src="produccion.js?v=1.0.0"></script>
+  <script src="../assets/js/inactividad.js?v=2.1.0"></script>
+</body>
+</html>
