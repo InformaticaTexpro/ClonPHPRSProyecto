@@ -682,6 +682,26 @@
     } catch(err) { console.error('[cargarFoliosCompartidos]',err); }
   }
 
+  // ── Clientes por vendedor ─────────────────────────────────────────────────
+  async function cargarClientesResumen() {
+    try {
+      const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      const tbody = document.getElementById('tbodyClientesResumen');
+      if (!tbody) return;
+      if (!data.ok || !data.clientes.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="4">Sin datos</td></tr>'; return;
+      }
+      tbody.innerHTML = data.clientes.map(c => {
+        return `<tr>
+          <td><strong>${c.codVendedor}</strong></td>
+          <td style="text-align:right">${c.totalClientesHist.toLocaleString('es-CL')}</td>
+          <td style="text-align:right">${c.totalClientesPeriodo.toLocaleString('es-CL')}</td>
+        </tr>`;
+      }).join('');
+    } catch (err) { console.error('[cargarClientesResumen]', err); }
+  }
+
   // ── Cargar todo ───────────────────────────────────────────────────────────
   async function cargarTodo(usuario) {
     mostrarCarga();
@@ -692,6 +712,7 @@
         cargarCartera(),
         cargarVendedores(),
         cargarVentasMes(),
+        cargarClientesResumen(),
         esCoordinador(usuario)
           ? Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ])
           : cargarFoliosCompartidos()

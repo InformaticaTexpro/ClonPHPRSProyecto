@@ -97,7 +97,7 @@ function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
         THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
       ELSE ISNULL(t.PrecioVta, 0)${factor}
     END
-  `;
+
 }
 
 function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
@@ -841,6 +841,62 @@ router.get('/asignados', async (req, res) => {
   } catch (err) {
     console.error('[GET /dashboard/asignados]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener asignados' });
+  }
+});
+
+// ── GET /api/dashboard/clientes-resumen ──────────────────────────────────
+// Devuelve por cada código de vendedor del usuario logueado:
+//   - TotalClientesHist  : clientes históricos en cwtauxven
+//   - TotalClientesPeriodo: clientes distintos con documentos en el período
+router.get('/clientes-resumen', async (req, res) => {
+  const usuario = req.usuario;
+  const codigos = getCodigos(usuario);
+  const hoy = new Date();
+  const { validarMesAnio } = require('../utils/stringHelpers');
+  let mes, anio;
+  try {
+    ({ mes, anio } = validarMesAnio(req.query.mes ?? (hoy.getMonth() + 1), req.query.anio ?? hoy.getFullYear()));
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
+  if (!codigos.length) return res.json({ ok: true, clientes: [] });
+
+  try {
+    const pool = await getSoftlandPool();
+    const resultado = [];
+
+    for (const cod of codigos) {
+      const r = await pool.request().query(`
+        SELECT
+          '${cod}' AS CodVendedor,
+          (
+            SELECT COUNT(DISTINCT CodAux)
+            FROM [PRODIN].[softland].[cwtauxven]
+            WHERE VenCod = '${cod}'
+          ) AS TotalClientesHist,
+          (
+            SELECT COUNT(DISTINCT CodAux)
+            FROM [PRODIN].[softland].[iw_gsaen]
+            WHERE CodVendedor = '${cod}'
+              AND Tipo IN ('F','N','D')
+              AND Estado <> 'A'
+              AND Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
+              AND Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
+          ) AS TotalClientesPeriodo
+      `);
+      if (r.recordset.length) {
+        resultado.push({
+          codVendedor:          r.recordset[0].CodVendedor,
+          totalClientesHist:    Number(r.recordset[0].TotalClientesHist)    || 0,
+          totalClientesPeriodo: Number(r.recordset[0].TotalClientesPeriodo) || 0,
+        });
+      }
+    }
+
+    res.json({ ok: true, clientes: resultado });
+  } catch (err) {
+    console.error('[GET /dashboard/clientes-resumen]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener resumen de clientes' });
   }
 });
 
