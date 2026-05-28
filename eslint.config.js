@@ -1,9 +1,10 @@
 const js = require('@eslint/js');
 const globals = require('globals');
-const { defineConfig, globalIgnores } = require('eslint/config');
 
-module.exports = defineConfig([
-  globalIgnores(['node_modules/**', 'coverage/**', 'dist/**']),
+module.exports = [
+  {
+    ignores: ['node_modules/**', 'coverage/**', 'dist/**']
+  },
   js.configs.recommended,
   {
     files: ['**/*.js'],
@@ -22,4 +23,4 @@ module.exports = defineConfig([
       'no-console': 'off'
     }
   }
-]);
+];
