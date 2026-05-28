@@ -97,7 +97,7 @@ function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
         THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
       ELSE ISNULL(t.PrecioVta, 0)${factor}
     END
-
+  `;
 }
 
 function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
