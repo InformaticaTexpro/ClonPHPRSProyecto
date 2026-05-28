@@ -272,11 +272,12 @@
                 <tr>
                   <th>Folio</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th>
                   <th style="text-align:right">Monto</th>
+                  <th style="text-align:right">TotLineaReal</th>
                   <th style="text-align:right">Descuento</th>
                   <th>Detalle</th>
                 </tr>
               </thead>
-              <tbody id="tbodyVentasMes"><tr class="tabla-empty"><td colspan="7">Cargando...</td></tr></tbody>
+              <tbody id="tbodyVentasMes"><tr class="tabla-empty"><td colspan="8">Cargando...</td></tr></tbody>
             </table>
           </div>
           <div class="tabla-footer"><span class="tabla-total" id="totalVentasMes">0 registros</span></div>
@@ -331,28 +332,8 @@
         </div>
       </section>
 
-      <!-- Panel Folios Recibidos -->
-      <section class="panel-compartidos" id="panelCompartidos" style="display:none">
-        <div class="panel-coord-header">
-          <h2 class="panel-coord-titulo">📥 Folios recibidos</h2>
-          <p class="panel-coord-sub">Folios que un coordinador te ha asignado este mes</p>
-        </div>
-        <div class="tabla-card">
-          <div class="tabla-wrapper">
-            <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>Folio</th><th>Fecha</th><th>Cliente</th><th>Coordinador</th>
-                  <th style="text-align:right">%</th>
-                  <th style="text-align:right">Monto asignado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyCompartidos"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="tabla-footer"><span class="tabla-total" id="totalCompartidos">0 registros</span></div>
-        </div>
-      </section>
+
+
 
     </main>
   </div>
@@ -414,8 +395,9 @@
       color: #fff;
       border-color: var(--color-primary, #01696f);
     }
-    .filtro-select--sm { font-size: .82rem; padding: .3rem .5rem; height: 34px; }
   </style>
+
+
 
   <script src="dashboard.js?v=2.3.1"></script>
   <script src="../assets/js/inactividad.js?v=2.3.0"></script>

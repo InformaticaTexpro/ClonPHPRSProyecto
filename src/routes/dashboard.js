@@ -97,7 +97,7 @@ function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
         THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
       ELSE ISNULL(t.PrecioVta, 0)${factor}
     END
-  `;  
+
 }
 
 function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
@@ -510,7 +510,6 @@ router.get('/ventas-mes', async (req, res) => {
             THEN (
               1 - (SUM(m.TotLinea) / NULLIF(SUM(${baseListaRealTotalConFactor}), 0))
             ) * 100
-            ELSE 0
           END
         , 2)                                                    AS pct_descuento,
         CASE WHEN ${foliosCompSet} THEN 1 ELSE 0 END           AS es_compartido,
