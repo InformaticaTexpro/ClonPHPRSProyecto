@@ -85,6 +85,25 @@ function mssqlIn(arr) {
   return arr.map(v => `'${v}'`).join(',');
 }
 
+function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
+  const factor = factorExpr ? ` * (${factorExpr})` : '';
+  return `
+    CASE
+      WHEN ISNULL(m.CantFacturada, 0) <= 0
+        THEN 0
+      WHEN m.CodProd LIKE 'NC%'
+        THEN ISNULL(m.TotLinea / NULLIF(m.CantFacturada, 0), 0)${factor}
+      WHEN cl.CodCan = '301'
+        THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
+      ELSE ISNULL(t.PrecioVta, 0)${factor}
+    END
+  `;  
+}
+
+function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
+  return `(${sqlPrecioListaUnitarioReal({ factorExpr })}) * ISNULL(m.CantFacturada, 0)`;
+}
+
 async function getFoliosCompartidosConPct(codigos, mes, anio) {
   if (!codigos.length) return [];
   const placeholders = codigos.map(() => '?').join(',');
@@ -188,13 +207,19 @@ router.get('/resumen', async (req, res) => {
     }
 
     const extraFoliosDesc = foliosCompNums.length ? `OR h.Folio IN (${foliosCompNums.join(',')})` : '';
+    const baseListaRealTotal = sqlBaseListaRealTotal();
     const resultDesc = await pool.request().query(`
-      SELECT ROUND(AVG(
-        CASE WHEN m.PreUniMB > 0 AND m.CantFacturada > 0
-             THEN (m.PreUniMB - (m.TotLinea / m.CantFacturada)) / m.PreUniMB * 100
-             ELSE 0 END), 2) AS pctDescuentoGlobal
+      SELECT ROUND(
+        CASE
+          WHEN SUM(${baseListaRealTotal}) > 0
+            THEN (1 - (SUM(m.TotLinea) / NULLIF(SUM(${baseListaRealTotal}), 0))) * 100
+          ELSE 0
+        END
+      , 2) AS pctDescuentoGlobal
       FROM [PRODIN].[softland].[iw_gsaen] h
       INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+      LEFT JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+      LEFT JOIN [PRODIN].[softland].[cwtcvcl] cl ON cl.CodAux = h.CodAux
       WHERE (h.CodVendedor IN (${mssqlIn(codigos)}) ${extraFoliosDesc})
         AND MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
         AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
@@ -325,10 +350,11 @@ router.get('/vendedores', async (req, res) => {
         MIN(v.VenDes)                                                             AS nombreVendedor,
         COUNT(DISTINCT h.Folio)                                                   AS totalFolios,
         ROUND(SUM(m.TotLinea), 0)                                                 AS totalVentasCobrado,
-        ROUND(SUM(ISNULL(t.PrecioVta, 0) * m.CantFacturada), 0)                  AS ventaRealLista
+        ROUND(SUM(${sqlBaseListaRealTotal()}), 0)                                 AS ventaRealLista
       FROM [PRODIN].[softland].[iw_gsaen] h
       INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
       LEFT  JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+      LEFT  JOIN [PRODIN].[softland].[cwtcvcl] cl ON cl.CodAux = h.CodAux
       LEFT  JOIN [PRODIN].[softland].[cwtvend]  v ON v.VenCod  = h.CodVendedor
       WHERE h.CodVendedor IN (${mssqlIn(codigos)})
         ${excludeComp}
@@ -360,10 +386,11 @@ router.get('/vendedores', async (req, res) => {
           h.CodVendedor                                            AS codVendedorSoftland,
           MIN(v.VenDes)                                            AS nombreVendedorSoftland,
           ROUND(SUM(m.TotLinea), 0)                                AS totalLinea,
-          ROUND(SUM(ISNULL(t.PrecioVta,0) * m.CantFacturada), 0)  AS listaLinea
+          ROUND(SUM(${sqlBaseListaRealTotal()}), 0)                AS listaLinea
         FROM [PRODIN].[softland].[iw_gsaen] h
         INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
         LEFT  JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+        LEFT  JOIN [PRODIN].[softland].[cwtcvcl] cl ON cl.CodAux = h.CodAux
         LEFT  JOIN [PRODIN].[softland].[cwtvend]  v ON v.VenCod  = h.CodVendedor
         WHERE h.Folio IN (${todosFoliosComp.join(',')})
           AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
@@ -457,6 +484,7 @@ router.get('/ventas-mes', async (req, res) => {
     const extraFolios    = foliosComp.length ? `OR h.Folio IN (${foliosComp.join(',')})` : '';
     const foliosCompSet  = foliosComp.length ? `h.Folio IN (${foliosComp.join(',')})` : `1=0`;
     const pool = await getSoftlandPool();
+    const baseListaRealTotalConFactor = sqlBaseListaRealTotal({ factorExpr: factor });
     const result = await pool.request().query(`
       SELECT
         h.Folio,
@@ -465,39 +493,22 @@ router.get('/ventas-mes', async (req, res) => {
         h.CodVendedor,
         h.Tipo,
         ROUND(SUM(m.TotLinea), 0)                               AS monto,
+        ROUND(SUM(m.TotLinea), 0)                               AS venta_real_folio,
         ROUND(SUM(
           CASE
-            WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-              THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
-            WHEN ISNULL(t.PrecioVta, 0) > 0
-              THEN t.PrecioVta * ${factor} * m.CantFacturada
-            ELSE m.TotLinea
+            WHEN h.Tipo = 'N' and m.CodProd LIKE 'NC%'
+              THEN ISNULL(m.TotLinea, 0)
+            WHEN cl.CodCan = '301'
+              THEN ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0) * 1.10
+            ELSE ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)
           END
-        ), 0)                                                   AS neto_lista,
+        ), 0)                                                   AS TotLineaReal,
+        ROUND(SUM(${baseListaRealTotalConFactor}), 0)           AS neto_lista,
         ROUND(
           CASE
-            WHEN SUM(
-              CASE
-                WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-                  THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
-                WHEN ISNULL(t.PrecioVta, 0) > 0
-                  THEN t.PrecioVta * ${factor} * m.CantFacturada
-                ELSE m.TotLinea
-              END
-            ) > 0
+            WHEN SUM(${baseListaRealTotalConFactor}) > 0
             THEN (
-              1 - (
-                SUM(m.TotLinea) /
-                SUM(
-                  CASE
-                    WHEN cl.CodCan = '301' AND ISNULL(t.PrecioVta, 0) > 0
-                      THEN t.PrecioVta * ${factor} * 1.10 * m.CantFacturada
-                    WHEN ISNULL(t.PrecioVta, 0) > 0
-                      THEN t.PrecioVta * ${factor} * m.CantFacturada
-                    ELSE m.TotLinea
-                  END
-                )
-              )
+              1 - (SUM(m.TotLinea) / NULLIF(SUM(${baseListaRealTotalConFactor}), 0))
             ) * 100
             ELSE 0
           END
@@ -517,16 +528,20 @@ router.get('/ventas-mes', async (req, res) => {
     `);
     const ventas = result.recordset.map(v => {
       const montoBase = Math.round(Number(v.monto) * factor);
+      const ventaRealFolio = Math.round(Number(v.venta_real_folio) || 0);
+      const totLineaReal = Math.round(Number(v.TotLineaReal) || 0);
       if (v.es_compartido) {
         const pctInfo = foliosCompPct.find(r => r.folio === Number(v.Folio));
         if (pctInfo) return {
           ...v,
           monto:          montoBase,
+          venta_real_folio: ventaRealFolio,
+          TotLineaReal: Math.round(totLineaReal * pctInfo.porcentaje / 100),
           monto_asignado: Math.round(montoBase * pctInfo.porcentaje / 100),
           porcentaje_asignado: pctInfo.porcentaje,
         };
       }
-      return { ...v, monto: montoBase };
+      return { ...v, monto: montoBase, venta_real_folio: ventaRealFolio, TotLineaReal: totLineaReal };
     });
     res.json({ ok: true, ventas, factor });
   } catch (err) {
@@ -827,6 +842,62 @@ router.get('/asignados', async (req, res) => {
   } catch (err) {
     console.error('[GET /dashboard/asignados]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener asignados' });
+  }
+});
+
+// ── GET /api/dashboard/clientes-resumen ──────────────────────────────────
+// Devuelve por cada código de vendedor del usuario logueado:
+//   - TotalClientesHist  : clientes históricos en cwtauxven
+//   - TotalClientesPeriodo: clientes distintos con documentos en el período
+router.get('/clientes-resumen', async (req, res) => {
+  const usuario = req.usuario;
+  const codigos = getCodigos(usuario);
+  const hoy = new Date();
+  const { validarMesAnio } = require('../utils/stringHelpers');
+  let mes, anio;
+  try {
+    ({ mes, anio } = validarMesAnio(req.query.mes ?? (hoy.getMonth() + 1), req.query.anio ?? hoy.getFullYear()));
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
+  if (!codigos.length) return res.json({ ok: true, clientes: [] });
+
+  try {
+    const pool = await getSoftlandPool();
+    const resultado = [];
+
+    for (const cod of codigos) {
+      const r = await pool.request().query(`
+        SELECT
+          '${cod}' AS CodVendedor,
+          (
+            SELECT COUNT(DISTINCT CodAux)
+            FROM [PRODIN].[softland].[cwtauxven]
+            WHERE VenCod = '${cod}'
+          ) AS TotalClientesHist,
+          (
+            SELECT COUNT(DISTINCT CodAux)
+            FROM [PRODIN].[softland].[iw_gsaen]
+            WHERE CodVendedor = '${cod}'
+              AND Tipo IN ('F','N','D')
+              AND Estado <> 'A'
+              AND Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
+              AND Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
+          ) AS TotalClientesPeriodo
+      `);
+      if (r.recordset.length) {
+        resultado.push({
+          codVendedor:          r.recordset[0].CodVendedor,
+          totalClientesHist:    Number(r.recordset[0].TotalClientesHist)    || 0,
+          totalClientesPeriodo: Number(r.recordset[0].TotalClientesPeriodo) || 0,
+        });
+      }
+    }
+
+    res.json({ ok: true, clientes: resultado });
+  } catch (err) {
+    console.error('[GET /dashboard/clientes-resumen]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener resumen de clientes' });
   }
 });
 
