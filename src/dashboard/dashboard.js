@@ -14,8 +14,9 @@
   const API_CART   = '/api/cartera';
   const token      = () => localStorage.getItem('token');
 
-  let graficoEvolucion  = null;
-  let todosVendedores   = [];
+  let graficoEvolucion             = null;
+  let graficoClientesDistribucion  = null;
+  let todosVendedores              = [];
 
   let carteraData = { activos: [], inactivos: [], recuperados: [] };
   let carteraRendered = { activo: false, inactivo: false, recuperado: false };
@@ -228,6 +229,7 @@
           responsive:true, maintainAspectRatio:false,
           interaction:{ mode:'index', intersect:false },
           plugins:{
+            datalabels: { display: false },
             legend:{ position:'top', labels:{ font:{ family:'Montserrat', size:12 }, usePointStyle:true } },
             tooltip:{ callbacks:{ label:ctx2 => ` ${ctx2.dataset.label}: ${new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(ctx2.parsed.y)}` } }
           },
@@ -683,6 +685,170 @@
   }
 
   // ── Clientes por vendedor ─────────────────────────────────────────────────
+  const COLORES_TORTA = ['#00E2A7','#4ECDC4','#45B7D1','#96CEB4','#F5A623','#DDA0DD','#F06543','#00B4D8'];
+
+  function renderGraficoClientesDistribucion(datos) {
+    const canvas = document.getElementById('graficoClientesDistribucion');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (graficoClientesDistribucion) graficoClientesDistribucion.destroy();
+
+    if (!datos || !datos.length) {
+      graficoClientesDistribucion = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Sin datos'],
+          datasets: [{ data: [1], backgroundColor: ['#E8EAF0'], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          cutout: '60%'
+        }
+      });
+      return;
+    }
+
+    graficoClientesDistribucion = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: datos.map(d => d.label),
+        datasets: [{
+          data: datos.map(d => d.valor),
+          backgroundColor: datos.map(d => d.color),
+          borderWidth: datos.map(d => d.valor > 0 ? 3 : 1),
+          borderColor: datos.map(d => d.valor > 0 ? '#222' : '#fff')
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          datalabels: {
+            display: (ctx2) => {
+              const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0);
+              const pct = total > 0 ? (ctx2.dataset.data[ctx2.dataIndex] || 0) / total * 100 : 0;
+              return pct >= 3; // ocultar etiquetas muy pequeñas
+            },
+            color: '#fff',
+            font: { family: 'Montserrat', size: 11, weight: '700' },
+            formatter: (value, ctx2) => {
+              const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0);
+              if (!total) return '';
+              return ((value / total) * 100).toFixed(1) + '%';
+            }
+          },
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: { family: 'Montserrat', size: 12 },
+              usePointStyle: true,
+              pointStyle: 'circle',
+              boxWidth: 10,
+              padding: 14,
+              generateLabels: (chart) => {
+                const dataset = chart.data.datasets[0];
+                const total = dataset.data.reduce((sum, v) => sum + (v || 0), 0);
+                return chart.data.labels.map((label, i) => {
+                  const valor = dataset.data[i] || 0;
+                  const pct = total > 0 ? ((valor / total) * 100).toFixed(1) : '0.0';
+                  return {
+                    text: `${label}  ${pct}%`,
+                    fillStyle: dataset.backgroundColor[i],
+                    strokeStyle: dataset.backgroundColor[i],
+                    hidden: false,
+                    index: i,
+                    fontColor: valor === 0 ? '#B0B8C1' : undefined
+                  };
+                });
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx2) => {
+                const total = ctx2.dataset.data.reduce((sum, v) => sum + (v || 0), 0);
+                const pct = total > 0 ? ((ctx2.parsed / total) * 100).toFixed(1) : '0.0';
+                return ` ${ctx2.label}: ${ctx2.parsed.toLocaleString('es-CL')}  (${pct}%)`;
+              }
+            }
+          }
+        },
+        cutout: '55%'
+      }
+    });
+  }
+
+  async function cargarGraficoClientes() {
+    try {
+      const res  = await fetch(`${API}/categorias-vendedor?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+
+      const tabsEl = document.getElementById('tortaVendedorTabs');
+
+      if (!data.ok || !data.vendedores.length) {
+        if (tabsEl) tabsEl.style.display = 'none';
+        renderGraficoClientesDistribucion([]);
+        return;
+      }
+
+      const vendedores = data.vendedores;
+
+      // 1. Lista maestra completa desde MySQL (todas las categorías, con o sin ventas)
+      const todasLasCategorias = data.todasLasCategorias || [];
+      // Calcular agregado por categoría para asignar orden de colores
+      const aggMap = {};
+      for (const v of vendedores) {
+        for (const c of v.categorias) {
+          aggMap[c.categoria] = (aggMap[c.categoria] || 0) + c.total;
+        }
+      }
+      // Orden: primero las que tienen ventas (mayor a menor), luego las que no
+      const maestro = [
+        ...Object.entries(aggMap).sort((a, b) => b[1] - a[1]).map(([label]) => label),
+        ...todasLasCategorias.filter(cat => !aggMap[cat])
+      ].map((label, i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
+
+      // 2. Helper: devuelve datos alineados al maestro (0 si no hay movimiento)
+      function padear(categorias) {
+        const mapa = Object.fromEntries(categorias.map(c => [c.categoria, c.total]));
+        return maestro.map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }));
+      }
+
+      const datosTotal = maestro.map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }));
+
+      if (vendedores.length === 1) {
+        // Un solo vendedor: sin tabs, mostrar directo (con maestro completo)
+        if (tabsEl) tabsEl.style.display = 'none';
+        renderGraficoClientesDistribucion(padear(vendedores[0].categorias));
+      } else {
+        // Múltiples vendedores: tab "Todos" + uno por vendedor
+        if (tabsEl) {
+          tabsEl.style.display = 'flex';
+          const tabTodos = `<button class="torta-tab torta-tab--activo" data-idx="-1">Todos</button>`;
+          const tabsVendedores = vendedores.map((v, i) =>
+            `<button class="torta-tab" data-idx="${i}">${v.codVendedor}</button>`
+          ).join('');
+          tabsEl.innerHTML = tabTodos + tabsVendedores;
+
+          tabsEl.querySelectorAll('.torta-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+              tabsEl.querySelectorAll('.torta-tab').forEach(b => b.classList.remove('torta-tab--activo'));
+              btn.classList.add('torta-tab--activo');
+              const idx = Number(btn.dataset.idx);
+              if (idx === -1) {
+                renderGraficoClientesDistribucion(datosTotal);
+              } else {
+                renderGraficoClientesDistribucion(padear(vendedores[idx].categorias));
+              }
+            });
+          });
+        }
+        // Por defecto mostrar "Todos"
+        renderGraficoClientesDistribucion(datosTotal);
+      }
+    } catch (err) { console.error('[cargarGraficoClientes]', err); }
+  }
+
   async function cargarClientesResumen() {
     try {
       const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -713,6 +879,7 @@
         cargarVendedores(),
         cargarVentasMes(),
         cargarClientesResumen(),
+        cargarGraficoClientes(),
         esCoordinador(usuario)
           ? Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ])
           : cargarFoliosCompartidos()

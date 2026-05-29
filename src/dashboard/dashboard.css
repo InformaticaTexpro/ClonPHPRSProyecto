@@ -610,3 +610,64 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 @media (max-width:480px) {
   .kpis-grid { grid-template-columns:1fr; }
 }
+
+/* ── Clientes por Vendedor — split tabla / torta ──────────────────────────── */
+.clientes-split {
+  display: flex;
+  align-items: stretch;
+  min-height: 200px;
+}
+.clientes-split__tabla {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--color-gray-light, #E8EAF0);
+}
+.clientes-split__grafico {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+}
+.grafico-torta-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #6B7280);
+  text-align: center;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.grafico-torta-wrapper {
+  position: relative;
+  height: 360px;
+  width: 100%;
+  max-width: 420px;
+}
+.torta-vendedor-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.torta-tab {
+  padding: 3px 12px;
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  border-radius: 20px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #6B7280);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.torta-tab:hover { background: var(--color-gray-light, #E8EAF0); }
+.torta-tab--activo { background: #00E2A7; color: #fff; border-color: #00E2A7; }
+@media (max-width: 640px) {
+  .clientes-split { flex-direction: column; }
+  .clientes-split__tabla { border-right: none; border-bottom: 1px solid var(--color-gray-light, #E8EAF0); }
+  .grafico-torta-wrapper { height: 280px; max-width: 360px; }
+}

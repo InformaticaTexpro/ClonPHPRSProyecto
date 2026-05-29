@@ -848,6 +848,72 @@ router.get('/asignados', async (req, res) => {
 // Devuelve por cada código de vendedor del usuario logueado:
 //   - TotalClientesHist  : clientes históricos en cwtauxven
 //   - TotalClientesPeriodo: clientes distintos con documentos en el período
+// ── GET /categorias-vendedor ──────────────────────────────────────────────────
+// Distribución de ventas por categoría de producto para el gráfico de tortas.
+// Doble fuente: SQL Server (ventas por CtaVentas) + MySQL (categoriasProducto).
+// El JOIN se realiza en Node.js para no requerir replicación de tablas.
+router.get('/categorias-vendedor', async (req, res) => {
+  const usuario = req.usuario;
+  const codigos = getCodigos(usuario);
+  const hoy = new Date();
+  const { validarMesAnio } = require('../utils/stringHelpers');
+  let mes, anio;
+  try {
+    ({ mes, anio } = validarMesAnio(req.query.mes ?? (hoy.getMonth() + 1), req.query.anio ?? hoy.getFullYear()));
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
+  if (!codigos.length) return res.json({ ok: true, vendedores: [] });
+
+  try {
+    // 1. MySQL: tabla de categorías (pequeña, carga única)
+    const [catRows] = await db.pool.query('SELECT Cta, Categoria FROM categoriasProducto');
+    const catMap = Object.fromEntries(catRows.map(r => [r.Cta, r.Categoria]));
+
+    // 2. SQL Server: ventas agrupadas por CtaVentas, un query por vendedor
+    const pool = await getSoftlandPool();
+    const resultado = [];
+
+    for (const cod of codigos) {
+      const r = await pool.request().query(`
+        SELECT
+          t.CtaVentas,
+          SUM(m.TotLinea) AS TotalVentas
+        FROM [PRODIN].[softland].[iw_gsaen]  h
+          INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+          INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+        WHERE h.CodVendedor = '${cod}'
+          AND h.Tipo IN ('F','N','D')
+          AND h.Estado <> 'A'
+          AND h.Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
+          AND h.Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
+          AND t.CtaVentas IS NOT NULL
+        GROUP BY t.CtaVentas
+        ORDER BY TotalVentas DESC
+      `);
+
+      // 3. Node.js JOIN: agrupa por Categoria usando catMap
+      const aggMap = {};
+      for (const row of r.recordset) {
+        const cat = catMap[row.CtaVentas] || 'Otros';
+        aggMap[cat] = (aggMap[cat] || 0) + Number(row.TotalVentas);
+      }
+      const categorias = Object.entries(aggMap)
+        .map(([categoria, total]) => ({ categoria, total }))
+        .sort((a, b) => b.total - a.total);
+
+      resultado.push({ codVendedor: cod, categorias });
+    }
+
+    // Devolver la lista única de categorías desde MySQL (sin duplicados)
+    const todasLasCategorias = [...new Set(catRows.map(r => r.Categoria))];
+    res.json({ ok: true, vendedores: resultado, todasLasCategorias });
+  } catch (err) {
+    console.error('[GET /dashboard/categorias-vendedor]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener categorías de ventas' });
+  }
+});
+
 router.get('/clientes-resumen', async (req, res) => {
   const usuario = req.usuario;
   const codigos = getCodigos(usuario);
