@@ -207,22 +207,47 @@ router.get('/resumen', async (req, res) => {
     }
 
     const extraFoliosDesc = foliosCompNums.length ? `OR h.Folio IN (${foliosCompNums.join(',')})` : '';
-    const baseListaRealTotal = sqlBaseListaRealTotal();
     const resultDesc = await pool.request().query(`
+      WITH FoliosCompartidos AS (
+        SELECT
+          h.Folio,
+          CASE WHEN COUNT(DISTINCT h.CodVendedor) > 1 THEN 1 ELSE 0 END AS EsCompartido
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        WHERE MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
+          AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+        GROUP BY h.Folio
+      ),
+      DetalleVentas AS (
+        SELECT
+          ROUND(SUM(m.TotLinea), 0) AS venta_real_folio,
+          ROUND(SUM(
+            CASE
+              WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
+                THEN ISNULL(m.TotLinea, 0)
+              WHEN cl.CodCan = '301'
+                THEN ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0) * 1.10
+              ELSE ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)
+            END
+          ), 0) AS TotLineaReal
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        LEFT JOIN [PRODIN].[softland].[cwtauxi]  c  ON c.CodAux  = h.CodAux
+        LEFT JOIN [PRODIN].[softland].[cwtcvcl]  cl ON cl.CodAux = h.CodAux
+        LEFT JOIN [PRODIN].[softland].[iw_gmovi] m  ON m.NroInt  = h.NroInt AND m.Tipo = h.Tipo
+        LEFT JOIN [PRODIN].[softland].[iw_tprod] t  ON t.CodProd = m.CodProd
+        LEFT JOIN FoliosCompartidos              fc ON fc.Folio   = h.Folio
+        WHERE h.CodVendedor IN (${mssqlIn(codigos)})
+          AND MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
+          AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+        GROUP BY h.Folio, h.Fecha, h.Tipo, h.CodVendedor, h.NroInt, fc.EsCompartido
+      )
       SELECT ROUND(
         CASE
-          WHEN SUM(${baseListaRealTotal}) > 0
-            THEN (1 - (SUM(m.TotLinea) / NULLIF(SUM(${baseListaRealTotal}), 0))) * 100
+          WHEN SUM(TotLineaReal) > 0
+            THEN (1 - (SUM(venta_real_folio) / NULLIF(SUM(TotLineaReal), 0))) * 100
           ELSE 0
         END
       , 2) AS pctDescuentoGlobal
-      FROM [PRODIN].[softland].[iw_gsaen] h
-      INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
-      LEFT JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-      LEFT JOIN [PRODIN].[softland].[cwtcvcl] cl ON cl.CodAux = h.CodAux
-      WHERE (h.CodVendedor IN (${mssqlIn(codigos)}) ${extraFoliosDesc})
-        AND MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
-        AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+      FROM DetalleVentas
     `);
 
     const pctDescuentoGlobal = Number(resultDesc.recordset[0]?.pctDescuentoGlobal) || 0;
@@ -478,51 +503,61 @@ router.get('/ventas-mes', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
   if (!codigos.length) return res.json({ ok: true, ventas: [] });
   try {
-    const factor         = await getFactorHistorico(mes, anio);
-    const foliosCompPct  = await getFoliosCompartidosConPct(codigos, mes, anio);
-    const foliosComp     = foliosCompPct.map(r => r.folio);
-    const extraFolios    = foliosComp.length ? `OR h.Folio IN (${foliosComp.join(',')})` : '';
-    const foliosCompSet  = foliosComp.length ? `h.Folio IN (${foliosComp.join(',')})` : `1=0`;
+    const factor        = await getFactorHistorico(mes, anio);
+    const foliosCompPct = await getFoliosCompartidosConPct(codigos, mes, anio);
+    const foliosComp    = foliosCompPct.map(r => r.folio);
+    const extraFolios   = foliosComp.length ? `OR h.Folio IN (${foliosComp.join(',')})` : '';
     const pool = await getSoftlandPool();
-    const baseListaRealTotalConFactor = sqlBaseListaRealTotal({ factorExpr: factor });
     const result = await pool.request().query(`
+      WITH FoliosCompartidos AS (
+        SELECT
+          h.Folio,
+          CASE WHEN COUNT(DISTINCT h.CodVendedor) > 1 THEN 1 ELSE 0 END AS EsCompartido
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        WHERE MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
+          AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+        GROUP BY h.Folio
+      )
       SELECT
         h.Folio,
-        CONVERT(varchar, h.Fecha, 103)                          AS fecha_formato,
-        c.NomAux                                                AS cliente,
+        CONVERT(VARCHAR(10), h.Fecha, 103)                                  AS fecha_formato,
+        c.NomAux                                                            AS cliente,
         h.CodVendedor,
         h.Tipo,
-        ROUND(SUM(m.TotLinea), 0)                               AS monto,
-        ROUND(SUM(m.TotLinea), 0)                               AS venta_real_folio,
+        ROUND(SUM(m.TotLinea), 0)                                           AS monto,
+        ROUND(SUM(m.TotLinea), 0)                                           AS venta_real_folio,
         ROUND(SUM(
           CASE
-            WHEN h.Tipo = 'N' and m.CodProd LIKE 'NC%'
+            WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
               THEN ISNULL(m.TotLinea, 0)
             WHEN cl.CodCan = '301'
               THEN ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0) * 1.10
             ELSE ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)
           END
-        ), 0)                                                   AS TotLineaReal,
-        ROUND(SUM(${baseListaRealTotalConFactor}), 0)           AS neto_lista,
+        ), 0)                                                               AS TotLineaReal,
+        ROUND(SUM(ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)), 0) AS neto_lista,
         ROUND(
           CASE
-            WHEN SUM(${baseListaRealTotalConFactor}) > 0
-            THEN (
-              1 - (SUM(m.TotLinea) / NULLIF(SUM(${baseListaRealTotalConFactor}), 0))
-            ) * 100
+            WHEN SUM(ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)) <> 0
+            THEN (1 - (
+              ABS(SUM(m.TotLinea)) /
+              NULLIF(ABS(SUM(ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0))), 0)
+            )) * 100
+            ELSE 0
           END
-        , 2)                                                    AS pct_descuento,
-        CASE WHEN ${foliosCompSet} THEN 1 ELSE 0 END           AS es_compartido,
-        COUNT(m.Linea)                                          AS cant_lineas
+        , 0)                                                                AS pct_descuento,
+        ISNULL(fc.EsCompartido, 0)                                          AS es_compartido,
+        COUNT(m.Linea)                                                      AS cant_lineas
       FROM [PRODIN].[softland].[iw_gsaen] h
       LEFT JOIN [PRODIN].[softland].[cwtauxi]  c  ON c.CodAux  = h.CodAux
       LEFT JOIN [PRODIN].[softland].[cwtcvcl]  cl ON cl.CodAux = h.CodAux
       LEFT JOIN [PRODIN].[softland].[iw_gmovi] m  ON m.NroInt  = h.NroInt AND m.Tipo = h.Tipo
       LEFT JOIN [PRODIN].[softland].[iw_tprod] t  ON t.CodProd = m.CodProd
+      LEFT JOIN FoliosCompartidos              fc ON fc.Folio   = h.Folio
       WHERE (h.CodVendedor IN (${mssqlIn(codigos)}) ${extraFolios})
         AND MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
         AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
-      GROUP BY h.Folio, h.Fecha, h.Tipo, c.NomAux, h.CodVendedor, h.NroInt
+      GROUP BY h.Folio, h.Fecha, h.Tipo, c.NomAux, h.CodVendedor, h.NroInt, fc.EsCompartido
       ORDER BY h.Fecha DESC, h.Folio
     `);
     const ventas = result.recordset.map(v => {

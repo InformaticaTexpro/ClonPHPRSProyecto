@@ -49,6 +49,17 @@ async function getCodigosVendedor(usuarioId) {
 // Retorna: { ok, activos: [], inactivos: [], recuperados: [] }
 router.get('/', async (req, res) => {
   const usuario = req.usuario;
+  const { validarMesAnio } = require('../utils/stringHelpers');
+  const hoy = new Date();
+  let mes, anio;
+  try {
+    ({ mes, anio } = validarMesAnio(
+      req.query.mes  ?? (hoy.getMonth() + 1),
+      req.query.anio ?? hoy.getFullYear()
+    ));
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
+  }
 
   try {
     // 1. Obtener códigos de vendedor propios del usuario logueado
@@ -59,10 +70,8 @@ router.get('/', async (req, res) => {
 
     const pool = await getSoftlandPool();
     const inClause = mssqlIn(codigos);
-    const hoy = new Date();
-    const anioActual = hoy.getFullYear();
 
-    // ── ACTIVOS: compraron en los últimos 90 días ─────────────────────────────
+    // ── ACTIVOS: compraron en el mes/año filtrado ─────────────────────────────
     // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, UltimaFactura
     const resActivos = await pool.request().query(`
       SELECT
@@ -78,12 +87,14 @@ router.get('/', async (req, res) => {
       WHERE h.CodVendedor IN (${inClause})
         AND h.Tipo IN ('F','N','D')
         AND h.Estado <> 'A'
-        AND h.Fecha >= DATEADD(DAY, -90, GETDATE())
+        AND h.Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
+        AND h.Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
       GROUP BY h.CodAux
       ORDER BY MAX(h.Fecha) DESC
     `);
 
-    // ── INACTIVOS: última compra entre 90 y 365 días ──────────────────────────
+    // ── INACTIVOS: última compra hace más de 90 días (histórico, sin límite) ──
+    // Excluye clientes que compraron en el mes/año filtrado
     // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, DiasInactivo
     const resInactivos = await pool.request().query(`
       SELECT
@@ -101,70 +112,99 @@ router.get('/', async (req, res) => {
         AND h.Estado <> 'A'
       GROUP BY h.CodAux
       HAVING
-        MAX(h.Fecha) >= DATEADD(DAY, -365, GETDATE())
-        AND MAX(h.Fecha) < DATEADD(DAY, -90, GETDATE())
+        MAX(h.Fecha) < DATEADD(DAY, -90, GETDATE())
         AND h.CodAux NOT IN (
           SELECT CodAux FROM [PRODIN].[softland].[iw_gsaen]
           WHERE CodVendedor IN (${inClause})
             AND Tipo IN ('F','N','D') AND Estado <> 'A'
-            AND Fecha >= DATEADD(DAY, -90, GETDATE())
+            AND Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
+            AND Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
         )
       ORDER BY DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
     `);
 
-    // ── RECUPERADOS: estuvieron +90 días sin comprar y volvieron este año ─────
-    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, UltimaFactura, DiasRecuperado
+    // ── RECUPERADOS: última compra dentro de 90 días, penúltima hace más de 90 ─
+    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras,
+    //           PenultimoFolio, PenultimaFactura, UltimoFolio, UltimaFactura, DiasRecuperado
     const resRecuperados = await pool.request().query(`
-      WITH ultima AS (
+      WITH FoliosOrdenados AS (
         SELECT
           h.CodAux,
-          MAX(h.Fecha)  AS UltimaFecha
+          h.Folio,
+          h.Fecha,
+          ROW_NUMBER() OVER (PARTITION BY h.CodAux ORDER BY h.Fecha DESC, h.Folio DESC) AS RowNum
         FROM [PRODIN].[softland].[iw_gsaen] h
         WHERE h.CodVendedor IN (${inClause})
           AND h.Tipo IN ('F','N','D')
           AND h.Estado <> 'A'
-        GROUP BY h.CodAux
       ),
-      penultima AS (
-        SELECT
-          h.CodAux,
-          MAX(h.Fecha) AS PenultimaFecha
-        FROM [PRODIN].[softland].[iw_gsaen] h
-        INNER JOIN ultima u ON u.CodAux = h.CodAux
-        WHERE h.CodVendedor IN (${inClause})
-          AND h.Tipo IN ('F','N','D')
-          AND h.Estado <> 'A'
-          AND h.Fecha < u.UltimaFecha
-        GROUP BY h.CodAux
+      UltimoFolio AS (
+        SELECT CodAux, Folio AS UltimoFolio, Fecha AS UltimaFecha
+        FROM FoliosOrdenados WHERE RowNum = 1
+      ),
+      PenultimoFolio AS (
+        SELECT CodAux, Folio AS PenultimoFolio, Fecha AS PenultimaFecha
+        FROM FoliosOrdenados WHERE RowNum = 2
+      ),
+      TotalCompras AS (
+        SELECT CodAux, COUNT(DISTINCT Folio) AS TotalFolios
+        FROM [PRODIN].[softland].[iw_gsaen]
+        WHERE CodVendedor IN (${inClause})
+          AND Tipo IN ('F','N','D') AND Estado <> 'A'
+        GROUP BY CodAux
       )
       SELECT
-        u.CodAux                                                  AS CodAux,
-        MAX(RTRIM(c.NomAux))                                      AS NomAux,
-        MAX(RTRIM(c.FONAUX1))                                     AS FONAUX1,
-        MAX(RTRIM(c.FonAux2))                                     AS FonAux2,
-        MAX(RTRIM(c.EMail))                                       AS EMail,
-        COUNT(DISTINCT h.Folio)                                   AS TotalCompras,
-        u.UltimaFecha                                             AS UltimaFactura,
-        DATEDIFF(DAY, p.PenultimaFecha, u.UltimaFecha)           AS DiasRecuperado
-      FROM ultima u
-      INNER JOIN penultima p ON p.CodAux = u.CodAux
-      INNER JOIN [PRODIN].[softland].[iw_gsaen] h ON h.CodAux = u.CodAux
-      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = u.CodAux
-      WHERE
-        YEAR(u.UltimaFecha) = ${anioActual}
-        AND DATEDIFF(DAY, p.PenultimaFecha, u.UltimaFecha) > 90
-        AND h.CodVendedor IN (${inClause})
-        AND h.Tipo IN ('F','N','D')
-        AND h.Estado <> 'A'
-      GROUP BY u.CodAux, u.UltimaFecha, p.PenultimaFecha
-      ORDER BY DATEDIFF(DAY, p.PenultimaFecha, u.UltimaFecha) DESC
+        cv.CodAux,
+        RTRIM(c.NomAux)                                           AS NomAux,
+        RTRIM(c.FONAUX1)                                          AS FONAUX1,
+        RTRIM(c.FonAux2)                                          AS FonAux2,
+        RTRIM(c.EMail)                                            AS EMail,
+        tc.TotalFolios                                            AS TotalCompras,
+        pf.PenultimoFolio,
+        pf.PenultimaFecha                                         AS PenultimaFactura,
+        uf.UltimoFolio,
+        uf.UltimaFecha                                            AS UltimaFactura,
+        DATEDIFF(DAY, pf.PenultimaFecha, uf.UltimaFecha)         AS DiasRecuperado
+      FROM [PRODIN].[softland].[cwtauxven] cv
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c  ON c.CodAux  = cv.CodAux
+      INNER JOIN UltimoFolio   uf ON uf.CodAux = cv.CodAux
+      INNER JOIN PenultimoFolio pf ON pf.CodAux = cv.CodAux
+      LEFT  JOIN TotalCompras   tc ON tc.CodAux = cv.CodAux
+      WHERE cv.VenCod IN (${inClause})
+        AND uf.UltimaFecha  >= DATEADD(DAY, -90, GETDATE())
+        AND pf.PenultimaFecha < DATEADD(DAY, -90, GETDATE())
+      ORDER BY DiasRecuperado DESC
+    `);
+
+    // ── SIN COMPRAS: registrados en cwtauxven sin documentos válidos (F/N/D no anulados) ─
+    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, Estado
+    const resSinCompras = await pool.request().query(`
+      SELECT
+        cv.CodAux                             AS CodAux,
+        RTRIM(c.NomAux)                       AS NomAux,
+        RTRIM(c.FONAUX1)                      AS FONAUX1,
+        RTRIM(c.FonAux2)                      AS FonAux2,
+        RTRIM(c.EMail)                        AS EMail,
+        'Sin compras registradas'             AS Estado
+      FROM [PRODIN].[softland].[cwtauxven] cv
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = cv.CodAux
+      WHERE cv.VenCod IN (${inClause})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM [PRODIN].[softland].[iw_gsaen] h
+          WHERE h.CodAux   = cv.CodAux
+            AND h.Tipo     IN ('F','N','D')
+            AND h.Estado  <> 'A'
+        )
+      ORDER BY c.NomAux
     `);
 
     res.json({
       ok: true,
       activos:     resActivos.recordset,
       inactivos:   resInactivos.recordset,
-      recuperados: resRecuperados.recordset
+      recuperados: resRecuperados.recordset,
+      sinCompras:  resSinCompras.recordset
     });
 
   } catch (err) {
