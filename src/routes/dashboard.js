@@ -88,7 +88,7 @@ function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
     CASE
       WHEN ISNULL(m.CantFacturada, 0) <= 0
         THEN 0
-      WHEN m.CodProd LIKE 'NC%'
+      WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
         THEN ISNULL(m.TotLinea / NULLIF(m.CantFacturada, 0), 0)${factor}
       WHEN cl.CodCan = '301'
         THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
