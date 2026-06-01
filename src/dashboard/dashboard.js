@@ -10,9 +10,7 @@
 
 (function () {
 
-  // Registrar plugin datalabels (Chart.js 4 no auto-registra desde CDN)
-  if (window.Chart && window.ChartDataLabels) {
-    window.Chart.register(window.ChartDataLabels);
+
   }
 
   const API        = '/api/dashboard';
@@ -786,12 +784,10 @@
               padding: 14,
               generateLabels: (chart) => {
                 const dataset = chart.data.datasets[0];
-                const total = dataset.data.reduce((sum, v) => sum + (v || 0), 0);
                 return chart.data.labels.map((label, i) => {
                   const valor = dataset.data[i] || 0;
-                  const pct = total > 0 ? ((valor / total) * 100).toFixed(1) : '0.0';
                   return {
-                    text: `${label}  ${pct}%`,
+                    text: label,
                     fillStyle: dataset.backgroundColor[i],
                     strokeStyle: dataset.backgroundColor[i],
                     hidden: false,
