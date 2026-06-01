@@ -366,6 +366,17 @@ router.get('/vendedores', async (req, res) => {
     const pool = await getSoftlandPool();
 
     const resultPropias = await pool.request().query(`
+      WITH FoliosCompartidos AS (
+        SELECT
+          h.Folio,
+          CASE WHEN COUNT(DISTINCT h.CodVendedor) > 1 THEN 1 ELSE 0 END AS EsCompartido
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        WHERE MONTH(h.Fecha) = ${mes}
+          AND YEAR(h.Fecha)  = ${anio}
+          AND h.Tipo IN ('F','N','D')
+          AND h.Estado <> 'A'
+        GROUP BY h.Folio
+      )
       SELECT
         h.CodVendedor                                                             AS codVendedor,
         MIN(v.VenDes)                                                             AS nombreVendedor,
@@ -373,15 +384,17 @@ router.get('/vendedores', async (req, res) => {
         ROUND(SUM(m.TotLinea), 0)                                                 AS totalVentasCobrado,
         ROUND(SUM(${sqlBaseListaRealTotal()}), 0)                                 AS ventaRealLista
       FROM [PRODIN].[softland].[iw_gsaen] h
-      INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
-      LEFT  JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-      LEFT  JOIN [PRODIN].[softland].[cwtcvcl] cl ON cl.CodAux = h.CodAux
-      LEFT  JOIN [PRODIN].[softland].[cwtvend]  v ON v.VenCod  = h.CodVendedor
+      INNER JOIN [PRODIN].[softland].[iw_gmovi] m  ON m.NroInt  = h.NroInt AND m.Tipo = h.Tipo
+      LEFT  JOIN [PRODIN].[softland].[iw_tprod] t  ON t.CodProd = m.CodProd
+      LEFT  JOIN [PRODIN].[softland].[cwtcvcl]  cl ON cl.CodAux = h.CodAux
+      LEFT  JOIN [PRODIN].[softland].[cwtvend]   v ON v.VenCod  = h.CodVendedor
+      LEFT  JOIN FoliosCompartidos               fc ON fc.Folio  = h.Folio
       WHERE h.CodVendedor IN (${mssqlIn(codigos)})
         ${excludeComp}
         AND MONTH(h.Fecha) = ${mes} AND YEAR(h.Fecha) = ${anio}
         AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
       GROUP BY h.CodVendedor
+      ORDER BY h.CodVendedor
     `);
 
     const mapa = {};
