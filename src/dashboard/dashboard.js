@@ -10,6 +10,11 @@
 
 (function () {
 
+  // Registrar plugin datalabels (Chart.js 4 no auto-registra desde CDN)
+  if (window.Chart && window.ChartDataLabels) {
+    window.Chart.register(window.ChartDataLabels);
+  }
+
   const API        = '/api/dashboard';
   const API_CART   = '/api/cartera';
   const token      = () => localStorage.getItem('token');

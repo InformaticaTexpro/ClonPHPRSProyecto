@@ -97,7 +97,7 @@ function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
         THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
       ELSE ISNULL(t.PrecioVta, 0)${factor}
     END
-
+  `;
 }
 
 function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
@@ -206,7 +206,6 @@ router.get('/resumen', async (req, res) => {
       }
     }
 
-    const extraFoliosDesc = foliosCompNums.length ? `OR h.Folio IN (${foliosCompNums.join(',')})` : '';
     const resultDesc = await pool.request().query(`
       WITH FoliosCompartidos AS (
         SELECT
