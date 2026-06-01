@@ -10,6 +10,11 @@
 
 (function () {
 
+  // Registrar plugin de etiquetas en segmentos (Chart.js 4 requiere registro explícito)
+  if (window.Chart && window.ChartDataLabels) {
+    Chart.register(ChartDataLabels);
+  }
+
   const API        = '/api/dashboard';
   const API_CART   = '/api/cartera';
   const token      = () => localStorage.getItem('token');
@@ -781,12 +786,10 @@
               padding: 14,
               generateLabels: (chart) => {
                 const dataset = chart.data.datasets[0];
-                const total = dataset.data.reduce((sum, v) => sum + (v || 0), 0);
                 return chart.data.labels.map((label, i) => {
                   const valor = dataset.data[i] || 0;
-                  const pct = total > 0 ? ((valor / total) * 100).toFixed(1) : '0.0';
                   return {
-                    text: `${label}  ${pct}%`,
+                    text: label,
                     fillStyle: dataset.backgroundColor[i],
                     strokeStyle: dataset.backgroundColor[i],
                     hidden: false,
