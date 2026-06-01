@@ -18,8 +18,8 @@
   let graficoClientesDistribucion  = null;
   let todosVendedores              = [];
 
-  let carteraData = { activos: [], inactivos: [], recuperados: [] };
-  let carteraRendered = { activo: false, inactivo: false, recuperado: false };
+  let carteraData = { activos: [], inactivos: [], recuperados: [], sinCompras: [] };
+  let carteraRendered = { activo: false, inactivo: false, recuperado: false, sincompras: false };
 
   let filtroVendedorActivo = '';
   let tiposActivos = new Set(['F', 'N', 'D']);
@@ -382,29 +382,32 @@
   // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────
   async function cargarCartera() {
     try {
-      const res  = await fetch(API_CART, { headers:{ Authorization:`Bearer ${token()}` } });
+      const res  = await fetch(`${API_CART}?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error cartera');
 
       carteraData.activos     = data.activos     || [];
       carteraData.inactivos   = data.inactivos   || [];
       carteraData.recuperados = data.recuperados || [];
+      carteraData.sinCompras  = data.sinCompras  || [];
 
-      carteraRendered = { activo: false, inactivo: false, recuperado: false };
+      carteraRendered = { activo: false, inactivo: false, recuperado: false, sincompras: false };
 
-      setText('countActivo',     String(carteraData.activos.length));
-      setText('countInactivo',   String(carteraData.inactivos.length));
-      setText('countRecuperado', String(carteraData.recuperados.length));
+      setText('countActivo',      String(carteraData.activos.length));
+      setText('countInactivo',    String(carteraData.inactivos.length));
+      setText('countRecuperado',  String(carteraData.recuperados.length));
+      setText('countSincompras',  String(carteraData.sinCompras.length));
 
-      ['activo', 'inactivo', 'recuperado'].forEach(tipo => {
+      ['activo', 'inactivo', 'recuperado', 'sincompras'].forEach(tipo => {
         const lista = document.getElementById(`lista${capitalize(tipo)}`);
         if (lista && !lista.hidden) renderCartaTipo(tipo);
       });
     } catch (err) {
       console.error('[cargarCartera]', err);
-      setText('countActivo',     '—');
-      setText('countInactivo',   '—');
-      setText('countRecuperado', '—');
+      setText('countActivo',      '—');
+      setText('countInactivo',    '—');
+      setText('countRecuperado',  '—');
+      setText('countSincompras',  '—');
     }
   }
 
@@ -419,9 +422,10 @@
           (c.FonAux2 || '').toLowerCase().includes(q))
       : lista;
 
-    if (tipo === 'activo')          renderTablaCartera('tbodyActivo',     filtrarLista(carteraData.activos),     'Sin clientes activos');
-    else if (tipo === 'inactivo')   renderTablaCartera('tbodyInactivo',   filtrarLista(carteraData.inactivos),   'Sin clientes inactivos');
-    else if (tipo === 'recuperado') renderTablaCartera('tbodyRecuperado', filtrarLista(carteraData.recuperados), 'Sin clientes recuperados');
+    if (tipo === 'activo')          renderTablaCartera('tbodyActivo',      filtrarLista(carteraData.activos),     'Sin clientes activos');
+    else if (tipo === 'inactivo')   renderTablaCartera('tbodyInactivo',    filtrarLista(carteraData.inactivos),   'Sin clientes inactivos');
+    else if (tipo === 'recuperado') renderTablaCarteraRecuperado('tbodyRecuperado', filtrarLista(carteraData.recuperados), 'Sin clientes recuperados');
+    else if (tipo === 'sincompras') renderTablaCartera('tbodySincompras',  filtrarLista(carteraData.sinCompras),  'Sin clientes en esta categoría');
     carteraRendered[tipo] = true;
   }
 
@@ -445,6 +449,34 @@
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  function renderTablaCarteraRecuperado(tbodyId, lista, mensajeVacio) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    if (!lista.length) { tbody.innerHTML = `<tr class="tabla-empty"><td colspan="8">${mensajeVacio}</td></tr>`; return; }
+    const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CL') : '—';
+    tbody.innerHTML = lista.map(c => {
+      const emailHtml = c.EMail
+        ? `<a href="mailto:${c.EMail}" style="color:var(--color-primary);text-decoration:none" title="${c.EMail}">${c.EMail}</a>`
+        : '—';
+      const tel1Html = c.FONAUX1
+        ? `<a href="tel:${c.FONAUX1}" style="color:var(--color-primary);text-decoration:none">${c.FONAUX1}</a>`
+        : '—';
+      const tel2Html = c.FonAux2
+        ? `<a href="tel:${c.FonAux2}" style="color:var(--color-primary);text-decoration:none">${c.FonAux2}</a>`
+        : '—';
+      return `<tr>
+          <td><code>${c.CodAux||'—'}</code></td>
+          <td>${c.NomAux||'—'}</td>
+          <td>${tel1Html}</td>
+          <td>${tel2Html}</td>
+          <td>${emailHtml}</td>
+          <td>${fmtFecha(c.PenultimaFactura)}</td>
+          <td>${fmtFecha(c.UltimaFactura)}</td>
+          <td style="text-align:right"><strong>${c.DiasRecuperado != null ? c.DiasRecuperado + ' días' : '—'}</strong></td>
         </tr>`;
     }).join('');
   }
@@ -475,6 +507,8 @@
     if (bInactivo) bInactivo.addEventListener('input', e => renderCartaTipo('inactivo', e.target.value));
     const bRecup = document.getElementById('busquedaRecuperado');
     if (bRecup) bRecup.addEventListener('input', e => renderCartaTipo('recuperado', e.target.value));
+    const bSinCompras = document.getElementById('busquedaSincompras');
+    if (bSinCompras) bSinCompras.addEventListener('input', e => renderCartaTipo('sincompras', e.target.value));
   }
 
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }

@@ -203,8 +203,34 @@
               </div>
               <div class="cartera-tabla-wrapper">
                 <table class="dash-tabla cartera-tabla">
+                  <thead><tr><th>Cód. Cliente</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Penult. Factura</th><th>Últ. Factura</th><th style="text-align:right">Días Recuperado</th></tr></thead>
+                  <tbody id="tbodyRecuperado"><tr class="tabla-empty"><td colspan="8">Cargando...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SIN COMPRAS -->
+          <div class="cartera-card cartera-card--sincompras" id="cardSincompras">
+            <button class="cartera-card-btn" data-tipo="sincompras" aria-expanded="false">
+              <div class="cartera-card-icono">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+              </div>
+              <div class="cartera-card-info">
+                <span class="cartera-card-label">SIN COMPRAS</span>
+                <span class="cartera-card-count" id="countSincompras">—</span>
+                <span class="cartera-card-desc">Registrados sin ningún folio histórico</span>
+              </div>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="cartera-lista" id="listaSincompras" hidden>
+              <div class="cartera-lista-busqueda">
+                <input type="text" class="cartera-busqueda-input" id="busquedaSincompras" placeholder="Buscar cliente..." />
+              </div>
+              <div class="cartera-tabla-wrapper">
+                <table class="dash-tabla cartera-tabla">
                   <thead><tr><th>Cód. Cliente</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th></tr></thead>
-                  <tbody id="tbodyRecuperado"><tr class="tabla-empty"><td colspan="5">Cargando...</td></tr></tbody>
+                  <tbody id="tbodySincompras"><tr class="tabla-empty"><td colspan="5">Cargando...</td></tr></tbody>
                 </table>
               </div>
             </div>

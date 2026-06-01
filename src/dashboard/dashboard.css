@@ -296,6 +296,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .cartera-card--activo    { border-left: 4px solid #00C896; }
 .cartera-card--inactivo  { border-left: 4px solid #F5A623; }
 .cartera-card--recuperado{ border-left: 4px solid #00AEEF; }
+.cartera-card--sincompras { border-left: 4px solid #9B59B6; }
 
 /* ── Botón cabecera (toda la card superior) ───── */
 .cartera-card-btn {
@@ -325,6 +326,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .cartera-card--activo     .cartera-card-icono { background: rgba(0,200,150,.12); color: #00C896; }
 .cartera-card--inactivo   .cartera-card-icono { background: rgba(245,166,35,.12); color: #F5A623; }
 .cartera-card--recuperado .cartera-card-icono { background: rgba(0,174,239,.12); color: #00AEEF; }
+.cartera-card--sincompras  .cartera-card-icono { background: rgba(155,89,182,.12); color: #9B59B6; }
 
 /* ── Texto info ───────────────────────────────── */
 .cartera-card-info {
@@ -353,6 +355,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .cartera-card--activo     .cartera-card-count { color: #00C896; }
 .cartera-card--inactivo   .cartera-card-count { color: #F5A623; }
 .cartera-card--recuperado .cartera-card-count { color: #00AEEF; }
+.cartera-card--sincompras  .cartera-card-count { color: #9B59B6; }
 
 .cartera-card-desc {
   font-size: .75rem;
