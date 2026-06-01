@@ -1,11 +1,11 @@
 'use strict';
 
 /**
- * dashboard.js — RSProyecto Texpro
+ * dashboard.js â€” RSProyecto Texpro
  *
  * 2026-04-23: filtros client-side en tabla Ventas del Mes
- * 2026-04-24: módulo Alertas agregado al sidebar — accesible para TODOS los usuarios
- * 2026-04-24: fix(lint) — eliminada función setHTML no utilizada
+ * 2026-04-24: mÃ³dulo Alertas agregado al sidebar â€” accesible para TODOS los usuarios
+ * 2026-04-24: fix(lint) â€” eliminada funciÃ³n setHTML no utilizada
  */
 
 (function () {
@@ -27,7 +27,7 @@
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   function formatCLP(v) {
-    if (v == null || v === '') return '—';
+    if (v == null || v === '') return 'â€”';
     return new Intl.NumberFormat('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(Number(v));
   }
 
@@ -95,20 +95,20 @@
   }
 
   // -- Sidebar ---------------------------------------------------------------
-  // area: null  ? visible para TODOS los usuarios sin excepción
-  // area: [...]  ? visible solo para las áreas listadas
+  // area: null  ? visible para TODOS los usuarios sin excepciÃ³n
+  // area: [...]  ? visible solo para las Ã¡reas listadas
   const MODULOS = [
-    { nombre:'Ventas',        icon:'??', url:'../ventas/index.html',       area:['ventas','gerencia'] },
-    { nombre:'Facturación',   icon:'??', url:'../facturacion/index.html',  area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',        icon:'??', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',    icon:'??', url:'../produccion/index.html',   area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',     icon:'???', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',   icon:'??', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',      icon:'??', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',          icon:'??', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',  icon:'??', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
-    { nombre:'Administración',icon:'??', url:'../admin/index.html',        area:['admin'] },
-    { nombre:'Alertas',       icon:'??', url:'../alertas/index.html',      area: null },
+    { nombre:'Ventas',        icon:'\uD83D\uDCCA', url:'../ventas/index.html',       area:['ventas','gerencia'] },
+    { nombre:'FacturaciÃ³n',   icon:'\uD83E\uDDFE', url:'../facturacion/index.html',  area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',        icon:'\uD83C\uDFED', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
+    { nombre:'ProducciÃ³n',    icon:'\u2699\uFE0F', url:'../produccion/index.html',   area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',     icon:'\uD83D\uDEE0\uFE0F', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',   icon:'\uD83E\uDDEA', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',      icon:'\uD83D\uDCB0', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',          icon:'\uD83D\uDC65', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',  icon:'\uD83D\uDCDC', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
+    { nombre:'AdministraciÃ³n',icon:'\uD83D\uDD27', url:'../admin/index.html',        area:['admin'] },
+    { nombre:'Alertas',       icon:'\uD83D\uDD14', url:'../alertas/index.html',      area: null },
   ];
 
   function cargarSidebar(usuario) {
@@ -120,8 +120,8 @@
     setText('chipName',   (usuario.nombre||usuario.email).split(' ')[0]);
     setText('headerDate', new Date().toLocaleDateString('es-CL',
       { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-    setText('welcomeTitle',    `Hola, ${(usuario.nombre||usuario.email).split(' ')[0]} ??`);
-    setText('welcomeSubtitle', `Área: ${usuario.area||'Sistema'} — Texpro`);
+    setText('welcomeTitle',    `Hola, ${(usuario.nombre||usuario.email).split(' ')[0]} \uD83D\uDC4B`);
+    setText('welcomeSubtitle', `Ãrea: ${usuario.area||'Sistema'} â€” Texpro`);
 
     const nav      = document.getElementById('sidebarNav');
     const visibles = MODULOS.filter(m => {
@@ -129,7 +129,7 @@
       if (usuario.is_admin) return true;
       return m.area.includes(usuario.area);
     });
-    if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
+    if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÃ“N</span>
       <a class="nav-item active" href="#">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span class="nav-label">Dashboard</span>
@@ -152,7 +152,7 @@
     });
   }
 
-  // -- Selectores mes/año ----------------------------------------------------
+  // -- Selectores mes/aÃ±o ----------------------------------------------------
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -202,13 +202,13 @@
     } catch (err) { console.error('[cargarResumen]', err); }
   }
 
-  // -- Gráfico ---------------------------------------------------------------
+  // -- GrÃ¡fico ---------------------------------------------------------------
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function cargarGrafico() {
     try {
       const { mes, anio } = getParams();
-      setText('graficoTitulo', `Evolución Mensual — ${MESES_NOMBRE[Number(mes) - 1]} ${anio}`);
+      setText('graficoTitulo', `EvoluciÃ³n Mensual â€” ${MESES_NOMBRE[Number(mes) - 1]} ${anio}`);
       const res  = await fetch(`${API}/evolucion?${new URLSearchParams({ mes, anio })}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
@@ -259,11 +259,11 @@
         return `
         <tr>
           <td><strong>${v.codVendedor}</strong></td>
-          <td>${v.nombreVendedor || '—'}</td>
+          <td>${v.nombreVendedor || 'â€”'}</td>
           <td>${v.totalFolios}</td>
           <td style="text-align:right">${formatCLP(totalVentasCobrado)}</td>
           <td style="text-align:right">${formatCLP(ventaRealLista)}</td>
-          <td style="text-align:right">${pctDescuento > 0 ? pctDescuento + '%' : '—'}</td>
+          <td style="text-align:right">${pctDescuento > 0 ? pctDescuento + '%' : 'â€”'}</td>
         </tr>`;
       }).join('');
     } catch (err) { console.error('[cargarVendedores]', err); }
@@ -314,17 +314,17 @@
     setText('totalVentasMes', `${lista.length.toLocaleString('es-CL')} registros`);
     if (!lista.length) { tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin registros</td></tr>'; return; }
     tbody.innerHTML = lista.map(v => {
-      const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
+      const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : 'â€”';
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
       return `<tr>
-        <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
-        <td>${v.fecha_formato||'—'}</td>
-        <td>${v.cliente||'—'}</td>
-        <td>${v.CodVendedor||'—'}</td>
+        <td><strong>${v.Folio||'â€”'}</strong>${badgeComp}</td>
+        <td>${v.fecha_formato||'â€”'}</td>
+        <td>${v.cliente||'â€”'}</td>
+        <td>${v.CodVendedor||'â€”'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
         <td style="text-align:right">${formatCLP(totLineaReal)}</td>
         <td style="text-align:right">${pctDesc}</td>
@@ -345,10 +345,10 @@
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
     if (!overlay || !tbody) return;
-    setText('modalTitulo', `Folio N° ${folio}`);
+    setText('modalTitulo', `Folio NÂ° ${folio}`);
     const venta = ventasMesData.find(v => String(v.Folio) === String(folio));
-    setText('modalSubtitulo', venta ? `${venta.cliente||''} • ${venta.fecha_formato||''}` : '');
-    setText('modalTotalValor', '—');
+    setText('modalSubtitulo', venta ? `${venta.cliente||''} â€¢ ${venta.fecha_formato||''}` : '');
+    setText('modalTotalValor', 'â€”');
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem">Cargando...</td></tr>';
     overlay.classList.add('modal-overlay--visible');
     overlay.setAttribute('aria-hidden','false');
@@ -357,13 +357,13 @@
       const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">?? Error</td></tr>'; return; }
-      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Sin líneas</td></tr>'; return; }
+      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Sin lÃ­neas</td></tr>'; return; }
       const total = data.detalle.reduce((s,l)=>s+(Number(l.valor_historico_linea)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
-          <td><code>${l.CodProd||'—'}</code></td>
-          <td>${l.DesProd||'—'}</td>
-          <td style="text-align:center">${l.CantFacturada??'—'}</td>
+          <td><code>${l.CodProd||'â€”'}</code></td>
+          <td>${l.DesProd||'â€”'}</td>
+          <td style="text-align:center">${l.CantFacturada??'â€”'}</td>
           <td style="text-align:right">${formatCLP(l.precio_unitario_historico)}</td>
           <td style="text-align:right"><strong>${formatCLP(l.valor_historico_linea)}</strong></td>
         </tr>`).join('');
@@ -404,10 +404,10 @@
       });
     } catch (err) {
       console.error('[cargarCartera]', err);
-      setText('countActivo',      '—');
-      setText('countInactivo',    '—');
-      setText('countRecuperado',  '—');
-      setText('countSincompras',  '—');
+      setText('countActivo',      'â€”');
+      setText('countInactivo',    'â€”');
+      setText('countRecuperado',  'â€”');
+      setText('countSincompras',  'â€”');
     }
   }
 
@@ -425,7 +425,7 @@
     if (tipo === 'activo')          renderTablaCartera('tbodyActivo',      filtrarLista(carteraData.activos),     'Sin clientes activos');
     else if (tipo === 'inactivo')   renderTablaCartera('tbodyInactivo',    filtrarLista(carteraData.inactivos),   'Sin clientes inactivos');
     else if (tipo === 'recuperado') renderTablaCarteraRecuperado('tbodyRecuperado', filtrarLista(carteraData.recuperados), 'Sin clientes recuperados');
-    else if (tipo === 'sincompras') renderTablaCartera('tbodySincompras',  filtrarLista(carteraData.sinCompras),  'Sin clientes en esta categoría');
+    else if (tipo === 'sincompras') renderTablaCartera('tbodySincompras',  filtrarLista(carteraData.sinCompras),  'Sin clientes en esta categorÃ­a');
     carteraRendered[tipo] = true;
   }
 
@@ -436,16 +436,16 @@
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
         ? `<a href="mailto:${c.EMail}" style="color:var(--color-primary);text-decoration:none" title="${c.EMail}">${c.EMail}</a>`
-        : '—';
+        : 'â€”';
       const tel1Html = c.FONAUX1
         ? `<a href="tel:${c.FONAUX1}" style="color:var(--color-primary);text-decoration:none">${c.FONAUX1}</a>`
-        : '—';
+        : 'â€”';
       const tel2Html = c.FonAux2
         ? `<a href="tel:${c.FonAux2}" style="color:var(--color-primary);text-decoration:none">${c.FonAux2}</a>`
-        : '—';
+        : 'â€”';
       return `<tr>
-          <td><code>${c.CodAux||'—'}</code></td>
-          <td>${c.NomAux||'—'}</td>
+          <td><code>${c.CodAux||'â€”'}</code></td>
+          <td>${c.NomAux||'â€”'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
@@ -457,26 +457,26 @@
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     if (!lista.length) { tbody.innerHTML = `<tr class="tabla-empty"><td colspan="8">${mensajeVacio}</td></tr>`; return; }
-    const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CL') : '—';
+    const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CL') : 'â€”';
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
         ? `<a href="mailto:${c.EMail}" style="color:var(--color-primary);text-decoration:none" title="${c.EMail}">${c.EMail}</a>`
-        : '—';
+        : 'â€”';
       const tel1Html = c.FONAUX1
         ? `<a href="tel:${c.FONAUX1}" style="color:var(--color-primary);text-decoration:none">${c.FONAUX1}</a>`
-        : '—';
+        : 'â€”';
       const tel2Html = c.FonAux2
         ? `<a href="tel:${c.FonAux2}" style="color:var(--color-primary);text-decoration:none">${c.FonAux2}</a>`
-        : '—';
+        : 'â€”';
       return `<tr>
-          <td><code>${c.CodAux||'—'}</code></td>
-          <td>${c.NomAux||'—'}</td>
+          <td><code>${c.CodAux||'â€”'}</code></td>
+          <td>${c.NomAux||'â€”'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
           <td>${fmtFecha(c.PenultimaFactura)}</td>
           <td>${fmtFecha(c.UltimaFactura)}</td>
-          <td style="text-align:right"><strong>${c.DiasRecuperado != null ? c.DiasRecuperado + ' días' : '—'}</strong></td>
+          <td style="text-align:right"><strong>${c.DiasRecuperado != null ? c.DiasRecuperado + ' dÃ­as' : 'â€”'}</strong></td>
         </tr>`;
     }).join('');
   }
@@ -522,9 +522,9 @@
       todosVendedores = data.vendedores;
       const sel = document.getElementById('coordVendedor');
       if (!sel) return;
-      sel.innerHTML = '<option value="">— Selecciona vendedor —</option>' +
+      sel.innerHTML = '<option value="">â€” Selecciona vendedor â€”</option>' +
         data.vendedores.map(v =>
-          `<option value="${v.cod}">${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+          `<option value="${v.cod}">${v.cod} â€” ${v.nombre||'Sin nombre'}</option>`
         ).join('');
     } catch(err) { console.error('[cargarListaVendedores]', err); }
   }
@@ -541,7 +541,7 @@
       const porcentaje = document.getElementById('coordPorcentaje')?.value;
       const msgEl      = document.getElementById('coordMensaje');
       if (!folio || !vendedor || !porcentaje) {
-        if (msgEl) { msgEl.textContent = '?? Completa todos los campos'; msgEl.style.color = 'var(--color-danger)'; }
+        if (msgEl) { msgEl.textContent = '\u26A0\uFE0F Completa todos los campos'; msgEl.style.color = 'var(--color-danger)'; }
         return;
       }
       try {
@@ -553,7 +553,7 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error);
-        if (msgEl) { msgEl.textContent = '? Folio asignado correctamente'; msgEl.style.color = 'var(--color-primary)'; }
+        if (msgEl) { msgEl.textContent = '\u2705 Folio asignado correctamente'; msgEl.style.color = 'var(--color-primary)'; }
         const coordVend = document.getElementById('coordVendedor');
         const coordPct  = document.getElementById('coordPorcentaje');
         if (coordVend) coordVend.value = '';
@@ -561,7 +561,7 @@
         await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados(), cargarResumen(), cargarVentasMes() ]);
       } catch(err) {
         const msgEl2 = document.getElementById('coordMensaje');
-        if (msgEl2) { msgEl2.textContent = `? ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
+        if (msgEl2) { msgEl2.textContent = `\u274C ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
       }
     });
   }
@@ -573,27 +573,27 @@
       const sel  = document.getElementById('coordFolio');
       if (!sel) return;
       if (!data.ok || !data.folios?.length) {
-        sel.innerHTML = '<option value="">— Sin folios disponibles —</option>'; return;
+        sel.innerHTML = '<option value="">â€” Sin folios disponibles â€”</option>'; return;
       }
-      sel.innerHTML = '<option value="">— Selecciona un folio —</option>' +
+      sel.innerHTML = '<option value="">â€” Selecciona un folio â€”</option>' +
         data.folios.map(f =>
-          `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`
+          `<option value="${f.Folio}">${f.Folio} â€” ${f.cliente||'?'} â€” ${formatCLP(f.monto)}</option>`
         ).join('');
     } catch(err) { console.error('[cargarFoliosParaCompartir]',err); }
   }
 
   function opcionesVendedores(seleccionado) {
     return todosVendedores.map(v =>
-      `<option value="${v.cod}" ${v.cod === seleccionado ? 'selected' : ''}>${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+      `<option value="${v.cod}" ${v.cod === seleccionado ? 'selected' : ''}>${v.cod} â€” ${v.nombre||'Sin nombre'}</option>`
     ).join('');
   }
 
   function filaAsignadoVista(c) {
     return `
       <td><strong>${c.folio}</strong></td>
-      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-      <td>${c.cliente||'—'}</td>
-      <td>${c.nombre_vendedor_compartido||c.cod_vendedor_compartido||'—'}</td>
+      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : 'â€”'}</td>
+      <td>${c.cliente||'â€”'}</td>
+      <td>${c.nombre_vendedor_compartido||c.cod_vendedor_compartido||'â€”'}</td>
       <td style="text-align:right">${c.porcentaje}%</td>
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
       <td>
@@ -607,11 +607,11 @@
   function filaAsignadoEdicion(c) {
     return `
       <td><strong>${c.folio}</strong></td>
-      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-      <td>${c.cliente||'—'}</td>
+      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : 'â€”'}</td>
+      <td>${c.cliente||'â€”'}</td>
       <td>
         <select class="crud-input-select" id="editVend_${c.id}">
-          <option value="">— Selecciona —</option>
+          <option value="">â€” Selecciona â€”</option>
           ${opcionesVendedores(c.cod_vendedor_compartido)}
         </select>
       </td>
@@ -621,8 +621,8 @@
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
       <td>
         <div class="crud-acciones">
-          <button class="btn-crud btn-crud--save"   title="Guardar" data-id="${c.id}" data-folio="${c.folio}">?</button>
-          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">?</button>
+          <button class="btn-crud btn-crud--save"   title="Guardar" data-id="${c.id}" data-folio="${c.folio}">&#x2713;</button>
+          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">&#x2715;</button>
         </div>
       </td>`;
   }
@@ -678,7 +678,7 @@
       btn.addEventListener('click', async () => {
         const id    = btn.dataset.id;
         const folio = btn.dataset.folio;
-        if (!confirm(`¿Eliminar asignación del folio ${folio}? El folio volverá a estar disponible.`)) return;
+        if (!confirm(`Â¿Eliminar asignaciÃ³n del folio ${folio}? El folio volverÃ¡ a estar disponible.`)) return;
         try {
           const res  = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
           const data = await res.json();
@@ -709,9 +709,9 @@
       tbody.innerHTML = data.compartidos.map(c => `
         <tr>
           <td><strong>${c.folio}</strong></td>
-          <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-          <td>${c.cliente||'—'}</td>
-          <td>${c.coordinador||c.cod_vendedor_principal||'—'}</td>
+          <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : 'â€”'}</td>
+          <td>${c.cliente||'â€”'}</td>
+          <td>${c.coordinador||c.cod_vendedor_principal||'â€”'}</td>
           <td style="text-align:right">${c.porcentaje}%</td>
           <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
         </tr>`).join('');
@@ -761,7 +761,7 @@
             display: (ctx2) => {
               const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0);
               const pct = total > 0 ? (ctx2.dataset.data[ctx2.dataIndex] || 0) / total * 100 : 0;
-              return pct >= 3; // ocultar etiquetas muy pequeñas
+              return pct >= 3; // ocultar etiquetas muy pequeÃ±as
             },
             color: '#fff',
             font: { family: 'Montserrat', size: 11, weight: '700' },
@@ -825,9 +825,9 @@
 
       const vendedores = data.vendedores;
 
-      // 1. Lista maestra completa desde MySQL (todas las categorías, con o sin ventas)
+      // 1. Lista maestra completa desde MySQL (todas las categorÃ­as, con o sin ventas)
       const todasLasCategorias = data.todasLasCategorias || [];
-      // Calcular agregado por categoría para asignar orden de colores
+      // Calcular agregado por categorÃ­a para asignar orden de colores
       const aggMap = {};
       for (const v of vendedores) {
         for (const c of v.categorias) {
@@ -853,7 +853,7 @@
         if (tabsEl) tabsEl.style.display = 'none';
         renderGraficoClientesDistribucion(padear(vendedores[0].categorias));
       } else {
-        // Múltiples vendedores: tab "Todos" + uno por vendedor
+        // MÃºltiples vendedores: tab "Todos" + uno por vendedor
         if (tabsEl) {
           tabsEl.style.display = 'flex';
           const tabTodos = `<button class="torta-tab torta-tab--activo" data-idx="-1">Todos</button>`;
