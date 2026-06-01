@@ -68,9 +68,6 @@ router.use(requireAuth);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line no-unused-vars
-function RTRIM(s) { return s ? s.toString().trimEnd() : ''; }
-
 function getCodigos(usuario) {
   return (usuario.vendedores || []).map(v => v.cod_vendedor);
 }

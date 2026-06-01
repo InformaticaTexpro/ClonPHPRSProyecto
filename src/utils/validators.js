@@ -80,4 +80,17 @@ function validateId(value) {
   return n;
 }
 
-module.exports = { validateFolio, validateCodVendedor, validatePorcentaje, validateId };
+/**
+ * Valida y retorna una dirección de email normalizada (lowercase, trimmed).
+ * @param {any} value
+ * @returns {string}
+ */
+function validateEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error(`Email inválido: "${email}"`);
+  }
+  return email;
+}
+
+module.exports = { validateFolio, validateCodVendedor, validatePorcentaje, validateId, validateEmail };

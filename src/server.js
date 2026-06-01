@@ -106,6 +106,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api', apiLimiter);
 app.use('/api/auth/login',      loginLimiter);
+app.use('/api/auth/refresh',    loginLimiter);
 app.use('/api/auth',            authRoutes);
 app.use('/api/auth',            recuperarRoutes);
 app.use('/api/ventas',          ventasRoutes);

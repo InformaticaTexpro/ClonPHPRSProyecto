@@ -7,7 +7,7 @@ module.exports = [
   },
   js.configs.recommended,
   {
-    // languageOptions sin restricción de files — garantiza ecmaVersion 2022 en todos los archivos
+    files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -17,10 +17,7 @@ module.exports = [
         ...globals.jest,
         Chart: 'readonly'
       }
-    }
-  },
-  {
-    files: ['**/*.js'],
+    },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': 'off'
