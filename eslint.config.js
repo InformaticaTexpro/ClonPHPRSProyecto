@@ -1,12 +1,13 @@
 const js = require('@eslint/js');
 const globals = require('globals');
-const { defineConfig, globalIgnores } = require('eslint/config');
 
-module.exports = defineConfig([
-  globalIgnores(['node_modules/**', 'coverage/**', 'dist/**']),
+module.exports = [
+  {
+    ignores: ['node_modules/**', 'coverage/**', 'dist/**']
+  },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    // languageOptions sin restricción de files — garantiza ecmaVersion 2022 en todos los archivos
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -16,10 +17,13 @@ module.exports = defineConfig([
         ...globals.jest,
         Chart: 'readonly'
       }
-    },
+    }
+  },
+  {
+    files: ['**/*.js'],
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': 'off'
     }
   }
-]);
+];

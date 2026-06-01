@@ -295,7 +295,6 @@
     }
 
     tbody.innerHTML = datos.map(s => {
-      const chip = s.estado === 'Realizado' ? 'st-chip' : 'st-chip--naranja';
       return `
         <tr>
           <td>${formatFecha(s.fecha)}</td>
