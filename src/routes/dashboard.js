@@ -881,7 +881,7 @@ router.get('/asignados', async (req, res) => {
 //   - TotalClientesPeriodo: clientes distintos con documentos en el período
 // ── GET /categorias-vendedor ──────────────────────────────────────────────────
 // Distribución de ventas por categoría de producto para el gráfico de tortas.
-// Doble fuente: SQL Server (ventas por CtaVentas) + MySQL (categoriasProducto).
+// Doble fuente: SQL Server (ventas por CtaVentas) + MySQL (categoriasproducto).
 // El JOIN se realiza en Node.js para no requerir replicación de tablas.
 router.get('/categorias-vendedor', async (req, res) => {
   const usuario = req.usuario;
@@ -898,7 +898,7 @@ router.get('/categorias-vendedor', async (req, res) => {
 
   try {
     // 1. MySQL: tabla de categorías (pequeña, carga única)
-    const [catRows] = await db.pool.query('SELECT Cta, Categoria FROM categoriasProducto');
+    const [catRows] = await db.pool.query('SELECT Cta, Categoria FROM categoriasproducto');
     const catMap = Object.fromEntries(catRows.map(r => [r.Cta, r.Categoria]));
 
     // 2. SQL Server: ventas agrupadas por CtaVentas, un query por vendedor
