@@ -206,7 +206,6 @@ router.get('/resumen', async (req, res) => {
       }
     }
 
-    const extraFoliosDesc = foliosCompNums.length ? `OR h.Folio IN (${foliosCompNums.join(',')})` : '';
     const resultDesc = await pool.request().query(`
       WITH FoliosCompartidos AS (
         SELECT

@@ -10,9 +10,7 @@
 
 (function () {
 
-  // Registrar plugin de etiquetas en segmentos (Chart.js 4 requiere registro explícito)
-  if (window.Chart && window.ChartDataLabels) {
-    Chart.register(ChartDataLabels);
+
   }
 
   const API        = '/api/dashboard';
