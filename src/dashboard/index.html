@@ -141,7 +141,7 @@
               <div class="cartera-card-info">
                 <span class="cartera-card-label">ACTIVOS</span>
                 <span class="cartera-card-count" id="countActivo">—</span>
-                <span class="cartera-card-desc">Compraron en los últimos 90 días</span>
+                <span class="cartera-card-desc">Compraron en el mes actual</span>
               </div>
               <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
@@ -253,10 +253,11 @@
                     <tr>
                       <th>Cód. Vendedor</th>
                       <th style="text-align:right">Clientes Históricos</th>
-                      <th style="text-align:right">Clientes en el Período</th>
+                      <th style="text-align:right">Clientes Mensuales</th>
                     </tr>
                   </thead>
                   <tbody id="tbodyClientesResumen"><tr class="tabla-empty"><td colspan="3">Cargando...</td></tr></tbody>
+                  <tfoot id="tfootClientesResumen"></tfoot>
                 </table>
               </div>
             </div>
@@ -287,6 +288,7 @@
                 </tr>
               </thead>
               <tbody id="tbodyVendedores"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody>
+              <tfoot id="tfootVendedores"></tfoot>
             </table>
           </div>
         </div>

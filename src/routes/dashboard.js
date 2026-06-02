@@ -382,7 +382,15 @@ router.get('/vendedores', async (req, res) => {
         MIN(v.VenDes)                                                             AS nombreVendedor,
         COUNT(DISTINCT h.Folio)                                                   AS totalFolios,
         ROUND(SUM(m.TotLinea), 0)                                                 AS totalVentasCobrado,
-        ROUND(SUM(${sqlBaseListaRealTotal()}), 0)                                 AS ventaRealLista
+        ROUND(SUM(
+          CASE
+            WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
+              THEN ISNULL(m.TotLinea, 0)
+            WHEN cl.CodCan = '301'
+              THEN ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0) * 1.10
+            ELSE ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)
+          END
+        ), 0)                                                                     AS ventaRealLista
       FROM [PRODIN].[softland].[iw_gsaen] h
       INNER JOIN [PRODIN].[softland].[iw_gmovi] m  ON m.NroInt  = h.NroInt AND m.Tipo = h.Tipo
       LEFT  JOIN [PRODIN].[softland].[iw_tprod] t  ON t.CodProd = m.CodProd
@@ -420,7 +428,15 @@ router.get('/vendedores', async (req, res) => {
           h.CodVendedor                                            AS codVendedorSoftland,
           MIN(v.VenDes)                                            AS nombreVendedorSoftland,
           ROUND(SUM(m.TotLinea), 0)                                AS totalLinea,
-          ROUND(SUM(${sqlBaseListaRealTotal()}), 0)                AS listaLinea
+          ROUND(SUM(
+            CASE
+              WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
+                THEN ISNULL(m.TotLinea, 0)
+              WHEN cl.CodCan = '301'
+                THEN ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0) * 1.10
+              ELSE ISNULL(m.CantFacturada, 0) * ISNULL(t.PrecioVta, 0)
+            END
+          ), 0)                                                    AS listaLinea
         FROM [PRODIN].[softland].[iw_gsaen] h
         INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
         LEFT  JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd

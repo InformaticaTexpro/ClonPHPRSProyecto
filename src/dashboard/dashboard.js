@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * dashboard.js — RSProyecto Texpro
@@ -14,9 +14,9 @@
   const API_CART   = '/api/cartera';
   const token      = () => localStorage.getItem('token');
 
-  let graficoEvolucion             = null;
-  let graficoClientesDistribucion  = null;
-  let todosVendedores              = [];
+  let graficoEvolucion              = null;
+  let graficoClientesDistribucion   = null;
+  let todosVendedores               = [];
 
   let carteraData = { activos: [], inactivos: [], recuperados: [], sinCompras: [] };
   let carteraRendered = { activo: false, inactivo: false, recuperado: false, sincompras: false };
@@ -36,12 +36,21 @@
     if (el) el.textContent = value;
   }
 
+  function escHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+  }
+
+  if (window.Chart && window.ChartDataLabels) {
+    window.Chart.register(window.ChartDataLabels);
+  }
+
   function setStyle(id, prop, value) {
     const el = document.getElementById(id);
     if (el) el.style[prop] = value;
   }
 
-  // -- Spinner ---------------------------------------------------------------
+  // ── Spinner ───────────────────────────────────────────────────────────────
   let cargaOverlay = null;
 
   function crearSpinner() {
@@ -94,21 +103,21 @@
     return (usuario.vendedores || []).some(v => v.tipo === 'C');
   }
 
-  // -- Sidebar ---------------------------------------------------------------
-  // area: null  ? visible para TODOS los usuarios sin excepción
-  // area: [...]  ? visible solo para las áreas listadas
+  // ── Sidebar ───────────────────────────────────────────────────────────────
+  // area: null  → visible para TODOS los usuarios sin excepción
+  // area: [...]  → visible solo para las áreas listadas
   const MODULOS = [
-    { nombre:'Ventas',        icon:'\uD83D\uDCCA', url:'../ventas/index.html',       area:['ventas','gerencia'] },
-    { nombre:'Facturación',   icon:'\uD83E\uDDFE', url:'../facturacion/index.html',  area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',        icon:'\uD83C\uDFED', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',    icon:'\u2699\uFE0F', url:'../produccion/index.html',   area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',     icon:'\uD83D\uDEE0\uFE0F', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',   icon:'\uD83E\uDDEA', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',      icon:'\uD83D\uDCB0', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',          icon:'\uD83D\uDC65', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',  icon:'\uD83D\uDCDC', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
-    { nombre:'Administración',icon:'\uD83D\uDD27', url:'../admin/index.html',        area:['admin'] },
-    { nombre:'Alertas',       icon:'\uD83D\uDD14', url:'../alertas/index.html',      area: null },
+    { nombre:'Ventas',        icon:'📊', url:'../ventas/index.html',       area:['ventas','gerencia'] },
+    { nombre:'Facturación',   icon:'🧾', url:'../facturacion/index.html',  area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',        icon:'🏭', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
+    { nombre:'Producción',    icon:'⚙️', url:'../produccion/index.html',   area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',     icon:'🛠️', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',   icon:'🧪', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',      icon:'💰', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',          icon:'👥', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',  icon:'📜', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
+    { nombre:'Administración',icon:'🔧', url:'../admin/index.html',        area:['admin'] },
+    { nombre:'Alertas',       icon:'🔔', url:'../alertas/index.html',      area: null },
   ];
 
   function cargarSidebar(usuario) {
@@ -120,7 +129,7 @@
     setText('chipName',   (usuario.nombre||usuario.email).split(' ')[0]);
     setText('headerDate', new Date().toLocaleDateString('es-CL',
       { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-    setText('welcomeTitle',    `Hola, ${(usuario.nombre||usuario.email).split(' ')[0]} \uD83D\uDC4B`);
+    setText('welcomeTitle',    `Hola, ${(usuario.nombre||usuario.email).split(' ')[0]} 👋`);
     setText('welcomeSubtitle', `Área: ${usuario.area||'Sistema'} — Texpro`);
 
     const nav      = document.getElementById('sidebarNav');
@@ -152,7 +161,7 @@
     });
   }
 
-  // -- Selectores mes/año ----------------------------------------------------
+  // ── Selectores mes/año ────────────────────────────────────────────────────
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -182,7 +191,7 @@
     };
   }
 
-  // -- KPIs ------------------------------------------------------------------
+  // ── KPIs ──────────────────────────────────────────────────────────────────
   async function cargarResumen() {
     try {
       const res  = await fetch(`${API}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -202,7 +211,7 @@
     } catch (err) { console.error('[cargarResumen]', err); }
   }
 
-  // -- Gráfico ---------------------------------------------------------------
+  // ── Gráfico ───────────────────────────────────────────────────────────────
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function cargarGrafico() {
@@ -229,7 +238,7 @@
           responsive:true, maintainAspectRatio:false,
           interaction:{ mode:'index', intersect:false },
           plugins:{
-            datalabels: { display: false },
+            datalabels:{ display:false },
             legend:{ position:'top', labels:{ font:{ family:'Montserrat', size:12 }, usePointStyle:true } },
             tooltip:{ callbacks:{ label:ctx2 => ` ${ctx2.dataset.label}: ${new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(ctx2.parsed.y)}` } }
           },
@@ -242,7 +251,7 @@
     } catch (err) { console.error('[cargarGrafico]', err); }
   }
 
-  // -- Tabla vendedores ------------------------------------------------------
+  // ── Tabla vendedores ──────────────────────────────────────────────────────
   async function cargarVendedores() {
     try {
       const res  = await fetch(`${API}/vendedores?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -258,18 +267,29 @@
         const pctDescuento       = Number(v.pctDescuento       || 0);
         return `
         <tr>
-          <td><strong>${v.codVendedor}</strong></td>
-          <td>${v.nombreVendedor || '—'}</td>
+          <td><strong>${escHtml(v.codVendedor)}</strong></td>
+          <td>${escHtml(v.nombreVendedor) || '—'}</td>
           <td>${v.totalFolios}</td>
           <td style="text-align:right">${formatCLP(totalVentasCobrado)}</td>
           <td style="text-align:right">${formatCLP(ventaRealLista)}</td>
           <td style="text-align:right">${pctDescuento > 0 ? pctDescuento + '%' : '—'}</td>
         </tr>`;
       }).join('');
+      const tfoot = document.getElementById('tfootVendedores');
+      if (tfoot) {
+        const sumVentas = data.vendedores.reduce((s, v) => s + Number(v.totalVentasCobrado || 0), 0);
+        const sumLista  = data.vendedores.reduce((s, v) => s + Number(v.ventaRealLista     || 0), 0);
+        tfoot.innerHTML = `<tr>
+          <td colspan="3"><strong>Total</strong></td>
+          <td style="text-align:right"><strong>${formatCLP(sumVentas)}</strong></td>
+          <td style="text-align:right"><strong>${formatCLP(sumLista)}</strong></td>
+          <td></td>
+        </tr>`;
+      }
     } catch (err) { console.error('[cargarVendedores]', err); }
   }
 
-  // -- Tabla ventas del mes --------------------------------------------------
+  // ── Tabla ventas del mes ──────────────────────────────────────────────────
   let ventasMesData = [];
 
   async function cargarVentasMes() {
@@ -321,10 +341,10 @@
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
       return `<tr>
-        <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
-        <td>${v.fecha_formato||'—'}</td>
-        <td>${v.cliente||'—'}</td>
-        <td>${v.CodVendedor||'—'}</td>
+        <td><strong>${escHtml(v.Folio) || '—'}</strong>${badgeComp}</td>
+        <td>${escHtml(v.fecha_formato) || '—'}</td>
+        <td>${escHtml(v.cliente) || '—'}</td>
+        <td>${escHtml(v.CodVendedor) || '—'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
         <td style="text-align:right">${formatCLP(totLineaReal)}</td>
         <td style="text-align:right">${pctDesc}</td>
@@ -340,7 +360,7 @@
     );
   }
 
-  // -- Modal detalle folio ---------------------------------------------------
+  // ── Modal detalle folio ───────────────────────────────────────────────────
   async function abrirDetalle(folio) {
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
@@ -356,19 +376,19 @@
     try {
       const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">?? Error</td></tr>'; return; }
+      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
       if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Sin líneas</td></tr>'; return; }
       const total = data.detalle.reduce((s,l)=>s+(Number(l.valor_historico_linea)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
-          <td><code>${l.CodProd||'—'}</code></td>
-          <td>${l.DesProd||'—'}</td>
-          <td style="text-align:center">${l.CantFacturada??'—'}</td>
+          <td><code>${escHtml(l.CodProd) || '—'}</code></td>
+          <td>${escHtml(l.DesProd) || '—'}</td>
+          <td style="text-align:center">${l.CantFacturada ?? '—'}</td>
           <td style="text-align:right">${formatCLP(l.precio_unitario_historico)}</td>
           <td style="text-align:right"><strong>${formatCLP(l.valor_historico_linea)}</strong></td>
         </tr>`).join('');
       setText('modalTotalValor', formatCLP(total));
-    } catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">?? Error</td></tr>'; }
+} catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">&#x26A0;&#xFE0F; Error</td></tr>'; }
   }
 
   function cerrarModal() {
@@ -379,7 +399,7 @@
     document.body.style.overflow = '';
   }
 
-  // -- CARTERA DE CLIENTES ---------------------------------------------------
+  // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────
   async function cargarCartera() {
     try {
       const res  = await fetch(`${API_CART}?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -435,17 +455,17 @@
     if (!lista.length) { tbody.innerHTML = `<tr class="tabla-empty"><td colspan="5">${mensajeVacio}</td></tr>`; return; }
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
-        ? `<a href="mailto:${c.EMail}" style="color:var(--color-primary);text-decoration:none" title="${c.EMail}">${c.EMail}</a>`
+        ? `<a href="mailto:${escHtml(c.EMail)}" style="color:var(--color-primary);text-decoration:none" title="${escHtml(c.EMail)}">${escHtml(c.EMail)}</a>`
         : '—';
       const tel1Html = c.FONAUX1
-        ? `<a href="tel:${c.FONAUX1}" style="color:var(--color-primary);text-decoration:none">${c.FONAUX1}</a>`
+        ? `<a href="tel:${escHtml(c.FONAUX1)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FONAUX1)}</a>`
         : '—';
       const tel2Html = c.FonAux2
-        ? `<a href="tel:${c.FonAux2}" style="color:var(--color-primary);text-decoration:none">${c.FonAux2}</a>`
+        ? `<a href="tel:${escHtml(c.FonAux2)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FonAux2)}</a>`
         : '—';
       return `<tr>
-          <td><code>${c.CodAux||'—'}</code></td>
-          <td>${c.NomAux||'—'}</td>
+          <td><code>${escHtml(c.CodAux) || '—'}</code></td>
+          <td>${escHtml(c.NomAux) || '—'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
@@ -460,17 +480,17 @@
     const fmtFecha = (f) => f ? new Date(f).toLocaleDateString('es-CL') : '—';
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
-        ? `<a href="mailto:${c.EMail}" style="color:var(--color-primary);text-decoration:none" title="${c.EMail}">${c.EMail}</a>`
+        ? `<a href="mailto:${escHtml(c.EMail)}" style="color:var(--color-primary);text-decoration:none" title="${escHtml(c.EMail)}">${escHtml(c.EMail)}</a>`
         : '—';
       const tel1Html = c.FONAUX1
-        ? `<a href="tel:${c.FONAUX1}" style="color:var(--color-primary);text-decoration:none">${c.FONAUX1}</a>`
+        ? `<a href="tel:${escHtml(c.FONAUX1)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FONAUX1)}</a>`
         : '—';
       const tel2Html = c.FonAux2
-        ? `<a href="tel:${c.FonAux2}" style="color:var(--color-primary);text-decoration:none">${c.FonAux2}</a>`
+        ? `<a href="tel:${escHtml(c.FonAux2)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FonAux2)}</a>`
         : '—';
       return `<tr>
-          <td><code>${c.CodAux||'—'}</code></td>
-          <td>${c.NomAux||'—'}</td>
+          <td><code>${escHtml(c.CodAux) || '—'}</code></td>
+          <td>${escHtml(c.NomAux) || '—'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
@@ -513,7 +533,7 @@
 
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
-  // -- PANEL COORDINADOR -----------------------------------------------------
+  // ── PANEL COORDINADOR ─────────────────────────────────────────────────────
   async function cargarListaVendedores() {
     try {
       const res  = await fetch(`${API}/vendedores-todos`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -524,7 +544,7 @@
       if (!sel) return;
       sel.innerHTML = '<option value="">— Selecciona vendedor —</option>' +
         data.vendedores.map(v =>
-          `<option value="${v.cod}">${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+          `<option value="${escHtml(v.cod)}">${escHtml(v.cod)} — ${escHtml(v.nombre) || 'Sin nombre'}</option>`
         ).join('');
     } catch(err) { console.error('[cargarListaVendedores]', err); }
   }
@@ -541,7 +561,7 @@
       const porcentaje = document.getElementById('coordPorcentaje')?.value;
       const msgEl      = document.getElementById('coordMensaje');
       if (!folio || !vendedor || !porcentaje) {
-        if (msgEl) { msgEl.textContent = '\u26A0\uFE0F Completa todos los campos'; msgEl.style.color = 'var(--color-danger)'; }
+        if (msgEl) { msgEl.textContent = '⚠️ Completa todos los campos'; msgEl.style.color = 'var(--color-danger)'; }
         return;
       }
       try {
@@ -553,7 +573,7 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error);
-        if (msgEl) { msgEl.textContent = '\u2705 Folio asignado correctamente'; msgEl.style.color = 'var(--color-primary)'; }
+        if (msgEl) { msgEl.textContent = '✅ Folio asignado correctamente'; msgEl.style.color = 'var(--color-primary)'; }
         const coordVend = document.getElementById('coordVendedor');
         const coordPct  = document.getElementById('coordPorcentaje');
         if (coordVend) coordVend.value = '';
@@ -561,7 +581,7 @@
         await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados(), cargarResumen(), cargarVentasMes() ]);
       } catch(err) {
         const msgEl2 = document.getElementById('coordMensaje');
-        if (msgEl2) { msgEl2.textContent = `\u274C ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
+        if (msgEl2) { msgEl2.textContent = `❌ ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
       }
     });
   }
@@ -577,23 +597,23 @@
       }
       sel.innerHTML = '<option value="">— Selecciona un folio —</option>' +
         data.folios.map(f =>
-          `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`
+          `<option value="${escHtml(f.Folio)}">${escHtml(f.Folio)} — ${escHtml(f.cliente) || '?'} — ${formatCLP(f.monto)}</option>`
         ).join('');
     } catch(err) { console.error('[cargarFoliosParaCompartir]',err); }
   }
 
   function opcionesVendedores(seleccionado) {
     return todosVendedores.map(v =>
-      `<option value="${v.cod}" ${v.cod === seleccionado ? 'selected' : ''}>${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+      `<option value="${escHtml(v.cod)}" ${v.cod === seleccionado ? 'selected' : ''}>${escHtml(v.cod)} — ${escHtml(v.nombre) || 'Sin nombre'}</option>`
     ).join('');
   }
 
   function filaAsignadoVista(c) {
     return `
-      <td><strong>${c.folio}</strong></td>
+      <td><strong>${escHtml(c.folio)}</strong></td>
       <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-      <td>${c.cliente||'—'}</td>
-      <td>${c.nombre_vendedor_compartido||c.cod_vendedor_compartido||'—'}</td>
+      <td>${escHtml(c.cliente) || '—'}</td>
+      <td>${escHtml(c.nombre_vendedor_compartido || c.cod_vendedor_compartido) || '—'}</td>
       <td style="text-align:right">${c.porcentaje}%</td>
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
       <td>
@@ -606,9 +626,9 @@
 
   function filaAsignadoEdicion(c) {
     return `
-      <td><strong>${c.folio}</strong></td>
+      <td><strong>${escHtml(c.folio)}</strong></td>
       <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-      <td>${c.cliente||'—'}</td>
+      <td>${escHtml(c.cliente) || '—'}</td>
       <td>
         <select class="crud-input-select" id="editVend_${c.id}">
           <option value="">— Selecciona —</option>
@@ -621,8 +641,8 @@
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
       <td>
         <div class="crud-acciones">
-          <button class="btn-crud btn-crud--save"   title="Guardar" data-id="${c.id}" data-folio="${c.folio}">&#x2713;</button>
-          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">&#x2715;</button>
+          <button class="btn-crud btn-crud--save"   title="Guardar" data-id="${c.id}" data-folio="${c.folio}">✓</button>
+          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">✕</button>
         </div>
       </td>`;
   }
@@ -689,7 +709,7 @@
     });
   }
 
-  // -- PANEL FOLIOS RECIBIDOS ------------------------------------------------
+  // ── PANEL FOLIOS RECIBIDOS ────────────────────────────────────────────────
   async function iniciarPanelCompartidos() {
     setStyle('panelCompartidos', 'display', 'block');
     setStyle('panelCoordinador', 'display', 'none');
@@ -708,17 +728,17 @@
       }
       tbody.innerHTML = data.compartidos.map(c => `
         <tr>
-          <td><strong>${c.folio}</strong></td>
+          <td><strong>${escHtml(c.folio)}</strong></td>
           <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-          <td>${c.cliente||'—'}</td>
-          <td>${c.coordinador||c.cod_vendedor_principal||'—'}</td>
+          <td>${escHtml(c.cliente) || '—'}</td>
+          <td>${escHtml(c.coordinador || c.cod_vendedor_principal) || '—'}</td>
           <td style="text-align:right">${c.porcentaje}%</td>
           <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
         </tr>`).join('');
     } catch(err) { console.error('[cargarFoliosCompartidos]',err); }
   }
 
-  // -- Clientes por vendedor -------------------------------------------------
+  // ── Gráfico Distribución por Categoría ──────────────────────────────────
   const COLORES_TORTA = ['#00E2A7','#4ECDC4','#45B7D1','#96CEB4','#F5A623','#DDA0DD','#F06543','#00B4D8'];
 
   function renderGraficoClientesDistribucion(datos) {
@@ -761,7 +781,7 @@
             display: (ctx2) => {
               const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0);
               const pct = total > 0 ? (ctx2.dataset.data[ctx2.dataIndex] || 0) / total * 100 : 0;
-              return pct >= 3; // ocultar etiquetas muy pequeñas
+              return pct >= 3;
             },
             color: '#fff',
             font: { family: 'Montserrat', size: 11, weight: '700' },
@@ -825,22 +845,19 @@
 
       const vendedores = data.vendedores;
 
-      // 1. Lista maestra completa desde MySQL (todas las categorías, con o sin ventas)
+      // Lista maestra completa desde MySQL (todas las categorías, con o sin ventas)
       const todasLasCategorias = data.todasLasCategorias || [];
-      // Calcular agregado por categoría para asignar orden de colores
       const aggMap = {};
       for (const v of vendedores) {
         for (const c of v.categorias) {
           aggMap[c.categoria] = (aggMap[c.categoria] || 0) + c.total;
         }
       }
-      // Orden: primero las que tienen ventas (mayor a menor), luego las que no
       const maestro = [
         ...Object.entries(aggMap).sort((a, b) => b[1] - a[1]).map(([label]) => label),
         ...todasLasCategorias.filter(cat => !aggMap[cat])
       ].map((label, i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
 
-      // 2. Helper: devuelve datos alineados al maestro (0 si no hay movimiento)
       function padear(categorias) {
         const mapa = Object.fromEntries(categorias.map(c => [c.categoria, c.total]));
         return maestro.map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }));
@@ -849,11 +866,9 @@
       const datosTotal = maestro.map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }));
 
       if (vendedores.length === 1) {
-        // Un solo vendedor: sin tabs, mostrar directo (con maestro completo)
         if (tabsEl) tabsEl.style.display = 'none';
         renderGraficoClientesDistribucion(padear(vendedores[0].categorias));
       } else {
-        // Múltiples vendedores: tab "Todos" + uno por vendedor
         if (tabsEl) {
           tabsEl.style.display = 'flex';
           const tabTodos = `<button class="torta-tab torta-tab--activo" data-idx="-1">Todos</button>`;
@@ -875,12 +890,12 @@
             });
           });
         }
-        // Por defecto mostrar "Todos"
         renderGraficoClientesDistribucion(datosTotal);
       }
     } catch (err) { console.error('[cargarGraficoClientes]', err); }
   }
 
+  // ── Clientes por vendedor ─────────────────────────────────────────────────
   async function cargarClientesResumen() {
     try {
       const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -892,15 +907,24 @@
       }
       tbody.innerHTML = data.clientes.map(c => {
         return `<tr>
-          <td><strong>${c.codVendedor}</strong></td>
+          <td><strong>${escHtml(c.codVendedor)}</strong></td>
           <td style="text-align:right">${c.totalClientesHist.toLocaleString('es-CL')}</td>
           <td style="text-align:right">${c.totalClientesPeriodo.toLocaleString('es-CL')}</td>
         </tr>`;
       }).join('');
+      const tfoot = document.getElementById('tfootClientesResumen');
+      if (tfoot) {
+        const totalPeriodo = data.clientes.reduce((s, c) => s + (c.totalClientesPeriodo || 0), 0);
+        tfoot.innerHTML = `<tr>
+          <td><strong>Total</strong></td>
+          <td></td>
+          <td style="text-align:right"><strong>${totalPeriodo.toLocaleString('es-CL')}</strong></td>
+        </tr>`;
+      }
     } catch (err) { console.error('[cargarClientesResumen]', err); }
   }
 
-  // -- Cargar todo -----------------------------------------------------------
+  // ── Cargar todo ───────────────────────────────────────────────────────────
   async function cargarTodo(usuario) {
     mostrarCarga();
     try {
@@ -910,8 +934,8 @@
         cargarCartera(),
         cargarVendedores(),
         cargarVentasMes(),
-        cargarClientesResumen(),
         cargarGraficoClientes(),
+        cargarClientesResumen(),
         esCoordinador(usuario)
           ? Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ])
           : cargarFoliosCompartidos()
@@ -923,7 +947,7 @@
     }
   }
 
-  // -- Init ------------------------------------------------------------------
+  // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
@@ -973,5 +997,5 @@
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-})();
+})(); 
 
