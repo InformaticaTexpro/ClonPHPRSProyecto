@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Texpro — Facturación</title>
-  <link rel="icon" type="image/png" href="../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../assets/styles/tokens.css?v=2.3.0" />
-  <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
+  <link rel="stylesheet" href="../../../assets/styles/dashboard.css?v=2.3.0" />
   <link rel="stylesheet" href="facturacion.css?v=1.0.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -18,7 +18,7 @@
   <!-- ═══════════════════════════════ SIDEBAR ══════════════════════════════ -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <img src="../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro"
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro"
            class="sidebar-logo" onerror="this.style.display='none'" />
       <span class="sidebar-brand">TEXPRO</span>
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
@@ -197,8 +197,6 @@
 
       <!-- ── Gráfico facturas por pioneta + Asignaciones ───────────────── -->
       <div class="fac-grid-2">
-
-        <!-- Gráfico apilado por pioneta -->
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">📊 Facturas por Pioneta</h3>
@@ -207,8 +205,6 @@
             <canvas id="graficoFacturas"></canvas>
           </div>
         </div>
-
-        <!-- Tabla de asignaciones / rutas -->
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">🗺️ Asignación de Rutas</h3>
@@ -217,13 +213,9 @@
             <table class="dash-tabla">
               <thead>
                 <tr>
-                  <th>Pioneta</th>
-                  <th>Ruta</th>
-                  <th>Zona</th>
-                  <th style="text-align:center">Total</th>
-                  <th style="text-align:center">Cerr.</th>
-                  <th style="text-align:center">Camino</th>
-                  <th style="text-align:center">Pend.</th>
+                  <th>Pioneta</th><th>Ruta</th><th>Zona</th>
+                  <th style="text-align:center">Total</th><th style="text-align:center">Cerr.</th>
+                  <th style="text-align:center">Camino</th><th style="text-align:center">Pend.</th>
                   <th style="min-width:110px">Avance</th>
                 </tr>
               </thead>
@@ -233,52 +225,25 @@
             </table>
           </div>
         </div>
-
       </div>
 
       <section class="tabla-seccion">
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">👁️ Detalle por Pioneta Seleccionado</h3>
-            <span style="font-size:.78rem;color:var(--color-text-muted)">
-              Haz click en un pioneta de la tabla de asignación de rutas
-            </span>
+            <span style="font-size:.78rem;color:var(--color-text-muted)">Haz click en un pioneta de la tabla de asignación de rutas</span>
           </div>
-
           <div class="fac-resumen-grid">
-            <div class="fac-resumen-item">
-              <span class="label">Pioneta</span>
-              <span class="valor" id="detPionetaNombre">—</span>
-            </div>
-            <div class="fac-resumen-item">
-              <span class="label">Facturas Asignadas</span>
-              <span class="valor" id="detPionetaTotal">0</span>
-            </div>
-            <div class="fac-resumen-item">
-              <span class="label">Cerradas</span>
-              <span class="valor" id="detPionetaCerradas">0</span>
-            </div>
-            <div class="fac-resumen-item">
-              <span class="label">En Camino</span>
-              <span class="valor" id="detPionetaCamino">0</span>
-            </div>
-            <div class="fac-resumen-item">
-              <span class="label">Pendientes/Asignadas</span>
-              <span class="valor" id="detPionetaPendientes">0</span>
-            </div>
+            <div class="fac-resumen-item"><span class="label">Pioneta</span><span class="valor" id="detPionetaNombre">—</span></div>
+            <div class="fac-resumen-item"><span class="label">Facturas Asignadas</span><span class="valor" id="detPionetaTotal">0</span></div>
+            <div class="fac-resumen-item"><span class="label">Cerradas</span><span class="valor" id="detPionetaCerradas">0</span></div>
+            <div class="fac-resumen-item"><span class="label">En Camino</span><span class="valor" id="detPionetaCamino">0</span></div>
+            <div class="fac-resumen-item"><span class="label">Pendientes/Asignadas</span><span class="valor" id="detPionetaPendientes">0</span></div>
           </div>
-
           <div class="tabla-wrapper" style="margin-top:.8rem">
             <table class="dash-tabla">
               <thead>
-                <tr>
-                  <th>N° Factura</th>
-                  <th>Cliente</th>
-                  <th>Ruta</th>
-                  <th>Fecha</th>
-                  <th style="text-align:center">Estado</th>
-                  <th>Origen</th>
-                </tr>
+                <tr><th>N° Factura</th><th>Cliente</th><th>Ruta</th><th>Fecha</th><th style="text-align:center">Estado</th><th>Origen</th></tr>
               </thead>
               <tbody id="tbodyDetallePioneta">
                 <tr class="tabla-empty"><td colspan="6">Selecciona un pioneta para ver detalle</td></tr>
@@ -288,25 +253,17 @@
         </div>
       </section>
 
-      <!-- ── Listado de Facturas ────────────────────────────────────────── -->
       <section class="tabla-seccion">
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">🧾 Facturas del Mes</h3>
-            <button class="btn-buscar" id="btnExportarFact"
-                    style="height:34px;padding:0 1rem;gap:.4rem;font-size:.82rem">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" x2="12" y1="15" y2="3"/>
+            <button class="btn-buscar" id="btnExportarFact" style="height:34px;padding:0 1rem;gap:.4rem;font-size:.82rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
               </svg>
               Exportar CSV
             </button>
           </div>
-
-          <!-- Filtros inline -->
           <div class="fac-filtros">
             <select class="filtro-select" id="filtroEstadoFact" aria-label="Estado">
               <option value="Todos">Todos los estados</option>
@@ -314,137 +271,67 @@
               <option value="En camino">En camino</option>
               <option value="Pendiente">Pendiente</option>
             </select>
-            <select class="filtro-select" id="filtroPionetaFact" aria-label="Pioneta">
-              <option value="Todos">Todos los pionetas</option>
-            </select>
-            <input class="tabla-busqueda" type="search" id="buscarFact"
-                   placeholder="Buscar número, cliente…"
-                   style="min-width:200px" />
-            <span style="font-size:.8rem;color:var(--color-text-muted);margin-left:auto"
-                  id="contadorFacturas"></span>
+            <select class="filtro-select" id="filtroPionetaFact" aria-label="Pioneta"><option value="Todos">Todos los pionetas</option></select>
+            <input class="tabla-busqueda" type="search" id="buscarFact" placeholder="Buscar número, cliente…" style="min-width:200px" />
+            <span style="font-size:.8rem;color:var(--color-text-muted);margin-left:auto" id="contadorFacturas"></span>
           </div>
-
           <div class="tabla-wrapper">
             <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>N° Factura</th>
-                  <th>Cliente</th>
-                  <th style="text-align:right">Monto</th>
-                  <th>Fecha</th>
-                  <th>Pioneta</th>
-                  <th style="text-align:center">Estado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyFacturas">
-                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
-              </tbody>
+              <thead><tr><th>N° Factura</th><th>Cliente</th><th style="text-align:right">Monto</th><th>Fecha</th><th>Pioneta</th><th style="text-align:center">Estado</th></tr></thead>
+              <tbody id="tbodyFacturas"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <!-- ── Notas de Venta ────────────────────────────────────────────── -->
       <section class="tabla-seccion">
         <div class="tabla-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">📄 Notas de Venta</h3>
-          </div>
+          <div class="tabla-header"><h3 class="tabla-titulo">📄 Notas de Venta</h3></div>
           <div class="tabla-wrapper">
             <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>N° Nota</th>
-                  <th>Cliente</th>
-                  <th style="text-align:center">Ítems</th>
-                  <th style="text-align:right">Monto</th>
-                  <th>Fecha</th>
-                  <th style="text-align:center">Estado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyNV">
-                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
-              </tbody>
+              <thead><tr><th>N° Nota</th><th>Cliente</th><th style="text-align:center">Ítems</th><th style="text-align:right">Monto</th><th>Fecha</th><th style="text-align:center">Estado</th></tr></thead>
+              <tbody id="tbodyNV"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <!-- ── Stock de Productos (basado en Notas de Venta) ─────────────── -->
       <section class="tabla-seccion">
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">📦 Stock de Productos</h3>
-            <span style="font-size:.78rem;color:var(--color-text-muted);font-style:italic">
-              Comprometido según notas de venta activas
-            </span>
+            <span style="font-size:.78rem;color:var(--color-text-muted);font-style:italic">Comprometido según notas de venta activas</span>
           </div>
           <div class="tabla-wrapper">
             <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Producto</th>
-                  <th style="text-align:center">Unidad</th>
-                  <th style="text-align:right">Stock Físico</th>
-                  <th style="text-align:right">Comprometido</th>
-                  <th style="text-align:right">Disponible</th>
-                  <th style="text-align:right">Mínimo</th>
-                  <th style="min-width:100px">Nivel</th>
-                  <th style="text-align:center">Alerta</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyStock">
-                <tr class="tabla-empty"><td colspan="9">Cargando...</td></tr>
-              </tbody>
+              <thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:right">Stock Físico</th><th style="text-align:right">Comprometido</th><th style="text-align:right">Disponible</th><th style="text-align:right">Mínimo</th><th style="min-width:100px">Nivel</th><th style="text-align:center">Alerta</th></tr></thead>
+              <tbody id="tbodyStock"><tr class="tabla-empty"><td colspan="9">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <!-- ── Cotizaciones (Softland) ───────────────────────────────────── -->
       <section class="tabla-seccion">
         <div class="tabla-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">💼 Cotizaciones</h3>
-            <span style="font-size:.78rem;color:var(--color-text-muted);font-style:italic">
-              Subidas desde Softland
-            </span>
+            <span style="font-size:.78rem;color:var(--color-text-muted);font-style:italic">Subidas desde Softland</span>
           </div>
           <div class="tabla-wrapper">
             <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>N° Cotización</th>
-                  <th>Cliente</th>
-                  <th style="text-align:center">Ítems</th>
-                  <th style="text-align:right">Monto</th>
-                  <th>Emisión</th>
-                  <th>Vencimiento</th>
-                  <th style="text-align:center">Estado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyCot">
-                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
-              </tbody>
+              <thead><tr><th>N° Cotización</th><th>Cliente</th><th style="text-align:center">Ítems</th><th style="text-align:right">Monto</th><th>Emisión</th><th>Vencimiento</th><th style="text-align:center">Estado</th></tr></thead>
+              <tbody id="tbodyCot"><tr class="tabla-empty"><td colspan="7">Cargando...</td></tr></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <!-- ── Fórmulas (placeholder) ────────────────────────────────────── -->
       <section class="tabla-seccion">
         <div class="tabla-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">🔬 Fórmulas</h3>
-          </div>
+          <div class="tabla-header"><h3 class="tabla-titulo">🔬 Fórmulas</h3></div>
           <div class="fac-placeholder">
             <h4>Módulo de Fórmulas — En investigación</h4>
-            <p>
-              Esta sección está reservada para el módulo de fórmulas de cálculo de dosificación
-              y preparación de productos. Próximamente se definirán los requisitos y se
-              integrará con los datos de producción y facturación.
-            </p>
+            <p>Esta sección está reservada para el módulo de fórmulas de cálculo de dosificación y preparación de productos. Próximamente se definirán los requisitos y se integrará con los datos de producción y facturación.</p>
             <span class="fac-chip-dev">Próximamente</span>
           </div>
         </div>
@@ -455,23 +342,17 @@
       <section class="fac-subpanel" id="panelAsignacionDespacho">
         <section class="tabla-seccion">
           <div class="tabla-card">
-            <div class="tabla-header">
-              <h3 class="tabla-titulo">🚚 Asignación de Facturas a Pionetas</h3>
-            </div>
+            <div class="tabla-header"><h3 class="tabla-titulo">🚚 Asignación de Facturas a Pionetas</h3></div>
             <div style="padding:1rem 1.25rem 1.2rem">
               <form id="formAsignacionDespacho" autocomplete="off">
                 <div class="fac-form-grid">
                   <div class="fac-form-group">
                     <label class="fac-label" for="selFacturaAsignar">Factura</label>
-                    <select class="filtro-select" id="selFacturaAsignar" required style="width:100%">
-                      <option value="">Selecciona factura</option>
-                    </select>
+                    <select class="filtro-select" id="selFacturaAsignar" required style="width:100%"><option value="">Selecciona factura</option></select>
                   </div>
                   <div class="fac-form-group">
                     <label class="fac-label" for="selPionetaAsignar">Pioneta</label>
-                    <select class="filtro-select" id="selPionetaAsignar" required style="width:100%">
-                      <option value="">Selecciona pioneta</option>
-                    </select>
+                    <select class="filtro-select" id="selPionetaAsignar" required style="width:100%"><option value="">Selecciona pioneta</option></select>
                   </div>
                   <div class="fac-form-group">
                     <label class="fac-label" for="selRutaAsignar">Ruta de despacho</label>
@@ -490,27 +371,13 @@
             </div>
           </div>
         </section>
-
         <section class="tabla-seccion">
           <div class="tabla-card">
-            <div class="tabla-header">
-              <h3 class="tabla-titulo">📋 Facturas Asignadas para Despacho</h3>
-            </div>
+            <div class="tabla-header"><h3 class="tabla-titulo">📋 Facturas Asignadas para Despacho</h3></div>
             <div class="tabla-wrapper">
               <table class="dash-tabla">
-                <thead>
-                  <tr>
-                    <th>N° Factura</th>
-                    <th>Cliente</th>
-                    <th>Pioneta</th>
-                    <th>Ruta</th>
-                    <th>Fecha Despacho</th>
-                    <th style="text-align:center">Estado</th>
-                  </tr>
-                </thead>
-                <tbody id="tbodyAsignacionDespacho">
-                  <tr class="tabla-empty"><td colspan="6">Cargando asignaciones...</td></tr>
-                </tbody>
+                <thead><tr><th>N° Factura</th><th>Cliente</th><th>Pioneta</th><th>Ruta</th><th>Fecha Despacho</th><th style="text-align:center">Estado</th></tr></thead>
+                <tbody id="tbodyAsignacionDespacho"><tr class="tabla-empty"><td colspan="6">Cargando asignaciones...</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -527,6 +394,6 @@
   </div><!-- /main-wrapper -->
 
   <script src="facturacion.js?v=1.0.0"></script>
-  <script src="../assets/js/inactividad.js?v=2.1.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
 </body>
 </html>
