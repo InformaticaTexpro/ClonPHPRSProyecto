@@ -25,6 +25,7 @@
   // ── Configuración ────────────────────────────────────────────
   const API_BASE      = window.API_BASE || window.location.origin;
   const LOGIN_URL     = `${API_BASE}/api/auth/login`;
+  // Ruta ajustada: desde varios/login/ → ../../ventas/dashboard/
   const DASHBOARD_URL = '../../ventas/dashboard/index.html';
 
   // ── Referencias DOM ───────────────────────────────────────
