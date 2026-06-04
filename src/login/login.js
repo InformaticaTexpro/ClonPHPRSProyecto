@@ -23,8 +23,8 @@
   'use strict';
 
   // ── Configuración ────────────────────────────────────────────
-  const API_BASE    = window.API_BASE || window.location.origin;
-  const LOGIN_URL   = `${API_BASE}/api/auth/login`;
+  const API_BASE      = window.API_BASE || window.location.origin;
+  const LOGIN_URL     = `${API_BASE}/api/auth/login`;
   const DASHBOARD_URL = '../modulo/ventas/dashboard/index.html';
 
   // ── Referencias DOM ───────────────────────────────────────
@@ -33,49 +33,42 @@
   const inputPass    = document.getElementById('password');
   const btnLogin     = document.getElementById('btnLogin');
   const btnText      = btnLogin.querySelector('.btn-text');
-  const btnLoader    = btnLogin.querySelector('.btn-loader');
-  const errorBox     = document.getElementById('errorBox');
-  const errorMsg     = document.getElementById('errorMsg');
-  const togglePass   = document.getElementById('togglePass');
+  const btnLoader    = document.getElementById('btnLoader');
+  const alertError   = document.getElementById('alertError');
+  const alertErrorMsg= document.getElementById('alertErrorMsg');
+  const togglePass   = document.getElementById('togglePassword');
 
-  // ── Utilidades ────────────────────────────────────────────────
+  // ── Toggle password ────────────────────────────────────────
+  togglePass.addEventListener('click', () => {
+    const isPassword = inputPass.type === 'password';
+    inputPass.type = isPassword ? 'text' : 'password';
+    document.getElementById('icon-eye').style.display     = isPassword ? 'none'  : 'block';
+    document.getElementById('icon-eye-off').style.display = isPassword ? 'block' : 'none';
+    togglePass.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  });
+
+  // ── Helpers UI ───────────────────────────────────────────────
   function mostrarError(msg) {
-    errorMsg.textContent = msg;
-    errorBox.hidden = false;
-    errorBox.setAttribute('role', 'alert');
-    inputUsuario.setAttribute('aria-invalid', 'true');
-    inputPass.setAttribute('aria-invalid', 'true');
+    alertErrorMsg.textContent = msg;
+    alertError.style.display  = 'flex';
+    document.getElementById('group-usuario').classList.add('error');
+    document.getElementById('group-password').classList.add('error');
   }
 
   function limpiarError() {
-    errorBox.hidden = true;
-    errorMsg.textContent = '';
-    inputUsuario.removeAttribute('aria-invalid');
-    inputPass.removeAttribute('aria-invalid');
+    alertError.style.display  = 'none';
+    alertErrorMsg.textContent = '';
+    document.getElementById('group-usuario').classList.remove('error');
+    document.getElementById('group-password').classList.remove('error');
   }
 
-  function setLoading(on) {
-    btnLogin.disabled = on;
-    btnText.hidden    = on;
-    btnLoader.hidden  = !on;
+  function setLoading(state) {
+    btnLogin.disabled       = state;
+    btnText.style.display   = state ? 'none' : 'flex';
+    btnLoader.style.display = state ? 'flex' : 'none';
   }
 
-  // ── Toggle visibilidad password ───────────────────────────────
-  if (togglePass) {
-    togglePass.addEventListener('click', () => {
-      const isText = inputPass.type === 'text';
-      inputPass.type = isText ? 'password' : 'text';
-      togglePass.setAttribute('aria-label', isText ? 'Mostrar contraseña' : 'Ocultar contraseña');
-      const iconShow = togglePass.querySelector('.icon-show');
-      const iconHide = togglePass.querySelector('.icon-hide');
-      if (iconShow && iconHide) {
-        iconShow.hidden = !isText;
-        iconHide.hidden = isText;
-      }
-    });
-  }
-
-  // ── Limpiar error al escribir ─────────────────────────────────
+  // ── Limpiar error al escribir ───────────────────────────────
   [inputUsuario, inputPass].forEach(el =>
     el.addEventListener('input', limpiarError)
   );
@@ -88,7 +81,6 @@
     const usuario  = inputUsuario.value.trim();
     const password = inputPass.value;
 
-    // Validación básica frontend
     if (!usuario || !password) {
       mostrarError('Por favor ingresa usuario y contraseña.');
       return;
@@ -104,11 +96,8 @@
       });
 
       let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Respuesta inesperada del servidor.');
-      }
+      try { data = await res.json(); }
+      catch { throw new Error('Respuesta inesperada del servidor.'); }
 
       if (!res.ok || !data.ok) {
         mostrarError(data.error || 'Credenciales incorrectas.');
@@ -117,12 +106,8 @@
       }
 
       // ── Guardar sesión ──────────────────────────────────────────
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-      }
-      if (data.user) {
-        sessionStorage.setItem('texpro_user', JSON.stringify(data.user));
-      }
+      if (data.token) localStorage.setItem('token', data.token);
+      if (data.user)  sessionStorage.setItem('texpro_user', JSON.stringify(data.user));
 
       // ── Redirigir al dashboard ──────────────────────────────────
       window.location.href = DASHBOARD_URL;
