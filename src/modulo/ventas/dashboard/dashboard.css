@@ -269,11 +269,10 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   color: var(--color-gray-dark,#6B7280);
 }
 
-/* Grid de 3 columnas iguales — align-items:start evita que las cards
-   se estiren a la altura de la más alta cuando una lista está abierta */
+/* Grid de 2 columnas — solo INACTIVOS y ACTIVOS MES ACTUAL */
 .cartera-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   align-items: start;
   gap: 16px;
 }
@@ -292,11 +291,9 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   transform: translateY(-2px);
 }
 
-/* ── Acento lateral por tipo (barra izquierda) ── */
-.cartera-card--activo    { border-left: 4px solid #00C896; }
-.cartera-card--inactivo  { border-left: 4px solid #F5A623; }
-.cartera-card--recuperado{ border-left: 4px solid #00AEEF; }
-.cartera-card--sincompras { border-left: 4px solid #9B59B6; }
+/* ── Acento lateral por tipo ── */
+.cartera-card--inactivo   { border-left: 4px solid #F5A623; }
+.cartera-card--activo-mes { border-left: 4px solid #00b09b; }
 
 /* ── Botón cabecera (toda la card superior) ───── */
 .cartera-card-btn {
@@ -323,10 +320,8 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   align-items: center;
   justify-content: center;
 }
-.cartera-card--activo     .cartera-card-icono { background: rgba(0,200,150,.12); color: #00C896; }
 .cartera-card--inactivo   .cartera-card-icono { background: rgba(245,166,35,.12); color: #F5A623; }
-.cartera-card--recuperado .cartera-card-icono { background: rgba(0,174,239,.12); color: #00AEEF; }
-.cartera-card--sincompras  .cartera-card-icono { background: rgba(155,89,182,.12); color: #9B59B6; }
+.cartera-card--activo-mes .cartera-card-icono { background: rgba(0,176,155,.12);  color: #00b09b; }
 
 /* ── Texto info ───────────────────────────────── */
 .cartera-card-info {
@@ -352,10 +347,8 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   line-height: 1.1;
   color: var(--color-black,#1A1D23);
 }
-.cartera-card--activo     .cartera-card-count { color: #00C896; }
 .cartera-card--inactivo   .cartera-card-count { color: #F5A623; }
-.cartera-card--recuperado .cartera-card-count { color: #00AEEF; }
-.cartera-card--sincompras  .cartera-card-count { color: #9B59B6; }
+.cartera-card--activo-mes .cartera-card-count { color: #00b09b; }
 
 .cartera-card-desc {
   font-size: .75rem;
@@ -447,7 +440,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .cartera-tabla tbody tr:hover { background: rgba(0,226,167,.04); }
 .cartera-tabla td { padding: 9px 14px; vertical-align: middle; }
 
-/* Badge días inactivo / recuperado */
+/* Badge días inactivo */
 .badge-dias {
   display: inline-flex;
   align-items: center;
@@ -457,8 +450,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   font-weight: 700;
   white-space: nowrap;
 }
-.badge-dias--inactivo   { background: rgba(245,166,35,.12); color: #c07d0b; }
-.badge-dias--recuperado { background: rgba(0,174,239,.12);  color: #0077aa; }
+.badge-dias--inactivo { background: rgba(245,166,35,.12); color: #c07d0b; }
 
 /* ════ TABLAS ════════════════════════════════════════════════ */
 .tabla-seccion { margin-bottom:20px; }
@@ -676,3 +668,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   .clientes-split__tabla { border-right: none; border-bottom: 1px solid var(--color-gray-light, #E8EAF0); }
   .grafico-torta-wrapper { height: 280px; max-width: 360px; }
 }
+
+/* ── Toggle tipo factura ── */
+.tipo-toggle { padding:.25rem .55rem; font-size:.75rem; font-weight:700; border:1.5px solid var(--color-border,#d4d1ca); border-radius:4px; background:transparent; color:var(--color-text-muted,#7a7974); cursor:pointer; transition:background 140ms,color 140ms,border-color 140ms; letter-spacing:.03em; }
+.tipo-toggle--activo { background:var(--color-primary,#01696f); color:#fff; border-color:var(--color-primary,#01696f); }
