@@ -4,20 +4,11 @@
  * routes/cartera.js
  *
  * Endpoint de cartera de clientes segmentada por estado:
- *   - activos:     compraron en los últimos 90 días
- *   - inactivos:   última compra entre 90 y 365 días
- *   - recuperados: estuvieron inactivos y volvieron a comprar
- *
- * Seguridad:
- *   - requireAuth: JWT obligatorio
- *   - El VenCod se obtiene desde usuario_vendedor (MySQL) haciendo
- *     match con los cod_vendedor del usuario logueado, evitando
- *     datos basura o de vendedores ajenos.
- *
- * Columnas devueltas (desde cwtauxi):
- *   activos:     CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, UltimaFactura
- *   inactivos:   CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, DiasInactivo
- *   recuperados: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, UltimaFactura, DiasRecuperado
+ *   - activos:           compraron en el mes/año filtrado por el selector
+ *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
+ *   - inactivos:         última compra entre 90 y 365 días
+ *   - recuperados:       estuvieron inactivos y volvieron a comprar
+ *   - sinCompras:        registrados sin ningún folio histórico
  */
 
 const express             = require('express');
@@ -32,11 +23,6 @@ function mssqlIn(arr) {
   return arr.map(v => `'${v}'`).join(',');
 }
 
-/**
- * Obtiene los cod_vendedor del usuario logueado haciendo match
- * con la tabla usuario_vendedor de MySQL.
- * Retorna array de strings (códigos de Softland).
- */
 async function getCodigosVendedor(usuarioId) {
   const [rows] = await db.pool.query(
     `SELECT cod_vendedor FROM usuario_vendedor WHERE usuario_id = ?`,
@@ -46,7 +32,6 @@ async function getCodigosVendedor(usuarioId) {
 }
 
 // ── GET /api/cartera ──────────────────────────────────────────────────────────
-// Retorna: { ok, activos: [], inactivos: [], recuperados: [] }
 router.get('/', async (req, res) => {
   const usuario = req.usuario;
   const { validarMesAnio } = require('../utils/stringHelpers');
@@ -62,17 +47,15 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // 1. Obtener códigos de vendedor propios del usuario logueado
     const codigos = await getCodigosVendedor(usuario.sub);
     if (!codigos.length) {
-      return res.json({ ok: true, activos: [], inactivos: [], recuperados: [] });
+      return res.json({ ok: true, activos: [], activosMesActual: [], inactivos: [], recuperados: [], sinCompras: [] });
     }
 
     const pool = await getSoftlandPool();
     const inClause = mssqlIn(codigos);
 
-    // ── ACTIVOS: compraron en el mes/año filtrado ─────────────────────────────
-    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, UltimaFactura
+    // ── ACTIVOS: compraron en el mes/año del filtro selector ──────────────────
     const resActivos = await pool.request().query(`
       SELECT
         h.CodAux                                  AS CodAux,
@@ -93,9 +76,29 @@ router.get('/', async (req, res) => {
       ORDER BY MAX(h.Fecha) DESC
     `);
 
-    // ── INACTIVOS: última compra hace más de 90 días (histórico, sin límite) ──
-    // Excluye clientes que compraron en el mes/año filtrado
-    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras, DiasInactivo
+    // ── ACTIVOS MES ACTUAL: compraron en el mes calendario real (GETDATE) ─────
+    // Siempre fijo al mes/año del servidor, independiente del filtro selector
+    const resActivosMesActual = await pool.request().query(`
+      SELECT
+        h.CodAux                                  AS CodAux,
+        MAX(RTRIM(c.NomAux))                      AS NomAux,
+        MAX(RTRIM(c.FONAUX1))                     AS FONAUX1,
+        MAX(RTRIM(c.FonAux2))                     AS FonAux2,
+        MAX(RTRIM(c.EMail))                       AS EMail,
+        COUNT(DISTINCT h.Folio)                   AS TotalCompras,
+        MAX(h.Fecha)                              AS UltimaFactura
+      FROM [PRODIN].[softland].[iw_gsaen] h
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
+      WHERE h.CodVendedor IN (${inClause})
+        AND h.Tipo IN ('F','N','D')
+        AND h.Estado <> 'A'
+        AND h.Fecha >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+        AND h.Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+      GROUP BY h.CodAux
+      ORDER BY MAX(h.Fecha) DESC
+    `);
+
+    // ── INACTIVOS ─────────────────────────────────────────────────────────────
     const resInactivos = await pool.request().query(`
       SELECT
         h.CodAux                                            AS CodAux,
@@ -123,9 +126,7 @@ router.get('/', async (req, res) => {
       ORDER BY DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
     `);
 
-    // ── RECUPERADOS: última compra dentro de 90 días, penúltima hace más de 90 ─
-    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, TotalCompras,
-    //           PenultimoFolio, PenultimaFactura, UltimoFolio, UltimaFactura, DiasRecuperado
+    // ── RECUPERADOS ──────────────────────────────────────────────────────────
     const resRecuperados = await pool.request().query(`
       WITH FoliosOrdenados AS (
         SELECT
@@ -176,8 +177,7 @@ router.get('/', async (req, res) => {
       ORDER BY DiasRecuperado DESC
     `);
 
-    // ── SIN COMPRAS: registrados en cwtauxven sin documentos válidos (F/N/D no anulados) ─
-    // Columnas: CodAux, NomAux, FONAUX1, FonAux2, EMail, Estado
+    // ── SIN COMPRAS ──────────────────────────────────────────────────────────
     const resSinCompras = await pool.request().query(`
       SELECT
         cv.CodAux                             AS CodAux,
@@ -201,10 +201,11 @@ router.get('/', async (req, res) => {
 
     res.json({
       ok: true,
-      activos:     resActivos.recordset,
-      inactivos:   resInactivos.recordset,
-      recuperados: resRecuperados.recordset,
-      sinCompras:  resSinCompras.recordset
+      activos:          resActivos.recordset,
+      activosMesActual: resActivosMesActual.recordset,
+      inactivos:        resInactivos.recordset,
+      recuperados:      resRecuperados.recordset,
+      sinCompras:       resSinCompras.recordset
     });
 
   } catch (err) {
