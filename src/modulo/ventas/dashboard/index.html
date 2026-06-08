@@ -229,30 +229,6 @@
           <div class="tabla-footer"><span class="tabla-total" id="totalVentasMes">0 registros</span></div>
         </div>
       </section>
-
-      <section class="panel-coordinador" id="panelCoordinador" style="display:none">
-        <div class="panel-coord-header">
-          <h2 class="panel-coord-titulo">🔗 Panel Coordinador</h2>
-          <p class="panel-coord-sub">Asigna folios a vendedores de tu equipo y administra las asignaciones</p>
-        </div>
-        <div class="tabla-card" style="margin-bottom:1.5rem">
-          <div class="tabla-header"><h3 class="tabla-titulo">Asignar folio a vendedor</h3></div>
-          <div style="padding:1rem 1.25rem">
-            <div class="coord-form">
-              <div class="coord-form-group"><label class="coord-label" for="coordFolio">Folio del mes</label><select class="filtro-select" id="coordFolio" style="width:100%"><option value="">— Cargando folios... —</option></select></div>
-              <div class="coord-form-group"><label class="coord-label" for="coordVendedor">Vendedor destino</label><select class="filtro-select" id="coordVendedor" style="width:100%"><option value="">— Selecciona vendedor —</option></select></div>
-              <div class="coord-form-group"><label class="coord-label" for="coordPorcentaje">% a asignar</label><input class="tabla-busqueda" type="number" id="coordPorcentaje" min="1" max="100" value="100" style="width:100%" /></div>
-              <div class="coord-form-group coord-form-group--btn"><button class="btn-buscar" id="btnCompartir" style="height:38px;padding:0 1.5rem">Asignar folio</button></div>
-            </div>
-            <p class="coord-mensaje" id="coordMensaje" style="margin-top:.75rem;font-size:.85rem"></p>
-          </div>
-        </div>
-        <div class="tabla-card">
-          <div class="tabla-header"><h3 class="tabla-titulo">Folios asignados este mes</h3></div>
-          <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Vendedor asignado</th><th style="text-align:right">%</th><th style="text-align:right">Monto asignado</th><th>Acciones</th></tr></thead><tbody id="tbodyAsignados"><tr class="tabla-empty"><td colspan="7">Cargando...</td></tr></tbody></table></div>
-          <div class="tabla-footer"><span class="tabla-total" id="totalAsignados">0 registros</span></div>
-        </div>
-      </section>
     </main>
   </div>
 
