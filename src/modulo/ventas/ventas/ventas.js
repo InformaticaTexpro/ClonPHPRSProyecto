@@ -75,13 +75,13 @@
   }
 
   async function verificarSesion() {
-    if (!token()) { window.location.href = '../login/index.html'; return null; }
+    if (!token()) { window.location.href = '../../varios/login/index.html'; return null; }
     try {
       const res  = await fetch('/api/auth/me', { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { window.location.href = '../login/index.html'; return null; }
+      if (!res.ok || !data.ok) { window.location.href = '../../varios/login/index.html'; return null; }
       return data.user;
-    } catch { window.location.href = '../login/index.html'; return null; }
+    } catch { window.location.href = '../../varios/login/index.html'; return null; }
   }
 
   function esCoordinador(usuario) {
@@ -132,7 +132,7 @@
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) btnLogout.addEventListener('click', () => {
       localStorage.removeItem('token'); localStorage.removeItem('user');
-      window.location.href = '../login/index.html';
+      window.location.href = '../../varios/login/index.html';
     });
     const sidebarToggle = document.getElementById('sidebarToggle');
     if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
