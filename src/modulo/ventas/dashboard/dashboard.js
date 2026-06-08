@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /**
  * dashboard.js — RSProyecto Texpro
@@ -7,6 +7,7 @@
  * 2026-04-24: módulo Alertas agregado al sidebar — accesible para TODOS los usuarios
  * 2026-04-24: fix(lint) — eliminada función setHTML no utilizada
  * 2026-06-04: fix — ruta alertas corregida a ../../alertas/index.html
+ * 2026-06-08: fix — todas las rutas del sidebar corregidas a nueva estructura anidada
  */
 
 (function () {
@@ -51,7 +52,7 @@
     if (el) el.style[prop] = value;
   }
 
-  // ── Spinner ───────────────────────────────────────────────────────────────────────────
+  // ── Spinner ───────────────────────────────────────────────────────────────────────────────────
   let cargaOverlay = null;
 
   function crearSpinner() {
@@ -91,34 +92,34 @@
   }
 
   async function verificarSesion() {
-    if (!token()) { window.location.href = '../login/index.html'; return null; }
+    if (!token()) { window.location.href = '../../varios/login/index.html'; return null; }
     try {
       const res  = await fetch('/api/auth/me', { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { window.location.href = '../login/index.html'; return null; }
+      if (!res.ok || !data.ok) { window.location.href = '../../varios/login/index.html'; return null; }
       return data.user;
-    } catch { window.location.href = '../login/index.html'; return null; }
+    } catch { window.location.href = '../../varios/login/index.html'; return null; }
   }
 
   function esCoordinador(usuario) {
     return (usuario.vendedores || []).some(v => v.tipo === 'C');
   }
 
-  // ── Sidebar ─────────────────────────────────────────────────────────────────────────
+  // ── Sidebar ───────────────────────────────────────────────────────────────────────────────────
   // area: null  → visible para TODOS los usuarios sin excepción
   // area: [...]  → visible solo para las áreas listadas
   const MODULOS = [
-    { nombre:'Ventas',        icon:'📊', url:'../ventas/index.html',       area:['ventas','gerencia'] },
-    { nombre:'Facturación',   icon:'🧾', url:'../facturacion/index.html',  area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',        icon:'🏭', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',    icon:'⚙️', url:'../produccion/index.html',   area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',     icon:'🛠️', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',   icon:'🧪', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',      icon:'💰', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',          icon:'👥', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',  icon:'📜', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
-    { nombre:'Administración',icon:'🔧', url:'../admin/index.html',        area:['admin'] },
-    { nombre:'Alertas',       icon:'🔔', url:'../../alertas/index.html',   area: null },
+    { nombre:'Ventas',         icon:'📊', url:'../ventas/index.html',                         area:['ventas','gerencia'] },
+    { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',      area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                area:['bodega','produccion','gerencia'] },
+    { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',        area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',     area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',            area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                    area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',    area:['contabilidad','gerencia'] },
+    { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                  area:['admin'] },
+    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',               area: null },
   ];
 
   function cargarSidebar(usuario) {
@@ -149,7 +150,7 @@
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) btnLogout.addEventListener('click', () => {
       localStorage.removeItem('token'); localStorage.removeItem('user');
-      window.location.href = '../login/index.html';
+      window.location.href = '../../varios/login/index.html';
     });
     const sidebarToggle = document.getElementById('sidebarToggle');
     if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
@@ -162,7 +163,7 @@
     });
   }
 
-  // ── Selectores mes/año ────────────────────────────────────────────────────────────────────────
+  // ── Selectores mes/año ────────────────────────────────────────────────────────────────────────────────────────
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -192,7 +193,7 @@
     };
   }
 
-  // ── KPIs ───────────────────────────────────────────────────────────────────────────────
+  // ── KPIs ───────────────────────────────────────────────────────────────────────────────────────
   async function cargarResumen() {
     try {
       const res  = await fetch(`${API}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -212,7 +213,7 @@
     } catch (err) { console.error('[cargarResumen]', err); }
   }
 
-  // ── Gráfico ─────────────────────────────────────────────────────────────────────────────
+  // ── Gráfico ──────────────────────────────────────────────────────────────────────────────────────
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function cargarGrafico() {
@@ -252,7 +253,7 @@
     } catch (err) { console.error('[cargarGrafico]', err); }
   }
 
-  // ── Tabla vendedores ─────────────────────────────────────────────────────────────────────────
+  // ── Tabla vendedores ─────────────────────────────────────────────────────────────────────────────────────────
   async function cargarVendedores() {
     try {
       const res  = await fetch(`${API}/vendedores?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -290,7 +291,7 @@
     } catch (err) { console.error('[cargarVendedores]', err); }
   }
 
-  // ── Tabla ventas del mes ──────────────────────────────────────────────────────────────────────
+  // ── Tabla ventas del mes ────────────────────────────────────────────────────────────────────────────────────────
   let ventasMesData = [];
 
   async function cargarVentasMes() {
@@ -361,7 +362,7 @@
     );
   }
 
-  // ── Modal detalle folio ───────────────────────────────────────────────────────────────────────
+  // ── Modal detalle folio ─────────────────────────────────────────────────────────────────────────────────────────
   async function abrirDetalle(folio) {
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
@@ -400,7 +401,7 @@
     document.body.style.overflow = '';
   }
 
-  // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────────────────────────
+  // ── CARTERA DE CLIENTES ─────────────────────────────────────────────────────────────────────────────────────────
   async function cargarCartera() {
     try {
       const res  = await fetch(`${API_CART}?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -534,7 +535,7 @@
 
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
-  // ── PANEL COORDINADOR ───────────────────────────────────────────────────────────────────────
+  // ── PANEL COORDINADOR ─────────────────────────────────────────────────────────────────────────────────────────
   async function cargarListaVendedores() {
     try {
       const res  = await fetch(`${API}/vendedores-todos`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -710,7 +711,7 @@
     });
   }
 
-  // ── PANEL FOLIOS RECIBIDOS ────────────────────────────────────────────────────────────────
+  // ── PANEL FOLIOS RECIBIDOS ───────────────────────────────────────────────────────────────────────────────
   async function iniciarPanelCompartidos() {
     setStyle('panelCompartidos', 'display', 'block');
     setStyle('panelCoordinador', 'display', 'none');
@@ -739,7 +740,7 @@
     } catch(err) { console.error('[cargarFoliosCompartidos]',err); }
   }
 
-  // ── Gráfico Distribución por Categoría ───────────────────────────────────────────────────────────
+  // ── Gráfico Distribución por Categoría ───────────────────────────────────────────────────────────────────────────────────────
   const COLORES_TORTA = ['#00E2A7','#4ECDC4','#45B7D1','#96CEB4','#F5A623','#DDA0DD','#F06543','#00B4D8'];
 
   function renderGraficoClientesDistribucion(datos) {
@@ -894,7 +895,7 @@
     } catch (err) { console.error('[cargarGraficoClientes]', err); }
   }
 
-  // ── Clientes por vendedor ───────────────────────────────────────────────────────────────────────
+  // ── Clientes por vendedor ─────────────────────────────────────────────────────────────────────────────────────────
   async function cargarClientesResumen() {
     try {
       const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -923,7 +924,7 @@
     } catch (err) { console.error('[cargarClientesResumen]', err); }
   }
 
-  // ── Cargar todo ─────────────────────────────────────────────────────────────────────────────
+  // ── Cargar todo ──────────────────────────────────────────────────────────────────────────────────────
   async function cargarTodo(usuario) {
     mostrarCarga();
     try {
@@ -946,7 +947,7 @@
     }
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────────────────────
+  // ── Init ─────────────────────────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
@@ -996,4 +997,4 @@
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-})(); 
+})();
