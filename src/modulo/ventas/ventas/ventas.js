@@ -9,6 +9,9 @@
  * Vendedores:    visualizan folios recibidos de su coordinador.
  *
  * API: /api/dashboard (compartir, asignados, compartidos, vendedores-todos)
+ *
+ * 2026-06-08: fix — elimina doble carga inicial en init() y setStyle innecesario
+ *             en iniciarPanelCompartidos (panelCoordinador no existe en DOM de vendedores)
  */
 
 (function () {
@@ -353,8 +356,10 @@
 
   // ── PANEL FOLIOS RECIBIDOS ────────────────────────────────────────────────
   async function iniciarPanelCompartidos() {
+    // Solo muestra el panel de folios recibidos.
+    // No se oculta panelCoordinador aquí porque ese elemento
+    // no existe en el DOM de un vendedor (solo existe para coordinadores).
     setStyle('panelCompartidos', 'display', 'block');
-    setStyle('panelCoordinador', 'display', 'none');
     await cargarFoliosCompartidos();
   }
 
@@ -380,7 +385,9 @@
     } catch(err) { console.error('[cargarFoliosCompartidos]', err); }
   }
 
-  // ── Cargar todo ───────────────────────────────────────────────────────────
+  // ── Cargar todo (botón Actualizar) ────────────────────────────────────────
+  // Solo se invoca al hacer clic en btnActualizar. La carga inicial ya es
+  // realizada por iniciarPanelCoordinador / iniciarPanelCompartidos en init().
   async function cargarTodo(usuario) {
     mostrarCarga();
     try {
@@ -401,13 +408,13 @@
     cargarSidebar(usuario);
     initSelectores();
 
+    // iniciarPanel* realiza la carga inicial de datos según el rol.
+    // No se llama cargarTodo() aquí para evitar una segunda petición redundante.
     if (esCoordinador(usuario)) await iniciarPanelCoordinador();
     else                        await iniciarPanelCompartidos();
 
     const btnAct = document.getElementById('btnActualizar');
     if (btnAct) btnAct.addEventListener('click', () => cargarTodo(usuario));
-
-    cargarTodo(usuario);
   }
 
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
