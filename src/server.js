@@ -93,7 +93,7 @@ app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.get('/', (_req, res) => res.redirect('/src/login/index.html'));
+app.get('/', (_req, res) => res.redirect('/src/modulo/varios/login/index.html'));
 
 app.get('/api/health', async (_req, res) => {
   try {
