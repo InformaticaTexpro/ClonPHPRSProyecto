@@ -9,7 +9,7 @@
 
 (function () {
 
-  // ── Constantes de fecha ────────────────────────────────────────────────────
+  // ── Constantes de fecha ────────────────────────────────────────────────────────
   const _hoy  = new Date();
   const _mes  = _hoy.getMonth() + 1;
   const _anio = _hoy.getFullYear();
@@ -19,7 +19,7 @@
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  // ── Mock data: pionetas ────────────────────────────────────────────────────
+  // ── Mock data: pionetas ─────────────────────────────────────────────────────
   const PIONETAS = [
     { id:1, nombre:'Roberto Fuentes', ruta:'Ruta Norte',    zona:'Santiago Norte'   },
     { id:2, nombre:'Diego Castillo',  ruta:'Ruta Sur',      zona:'Santiago Sur'     },
@@ -28,7 +28,7 @@
     { id:5, nombre:'Andrés Morales',  ruta:'Ruta Poniente', zona:'Maipú / Pudahuel' },
   ];
 
-  // ── Mock data: facturas del mes ────────────────────────────────────────────
+  // ── Mock data: facturas del mes ──────────────────────────────────────────────────
   const FACTURAS_BASE = [
     { id: 1, numero:'F-0821-2026', cliente:'ESSAL S.A.',                monto:1250000, fecha:`${_pre}-02`, estado:'Cerrada',   pioneta:'Roberto Fuentes' },
     { id: 2, numero:'F-0822-2026', cliente:'Aguas Andinas S.A.',        monto: 890000, fecha:`${_pre}-02`, estado:'Cerrada',   pioneta:'Diego Castillo'  },
@@ -57,7 +57,7 @@
     { id:25, numero:'F-0845-2026', cliente:'ESSAL S.A.',                monto: 680000, fecha:`${_pre}-26`, estado:'Pendiente', pioneta:'Andrés Morales'  },
   ];
 
-  // ── Mock data: notas de venta ──────────────────────────────────────────────
+  // ── Mock data: notas de venta ────────────────────────────────────────────────────
   const NOTAS_VENTAS = [
     { id:1,  numero:'NV-0541-2026', cliente:'ESSAL S.A.',                items:3, monto: 978000, fecha:`${_pre}-01`, estado:'Facturada'  },
     { id:2,  numero:'NV-0542-2026', cliente:'Aguas Andinas S.A.',        items:2, monto: 567000, fecha:`${_pre}-02`, estado:'Facturada'  },
@@ -71,7 +71,7 @@
     { id:10, numero:'NV-0550-2026', cliente:'Industrias Coddou',         items:2, monto: 390000, fecha:`${_pre}-22`, estado:'Facturada'  },
   ];
 
-  // ── Mock data: cotizaciones (Softland) ─────────────────────────────────────
+  // ── Mock data: cotizaciones (Softland) ──────────────────────────────────────────────────
   const COTIZACIONES = [
     { id:1, numero:'COT-2026-0228', cliente:'Aqua Chile S.A.',            items:4, monto:2450000, fecha:`${_anio}-04-28`, vencimiento:`${_anio}-06-28`, estado:'Vigente'   },
     { id:2, numero:'COT-2026-0229', cliente:'Municipalidad de Santiago',  items:3, monto:1100000, fecha:`${_anio}-05-02`, vencimiento:`${_anio}-06-02`, estado:'Vigente'   },
@@ -83,7 +83,7 @@
     { id:8, numero:'COT-2026-0235', cliente:'ESSBIO S.A.',                items:5, monto:2890000, fecha:`${_anio}-05-10`, vencimiento:`${_anio}-07-10`, estado:'Vigente'   },
   ];
 
-  // ── Mock data: stock de productos (basado en notas de venta) ──────────────
+  // ── Mock data: stock de productos (basado en notas de venta) ────────────────────────────────────────────
   const STOCK_PRODUCTOS = [
     { codigo:'CLG-001', nombre:'Cloro Granulado 90%',      unidad:'kg', stockFisico:2500, comprometido: 750, minimo:300 },
     { codigo:'SAL-002', nombre:'Sulfato de Aluminio',      unidad:'kg', stockFisico:3200, comprometido:1200, minimo:500 },
@@ -95,7 +95,7 @@
     { codigo:'PCL-008', nombre:'Policloruro de Aluminio',  unidad:'kg', stockFisico:1100, comprometido: 320, minimo:200 },
   ];
 
-  // ── Estado mutable (filtros de la tabla de facturas) ──────────────────────
+  // ── Estado mutable (filtros de la tabla de facturas) ──────────────────────────────────────────────────
   let graficoFact     = null;
   let _filtroEstado   = 'Todos';
   let _filtroPioneta  = 'Todos';
@@ -103,7 +103,7 @@
   let asignacionesDespacho = [];
   let pionetaDetalleActivo = '';
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────────────
   function setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
@@ -140,7 +140,7 @@
     return FACTURAS_BASE.find(f => f.numero === numero);
   }
 
-  // ── Mock sesión ────────────────────────────────────────────────────────────
+  // ── Mock sesión ───────────────────────────────────────────────────────────────────
   function obtenerUsuario() {
     try {
       const raw = localStorage.getItem('user');
@@ -149,22 +149,22 @@
     return { nombre:'Demo Facturación', email:'demo@texpro.cl', area:'facturacion', is_admin:true };
   }
 
-  // ── MODULOS ────────────────────────────────────────────────────────────────
+  // ── MODULOS ────────────────────────────────────────────────────────────────────────
   const MODULOS = [
-    { nombre:'Dashboard',      icon:'🏠', url:'../dashboard/index.html',    area: null },
-    { nombre:'Ventas',         icon:'📊', url:'../ventas/index.html',       area:['ventas','gerencia'] },
-    { nombre:'Producción',     icon:'⚙️', url:'../produccion/index.html',  area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',      icon:'🛠️', url:'../servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Bodega',         icon:'🏭', url:'../bodega/index.html',       area:['bodega','produccion','gerencia'] },
-    { nombre:'Laboratorio',    icon:'🧪', url:'../laboratorio/index.html',  area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',       icon:'💰', url:'../cobranza/index.html',     area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',           icon:'👥', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',   icon:'📜', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
-    { nombre:'Administración', icon:'🔧', url:'../admin/index.html',        area:['admin'] },
-    { nombre:'Alertas',        icon:'🔔', url:'../alertas/index.html',      area: null },
+    { nombre:'Dashboard',      icon:'🏠', url:'../../ventas/dashboard/index.html',                   area: null },
+    { nombre:'Ventas',         icon:'📊', url:'../../ventas/ventas/index.html',                      area:['ventas','gerencia'] },
+    { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                      area:['bodega','produccion','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',            area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                  area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                          area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',          area:['contabilidad','gerencia'] },
+    { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                        area:['admin'] },
+    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',                    area: null },
   ];
 
-  // ── Sidebar ────────────────────────────────────────────────────────────────
+  // ── Sidebar ────────────────────────────────────────────────────────────────────────
   function cargarSidebar(usuario) {
     const ini = (usuario.nombre || 'U').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase();
     setText('userName',      usuario.nombre || usuario.email);
@@ -199,7 +199,7 @@
     document.getElementById('btnLogout')?.addEventListener('click', () => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '../login/index.html';
+      window.location.href = '../../varios/login/index.html';
     });
     document.getElementById('sidebarToggle')?.addEventListener('click', () => {
       document.getElementById('sidebar')?.classList.toggle('sidebar--collapsed');
@@ -210,7 +210,7 @@
     });
   }
 
-  // ── Selectores ─────────────────────────────────────────────────────────────
+  // ── Selectores ────────────────────────────────────────────────────────────────────────
   function initSelectores() {
     const selMes  = document.getElementById('filtroMes');
     const selAnio = document.getElementById('filtroAnio');
@@ -241,7 +241,7 @@
     }
   }
 
-  // ── KPIs ───────────────────────────────────────────────────────────────────
+  // ── KPIs ───────────────────────────────────────────────────────────────────────────
   function renderKpis() {
     const datos      = getFacturasMes();
     const cerradas   = datos.filter(f => f.estado === 'Cerrada').length;
@@ -267,7 +267,7 @@
     }
   }
 
-  // ── Gráfico: facturas por pioneta (barras apiladas) ────────────────────────
+  // ── Gráfico: facturas por pioneta (barras apiladas) ──────────────────────────────────────────────────
   function renderGrafico() {
     const datos   = getFacturasMes();
     const labels  = PIONETAS.map(p => p.nombre.split(' ')[0]);
@@ -304,7 +304,7 @@
     });
   }
 
-  // ── Tabla asignaciones por pioneta ─────────────────────────────────────────
+  // ── Tabla asignaciones por pioneta ───────────────────────────────────────────────────────────────────────────────
   function renderAsignaciones() {
     const tbody = document.getElementById('tbodyAsignaciones');
     if (!tbody) return;
@@ -379,7 +379,6 @@
         origen: 'Asignación visual',
       }));
 
-    // Evita duplicados exactos de factura + origen en la vista consolidada.
     const seen = new Set();
     const merged = [...visual, ...base].filter(item => {
       const key = `${item.factura}-${item.origen}`;
@@ -428,7 +427,7 @@
     }).join('');
   }
 
-  // ── Submenú interno ───────────────────────────────────────────────────────
+  // ── Submenú interno ─────────────────────────────────────────────────────────────────────────────
   function initSubmenu() {
     const botones = Array.from(document.querySelectorAll('.fac-submenu-btn'));
     if (!botones.length) return;
@@ -447,7 +446,7 @@
     });
   }
 
-  // ── Apartado visual: asignación de despacho ───────────────────────────────
+  // ── Apartado visual: asignación de despacho ────────────────────────────────────────────────────────────────────
   function initAsignacionDespacho() {
     const hoyIso = new Date().toISOString().split('T')[0];
     const inputFecha = document.getElementById('fechaDespachoAsignar');
@@ -473,7 +472,6 @@
       selPioneta.appendChild(o);
     });
 
-    // Al seleccionar una factura, completar automáticamente pioneta y ruta sugerida.
     selFactura.addEventListener('change', () => {
       const factura = getFacturaByNumero(selFactura.value);
       if (!factura) {
@@ -553,7 +551,7 @@
     }).join('');
   }
 
-  // ── Tabla facturas (con filtros inline) ────────────────────────────────────
+  // ── Tabla facturas (con filtros inline) ──────────────────────────────────────────────────────────────────────
   function renderFacturas() {
     const tbody = document.getElementById('tbodyFacturas');
     if (!tbody) return;
@@ -594,7 +592,7 @@
     }).join('');
   }
 
-  // ── Tabla stock de productos ───────────────────────────────────────────────
+  // ── Tabla stock de productos ───────────────────────────────────────────────────────────────────────────────
   function renderStock() {
     const tbody = document.getElementById('tbodyStock');
     if (!tbody) return;
@@ -626,7 +624,7 @@
     }).join('');
   }
 
-  // ── Tabla notas de venta ───────────────────────────────────────────────────
+  // ── Tabla notas de venta ─────────────────────────────────────────────────────────────────────────────────
   function renderNotasVentas() {
     const tbody = document.getElementById('tbodyNV');
     if (!tbody) return;
@@ -647,7 +645,7 @@
     }).join('');
   }
 
-  // ── Tabla cotizaciones ─────────────────────────────────────────────────────
+  // ── Tabla cotizaciones ─────────────────────────────────────────────────────────────────────────────────
   function renderCotizaciones() {
     const tbody = document.getElementById('tbodyCot');
     if (!tbody) return;
@@ -670,7 +668,7 @@
     }).join('');
   }
 
-  // ── Exportar facturas CSV ──────────────────────────────────────────────────
+  // ── Exportar facturas CSV ───────────────────────────────────────────────────────────────────────────
   function exportarFacturasCSV() {
     const { mes, anio } = getMesAnio();
     let datos = getFacturasMes();
@@ -694,7 +692,7 @@
     URL.revokeObjectURL(url);
   }
 
-  // ── Render todo (dependiente del mes/año seleccionado) ─────────────────────
+  // ── Render todo (dependiente del mes/año seleccionado) ───────────────────────────────────────────────────
   function renderTodo() {
     renderKpis();
     renderGrafico();
@@ -702,7 +700,7 @@
     renderFacturas();
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────────────
   function init() {
     const usuario = obtenerUsuario();
     cargarSidebar(usuario);
