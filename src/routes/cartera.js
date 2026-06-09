@@ -7,11 +7,12 @@
  * TODOS los cálculos usan el mes calendario REAL del servidor (GETDATE).
  *
  *   - activosMesActual:  compraron en el mes/año real del servidor (GETDATE)
- *   - inactivos:         clientes históricos que NO compraron este mes real
+ *   - inactivos:         clientes asignados al vendedor (cwtcvcl) que NO compraron este mes real
  *   - recuperados:       estuvieron inactivos y volvieron a comprar (últimos 90 días)
- *   - sinCompras:        registrados sin ningún folio histórico
+ *   - sinCompras:        clientes asignados sin ningún folio histórico
  *
- * 2026-06-09: fix — eliminado campo "activos" (selector), todo unificado a GETDATE()
+ * 2026-06-09: fix — BaseClientes usa cwtcvcl+cwtauxven (universo real asignado)
+ *                    para que el total coincida con los 968 clientes reales del vendedor
  */
 
 const express             = require('express');
@@ -70,15 +71,19 @@ router.get('/', async (req, res) => {
     `);
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
-    // Base: todos los clientes únicos históricos del vendedor
-    // Condición: NO compraron en el mes real actual (GETDATE) — mismo universo que activosMesActual
+    // Base: universo real de clientes asignados al vendedor (cwtcvcl + cwtauxven)
+    // Condición: NO compraron en el mes real actual (GETDATE)
+    // Incluye clientes sin compras históricas (LEFT JOIN a iw_gsaen)
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
-        SELECT DISTINCT h.CodAux
-        FROM [PRODIN].[softland].[iw_gsaen] h
-        WHERE h.CodVendedor IN (${inClause})
-          AND h.Tipo    IN ('F','N','D')
-          AND h.Estado  <> 'A'
+        SELECT DISTINCT cl.CodAux
+        FROM [PRODIN].[softland].[cwtcvcl] cl
+        WHERE EXISTS (
+          SELECT 1
+          FROM [PRODIN].[softland].[cwtauxven] av
+          WHERE av.CodAux = cl.CodAux
+            AND av.VenCod IN (${inClause})
+        )
       ),
       ActivosMesActual AS (
         SELECT DISTINCT CodAux
@@ -97,11 +102,14 @@ router.get('/', async (req, res) => {
         RTRIM(c.EMail)                                          AS EMail,
         COUNT(DISTINCT h.Folio)                                 AS TotalCompras,
         MAX(h.Fecha)                                            AS UltimaCompra,
-        DATEDIFF(DAY, MAX(h.Fecha), GETDATE())                  AS DiasInactivo
+        CASE
+          WHEN MAX(h.Fecha) IS NULL THEN NULL
+          ELSE DATEDIFF(DAY, MAX(h.Fecha), GETDATE())
+        END                                                     AS DiasInactivo
       FROM BaseClientes bc
       INNER JOIN [PRODIN].[softland].[cwtauxi] c
         ON c.CodAux = bc.CodAux
-      INNER JOIN [PRODIN].[softland].[iw_gsaen] h
+      LEFT JOIN [PRODIN].[softland].[iw_gsaen] h
         ON h.CodAux       = c.CodAux
        AND h.CodVendedor IN (${inClause})
        AND h.Tipo        IN ('F','N','D')
@@ -113,7 +121,9 @@ router.get('/', async (req, res) => {
         RTRIM(c.FONAUX1),
         RTRIM(c.FonAux2),
         RTRIM(c.EMail)
-      ORDER BY DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
+      ORDER BY
+        CASE WHEN MAX(h.Fecha) IS NULL THEN 1 ELSE 0 END,
+        DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
     `);
 
     // ── RECUPERADOS ──────────────────────────────────────────────────────────
@@ -168,23 +178,29 @@ router.get('/', async (req, res) => {
     `);
 
     // ── SIN COMPRAS ──────────────────────────────────────────────────────────
+    // Clientes asignados al vendedor que no tienen ningún folio histórico
     const resSinCompras = await pool.request().query(`
       SELECT
-        cv.CodAux                             AS CodAux,
+        cl.CodAux                             AS CodAux,
         RTRIM(c.NomAux)                       AS NomAux,
         RTRIM(c.FONAUX1)                      AS FONAUX1,
         RTRIM(c.FonAux2)                      AS FonAux2,
         RTRIM(c.EMail)                        AS EMail,
         'Sin compras registradas'             AS Estado
-      FROM [PRODIN].[softland].[cwtauxven] cv
-      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = cv.CodAux
-      WHERE cv.VenCod IN (${inClause})
+      FROM [PRODIN].[softland].[cwtcvcl] cl
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = cl.CodAux
+      WHERE EXISTS (
+        SELECT 1
+        FROM [PRODIN].[softland].[cwtauxven] av
+        WHERE av.CodAux = cl.CodAux
+          AND av.VenCod IN (${inClause})
+      )
         AND NOT EXISTS (
           SELECT 1
           FROM [PRODIN].[softland].[iw_gsaen] h
-          WHERE h.CodAux   = cv.CodAux
-            AND h.Tipo     IN ('F','N','D')
-            AND h.Estado  <> 'A'
+          WHERE h.CodAux  = cl.CodAux
+            AND h.Tipo    IN ('F','N','D')
+            AND h.Estado <> 'A'
         )
       ORDER BY c.NomAux
     `);
