@@ -12,6 +12,7 @@
  *
  * 2026-06-08: fix — elimina doble carga inicial en init() y setStyle innecesario
  *             en iniciarPanelCompartidos (panelCoordinador no existe en DOM de vendedores)
+ * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
  */
 
 (function () {
@@ -96,6 +97,7 @@
   // area: [...]  → visible solo para las áreas listadas
   const MODULOS = [
     { nombre:'Dashboard',     icon:'🏠', url:'../dashboard/index.html',                        area: null },
+    { nombre:'Historial',     icon:'📋', url:'../historial-cliente/index.html',                area:['ventas','gerencia'] },
     { nombre:'Facturación',   icon:'🧾', url:'../../facturacion/facturacion/index.html',       area:['facturacion','contabilidad','gerencia'] },
     { nombre:'Bodega',        icon:'🏭', url:'../../bodega/bodega/index.html',                 area:['bodega','produccion','gerencia'] },
     { nombre:'Producción',    icon:'⚙️', url:'../../produccion/produccion/index.html',         area:['produccion','gerencia'] },
@@ -322,13 +324,13 @@
       btn.addEventListener('click', async () => {
         const id      = btn.dataset.id;
         const vendSel = document.getElementById(`editVend_${id}`)?.value;
-        const pctSel  = document.getElementById(`editPct_${id}`)?.value;
-        if (!vendSel || !pctSel) { alert('Selecciona vendedor y porcentaje'); return; }
+        const pctVal  = document.getElementById(`editPct_${id}`)?.value;
+        if (!vendSel || !pctVal) { alert('Completa vendedor y porcentaje'); return; }
         try {
-          const res  = await fetch(`${API}/compartir/${id}`, {
+          const res  = await fetch(`${API}/asignados/${id}`, {
             method:'PUT',
             headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token()}` },
-            body: JSON.stringify({ cod_vendedor_compartido: vendSel, porcentaje: Number(pctSel) })
+            body: JSON.stringify({ cod_vendedor_compartido: vendSel, porcentaje: Number(pctVal) })
           });
           const data = await res.json();
           if (!data.ok) throw new Error(data.error);
@@ -337,15 +339,17 @@
       });
     });
     tbody.querySelectorAll('.btn-crud--cancel').forEach(btn => {
-      btn.addEventListener('click', async () => { await cargarFoliosAsignados(); });
+      btn.addEventListener('click', () => cargarFoliosAsignados());
     });
     tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id    = btn.dataset.id;
         const folio = btn.dataset.folio;
-        if (!confirm(`¿Eliminar asignación del folio ${folio}? El folio volverá a estar disponible.`)) return;
+        if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
         try {
-          const res  = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
+          const res  = await fetch(`${API}/asignados/${id}`, {
+            method:'DELETE', headers:{ Authorization:`Bearer ${token()}` }
+          });
           const data = await res.json();
           if (!data.ok) throw new Error(data.error);
           await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
@@ -354,16 +358,9 @@
     });
   }
 
-  // ── PANEL FOLIOS RECIBIDOS ────────────────────────────────────────────────
+  // ── PANEL COMPARTIDOS (vendedor) ──────────────────────────────────────────
   async function iniciarPanelCompartidos() {
-    // Solo muestra el panel de folios recibidos.
-    // No se oculta panelCoordinador aquí porque ese elemento
-    // no existe en el DOM de un vendedor (solo existe para coordinadores).
     setStyle('panelCompartidos', 'display', 'block');
-    await cargarFoliosCompartidos();
-  }
-
-  async function cargarFoliosCompartidos() {
     try {
       const res   = await fetch(`${API}/compartidos?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data  = await res.json();
@@ -371,34 +368,52 @@
       if (!tbody) return;
       setText('totalCompartidos', `${(data.compartidos||[]).length} registros`);
       if (!data.ok || !data.compartidos?.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin folios asignados este mes</td></tr>'; return;
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin folios compartidos este mes</td></tr>'; return;
       }
-      tbody.innerHTML = data.compartidos.map(c => `
-        <tr>
-          <td><strong>${c.folio}</strong></td>
-          <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-          <td>${c.cliente||'—'}</td>
-          <td>${c.coordinador||c.cod_vendedor_principal||'—'}</td>
-          <td style="text-align:right">${c.porcentaje}%</td>
-          <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
-        </tr>`).join('');
-    } catch(err) { console.error('[cargarFoliosCompartidos]', err); }
+      tbody.innerHTML = data.compartidos.map(c => `<tr>
+        <td><strong>${c.folio}</strong></td>
+        <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+        <td>${c.cliente||'—'}</td>
+        <td>${c.nombre_vendedor_origen||c.cod_vendedor_origen||'—'}</td>
+        <td style="text-align:right">${c.porcentaje}%</td>
+        <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+      </tr>`).join('');
+    } catch(err) { console.error('[iniciarPanelCompartidos]', err); }
   }
 
-  // ── Cargar todo (botón Actualizar) ────────────────────────────────────────
-  // Solo se invoca al hacer clic en btnActualizar. La carga inicial ya es
-  // realizada por iniciarPanelCoordinador / iniciarPanelCompartidos en init().
-  async function cargarTodo(usuario) {
-    mostrarCarga();
+  // ── Tabla principal ventas ────────────────────────────────────────────────
+  async function cargarVentas(usuario) {
     try {
-      await (esCoordinador(usuario)
-        ? Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ])
-        : cargarFoliosCompartidos());
-    } catch(err) {
-      console.error('[cargarTodo]', err);
-    } finally {
-      ocultarCarga();
-    }
+      const res   = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data  = await res.json();
+      const tbody = document.getElementById('tbodyVentas');
+      if (!tbody) return;
+      const lista = (data.ventas||[]).filter(v => {
+        if (usuario.is_admin) return true;
+        return String(v.CodVendedor) === String(usuario.cod_vendedor);
+      });
+      setText('totalVentas', `${lista.length} registros`);
+      if (!lista.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin ventas este mes</td></tr>'; return;
+      }
+      tbody.innerHTML = lista.map(v => {
+        const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
+        const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
+        const totLineaReal = Number(v.TotLineaReal || 0);
+        const badgeComp    = v.es_compartido
+          ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
+          : '';
+        return `<tr>
+          <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
+          <td>${v.fecha_formato||'—'}</td>
+          <td>${v.cliente||'—'}</td>
+          <td>${v.CodVendedor||'—'}</td>
+          <td style="text-align:right">${formatCLP(montoMostrar)}</td>
+          <td style="text-align:right">${formatCLP(totLineaReal)}</td>
+          <td style="text-align:right">${pctDesc}</td>
+        </tr>`;
+      }).join('');
+    } catch(err) { console.error('[cargarVentas]', err); }
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -408,16 +423,44 @@
     cargarSidebar(usuario);
     initSelectores();
 
-    // iniciarPanel* realiza la carga inicial de datos según el rol.
-    // No se llama cargarTodo() aquí para evitar una segunda petición redundante.
-    if (esCoordinador(usuario)) await iniciarPanelCoordinador();
-    else                        await iniciarPanelCompartidos();
+    const esCoord = esCoordinador(usuario);
+    if (esCoord) {
+      await iniciarPanelCoordinador();
+    } else {
+      await iniciarPanelCompartidos();
+    }
+    await cargarVentas(usuario);
 
     const btnAct = document.getElementById('btnActualizar');
-    if (btnAct) btnAct.addEventListener('click', () => cargarTodo(usuario));
+    if (btnAct) btnAct.addEventListener('click', async () => {
+      mostrarCarga();
+      try {
+        if (esCoord) {
+          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+        } else {
+          await iniciarPanelCompartidos();
+        }
+        await cargarVentas(usuario);
+      } finally { ocultarCarga(); }
+    });
+
+    const selMes  = document.getElementById('filtroMes');
+    const selAnio = document.getElementById('filtroAnio');
+    const onCambioFiltro = async () => {
+      mostrarCarga();
+      try {
+        if (esCoord) {
+          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+        } else {
+          await iniciarPanelCompartidos();
+        }
+        await cargarVentas(usuario);
+      } finally { ocultarCarga(); }
+    };
+    if (selMes)  selMes.addEventListener('change',  onCambioFiltro);
+    if (selAnio) selAnio.addEventListener('change', onCambioFiltro);
   }
 
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  document.addEventListener('DOMContentLoaded', init);
 
 })();

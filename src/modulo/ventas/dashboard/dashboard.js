@@ -11,6 +11,7 @@
  * 2026-06-08: fix — eliminadas funciones del Panel Coordinador
  * 2026-06-08: feat — cartera: eliminadas cards Activos/Recuperados/SinCompras;
  *                    agregada card Activos Mes Actual (fija al mes real del servidor)
+ * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
  */
 
 (function () {
@@ -101,17 +102,18 @@
 
   // ── Sidebar ──────────────────────────────────────────────────────────────────────────────────
   const MODULOS = [
-    { nombre:'Ventas',         icon:'📊', url:'../ventas/index.html',                         area:['ventas','gerencia'] },
-    { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',      area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',        area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',     area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',            area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                    area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',    area:['contabilidad','gerencia'] },
-    { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                  area:['admin'] },
-    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',               area: null },
+    { nombre:'Ventas',         icon:'📊', url:'../ventas/index.html',                              area:['ventas','gerencia'] },
+    { nombre:'Historial',      icon:'📋', url:'../historial-cliente/index.html',                   area:['ventas','gerencia'] },
+    { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
+    { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',          area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
+    { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                      area:['admin'] },
+    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',                   area: null },
   ];
 
   function cargarSidebar(usuario) {
@@ -458,7 +460,6 @@
   }
 
   function capitalize(s) {
-    // Manejo especial: 'activomes' → 'ActivoMes' (para que coincida con id listaActivoMes)
     if (s === 'activomes') return 'ActivoMes';
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   }
