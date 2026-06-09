@@ -6,7 +6,8 @@
  * Endpoint de cartera de clientes segmentada por estado:
  *   - activos:           compraron en el mes/año filtrado por el selector
  *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
- *   - inactivos:         última compra entre 90 y 365 días
+ *   - inactivos:         clientes de la cartera cuya última compra fue hace >90 días
+ *                        y NO compraron en el mes/año del filtro selector
  *   - recuperados:       estuvieron inactivos y volvieron a comprar
  *   - sinCompras:        registrados sin ningún folio histórico
  */
@@ -99,29 +100,57 @@ router.get('/', async (req, res) => {
     `);
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
+    // Base: clientes registrados en la cartera del vendedor (cwtcvcl + cwtauxven)
+    // Condición: última compra hace >90 días Y no compraron en el mes/año del filtro
     const resInactivos = await pool.request().query(`
+      ;WITH BaseClientes AS (
+        SELECT DISTINCT cl.CodAux
+        FROM [PRODIN].[softland].[cwtcvcl] cl
+        WHERE EXISTS (
+          SELECT 1
+          FROM [PRODIN].[softland].[cwtauxven] av
+          WHERE av.CodAux = cl.CodAux
+            AND av.VenCod IN (${inClause})
+        )
+      )
       SELECT
-        h.CodAux                                            AS CodAux,
-        MAX(RTRIM(c.NomAux))                                AS NomAux,
-        MAX(RTRIM(c.FONAUX1))                               AS FONAUX1,
-        MAX(RTRIM(c.FonAux2))                               AS FonAux2,
-        MAX(RTRIM(c.EMail))                                 AS EMail,
-        COUNT(DISTINCT h.Folio)                             AS TotalCompras,
-        DATEDIFF(DAY, MAX(h.Fecha), GETDATE())              AS DiasInactivo
-      FROM [PRODIN].[softland].[iw_gsaen] h
-      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
-      WHERE h.CodVendedor IN (${inClause})
-        AND h.Tipo IN ('F','N','D')
-        AND h.Estado <> 'A'
-      GROUP BY h.CodAux
+        c.CodAux,
+        RTRIM(c.NomAux)                                         AS NomAux,
+        RTRIM(c.FONAUX1)                                        AS FONAUX1,
+        RTRIM(c.FonAux2)                                        AS FonAux2,
+        RTRIM(c.EMail)                                          AS EMail,
+        COUNT(DISTINCT h.Folio)                                 AS TotalCompras,
+        MAX(h.Fecha)                                            AS UltimaCompra,
+        CASE
+          WHEN MAX(h.Fecha) IS NULL THEN NULL
+          ELSE DATEDIFF(DAY, MAX(h.Fecha), GETDATE())
+        END                                                     AS DiasInactivo
+      FROM BaseClientes bc
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c
+        ON c.CodAux = bc.CodAux
+      LEFT JOIN [PRODIN].[softland].[iw_gsaen] h
+        ON h.CodAux        = c.CodAux
+       AND h.CodVendedor  IN (${inClause})
+       AND h.Tipo         IN ('F','N','D')
+       AND h.Estado       <> 'A'
+      GROUP BY
+        c.CodAux,
+        RTRIM(c.NomAux),
+        RTRIM(c.FONAUX1),
+        RTRIM(c.FonAux2),
+        RTRIM(c.EMail)
       HAVING
+        -- Última compra hace más de 90 días (o nunca ha comprado → se excluye con IS NULL)
         MAX(h.Fecha) < DATEADD(DAY, -90, GETDATE())
-        AND h.CodAux NOT IN (
-          SELECT CodAux FROM [PRODIN].[softland].[iw_gsaen]
+        -- No compraron en el mes/año seleccionado en el filtro
+        AND c.CodAux NOT IN (
+          SELECT CodAux
+          FROM [PRODIN].[softland].[iw_gsaen]
           WHERE CodVendedor IN (${inClause})
-            AND Tipo IN ('F','N','D') AND Estado <> 'A'
-            AND Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
-            AND Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
+            AND Tipo    IN ('F','N','D')
+            AND Estado  <> 'A'
+            AND Fecha   >= DATEFROMPARTS(${anio}, ${mes}, 1)
+            AND Fecha   <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
         )
       ORDER BY DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
     `);
