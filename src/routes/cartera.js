@@ -6,8 +6,8 @@
  * Endpoint de cartera de clientes segmentada por estado:
  *   - activos:           compraron en el mes/año filtrado por el selector
  *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
- *   - inactivos:         clientes de la cartera cuya última compra es anterior a hoy
- *                        y NO compraron en el mes/año del filtro selector
+ *   - inactivos:         clientes históricos únicos del vendedor cuya última compra
+ *                        es anterior a hoy y NO compraron en el mes/año del filtro
  *   - recuperados:       estuvieron inactivos y volvieron a comprar
  *   - sinCompras:        registrados sin ningún folio histórico
  */
@@ -100,18 +100,15 @@ router.get('/', async (req, res) => {
     `);
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
-    // Base: clientes registrados en la cartera del vendedor (cwtcvcl + cwtauxven)
+    // Base: todos los clientes únicos históricos del vendedor en iw_gsaen
     // Condición: última compra anterior a hoy Y no compraron en el mes/año del filtro
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
-        SELECT DISTINCT cl.CodAux
-        FROM [PRODIN].[softland].[cwtcvcl] cl
-        WHERE EXISTS (
-          SELECT 1
-          FROM [PRODIN].[softland].[cwtauxven] av
-          WHERE av.CodAux = cl.CodAux
-            AND av.VenCod IN (${inClause})
-        )
+        SELECT DISTINCT h.CodAux
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        WHERE h.CodVendedor IN (${inClause})
+          AND h.Tipo    IN ('F','N','D')
+          AND h.Estado  <> 'A'
       )
       SELECT
         c.CodAux,
@@ -121,18 +118,15 @@ router.get('/', async (req, res) => {
         RTRIM(c.EMail)                                          AS EMail,
         COUNT(DISTINCT h.Folio)                                 AS TotalCompras,
         MAX(h.Fecha)                                            AS UltimaCompra,
-        CASE
-          WHEN MAX(h.Fecha) IS NULL THEN NULL
-          ELSE DATEDIFF(DAY, MAX(h.Fecha), GETDATE())
-        END                                                     AS DiasInactivo
+        DATEDIFF(DAY, MAX(h.Fecha), GETDATE())                  AS DiasInactivo
       FROM BaseClientes bc
       INNER JOIN [PRODIN].[softland].[cwtauxi] c
         ON c.CodAux = bc.CodAux
-      LEFT JOIN [PRODIN].[softland].[iw_gsaen] h
-        ON h.CodAux        = c.CodAux
-       AND h.CodVendedor  IN (${inClause})
-       AND h.Tipo         IN ('F','N','D')
-       AND h.Estado       <> 'A'
+      INNER JOIN [PRODIN].[softland].[iw_gsaen] h
+        ON h.CodAux       = c.CodAux
+       AND h.CodVendedor IN (${inClause})
+       AND h.Tipo        IN ('F','N','D')
+       AND h.Estado      <> 'A'
       GROUP BY
         c.CodAux,
         RTRIM(c.NomAux),
@@ -140,7 +134,7 @@ router.get('/', async (req, res) => {
         RTRIM(c.FonAux2),
         RTRIM(c.EMail)
       HAVING
-        -- Última compra anterior a hoy (sin límite de días mínimo)
+        -- Última compra anterior a hoy
         MAX(h.Fecha) < CAST(GETDATE() AS DATE)
         -- No compraron en el mes/año seleccionado en el filtro
         AND c.CodAux NOT IN (
