@@ -3,13 +3,15 @@
 /**
  * routes/cartera.js
  *
- * Endpoint de cartera de clientes segmentada por estado:
- *   - activos:           compraron en el mes/año filtrado por el selector
- *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
- *   - inactivos:         todos los clientes históricos que NO compraron en el mes
- *                        actual real (GETDATE), sin límite de días
- *   - recuperados:       estuvieron inactivos y volvieron a comprar
+ * Endpoint de cartera de clientes segmentada por estado.
+ * TODOS los cálculos usan el mes calendario REAL del servidor (GETDATE).
+ *
+ *   - activosMesActual:  compraron en el mes/año real del servidor (GETDATE)
+ *   - inactivos:         clientes históricos que NO compraron este mes real
+ *   - recuperados:       estuvieron inactivos y volvieron a comprar (últimos 90 días)
  *   - sinCompras:        registrados sin ningún folio histórico
+ *
+ * 2026-06-09: fix — eliminado campo "activos" (selector), todo unificado a GETDATE()
  */
 
 const express             = require('express');
@@ -35,50 +37,18 @@ async function getCodigosVendedor(usuarioId) {
 // ── GET /api/cartera ──────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const usuario = req.usuario;
-  const { validarMesAnio } = require('../utils/stringHelpers');
-  const hoy = new Date();
-  let mes, anio;
-  try {
-    ({ mes, anio } = validarMesAnio(
-      req.query.mes  ?? (hoy.getMonth() + 1),
-      req.query.anio ?? hoy.getFullYear()
-    ));
-  } catch (err) {
-    return res.status(400).json({ ok: false, error: err.message });
-  }
 
   try {
     const codigos = await getCodigosVendedor(usuario.sub);
     if (!codigos.length) {
-      return res.json({ ok: true, activos: [], activosMesActual: [], inactivos: [], recuperados: [], sinCompras: [] });
+      return res.json({ ok: true, activosMesActual: [], inactivos: [], recuperados: [], sinCompras: [] });
     }
 
     const pool = await getSoftlandPool();
     const inClause = mssqlIn(codigos);
 
-    // ── ACTIVOS: compraron en el mes/año del filtro selector ──────────────────
-    const resActivos = await pool.request().query(`
-      SELECT
-        h.CodAux                                  AS CodAux,
-        MAX(RTRIM(c.NomAux))                      AS NomAux,
-        MAX(RTRIM(c.FONAUX1))                     AS FONAUX1,
-        MAX(RTRIM(c.FonAux2))                     AS FonAux2,
-        MAX(RTRIM(c.EMail))                       AS EMail,
-        COUNT(DISTINCT h.Folio)                   AS TotalCompras,
-        MAX(h.Fecha)                              AS UltimaFactura
-      FROM [PRODIN].[softland].[iw_gsaen] h
-      INNER JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
-      WHERE h.CodVendedor IN (${inClause})
-        AND h.Tipo IN ('F','N','D')
-        AND h.Estado <> 'A'
-        AND h.Fecha >= DATEFROMPARTS(${anio}, ${mes}, 1)
-        AND h.Fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
-      GROUP BY h.CodAux
-      ORDER BY MAX(h.Fecha) DESC
-    `);
-
-    // ── ACTIVOS MES ACTUAL: compraron en el mes calendario real (GETDATE) ─────
-    // Siempre fijo al mes/año del servidor, independiente del filtro selector
+    // ── ACTIVOS MES ACTUAL ────────────────────────────────────────────────────
+    // Clientes que compraron en el mes calendario real (GETDATE), siempre fijo
     const resActivosMesActual = await pool.request().query(`
       SELECT
         h.CodAux                                  AS CodAux,
@@ -100,8 +70,8 @@ router.get('/', async (req, res) => {
     `);
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
-    // Base: todos los clientes únicos históricos del vendedor en iw_gsaen
-    // Condición: no compraron en el mes actual real (GETDATE), sin límite de días
+    // Base: todos los clientes únicos históricos del vendedor
+    // Condición: NO compraron en el mes real actual (GETDATE) — mismo universo que activosMesActual
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
         SELECT DISTINCT h.CodAux
@@ -221,7 +191,6 @@ router.get('/', async (req, res) => {
 
     res.json({
       ok: true,
-      activos:          resActivos.recordset,
       activosMesActual: resActivosMesActual.recordset,
       inactivos:        resInactivos.recordset,
       recuperados:      resRecuperados.recordset,
