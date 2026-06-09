@@ -3,17 +3,18 @@
 /**
  * routes/ventas.js — API REST módulo de ventas
  *
- * GET /api/ventas                    — lista de folios del mes
- * GET /api/ventas/kpis               — KPIs card: totalVentas, metaMes, totalDescuento
- * GET /api/ventas/total              — total ventas del mes
- * GET /api/ventas/resumen            — resumen por vendedor
- * GET /api/ventas/resumen-vendedores — ventas agrupadas por cod_vendedor
- * GET /api/ventas/evolucion          — ventas mes a mes del año (gráfico)
- * GET /api/ventas/meta               — meta anual/mensual desde bdtexpro
- * GET /api/ventas/clientes           — clientes por vendedor
- * GET /api/ventas/folio/:folio       — monto de un folio
- * GET /api/ventas/detalle/:folio     — detalle líneas de un folio
- * GET /api/ventas/descuentos         — descuentos por vendedor
+ * GET /api/ventas                      — lista de folios del mes
+ * GET /api/ventas/kpis                 — KPIs card
+ * GET /api/ventas/total                — total ventas del mes
+ * GET /api/ventas/resumen              — resumen por vendedor
+ * GET /api/ventas/resumen-vendedores   — ventas agrupadas por cod_vendedor
+ * GET /api/ventas/evolucion            — ventas mes a mes del año
+ * GET /api/ventas/meta                 — meta anual/mensual
+ * GET /api/ventas/clientes             — autocomplete de clientes (q=texto)
+ * GET /api/ventas/historial-cliente    — historial por cliente: ?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+ * GET /api/ventas/folio/:folio         — monto de un folio
+ * GET /api/ventas/detalle/:folio       — detalle líneas de un folio
+ * GET /api/ventas/descuentos           — descuentos por vendedor
  */
 
 const express = require('express');
@@ -256,19 +257,126 @@ router.get('/resumen', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/ventas/clientes
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ventas/clientes   — autocomplete libre (q=texto), filtrado por
+//   los CodVendedor del usuario logueado (iw_gsaen histórico sin límite de mes)
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
     const codigos = getCodigos(req);
     if (!codigos.length) return res.json({ ok: true, clientes: [] });
-    let mes, anio;
-    try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
-    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
-    const clientes = await getClientesPorVendedor({ codigos, mes, anio });
-    res.json({ ok: true, clientes });
+
+    const q = (req.query.q || '').trim();
+    if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
+
+    const codigosIn = codigos.map(c => `'${c}'`).join(',');
+    // Escapa caracteres especiales de LIKE para SQL Server
+    const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
+
+    const pool   = await getSoftlandPool();
+    const result = await pool.request()
+      .input('q1', sql.NVarChar, `%${qSafe}%`)
+      .input('q2', sql.NVarChar, `%${qSafe}%`)
+      .query(`
+        SELECT TOP 40
+          c.CodAux,
+          RTRIM(c.NomAux)   AS NomAux,
+          RTRIM(c.FonAux1)  AS FonAux1,
+          RTRIM(c.EMail)    AS Email
+        FROM [PRODIN].[softland].[cwtauxi] c
+        WHERE EXISTS (
+          SELECT 1
+          FROM [PRODIN].[softland].[iw_gsaen] h
+          WHERE h.CodAux = c.CodAux
+            AND h.CodVendedor IN (${codigosIn})
+            AND h.Tipo IN ('F','N','D')
+            AND h.Estado <> 'A'
+        )
+        AND (
+          RTRIM(c.NomAux)  LIKE @q1
+          OR c.CodAux      LIKE @q2
+        )
+        ORDER BY RTRIM(c.NomAux)
+      `);
+
+    res.json({ ok: true, clientes: result.recordset });
   } catch (err) {
     console.error('[GET /api/ventas/clientes]', err.message);
-    res.status(500).json({ ok: false, error: 'Error al obtener clientes' });
+    res.status(500).json({ ok: false, error: 'Error al buscar clientes' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ventas/historial-cliente
+//   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
+//
+//   Devuelve todas las líneas de facturas/notas del cliente en el rango,
+//   filtradas por los CodVendedor del usuario logueado.
+//   Respuesta:
+//     { ok, historial: [
+//         { CodAux, NomAux, FonAux1, Email, CodVendedor, Fecha,
+//           CodProd, DetProd, TotLinea, Anio, Mes }
+//       ]
+//     }
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/historial-cliente', requireAuth, async (req, res) => {
+  try {
+    const codigos = getCodigos(req);
+    if (!codigos.length) return res.json({ ok: true, historial: [] });
+
+    const { codAux, desde, hasta } = req.query;
+
+    // Validaciones básicas
+    if (!codAux) return res.status(400).json({ ok: false, error: 'Parámetro codAux requerido' });
+    if (!desde || !hasta) return res.status(400).json({ ok: false, error: 'Parámetros desde y hasta requeridos (YYYY-MM-DD)' });
+
+    const reISO = /^\d{4}-\d{2}-\d{2}$/;
+    if (!reISO.test(desde) || !reISO.test(hasta)) {
+      return res.status(400).json({ ok: false, error: 'Fechas deben ser YYYY-MM-DD' });
+    }
+    if (desde > hasta) {
+      return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
+    }
+
+    const codigosIn = codigos.map(c => `'${c}'`).join(',');
+
+    const pool   = await getSoftlandPool();
+    const result = await pool.request()
+      .input('codAux', sql.VarChar(20), codAux)
+      .input('desde',  sql.Date, desde)
+      .input('hasta',  sql.Date, hasta)
+      .query(`
+        SELECT
+          c.CodAux,
+          RTRIM(c.NomAux)               AS NomAux,
+          RTRIM(c.FonAux1)              AS FonAux1,
+          RTRIM(c.EMail)                AS Email,
+          h.CodVendedor,
+          CONVERT(varchar(10), h.Fecha, 120) AS Fecha,
+          m.CodProd,
+          CAST(m.DetProd AS varchar(max)) AS DetProd,
+          m.TotLinea,
+          YEAR(h.Fecha)                 AS Anio,
+          MONTH(h.Fecha)                AS Mes
+        FROM [PRODIN].[softland].[iw_gsaen] h
+        INNER JOIN [PRODIN].[softland].[cwtauxi] c
+          ON c.CodAux = h.CodAux
+        INNER JOIN [PRODIN].[softland].[iw_gmovi] m
+          ON m.Tipo   = h.Tipo
+         AND m.NroInt = h.NroInt
+        WHERE h.Tipo IN ('F', 'N', 'D')
+          AND h.Estado <> 'A'
+          AND h.CodAux = @codAux
+          AND h.CodVendedor IN (${codigosIn})
+          AND h.Fecha >= @desde
+          AND h.Fecha <= @hasta
+        ORDER BY c.CodAux, h.Fecha DESC, m.CodProd
+      `);
+
+    res.json({ ok: true, historial: result.recordset });
+  } catch (err) {
+    console.error('[GET /api/ventas/historial-cliente]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener historial del cliente' });
   }
 });
 
