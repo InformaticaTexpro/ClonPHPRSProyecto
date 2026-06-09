@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro — Historial de Cliente</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
+  <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
+  <link rel="stylesheet" href="historial.css?v=1.0.0" />
+</head>
+<body>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <h1 class="header-title">Historial de Cliente</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">?</div>
+          <span class="chip-name" id="chipName">...</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+
+      <!-- Welcome bar -->
+      <div class="welcome-bar">
+        <div class="welcome-text">
+          <h2 id="welcomeTitle">Historial de Cliente</h2>
+          <p id="welcomeSubtitle">Consulta el historial de compras por producto de un cliente</p>
+        </div>
+      </div>
+
+      <!-- ── FILTROS ─────────────────────────────────────────── -->
+      <section class="hist-filtros-section">
+        <div class="hist-filtros-card">
+          <h3 class="hist-filtros-titulo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Parámetros de búsqueda
+          </h3>
+          <div class="hist-filtros-grid">
+
+            <!-- Buscador cliente -->
+            <div class="hist-filtro-grupo hist-filtro-grupo--cliente">
+              <label class="hist-filtro-label" for="inputCliente">Cliente</label>
+              <div class="hist-autocomplete-wrap">
+                <input
+                  type="text"
+                  id="inputCliente"
+                  class="hist-filtro-input"
+                  placeholder="Código o nombre del cliente..."
+                  autocomplete="off"
+                  aria-autocomplete="list"
+                  aria-controls="listaClientes"
+                />
+                <svg class="hist-input-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <ul class="hist-autocomplete-list" id="listaClientes" role="listbox" hidden></ul>
+              </div>
+              <div class="hist-cliente-chip" id="clienteChip" hidden>
+                <span id="clienteChipNombre">—</span>
+                <button class="hist-chip-remove" id="btnRemoveCliente" aria-label="Quitar cliente" title="Quitar">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Desde -->
+            <div class="hist-filtro-grupo">
+              <label class="hist-filtro-label" for="fechaDesde">Desde</label>
+              <input type="month" id="fechaDesde" class="hist-filtro-input" />
+            </div>
+
+            <!-- Hasta -->
+            <div class="hist-filtro-grupo">
+              <label class="hist-filtro-label" for="fechaHasta">Hasta</label>
+              <input type="month" id="fechaHasta" class="hist-filtro-input" />
+            </div>
+
+            <!-- Botones -->
+            <div class="hist-filtro-grupo hist-filtro-grupo--btns">
+              <button class="btn-buscar" id="btnBuscarHistorial" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                Buscar
+              </button>
+              <button class="btn-limpiar" id="btnLimpiarHistorial">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                Limpiar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ── KPIs RESUMEN (se muestran tras búsqueda) ──────────── -->
+      <section class="hist-kpis" id="histKpis" hidden>
+        <div class="hist-kpi-card">
+          <div class="hist-kpi-icono hist-kpi-icono--verde">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="hist-kpi-info">
+            <span class="hist-kpi-label">Cliente</span>
+            <strong class="hist-kpi-valor" id="kpiClienteNombre">—</strong>
+          </div>
+        </div>
+        <div class="hist-kpi-card">
+          <div class="hist-kpi-icono hist-kpi-icono--azul">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          </div>
+          <div class="hist-kpi-info">
+            <span class="hist-kpi-label">Productos distintos</span>
+            <strong class="hist-kpi-valor" id="kpiProductos">—</strong>
+          </div>
+        </div>
+        <div class="hist-kpi-card">
+          <div class="hist-kpi-icono hist-kpi-icono--naranja">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <div class="hist-kpi-info">
+            <span class="hist-kpi-label">Total facturas</span>
+            <strong class="hist-kpi-valor" id="kpiFolios">—</strong>
+          </div>
+        </div>
+        <div class="hist-kpi-card">
+          <div class="hist-kpi-icono hist-kpi-icono--morado">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div class="hist-kpi-info">
+            <span class="hist-kpi-label">Total comprado</span>
+            <strong class="hist-kpi-valor" id="kpiTotal">—</strong>
+          </div>
+        </div>
+        <div class="hist-kpi-card">
+          <div class="hist-kpi-icono hist-kpi-icono--gris">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          </div>
+          <div class="hist-kpi-info">
+            <span class="hist-kpi-label">Período</span>
+            <strong class="hist-kpi-valor hist-kpi-valor--sm" id="kpiPeriodo">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ESTADO INICIAL / VACÍO / ERROR ────────────────────── -->
+      <div class="hist-estado" id="histEstadoInicial">
+        <div class="hist-estado-icono">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <p class="hist-estado-titulo">Busca un cliente para comenzar</p>
+        <p class="hist-estado-sub">Selecciona un cliente y el rango de fechas para ver su historial de compras por producto</p>
+      </div>
+
+      <div class="hist-estado hist-estado--error" id="histEstadoError" hidden>
+        <div class="hist-estado-icono">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        </div>
+        <p class="hist-estado-titulo">Error al cargar los datos</p>
+        <p class="hist-estado-sub" id="histEstadoErrorMsg">Intenta nuevamente</p>
+      </div>
+
+      <div class="hist-estado" id="histEstadoVacio" hidden>
+        <div class="hist-estado-icono">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        </div>
+        <p class="hist-estado-titulo">Sin registros en el período</p>
+        <p class="hist-estado-sub">El cliente no tiene compras en el rango de fechas seleccionado</p>
+      </div>
+
+      <!-- ── CONTENEDOR DE TABLAS POR AÑO ─────────────────────── -->
+      <div id="histResultados" hidden></div>
+
+    </main>
+
+    <footer class="main-footer">
+      <span>Texpro Productos Químicos y Tratamiento de Aguas</span>
+      <span class="footer-version">v2.3.0</span>
+    </footer>
+  </div>
+
+  <script src="historial.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
+</body>
+</html>
