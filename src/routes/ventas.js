@@ -11,6 +11,7 @@
  * GET /api/ventas/evolucion            — ventas mes a mes del año
  * GET /api/ventas/meta                 — meta anual/mensual
  * GET /api/ventas/clientes             — autocomplete de clientes (q=texto)
+ * GET /api/ventas/cliente-info         — info completa del cliente: ?codAux=
  * GET /api/ventas/historial-cliente    — historial por cliente: ?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  * GET /api/ventas/folio/:folio         — monto de un folio
  * GET /api/ventas/detalle/:folio       — detalle líneas de un folio
@@ -258,8 +259,7 @@ router.get('/resumen', requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ventas/clientes   — autocomplete libre (q=texto), filtrado por
-//   los CodVendedor del usuario logueado (iw_gsaen histórico sin límite de mes)
+// GET /api/ventas/clientes   — autocomplete libre (q=texto)
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
@@ -270,7 +270,6 @@ router.get('/clientes', requireAuth, async (req, res) => {
     if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
 
     const codigosIn = codigos.map(c => `'${c}'`).join(',');
-    // Escapa caracteres especiales de LIKE para SQL Server
     const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
 
     const pool   = await getSoftlandPool();
@@ -307,17 +306,44 @@ router.get('/clientes', requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ventas/cliente-info   — información completa del cliente
+//   ?codAux=XXX
+//   Devuelve: rut, nombre, telefono, direccion, comuna, email
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/cliente-info', requireAuth, async (req, res) => {
+  try {
+    const { codAux } = req.query;
+    if (!codAux) return res.status(400).json({ ok: false, error: 'Parámetro codAux requerido' });
+
+    const pool   = await getSoftlandPool();
+    const result = await pool.request()
+      .input('codAux', sql.VarChar(20), codAux)
+      .query(`
+        SELECT TOP 1
+          RTRIM(c.CodAux)   AS rut,
+          RTRIM(c.NomAux)   AS nombre,
+          RTRIM(c.FonAux1)  AS telefono,
+          RTRIM(c.DirAux)   AS direccion,
+          RTRIM(c.Ciudad)   AS comuna,
+          RTRIM(c.EMail)    AS email
+        FROM [PRODIN].[softland].[cwtauxi] c
+        WHERE c.CodAux = @codAux
+      `);
+
+    if (!result.recordset.length) {
+      return res.status(404).json({ ok: false, error: 'Cliente no encontrado' });
+    }
+
+    res.json({ ok: true, cliente: result.recordset[0] });
+  } catch (err) {
+    console.error('[GET /api/ventas/cliente-info]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener información del cliente' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/historial-cliente
 //   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
-//
-//   Devuelve todas las líneas de facturas/notas del cliente en el rango,
-//   filtradas por los CodVendedor del usuario logueado.
-//   Respuesta:
-//     { ok, historial: [
-//         { CodAux, NomAux, FonAux1, Email, CodVendedor, Fecha,
-//           CodProd, DetProd, TotLinea, Anio, Mes }
-//       ]
-//     }
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/historial-cliente', requireAuth, async (req, res) => {
   try {
@@ -326,7 +352,6 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
 
     const { codAux, desde, hasta } = req.query;
 
-    // Validaciones básicas
     if (!codAux) return res.status(400).json({ ok: false, error: 'Parámetro codAux requerido' });
     if (!desde || !hasta) return res.status(400).json({ ok: false, error: 'Parámetros desde y hasta requeridos (YYYY-MM-DD)' });
 
