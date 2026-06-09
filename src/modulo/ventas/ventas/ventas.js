@@ -3,16 +3,7 @@
 /**
  * ventas.js — Ventas Asignadas Texpro
  *
- * Gestión de folios compartidos entre coordinadores y vendedores.
- *
- * Coordinadores: asignan, editan y eliminan asignaciones de folios.
- * Vendedores:    visualizan folios recibidos de su coordinador.
- *
- * API: /api/dashboard (compartir, asignados, compartidos, vendedores-todos)
- *
- * 2026-06-08: fix — elimina doble carga inicial en init() y setStyle innecesario
- *             en iniciarPanelCompartidos (panelCoordinador no existe en DOM de vendedores)
- * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
+ * 2026-06-09: fix — iconos unificados; item activo muestra ícono casa SVG
  */
 
 (function () {
@@ -96,18 +87,18 @@
   // area: null  → visible para TODOS los usuarios sin excepción
   // area: [...]  → visible solo para las áreas listadas
   const MODULOS = [
-    { nombre:'Dashboard',     icon:'🏠', url:'../dashboard/index.html',                        area: null },
-    { nombre:'Historial',     icon:'📋', url:'../historial-cliente/index.html',                area:['ventas','gerencia'] },
-    { nombre:'Facturación',   icon:'🧾', url:'../../facturacion/facturacion/index.html',       area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',        icon:'🏭', url:'../../bodega/bodega/index.html',                 area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',    icon:'⚙️', url:'../../produccion/produccion/index.html',         area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',     icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',  area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',   icon:'🧪', url:'../../laboratorio/laboratorio/index.html',       area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',      icon:'💰', url:'../../cobranza/cobranza/index.html',             area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',          icon:'👥', url:'../../rrhh/rrhh/index.html',                     area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',  icon:'📜', url:'../../contabilidad/contabilidad/index.html',     area:['contabilidad','gerencia'] },
-    { nombre:'Administración',icon:'🔧', url:'../../admin/admin/index.html',                   area:['admin'] },
-    { nombre:'Alertas',       icon:'🔔', url:'../../varios/alertas/index.html',                area: null },
+    { nombre:'Dashboard',         icon:'🏠', url:'../dashboard/index.html',                       area: null },
+    { nombre:'Historial',         icon:'📋', url:'../historial-cliente/index.html',               area:['ventas','gerencia'] },
+    { nombre:'Facturación',       icon:'🧾', url:'../../facturacion/facturacion/index.html',      area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',            icon:'🏭', url:'../../bodega/bodega/index.html',                area:['bodega','produccion','gerencia'] },
+    { nombre:'Producción',        icon:'⚙️', url:'../../produccion/produccion/index.html',        area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',         icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',       icon:'🧪', url:'../../laboratorio/laboratorio/index.html',      area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',          icon:'💰', url:'../../cobranza/cobranza/index.html',             area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',              icon:'👥', url:'../../rrhh/rrhh/index.html',                    area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',      icon:'📜', url:'../../contabilidad/contabilidad/index.html',    area:['contabilidad','gerencia'] },
+    { nombre:'Administración',    icon:'🔧', url:'../../admin/admin/index.html',                  area:['admin'] },
+    { nombre:'Alertas',           icon:'🔔', url:'../../varios/alertas/index.html',               area: null },
   ];
 
   function cargarSidebar(usuario) {
@@ -127,9 +118,13 @@
       if (usuario.is_admin) return true;
       return m.area.includes(usuario.area);
     });
+
+    // SVG de gráfico de barras para el ítem activo (Ventas Asignadas)
+    const svgVentas = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+
     if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
       <a class="nav-item active" href="#">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        ${svgVentas}
         <span class="nav-label">Ventas Asignadas</span>
       </a>
       ${visibles.map(m=>`<a class="nav-item" href="${m.url}"><span style="font-size:1rem">${m.icon}</span><span class="nav-label">${m.nombre}</span></a>`).join('')}`;

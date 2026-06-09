@@ -1,8 +1,9 @@
 'use strict';
 /**
- * alertas.js v2.3 — Frontend del módulo de Alertas y Recordatorios
+ * alertas.js v2.4 — Frontend del módulo de Alertas y Recordatorios
  * Texpro RSProyecto
  * Ruta ajustada: desde varios/alertas/ → ../login/index.html
+ * 2026-06-09: fix — agrega Dashboard y Historial al sidebar; unifica iconos
  */
 
 const TOKEN   = localStorage.getItem('token');
@@ -51,17 +52,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   initModal();
 });
 
+// area: null → visible para TODOS; area: [...] → solo esas áreas
 const MODULOS = [
-  { nombre: 'Ventas',         icon: '📊', url: '../../ventas/ventas/index.html',              area: ['ventas', 'gerencia'] },
-  { nombre: 'Facturación',    icon: '🧾', url: '../../facturacion/facturacion/index.html',    area: ['facturacion', 'contabilidad', 'gerencia'] },
-  { nombre: 'Bodega',         icon: '🏭', url: '../../bodega/bodega/index.html',              area: ['bodega', 'produccion', 'gerencia'] },
-  { nombre: 'Producción',     icon: '⚙️', url: '../../produccion/produccion/index.html',      area: ['produccion', 'gerencia'] },
-  { nombre: 'Laboratorio',    icon: '🧪', url: '../../laboratorio/laboratorio/index.html',   area: ['laboratorio', 'gerencia'] },
-  { nombre: 'Cobranza',       icon: '💰', url: '../../cobranza/cobranza/index.html',          area: ['cobranza', 'contabilidad', 'gerencia'] },
-  { nombre: 'RRHH',           icon: '👥', url: '../../rrhh/rrhh/index.html',                  area: ['rrhh', 'gerencia'] },
-  { nombre: 'Contabilidad',   icon: '📜', url: '../../contabilidad/contabilidad/index.html',  area: ['contabilidad', 'gerencia'] },
-  { nombre: 'Administración', icon: '🔧', url: '../../admin/admin/index.html',                area: ['admin'] },
-  { nombre: 'Alertas',        icon: '🔔', url: '../alertas/index.html',                       area: null, active: true, badge: true },
+  { nombre: 'Ventas Asignadas', icon: '📊', url: '../../ventas/ventas/index.html',              area: ['ventas', 'gerencia'] },
+  { nombre: 'Historial',        icon: '📋', url: '../../ventas/historial-cliente/index.html',  area: ['ventas', 'gerencia'] },
+  { nombre: 'Facturación',      icon: '🧾', url: '../../facturacion/facturacion/index.html',   area: ['facturacion', 'contabilidad', 'gerencia'] },
+  { nombre: 'Bodega',           icon: '🏭', url: '../../bodega/bodega/index.html',              area: ['bodega', 'produccion', 'gerencia'] },
+  { nombre: 'Producción',       icon: '⚙️', url: '../../produccion/produccion/index.html',     area: ['produccion', 'gerencia'] },
+  { nombre: 'Serv. TEC',        icon: '🛠️', url: '../../servtecnico/servicio-tecnico/index.html', area: ['servicio-tecnico', 'servicio', 'gerencia'] },
+  { nombre: 'Laboratorio',      icon: '🧪', url: '../../laboratorio/laboratorio/index.html',   area: ['laboratorio', 'gerencia'] },
+  { nombre: 'Cobranza',         icon: '💰', url: '../../cobranza/cobranza/index.html',          area: ['cobranza', 'contabilidad', 'gerencia'] },
+  { nombre: 'RRHH',             icon: '👥', url: '../../rrhh/rrhh/index.html',                  area: ['rrhh', 'gerencia'] },
+  { nombre: 'Contabilidad',     icon: '📜', url: '../../contabilidad/contabilidad/index.html',  area: ['contabilidad', 'gerencia'] },
+  { nombre: 'Administración',   icon: '🔧', url: '../../admin/admin/index.html',                area: ['admin'] },
+  { nombre: 'Alertas',          icon: '🔔', url: '../alertas/index.html',                       area: null, active: true, badge: true },
 ];
 
 function initSidebar() {
