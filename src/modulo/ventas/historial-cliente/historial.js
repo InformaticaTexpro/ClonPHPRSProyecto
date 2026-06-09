@@ -1,17 +1,10 @@
 'use strict';
 
 /**
- * historial.js — Historial de Cliente por Producto
- * 2026-06-09: actualizado para usar nueva consulta SQL con filtro de fecha
- *             y match al CodVendedor del usuario logueado.
- *
- * Flujo:
- *  1. Carga sesión y sidebar
- *  2. Autocomplete de clientes  GET /api/ventas/clientes?q=
- *     (devuelve solo clientes del vendedor logueado)
- *  3. Al buscar              GET /api/ventas/historial-cliente?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
- *  4. Renderiza una tabla por cada año encontrado
- *     Columnas: CodProd | Descripción | mes1…mesN | Total año
+ * historial.js v1.1.0
+ * - Inputs tipo month (YYYY-MM) convertidos a YYYY-MM-DD antes de llamar la API
+ * - KPI-cards reemplazados por tabla resumen (#histResumen)
+ * - Datos: GET /api/ventas/historial-cliente?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  */
 
 (function () {
@@ -26,6 +19,19 @@
 
   let clienteSeleccionado = null;
   let debounceTimer       = null;
+
+  // ── Convierte YYYY-MM (month input) a YYYY-MM-DD ──────────────────────────
+  function monthToDesde(ym) {
+    // "2025-03" -> "2025-03-01"
+    return ym ? `${ym}-01` : '';
+  }
+  function monthToHasta(ym) {
+    // "2025-03" -> último día del mes (2025-03-31)
+    if (!ym) return '';
+    const [y, m] = ym.split('-').map(Number);
+    const ultimo = new Date(y, m, 0).getDate(); // día 0 del mes siguiente = último del actual
+    return `${y}-${String(m).padStart(2,'0')}-${String(ultimo).padStart(2,'0')}`;
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────
   function formatCLP(v) {
@@ -115,21 +121,19 @@
     });
   }
 
-  // ── Fechas iniciales (rango: hoy - 1 año) ───────────────────────────────
+  // ── Fechas iniciales: mes actual como hasta, hace 12 meses como desde ────
   function initFechas() {
-    const hoy  = new Date();
-    const pad  = n => String(n).padStart(2, '0');
-    const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-
-    const hasta = fmtDate(hoy);
+    const hoy   = new Date();
+    const pad   = n => String(n).padStart(2,'0');
+    const hasta = `${hoy.getFullYear()}-${pad(hoy.getMonth()+1)}`;
     const desdeD = new Date(hoy);
     desdeD.setFullYear(desdeD.getFullYear() - 1);
-    const desde = fmtDate(desdeD);
+    const desde = `${desdeD.getFullYear()}-${pad(desdeD.getMonth()+1)}`;
 
     const elDesde = document.getElementById('fechaDesde');
     const elHasta = document.getElementById('fechaHasta');
-    if (elDesde) { elDesde.type = 'date'; elDesde.value = desde; }
-    if (elHasta) { elHasta.type = 'date'; elHasta.value = hasta; }
+    if (elDesde) elDesde.value = desde;
+    if (elHasta) elHasta.value = hasta;
   }
 
   // ── Autocomplete clientes ───────────────────────────────────────────────
@@ -200,15 +204,18 @@
         </li>`).join('');
       lista.hidden = false;
       lista.querySelectorAll('li[data-cod]').forEach(li => {
-        li.addEventListener('click', () => seleccionarCliente(li.dataset.cod, li.dataset.nom));
+        li.addEventListener('click', () => seleccionarCliente(
+          li.dataset.cod, li.dataset.nom, li.dataset.tel, li.dataset.email
+        ));
       });
     } catch (err) {
       console.error('[buscarClientes]', err);
     }
   }
 
-  function seleccionarCliente(cod, nom) {
-    clienteSeleccionado = { codAux: cod, nomAux: nom };
+  // Guarda tel y email del cliente para mostrar en tabla resumen
+  function seleccionarCliente(cod, nom, tel, email) {
+    clienteSeleccionado = { codAux: cod, nomAux: nom, tel: tel || '', email: email || '' };
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
     const chip   = document.getElementById('clienteChip');
@@ -226,15 +233,18 @@
   async function buscarHistorial() {
     if (!clienteSeleccionado) return;
 
-    const desde = document.getElementById('fechaDesde')?.value;
-    const hasta = document.getElementById('fechaHasta')?.value;
-    if (!desde || !hasta) { alert('Selecciona el rango de fechas (Desde / Hasta).'); return; }
-    if (desde > hasta)    { alert('La fecha "Desde" no puede ser mayor a "Hasta".'); return; }
+    const ymDesde = document.getElementById('fechaDesde')?.value; // YYYY-MM
+    const ymHasta = document.getElementById('fechaHasta')?.value; // YYYY-MM
+    if (!ymDesde || !ymHasta) { alert('Selecciona el rango de fechas (Desde / Hasta).'); return; }
+    if (ymDesde > ymHasta)    { alert('La fecha "Desde" no puede ser mayor a "Hasta".'); return; }
+
+    const desde = monthToDesde(ymDesde); // YYYY-MM-01
+    const hasta = monthToHasta(ymHasta); // YYYY-MM-DD (último día)
 
     hide('histEstadoInicial');
     hide('histEstadoError');
     hide('histEstadoVacio');
-    hide('histKpis');
+    hide('histResumen');
     hide('histResultados');
 
     const btnBus = document.getElementById('btnBuscarHistorial');
@@ -250,8 +260,13 @@
       if (!res.ok || !data.ok) throw new Error(data.error || 'Error al obtener historial');
       if (!data.historial || !data.historial.length) { show('histEstadoVacio'); return; }
 
-      renderKpis(data);
-      renderResultados(data.historial, desde, hasta);
+      // Completar tel/email desde la primera fila del historial (si no vino en autocomplete)
+      const primerRow = data.historial[0];
+      clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
+      clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
+
+      renderResumen(data, ymDesde, ymHasta);
+      renderResultados(data.historial, ymDesde, ymHasta);
 
     } catch (err) {
       console.error('[buscarHistorial]', err);
@@ -263,45 +278,42 @@
     }
   }
 
-  // ── KPIs globales ───────────────────────────────────────────────────────
-  function renderKpis(data) {
+  // ── Tabla resumen (reemplaza los KPI-cards) ─────────────────────────
+  function renderResumen(data, ymDesde, ymHasta) {
     const { historial } = data;
     const productos = new Set();
     let totalMonto = 0;
-    const foliosSet = new Set();
-
     historial.forEach(row => {
       if (row.CodProd) productos.add(row.CodProd);
       totalMonto += Number(row.TotLinea || 0);
     });
 
-    const fmtDate = (s) => {
-      if (!s) return '—';
-      // s viene como YYYY-MM-DD
-      const [y, m] = s.split('-');
-      return `${MESES_CORTO[Number(m)-1]} ${y}`;
+    const fmtMes = ym => {
+      if (!ym) return '—';
+      const [y, m] = ym.split('-');
+      return `${MESES_NOMBRE[Number(m)-1]} ${y}`;
     };
 
-    setText('kpiClienteNombre', `${clienteSeleccionado.codAux} — ${clienteSeleccionado.nomAux}`);
-    setText('kpiProductos',     String(productos.size));
-    setText('kpiFolios',        historial.length.toLocaleString('es-CL'));
-    setText('kpiTotal',
-      new Intl.NumberFormat('es-CL',{ style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(totalMonto));
-    const desde = document.getElementById('fechaDesde')?.value || '';
-    const hasta = document.getElementById('fechaHasta')?.value || '';
-    setText('kpiPeriodo', `${fmtDate(desde)} → ${fmtDate(hasta)}`);
-    show('histKpis');
+    setText('rClienteNombre', `${clienteSeleccionado.codAux} — ${clienteSeleccionado.nomAux}`);
+    setText('rClienteTel',    clienteSeleccionado.tel   || '—');
+    setText('rClienteEmail',  clienteSeleccionado.email || '—');
+    setText('rPeriodo',       `${fmtMes(ymDesde)} → ${fmtMes(ymHasta)}`);
+    setText('rProductos',     String(productos.size));
+
+    const totalEl = document.getElementById('rTotal');
+    if (totalEl) totalEl.textContent = new Intl.NumberFormat('es-CL',
+      { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(totalMonto);
+
+    show('histResumen');
   }
 
   // ── Render tablas por año ───────────────────────────────────────────────
-  // La API devuelve filas planas (una por línea de movimiento).
-  // Las agrupamos: año → CodProd → { meses: {mes: TotLinea}, total }
-  function renderResultados(historial, desde, hasta) {
+  function renderResultados(historial, ymDesde, ymHasta) {
     const contenedor = document.getElementById('histResultados');
     if (!contenedor) return;
     contenedor.innerHTML = '';
 
-    // Agrupar por año → { 2024: { COD1: { CodProd, DetProd, meses:{}, total } } }
+    // Agrupar: año → CodProd → { meses: {mes: monto}, total }
     const porAnio = {};
     historial.forEach(row => {
       const anio = String(row.Anio);
@@ -309,14 +321,8 @@
       const key  = row.CodProd;
       if (!porAnio[anio]) porAnio[anio] = {};
       if (!porAnio[anio][key]) {
-        porAnio[anio][key] = {
-          CodProd: row.CodProd,
-          DesProd: row.DetProd || '',
-          meses:   {},
-          total:   0
-        };
+        porAnio[anio][key] = { CodProd: row.CodProd, DesProd: row.DetProd || '', meses: {}, total: 0 };
       }
-      // Acumula por mes (puede haber múltiples líneas del mismo producto en el mismo mes)
       porAnio[anio][key].meses[mes] = (porAnio[anio][key].meses[mes] || 0) + Number(row.TotLinea || 0);
       porAnio[anio][key].total      += Number(row.TotLinea || 0);
     });
@@ -324,22 +330,21 @@
     const anios = Object.keys(porAnio).sort((a,b) => Number(b) - Number(a));
     anios.forEach((anio, idx) => {
       const productos = Object.values(porAnio[anio]);
-      const bloque    = renderBloqueAnio(anio, productos, idx % 5, desde, hasta);
+      const bloque    = renderBloqueAnio(anio, productos, idx % 5, ymDesde, ymHasta);
       contenedor.appendChild(bloque);
     });
     show('histResultados');
   }
 
-  function renderBloqueAnio(anio, productos, colorIdx, desde, hasta) {
-    const [desdeAnio, desdeMes] = desde.split('-').map(Number);
-    const [hastaAnio, hastaMes] = hasta.split('-').map(Number);
-    const anioNum = Number(anio);
+  function renderBloqueAnio(anio, productos, colorIdx, ymDesde, ymHasta) {
+    const anioNum   = Number(anio);
+    const [desdeAnio, desdeMes] = ymDesde.split('-').map(Number);
+    const [hastaAnio, hastaMes] = ymHasta.split('-').map(Number);
     const mesInicio = anioNum === desdeAnio ? desdeMes : 1;
     const mesFin    = anioNum === hastaAnio ? hastaMes : 12;
     const meses = [];
     for (let m = mesInicio; m <= mesFin; m++) meses.push(m);
 
-    // Ordenar productos por total desc
     productos.sort((a,b) => b.total - a.total);
 
     const totalesMes = {};
@@ -348,9 +353,9 @@
     });
     const totalAnio = productos.reduce((s,p) => s + p.total, 0);
 
-    const bloque   = document.createElement('div');
+    const bloque  = document.createElement('div');
     bloque.className = 'hist-anio-bloque';
-    const tableId  = `tablaAnio${anio}`;
+    const tableId = `tablaAnio${anio}`;
 
     bloque.innerHTML = `
       <div class="hist-anio-header">
@@ -374,52 +379,50 @@
 
       <div class="hist-tabla-card">
         <div class="hist-tabla-header">
-          <h3 class="hist-tabla-titulo">Detalle por producto — ${anio}</h3>
+          <h3 class="hist-tabla-titulo">Detalle por producto &mdash; ${anio}</h3>
           <div class="hist-tabla-acciones">
             <input type="text" class="hist-busqueda-tabla"
               placeholder="Filtrar productos..."
               data-tabla="${tableId}" />
           </div>
         </div>
-
         <div class="hist-tabla-wrapper">
           <table class="hist-tabla" id="${tableId}">
             <thead>
               <tr>
-                <th rowspan="2" style="min-width:90px">Código</th>
-                <th rowspan="2" style="min-width:220px">Descripción</th>
-                ${meses.map(m=>`<th style="min-width:90px;text-align:right">${MESES_NOMBRE[m-1]}</th>`).join('')}
-                <th rowspan="2" style="min-width:110px;text-align:right;background:rgba(0,226,167,.15)">
-                  Total ${anio}
-                </th>
+                <th>Código</th>
+                <th>Descripción</th>
+                ${meses.map(m=>`<th>${MESES_NOMBRE[m-1]}</th>`).join('')}
+                <th style="background:rgba(0,226,167,.15)">Total ${anio}</th>
               </tr>
             </thead>
             <tbody id="tbody${tableId}">
-              ${productos.map(p=>`
-                <tr data-search="${escHtml(p.CodProd)} ${escHtml(p.DesProd)}".toLowerCase()">
+              ${productos.map(p=>{
+                const searchKey = `${p.CodProd} ${p.DesProd}`.toLowerCase();
+                return `<tr data-search="${escHtml(searchKey)}">
                   <td><span class="hist-cod-prod">${escHtml(p.CodProd)}</span></td>
                   <td><span class="hist-desc-prod" title="${escHtml(p.DesProd)}">${escHtml(p.DesProd)}</span></td>
                   ${meses.map(m=>{
                     const val = p.meses[m] || 0;
-                    if(!val) return `<td class="hist-mes-cero">—</td>`;
+                    if (!val) return '<td class="hist-mes-cero">&mdash;</td>';
                     return `<td class="hist-mes-valor">${formatCLP(val)}</td>`;
                   }).join('')}
                   <td class="hist-td-total">${formatCLP(p.total)}</td>
-                </tr>`).join('')}
+                </tr>`;
+              }).join('')}
             </tbody>
             <tfoot>
               <tr>
                 <td colspan="2"><strong>Total mes</strong></td>
                 ${meses.map(m=>{
                   const t = totalesMes[m];
-                  return `<td>${t ? formatCLP(t) : '—'}</td>`;
+                  return `<td>${t ? formatCLP(t) : '&mdash;'}</td>`;
                 }).join('')}
                 <td><strong>${formatCLP(totalAnio)}</strong></td>
               </tr>
             </tfoot>
           </table>
         </div>
-
         <div class="hist-tabla-footer">
           <span class="hist-tabla-count" id="count${tableId}">
             ${productos.length} producto${productos.length!==1?'s':''}
@@ -429,7 +432,6 @@
       </div>
     `;
 
-    // Filtro local por tabla
     bloque.querySelector('.hist-busqueda-tabla')?.addEventListener('input', function() {
       const q = this.value.trim().toLowerCase();
       let visible = 0;
@@ -457,7 +459,7 @@
     if (chip)  chip.hidden = true;
     if (btnBus) btnBus.disabled = true;
     initFechas();
-    hide('histKpis');
+    hide('histResumen');
     hide('histResultados');
     hide('histEstadoError');
     hide('histEstadoVacio');
