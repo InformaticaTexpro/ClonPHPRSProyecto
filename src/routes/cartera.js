@@ -6,8 +6,8 @@
  * Endpoint de cartera de clientes segmentada por estado:
  *   - activos:           compraron en el mes/año filtrado por el selector
  *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
- *   - inactivos:         clientes históricos únicos del vendedor cuya última compra
- *                        es anterior a hoy y NO compraron en el mes/año del filtro
+ *   - inactivos:         todos los clientes históricos que NO compraron en el mes
+ *                        actual real (GETDATE), sin límite de días
  *   - recuperados:       estuvieron inactivos y volvieron a comprar
  *   - sinCompras:        registrados sin ningún folio histórico
  */
@@ -101,7 +101,7 @@ router.get('/', async (req, res) => {
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
     // Base: todos los clientes únicos históricos del vendedor en iw_gsaen
-    // Condición: última compra anterior a hoy Y no compraron en el mes/año del filtro
+    // Condición: no compraron en el mes actual real (GETDATE), sin límite de días
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
         SELECT DISTINCT h.CodAux
@@ -109,6 +109,15 @@ router.get('/', async (req, res) => {
         WHERE h.CodVendedor IN (${inClause})
           AND h.Tipo    IN ('F','N','D')
           AND h.Estado  <> 'A'
+      ),
+      ActivosMesActual AS (
+        SELECT DISTINCT CodAux
+        FROM [PRODIN].[softland].[iw_gsaen]
+        WHERE CodVendedor IN (${inClause})
+          AND Tipo    IN ('F','N','D')
+          AND Estado  <> 'A'
+          AND Fecha   >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+          AND Fecha   <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
       )
       SELECT
         c.CodAux,
@@ -127,25 +136,13 @@ router.get('/', async (req, res) => {
        AND h.CodVendedor IN (${inClause})
        AND h.Tipo        IN ('F','N','D')
        AND h.Estado      <> 'A'
+      WHERE bc.CodAux NOT IN (SELECT CodAux FROM ActivosMesActual)
       GROUP BY
         c.CodAux,
         RTRIM(c.NomAux),
         RTRIM(c.FONAUX1),
         RTRIM(c.FonAux2),
         RTRIM(c.EMail)
-      HAVING
-        -- Última compra anterior a hoy
-        MAX(h.Fecha) < CAST(GETDATE() AS DATE)
-        -- No compraron en el mes/año seleccionado en el filtro
-        AND c.CodAux NOT IN (
-          SELECT CodAux
-          FROM [PRODIN].[softland].[iw_gsaen]
-          WHERE CodVendedor IN (${inClause})
-            AND Tipo    IN ('F','N','D')
-            AND Estado  <> 'A'
-            AND Fecha   >= DATEFROMPARTS(${anio}, ${mes}, 1)
-            AND Fecha   <  DATEADD(MONTH, 1, DATEFROMPARTS(${anio}, ${mes}, 1))
-        )
       ORDER BY DATEDIFF(DAY, MAX(h.Fecha), GETDATE()) ASC
     `);
 
