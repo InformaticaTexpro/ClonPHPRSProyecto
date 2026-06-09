@@ -48,6 +48,12 @@
  *
  *   PrecioVta se mantiene en el response solo como dato informativo
  *   (precio lista actual de Softland), pero NO interviene en el cálculo.
+ *
+ * FIX 2026-06-09:
+ *   /clientes-resumen — TotalClientesHist cambiado de cwtauxven a iw_gsaen
+ *   (sin filtro de período). cwtauxven contaba clientes asignados
+ *   formalmente (número fijo), no clientes con documentos reales.
+ *   Ahora ambas columnas provienen de la misma fuente y son comparables.
  */
 
 const express             = require('express');
@@ -906,8 +912,14 @@ router.get('/asignados', async (req, res) => {
 
 // ── GET /api/dashboard/clientes-resumen ──────────────────────────────────
 // Devuelve por cada código de vendedor del usuario logueado:
-//   - TotalClientesHist  : clientes históricos en cwtauxven
-//   - TotalClientesPeriodo: clientes distintos con documentos en el período
+//   - totalClientesHist   : clientes distintos con al menos un documento
+//                           (F/N/D no anulado) en cualquier período
+//   - totalClientesPeriodo: clientes distintos con documentos en el mes/año
+//                           seleccionado
+//
+// FUENTE ÚNICA: iw_gsaen con filtros Tipo IN ('F','N','D') AND Estado <> 'A'
+// (antes se usaba cwtauxven para el histórico, que daba un número fijo
+//  independiente de documentos reales emitidos — FIX 2026-06-09)
 // ── GET /categorias-vendedor ──────────────────────────────────────────────────
 // Distribución de ventas por categoría de producto para el gráfico de tortas.
 // Doble fuente: SQL Server (ventas por CtaVentas) + MySQL (categoriasproducto).
@@ -997,8 +1009,10 @@ router.get('/clientes-resumen', async (req, res) => {
           '${cod}' AS CodVendedor,
           (
             SELECT COUNT(DISTINCT CodAux)
-            FROM [PRODIN].[softland].[cwtauxven]
-            WHERE VenCod = '${cod}'
+            FROM [PRODIN].[softland].[iw_gsaen]
+            WHERE CodVendedor = '${cod}'
+              AND Tipo IN ('F','N','D')
+              AND Estado <> 'A'
           ) AS TotalClientesHist,
           (
             SELECT COUNT(DISTINCT CodAux)
