@@ -6,7 +6,7 @@
  * Endpoint de cartera de clientes segmentada por estado:
  *   - activos:           compraron en el mes/año filtrado por el selector
  *   - activosMesActual:  compraron en el mes calendario REAL (GETDATE), siempre fijo
- *   - inactivos:         clientes de la cartera cuya última compra fue hace >90 días
+ *   - inactivos:         clientes de la cartera cuya última compra es anterior a hoy
  *                        y NO compraron en el mes/año del filtro selector
  *   - recuperados:       estuvieron inactivos y volvieron a comprar
  *   - sinCompras:        registrados sin ningún folio histórico
@@ -101,7 +101,7 @@ router.get('/', async (req, res) => {
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
     // Base: clientes registrados en la cartera del vendedor (cwtcvcl + cwtauxven)
-    // Condición: última compra hace >90 días Y no compraron en el mes/año del filtro
+    // Condición: última compra anterior a hoy Y no compraron en el mes/año del filtro
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
         SELECT DISTINCT cl.CodAux
@@ -140,8 +140,8 @@ router.get('/', async (req, res) => {
         RTRIM(c.FonAux2),
         RTRIM(c.EMail)
       HAVING
-        -- Última compra hace más de 90 días (o nunca ha comprado → se excluye con IS NULL)
-        MAX(h.Fecha) < DATEADD(DAY, -90, GETDATE())
+        -- Última compra anterior a hoy (sin límite de días mínimo)
+        MAX(h.Fecha) < CAST(GETDATE() AS DATE)
         -- No compraron en el mes/año seleccionado en el filtro
         AND c.CodAux NOT IN (
           SELECT CodAux
