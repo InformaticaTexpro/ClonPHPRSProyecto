@@ -6,6 +6,8 @@
  * Endpoint de cartera de clientes segmentada por estado.
  * TODOS los cálculos usan el mes calendario REAL del servidor (GETDATE).
  *
+ *   - TotalClientes, ClientesActivos, ClientesInactivos,
+ *     ClientesNuevos, ClientesRecuperados: KPIs numéricos para las cards
  *   - activosMesActual:  compraron en el mes/año real del servidor (GETDATE)
  *   - inactivos:         clientes asignados al vendedor (cwtcvcl) que NO compraron este mes real
  *   - recuperados:       estuvieron inactivos y volvieron a comprar (últimos 90 días)
@@ -13,6 +15,9 @@
  *
  * 2026-06-09: fix — BaseClientes usa cwtcvcl+cwtauxven (universo real asignado)
  *                    para que el total coincida con los 968 clientes reales del vendedor
+ * 2026-06-10: feat — agrega KPIs numéricos (TotalClientes, ClientesActivos,
+ *                    ClientesInactivos, ClientesNuevos, ClientesRecuperados)
+ *                    calculados con la consulta basada en cwtauxven + iw_gsaen
  */
 
 const express             = require('express');
@@ -42,11 +47,80 @@ router.get('/', async (req, res) => {
   try {
     const codigos = await getCodigosVendedor(usuario.sub);
     if (!codigos.length) {
-      return res.json({ ok: true, activosMesActual: [], inactivos: [], recuperados: [], sinCompras: [] });
+      return res.json({
+        ok: true,
+        TotalClientes: 0, ClientesActivos: 0, ClientesInactivos: 0,
+        ClientesNuevos: 0, ClientesRecuperados: 0,
+        activosMesActual: [], inactivos: [], recuperados: [], sinCompras: []
+      });
     }
 
     const pool = await getSoftlandPool();
     const inClause = mssqlIn(codigos);
+
+    // ── KPIs NUMÉRICOS ────────────────────────────────────────────────────────
+    // Basado en cwtauxven (universo asignado) + iw_gsaen (historial de compras)
+    const resKpis = await pool.request().query(`
+      WITH Clientes AS (
+          SELECT CodAux
+          FROM [PRODIN].[softland].[cwtauxven]
+          WHERE VenCod IN (${inClause})
+      ),
+      Compras AS (
+          SELECT
+              c.CodAux,
+              g.Fecha,
+              ROW_NUMBER() OVER (
+                  PARTITION BY c.CodAux
+                  ORDER BY g.Fecha DESC
+              ) AS rn_desc,
+              ROW_NUMBER() OVER (
+                  PARTITION BY c.CodAux
+                  ORDER BY g.Fecha ASC
+              ) AS rn_asc
+          FROM Clientes c
+          LEFT JOIN [PRODIN].[softland].[iw_gsaen] g
+              ON c.CodAux = g.CodAux
+             AND g.CodVendedor IN (${inClause})
+             AND g.Tipo IN ('F','N','D')
+             AND g.Estado <> 'A'
+      ),
+      UltimaCompra AS (
+          SELECT
+              CodAux,
+              MAX(CASE WHEN rn_desc = 1 THEN Fecha END) AS FechaUltimaCompra,
+              MAX(CASE WHEN rn_asc  = 1 THEN Fecha END) AS FechaPrimeraCompra,
+              MAX(CASE WHEN rn_desc = 2 THEN Fecha END) AS FechaPenultimaCompra
+          FROM Compras
+          GROUP BY CodAux
+      )
+      SELECT
+          COUNT(*) AS TotalClientes,
+          SUM(CASE
+                  WHEN FechaUltimaCompra >= DATEADD(DAY, -90, GETDATE()) THEN 1
+                  ELSE 0
+              END) AS ClientesActivos,
+          SUM(CASE
+                  WHEN FechaUltimaCompra < DATEADD(DAY, -90, GETDATE())
+                       OR FechaUltimaCompra IS NULL THEN 1
+                  ELSE 0
+              END) AS ClientesInactivos,
+          SUM(CASE
+                  WHEN FechaPrimeraCompra >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+                  THEN 1
+                  ELSE 0
+              END) AS ClientesNuevos,
+          SUM(CASE
+                  WHEN FechaUltimaCompra >= DATEADD(DAY, -180, GETDATE())
+                   AND (FechaPenultimaCompra < DATEADD(DAY, -180, GETDATE())
+                        OR FechaPenultimaCompra IS NULL)
+                  THEN 1
+                  ELSE 0
+              END) AS ClientesRecuperados
+      FROM UltimaCompra;
+    `);
+
+    const kpis = resKpis.recordset[0] || {};
 
     // ── ACTIVOS MES ACTUAL ────────────────────────────────────────────────────
     // Clientes que compraron en el mes calendario real (GETDATE), siempre fijo
@@ -71,9 +145,6 @@ router.get('/', async (req, res) => {
     `);
 
     // ── INACTIVOS ─────────────────────────────────────────────────────────────
-    // Base: universo real de clientes asignados al vendedor (cwtcvcl + cwtauxven)
-    // Condición: NO compraron en el mes real actual (GETDATE)
-    // Incluye clientes sin compras históricas (LEFT JOIN a iw_gsaen)
     const resInactivos = await pool.request().query(`
       ;WITH BaseClientes AS (
         SELECT DISTINCT cl.CodAux
@@ -178,7 +249,6 @@ router.get('/', async (req, res) => {
     `);
 
     // ── SIN COMPRAS ──────────────────────────────────────────────────────────
-    // Clientes asignados al vendedor que no tienen ningún folio histórico
     const resSinCompras = await pool.request().query(`
       SELECT
         cl.CodAux                             AS CodAux,
@@ -207,6 +277,13 @@ router.get('/', async (req, res) => {
 
     res.json({
       ok: true,
+      // KPIs numéricos para las cards del dashboard
+      TotalClientes:       kpis.TotalClientes       ?? 0,
+      ClientesActivos:     kpis.ClientesActivos      ?? 0,
+      ClientesInactivos:   kpis.ClientesInactivos    ?? 0,
+      ClientesNuevos:      kpis.ClientesNuevos       ?? 0,
+      ClientesRecuperados: kpis.ClientesRecuperados  ?? 0,
+      // Arrays de detalle para las tablas expandibles
       activosMesActual: resActivosMesActual.recordset,
       inactivos:        resInactivos.recordset,
       recuperados:      resRecuperados.recordset,
