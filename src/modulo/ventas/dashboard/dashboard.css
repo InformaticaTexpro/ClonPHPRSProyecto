@@ -327,7 +327,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   transform: translateY(-2px);
 }
 
-/* ── Borde superior de color por tipo (reemplaza border-left) ── */
+/* ── Borde superior de color por tipo ── */
 .cartera-card--total      { border-top: 3px solid var(--cc-total-border); }
 .cartera-card--activo     { border-top: 3px solid var(--cc-activo-border); }
 .cartera-card--inactivo   { border-top: 3px solid var(--cc-inactivo-border); }
@@ -640,6 +640,48 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .main-footer { padding:14px var(--space-6,24px); border-top:1px solid var(--color-gray-light,#E8EAF0); display:flex; justify-content:space-between; align-items:center; font-size:.75rem; color:var(--color-gray-dark,#6B7280); background:var(--color-white,#fff); }
 .footer-version { font-weight:600; }
 
+/* ════ GRÁFICO DONA CENTRADO ════════════════════════════════════════════════ */
+.grafico-dona-centrado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px 28px;
+  gap: 14px;
+}
+
+.torta-vendedor-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.torta-tab {
+  padding: 4px 14px;
+  border: 1px solid var(--color-gray-light,#E8EAF0);
+  border-radius: 20px;
+  background: transparent;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--color-gray-dark,#6B7280);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.torta-tab:hover { background: var(--color-gray-light,#E8EAF0); }
+.torta-tab--activo { background: #00E2A7; color: #fff; border-color: #00E2A7; }
+
+.grafico-torta-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 380px;
+}
+
+/* ── Toggle tipo factura ── */
+.tipo-toggle { padding:.25rem .55rem; font-size:.75rem; font-weight:700; border:1.5px solid var(--color-border,#d4d1ca); border-radius:4px; background:transparent; color:var(--color-text-muted,#7a7974); cursor:pointer; transition:background 140ms,color 140ms,border-color 140ms; letter-spacing:.03em; }
+.tipo-toggle--activo { background:var(--color-primary,#01696f); color:#fff; border-color:var(--color-primary,#01696f); }
+
 /* ════ RESPONSIVE ════════════════════════════════════════════════ */
 @media (max-width:1100px) {
   .cartera-cards { grid-template-columns: repeat(2, 1fr); }
@@ -649,6 +691,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 }
 @media (max-width:600px) {
   .cartera-cards { grid-template-columns: 1fr; }
+  .grafico-torta-wrapper { max-width: 340px; height: 300px; }
 }
 @media (max-width:768px) {
   .sidebar { transform:translateX(-100%); transition:transform .25s; }
@@ -666,68 +709,3 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 @media (max-width:480px) {
   .kpis-grid { grid-template-columns:1fr; }
 }
-
-/* ── Clientes por Vendedor — split tabla / torta ──────────────────────────── */
-.clientes-split {
-  display: flex;
-  align-items: stretch;
-  min-height: 200px;
-}
-.clientes-split__tabla {
-  flex: 1;
-  min-width: 0;
-  border-right: 1px solid var(--color-gray-light, #E8EAF0);
-}
-.clientes-split__grafico {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 20px;
-}
-.grafico-torta-titulo {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #6B7280);
-  text-align: center;
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-}
-.grafico-torta-wrapper {
-  position: relative;
-  height: 360px;
-  width: 100%;
-  max-width: 420px;
-}
-.torta-vendedor-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-bottom: 6px;
-}
-.torta-tab {
-  padding: 3px 12px;
-  border: 1px solid var(--color-gray-light, #E8EAF0);
-  border-radius: 20px;
-  background: transparent;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #6B7280);
-  cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
-}
-.torta-tab:hover { background: var(--color-gray-light, #E8EAF0); }
-.torta-tab--activo { background: #00E2A7; color: #fff; border-color: #00E2A7; }
-@media (max-width: 640px) {
-  .clientes-split { flex-direction: column; }
-  .clientes-split__tabla { border-right: none; border-bottom: 1px solid var(--color-gray-light, #E8EAF0); }
-  .grafico-torta-wrapper { height: 280px; max-width: 360px; }
-}
-
-/* ── Toggle tipo factura ── */
-.tipo-toggle { padding:.25rem .55rem; font-size:.75rem; font-weight:700; border:1.5px solid var(--color-border,#d4d1ca); border-radius:4px; background:transparent; color:var(--color-text-muted,#7a7974); cursor:pointer; transition:background 140ms,color 140ms,border-color 140ms; letter-spacing:.03em; }
-.tipo-toggle--activo { background:var(--color-primary,#01696f); color:#fff; border-color:var(--color-primary,#01696f); }
