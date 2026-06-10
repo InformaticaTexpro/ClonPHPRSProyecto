@@ -245,7 +245,44 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .grafico-titulo { font-family:var(--font-primary,'Montserrat',sans-serif); font-size:.95rem; font-weight:700; color:var(--color-black,#1A1D23); }
 .grafico-wrapper { height:280px; position:relative; }
 
-/* ════ CARTERA DE CLIENTES ════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   CARTERA DE CLIENTES — 6 KPI cards uniformes
+   Paleta semántica:
+     total       → gris azulado  (neutro, referencia)
+     activo      → verde         (positivo, saludable)
+     inactivo    → ámbar/naranja (alerta, atención)
+     nuevo       → azul          (oportunidad, crecimiento)
+     recuperado  → púrpura       (logro, recuperación)
+     activo-mes  → teal          (resultado inmediato)
+════════════════════════════════════════════════════════════════ */
+
+/* ── Variables de paleta de cartera ── */
+:root {
+  --cc-total-color:      #4B6A9B;
+  --cc-total-bg:         rgba(75,106,155,.10);
+  --cc-total-border:     rgba(75,106,155,.35);
+
+  --cc-activo-color:     #059669;
+  --cc-activo-bg:        rgba(5,150,105,.10);
+  --cc-activo-border:    rgba(5,150,105,.35);
+
+  --cc-inactivo-color:   #D97706;
+  --cc-inactivo-bg:      rgba(217,119,6,.10);
+  --cc-inactivo-border:  rgba(217,119,6,.35);
+
+  --cc-nuevo-color:      #2563EB;
+  --cc-nuevo-bg:         rgba(37,99,235,.10);
+  --cc-nuevo-border:     rgba(37,99,235,.35);
+
+  --cc-recuperado-color: #7C3AED;
+  --cc-recuperado-bg:    rgba(124,58,237,.10);
+  --cc-recuperado-border:rgba(124,58,237,.35);
+
+  --cc-activomes-color:  #0891B2;
+  --cc-activomes-bg:     rgba(8,145,178,.10);
+  --cc-activomes-border: rgba(8,145,178,.35);
+}
+
 .cartera-seccion {
   margin-bottom: 28px;
 }
@@ -254,7 +291,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .cartera-titulo {
@@ -269,39 +306,42 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   color: var(--color-gray-dark,#6B7280);
 }
 
-/* Grid de 2 columnas — solo INACTIVOS y ACTIVOS MES ACTUAL */
+/* Grid de 3 columnas para 6 cards */
 .cartera-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  align-items: start;
-  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
 }
 
 /* ── Card base ────────────────────────────────── */
 .cartera-card {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid var(--color-gray-light,#E8EAF0);
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
   overflow: hidden;
-  transition: box-shadow .2s, transform .2s;
+  transition: box-shadow .2s, transform .18s;
 }
 .cartera-card:hover {
-  box-shadow: 0 6px 24px rgba(0,0,0,.10);
+  box-shadow: 0 6px 20px rgba(0,0,0,.10);
   transform: translateY(-2px);
 }
 
-/* ── Acento lateral por tipo ── */
-.cartera-card--inactivo   { border-left: 4px solid #F5A623; }
-.cartera-card--activo-mes { border-left: 4px solid #00b09b; }
+/* ── Borde superior de color por tipo (reemplaza border-left) ── */
+.cartera-card--total      { border-top: 3px solid var(--cc-total-border); }
+.cartera-card--activo     { border-top: 3px solid var(--cc-activo-border); }
+.cartera-card--inactivo   { border-top: 3px solid var(--cc-inactivo-border); }
+.cartera-card--nuevo      { border-top: 3px solid var(--cc-nuevo-border); }
+.cartera-card--recuperado { border-top: 3px solid var(--cc-recuperado-border); }
+.cartera-card--activo-mes { border-top: 3px solid var(--cc-activomes-border); }
 
-/* ── Botón cabecera (toda la card superior) ───── */
+/* ── Botón cabecera ───────────────────────────── */
 .cartera-card-btn {
   width: 100%;
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 20px 20px 16px;
+  padding: 18px 18px 14px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -313,15 +353,21 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 /* ── Icono ────────────────────────────────────── */
 .cartera-card-icono {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.cartera-card--inactivo   .cartera-card-icono { background: rgba(245,166,35,.12); color: #F5A623; }
-.cartera-card--activo-mes .cartera-card-icono { background: rgba(0,176,155,.12);  color: #00b09b; }
+
+/* Colores del icono por tipo */
+.cartera-card--total      .cartera-card-icono { background: var(--cc-total-bg);      color: var(--cc-total-color); }
+.cartera-card--activo     .cartera-card-icono { background: var(--cc-activo-bg);     color: var(--cc-activo-color); }
+.cartera-card--inactivo   .cartera-card-icono { background: var(--cc-inactivo-bg);   color: var(--cc-inactivo-color); }
+.cartera-card--nuevo      .cartera-card-icono { background: var(--cc-nuevo-bg);      color: var(--cc-nuevo-color); }
+.cartera-card--recuperado .cartera-card-icono { background: var(--cc-recuperado-bg); color: var(--cc-recuperado-color); }
+.cartera-card--activo-mes .cartera-card-icono { background: var(--cc-activomes-bg);  color: var(--cc-activomes-color); }
 
 /* ── Texto info ───────────────────────────────── */
 .cartera-card-info {
@@ -333,25 +379,32 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 }
 
 .cartera-card-label {
-  font-size: .68rem;
+  font-size: .65rem;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: .07em;
   text-transform: uppercase;
   color: var(--color-gray-dark,#6B7280);
 }
 
 .cartera-card-count {
   font-family: var(--font-primary,'Montserrat',sans-serif);
-  font-size: 2rem;
+  font-size: 1.9rem;
   font-weight: 800;
   line-height: 1.1;
   color: var(--color-black,#1A1D23);
+  transition: color .2s;
 }
-.cartera-card--inactivo   .cartera-card-count { color: #F5A623; }
-.cartera-card--activo-mes .cartera-card-count { color: #00b09b; }
+
+/* Número en color del tipo */
+.cartera-card--total      .cartera-card-count { color: var(--cc-total-color); }
+.cartera-card--activo     .cartera-card-count { color: var(--cc-activo-color); }
+.cartera-card--inactivo   .cartera-card-count { color: var(--cc-inactivo-color); }
+.cartera-card--nuevo      .cartera-card-count { color: var(--cc-nuevo-color); }
+.cartera-card--recuperado .cartera-card-count { color: var(--cc-recuperado-color); }
+.cartera-card--activo-mes .cartera-card-count { color: var(--cc-activomes-color); }
 
 .cartera-card-desc {
-  font-size: .75rem;
+  font-size: .73rem;
   color: var(--color-gray-dark,#6B7280);
   white-space: nowrap;
   overflow: hidden;
@@ -450,7 +503,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
   font-weight: 700;
   white-space: nowrap;
 }
-.badge-dias--inactivo { background: rgba(245,166,35,.12); color: #c07d0b; }
+.badge-dias--inactivo { background: var(--cc-inactivo-bg); color: #92400e; }
 
 /* ════ TABLAS ════════════════════════════════════════════════ */
 .tabla-seccion { margin-bottom:20px; }
@@ -588,7 +641,13 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .footer-version { font-weight:600; }
 
 /* ════ RESPONSIVE ════════════════════════════════════════════════ */
+@media (max-width:1100px) {
+  .cartera-cards { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width:900px) {
+  .cartera-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width:600px) {
   .cartera-cards { grid-template-columns: 1fr; }
 }
 @media (max-width:768px) {
