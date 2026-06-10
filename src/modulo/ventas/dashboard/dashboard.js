@@ -12,6 +12,8 @@
  * 2026-06-08: feat — cartera: eliminadas cards Activos/Recuperados/SinCompras;
  *                    agregada card Activos Mes Actual (fija al mes real del servidor)
  * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
+ * 2026-06-10: feat — cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
+ *                    Recuperados); elimina lista-KPI redundante del HTML
  */
 
 (function () {
@@ -23,9 +25,14 @@
   let graficoEvolucion              = null;
   let graficoClientesDistribucion   = null;
 
-  // Solo se conservan inactivos y activosMes en carteraData
-  let carteraData = { inactivos: [], activosMes: [] };
-  let carteraRendered = { inactivo: false, activomes: false };
+  // Datos de cartera por segmento (arrays para las tablas expandibles)
+  let carteraData = {
+    total: [], activos: [], inactivos: [], nuevos: [], recuperados: [], activosMes: []
+  };
+  let carteraRendered = {
+    total: false, activo: false, inactivo: false,
+    nuevo: false, recuperado: false, activomes: false
+  };
 
   let filtroVendedorActivo = '';
   let tiposActivos = new Set(['F', 'N', 'D']);
@@ -400,38 +407,93 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error cartera');
 
-      carteraData.inactivos  = data.inactivos        || [];
+      // ── Conteos desde la consulta SQL (campo raíz del JSON) ──────────────
+      // El backend debe exponer: TotalClientes, ClientesActivos, ClientesInactivos,
+      // ClientesNuevos, ClientesRecuperados (número), además de los arrays de detalle.
+      const total      = data.TotalClientes      ?? data.totalClientes      ?? null;
+      const activos    = data.ClientesActivos    ?? data.clientesActivos    ?? null;
+      const inactivos  = data.ClientesInactivos  ?? data.clientesInactivos  ?? null;
+      const nuevos     = data.ClientesNuevos     ?? data.clientesNuevos     ?? null;
+      const recuperados= data.ClientesRecuperados?? data.clientesRecuperados?? null;
+
+      // Poblar contadores de cada card
+      setText('countTotal',      total       !== null ? String(total)       : '—');
+      setText('countActivo',     activos     !== null ? String(activos)     : '—');
+      setText('countInactivo',   inactivos   !== null ? String(inactivos)   : '—');
+      setText('countNuevo',      nuevos      !== null ? String(nuevos)      : '—');
+      setText('countRecuperado', recuperados !== null ? String(recuperados) : '—');
+
+      // ── Arrays de detalle para las tablas expandibles ────────────────────
+      carteraData.total      = data.total         || [];
+      carteraData.activos    = data.activos        || [];
+      carteraData.inactivos  = data.inactivos      || [];
+      carteraData.nuevos     = data.nuevos         || [];
+      carteraData.recuperados= data.recuperados    || [];
       carteraData.activosMes = data.activosMesActual || [];
 
-      carteraRendered = { inactivo: false, activomes: false };
-
-      setText('countInactivo',  String(carteraData.inactivos.length));
+      // Si la API no devuelve arrays separados pero sí devuelve los conteos,
+      // dejamos las tablas expandibles vacías (se mostrarán sin registros)
+      // hasta que el backend implemente los arrays.
+      // Count de activosMes: usar el array si existe, o 0
       setText('countActivoMes', String(carteraData.activosMes.length));
 
-      ['inactivo', 'activomes'].forEach(tipo => {
+      // Resetear flags de render
+      carteraRendered = {
+        total: false, activo: false, inactivo: false,
+        nuevo: false, recuperado: false, activomes: false
+      };
+
+      // Re-renderizar tablas que estén visualmente abiertas
+      ['total','activo','inactivo','nuevo','recuperado','activomes'].forEach(tipo => {
         const lista = document.getElementById(`lista${capitalize(tipo)}`);
         if (lista && !lista.hidden) renderCartaTipo(tipo);
       });
     } catch (err) {
       console.error('[cargarCartera]', err);
-      setText('countInactivo',  '—');
-      setText('countActivoMes', '—');
+      ['countTotal','countActivo','countInactivo','countNuevo','countRecuperado','countActivoMes']
+        .forEach(id => setText(id, '—'));
     }
   }
 
+  // Mapa tipo → clave en carteraData
+  const CARTERA_KEY = {
+    total:      'total',
+    activo:     'activos',
+    inactivo:   'inactivos',
+    nuevo:      'nuevos',
+    recuperado: 'recuperados',
+    activomes:  'activosMes'
+  };
+  const CARTERA_VACIO = {
+    total:      'Sin clientes en cartera',
+    activo:     'Sin clientes activos',
+    inactivo:   'Sin clientes inactivos',
+    nuevo:      'Sin clientes nuevos este mes',
+    recuperado: 'Sin clientes recuperados',
+    activomes:  'Sin clientes activos este mes'
+  };
+
   function renderCartaTipo(tipo, filtro) {
     const q = (filtro || '').toLowerCase();
-    const filtrarLista = (lista) => q
-      ? lista.filter(c =>
+    const fuente = carteraData[CARTERA_KEY[tipo]] || [];
+    const lista = q
+      ? fuente.filter(c =>
           (c.CodAux  || '').toLowerCase().includes(q) ||
           (c.NomAux  || '').toLowerCase().includes(q) ||
           (c.EMail   || '').toLowerCase().includes(q) ||
           (c.FONAUX1 || '').toLowerCase().includes(q) ||
           (c.FonAux2 || '').toLowerCase().includes(q))
-      : lista;
+      : fuente;
 
-    if (tipo === 'inactivo')   renderTablaCartera('tbodyInactivo',  filtrarLista(carteraData.inactivos),  'Sin clientes inactivos');
-    else if (tipo === 'activomes') renderTablaCartera('tbodyActivoMes', filtrarLista(carteraData.activosMes), 'Sin clientes activos este mes');
+    const tbodyMap = {
+      total:      'tbodyTotal',
+      activo:     'tbodyActivo',
+      inactivo:   'tbodyInactivo',
+      nuevo:      'tbodyNuevo',
+      recuperado: 'tbodyRecuperado',
+      activomes:  'tbodyActivoMes'
+    };
+    renderTablaCartera(tbodyMap[tipo], lista, CARTERA_VACIO[tipo]);
     carteraRendered[tipo] = true;
   }
 
@@ -484,11 +546,19 @@
       });
     });
 
-    const bInactivo = document.getElementById('busquedaInactivo');
-    if (bInactivo) bInactivo.addEventListener('input', e => renderCartaTipo('inactivo', e.target.value));
-
-    const bActivoMes = document.getElementById('busquedaActivoMes');
-    if (bActivoMes) bActivoMes.addEventListener('input', e => renderCartaTipo('activomes', e.target.value));
+    // Listeners de búsqueda para los 6 tipos
+    const busquedas = [
+      ['busquedaTotal',      'total'],
+      ['busquedaActivo',     'activo'],
+      ['busquedaInactivo',   'inactivo'],
+      ['busquedaNuevo',      'nuevo'],
+      ['busquedaRecuperado', 'recuperado'],
+      ['busquedaActivoMes',  'activomes']
+    ];
+    busquedas.forEach(([id, tipo]) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', e => renderCartaTipo(tipo, e.target.value));
+    });
   }
 
   // ── Gráfico Distribución por Categoría ───────────────────────────────────────────────────
