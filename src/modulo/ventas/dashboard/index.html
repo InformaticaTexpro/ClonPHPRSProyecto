@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
-  <link rel="stylesheet" href="dashboard.css?v=2.3.5" />
+  <link rel="stylesheet" href="dashboard.css?v=2.3.6" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
@@ -225,7 +225,7 @@
             </div>
           </div>
 
-          <!-- ACTIVOS MES ACTUAL (conservado) -->
+          <!-- ACTIVOS MES ACTUAL -->
           <div class="cartera-card cartera-card--activo-mes" id="cardActivoMes">
             <button class="cartera-card-btn" data-tipo="activomes" aria-expanded="false">
               <div class="cartera-card-icono">
@@ -253,18 +253,13 @@
         </div>
       </section>
 
+      <!-- GRÁFICO DONA — centrado, sin tabla lateral -->
       <section class="tabla-seccion">
         <div class="tabla-card">
-          <div class="tabla-header"><h3 class="tabla-titulo">Clientes por Vendedor</h3></div>
-          <div class="clientes-split">
-            <div class="clientes-split__tabla">
-              <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Cód. Vendedor</th><th style="text-align:right">Clientes Históricos</th><th style="text-align:right">Clientes Mensuales</th></tr></thead><tbody id="tbodyClientesResumen"><tr class="tabla-empty"><td colspan="3">Cargando...</td></tr></tbody><tfoot id="tfootClientesResumen"></tfoot></table></div>
-            </div>
-            <div class="clientes-split__grafico">
-              <div id="tortaVendedorTabs" class="torta-vendedor-tabs" style="display:none"></div>
-              <p class="grafico-torta-titulo">Distribución por Categoría</p>
-              <div class="grafico-torta-wrapper"><canvas id="graficoClientesDistribucion"></canvas></div>
-            </div>
+          <div class="tabla-header"><h3 class="tabla-titulo">Distribución por Categoría</h3></div>
+          <div class="grafico-dona-centrado">
+            <div id="tortaVendedorTabs" class="torta-vendedor-tabs" style="display:none"></div>
+            <div class="grafico-torta-wrapper"><canvas id="graficoClientesDistribucion"></canvas></div>
           </div>
         </div>
       </section>
