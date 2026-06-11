@@ -14,6 +14,8 @@
  * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
  * 2026-06-10: feat — cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
  *                    Recuperados); elimina lista-KPI redundante del HTML
+ * 2026-06-11: fix — descuentos redondeados (sin decimales) en KPI global,
+ *                    tabla vendedores y tabla ventas del mes
  */
 
 (function () {
@@ -203,7 +205,8 @@
       const { totalVentas, meta, progreso, pctDescuentoGlobal } = data;
       setText('kpiTotalVentas', formatCLP(totalVentas));
       setText('kpiMeta',        formatCLP(meta));
-      setText('kpiDescuento',   pctDescuentoGlobal > 0 ? `${pctDescuentoGlobal}%` : '0%');
+      const descRedondeado = pctDescuentoGlobal > 0 ? Math.round(Number(pctDescuentoGlobal)) : 0;
+      setText('kpiDescuento',   descRedondeado > 0 ? `${descRedondeado}%` : '0%');
       const pct  = Math.min(progreso, 100);
       setText('kpiProgresoPct', `${progreso}%`);
       const fill = document.getElementById('progresoFill');
@@ -267,7 +270,7 @@
       tbody.innerHTML = data.vendedores.map(v => {
         const totalVentasCobrado = Number(v.totalVentasCobrado || 0);
         const ventaRealLista     = Number(v.ventaRealLista     || 0);
-        const pctDescuento       = Number(v.pctDescuento       || 0);
+        const pctDescuento       = Math.round(Number(v.pctDescuento || 0));
         return `
         <tr>
           <td><strong>${escHtml(v.codVendedor)}</strong></td>
@@ -335,7 +338,8 @@
     setText('totalVentasMes', `${lista.length.toLocaleString('es-CL')} registros`);
     if (!lista.length) { tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin registros</td></tr>'; return; }
     tbody.innerHTML = lista.map(v => {
-      const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
+      const pctDescRedondeado = v.pct_descuento > 0 ? Math.round(Number(v.pct_descuento)) : 0;
+      const pctDesc      = pctDescRedondeado > 0 ? `${pctDescRedondeado}%` : '—';
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
       const badgeComp    = v.es_compartido
@@ -407,23 +411,18 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error cartera');
 
-      // ── Conteos desde la consulta SQL (campo raíz del JSON) ──────────────
-      // El backend debe exponer: TotalClientes, ClientesActivos, ClientesInactivos,
-      // ClientesNuevos, ClientesRecuperados (número), además de los arrays de detalle.
       const total      = data.TotalClientes      ?? data.totalClientes      ?? null;
       const activos    = data.ClientesActivos    ?? data.clientesActivos    ?? null;
       const inactivos  = data.ClientesInactivos  ?? data.clientesInactivos  ?? null;
       const nuevos     = data.ClientesNuevos     ?? data.clientesNuevos     ?? null;
       const recuperados= data.ClientesRecuperados?? data.clientesRecuperados?? null;
 
-      // Poblar contadores de cada card
       setText('countTotal',      total       !== null ? String(total)       : '—');
       setText('countActivo',     activos     !== null ? String(activos)     : '—');
       setText('countInactivo',   inactivos   !== null ? String(inactivos)   : '—');
       setText('countNuevo',      nuevos      !== null ? String(nuevos)      : '—');
       setText('countRecuperado', recuperados !== null ? String(recuperados) : '—');
 
-      // ── Arrays de detalle para las tablas expandibles ────────────────────
       carteraData.total      = data.total         || [];
       carteraData.activos    = data.activos        || [];
       carteraData.inactivos  = data.inactivos      || [];
@@ -431,19 +430,13 @@
       carteraData.recuperados= data.recuperados    || [];
       carteraData.activosMes = data.activosMesActual || [];
 
-      // Si la API no devuelve arrays separados pero sí devuelve los conteos,
-      // dejamos las tablas expandibles vacías (se mostrarán sin registros)
-      // hasta que el backend implemente los arrays.
-      // Count de activosMes: usar el array si existe, o 0
       setText('countActivoMes', String(carteraData.activosMes.length));
 
-      // Resetear flags de render
       carteraRendered = {
         total: false, activo: false, inactivo: false,
         nuevo: false, recuperado: false, activomes: false
       };
 
-      // Re-renderizar tablas que estén visualmente abiertas
       ['total','activo','inactivo','nuevo','recuperado','activomes'].forEach(tipo => {
         const lista = document.getElementById(`lista${capitalize(tipo)}`);
         if (lista && !lista.hidden) renderCartaTipo(tipo);
@@ -455,7 +448,6 @@
     }
   }
 
-  // Mapa tipo → clave en carteraData
   const CARTERA_KEY = {
     total:      'total',
     activo:     'activos',
@@ -546,7 +538,6 @@
       });
     });
 
-    // Listeners de búsqueda para los 6 tipos
     const busquedas = [
       ['busquedaTotal',      'total'],
       ['busquedaActivo',     'activo'],
