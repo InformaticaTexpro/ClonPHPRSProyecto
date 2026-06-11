@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
-  <link rel="stylesheet" href="historial.css?v=2.0.0" />
+  <link rel="stylesheet" href="historial.css?v=2.0.2" />
 </head>
 <body>
 
@@ -57,7 +57,6 @@
 
     <main class="main-content">
 
-      <!-- Welcome bar -->
       <div class="welcome-bar">
         <div class="welcome-text">
           <h2 id="welcomeTitle">Historial de Cliente</h2>
@@ -65,7 +64,7 @@
         </div>
       </div>
 
-      <!-- ── FILTROS ──────────────────────────────────────────── -->
+      <!-- FILTROS -->
       <section class="hist-filtros-section">
         <div class="hist-filtros-card">
           <h3 class="hist-filtros-titulo">
@@ -74,7 +73,6 @@
           </h3>
           <div class="hist-filtros-grid">
 
-            <!-- Buscador cliente -->
             <div class="hist-filtro-grupo hist-filtro-grupo--cliente">
               <label class="hist-filtro-label" for="inputCliente">Cliente</label>
               <div class="hist-autocomplete-wrap">
@@ -90,6 +88,7 @@
                 <svg class="hist-input-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <ul class="hist-autocomplete-list" id="listaClientes" role="listbox" hidden></ul>
               </div>
+              <!-- chip: oculto por defecto con hidden -->
               <div class="hist-cliente-chip" id="clienteChip" hidden>
                 <span id="clienteChipNombre"></span>
                 <button class="hist-chip-remove" id="btnRemoveCliente" aria-label="Quitar cliente" title="Quitar">
@@ -98,19 +97,16 @@
               </div>
             </div>
 
-            <!-- Desde (select año) -->
             <div class="hist-filtro-grupo">
               <label class="hist-filtro-label" for="fechaDesde">Desde</label>
               <select id="fechaDesde" class="hist-filtro-input hist-year-select"></select>
             </div>
 
-            <!-- Hasta (select año) -->
             <div class="hist-filtro-grupo">
               <label class="hist-filtro-label" for="fechaHasta">Hasta</label>
               <select id="fechaHasta" class="hist-filtro-input hist-year-select"></select>
             </div>
 
-            <!-- Botones -->
             <div class="hist-filtro-grupo hist-filtro-grupo--btns">
               <button class="btn-buscar" id="btnBuscarHistorial" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -126,7 +122,11 @@
         </div>
       </section>
 
-      <!-- ── ESTADOS (solo histEstadoInicial visible al cargar) ── -->
+      <!--
+        ESTADOS: solo histEstadoInicial visible al cargar.
+        histEstadoError y histEstadoVacio tienen hidden por defecto.
+        El JS los controla via mostrarEstado().
+      -->
       <div class="hist-estado" id="histEstadoInicial">
         <div class="hist-estado-icono">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -151,10 +151,7 @@
         <p class="hist-estado-sub">El cliente no tiene compras en el rango de fechas seleccionado</p>
       </div>
 
-      <!-- ── RESUMEN ─────────────────────────────────────────── -->
       <section id="histResumen" hidden></section>
-
-      <!-- ── TABLAS POR AÑO ────────────────────────────────────── -->
       <div id="histResultados" hidden></div>
 
     </main>
@@ -165,7 +162,7 @@
     </footer>
   </div>
 
-  <script src="historial.js?v=2.0.1"></script>
+  <script src="historial.js?v=2.0.2"></script>
   <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
 </body>
 </html>

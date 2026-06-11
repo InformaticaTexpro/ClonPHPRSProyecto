@@ -1,14 +1,13 @@
 'use strict';
 
 /**
- * historial.js v2.0.1
- * Fix:
- *   - Estados (inicial/error/vacío) son mutuamente excluyentes:
- *     solo uno visible a la vez, nunca los tres juntos.
- *   - Al seleccionar cliente: input.value se limpia y se cancela
- *     cualquier fetch en vuelo ANTES de ocultar el input.
- *   - Al quitar chip (btnRemoveCliente): se aborta fetch en vuelo,
- *     se limpia value, se restaura input sin carácter residual.
+ * historial.js v2.0.2
+ * Fix definitivo:
+ *   - mostrarEstado() garantiza que SOLO UN estado es visible a la vez
+ *   - Al cargar la pagina: solo histEstadoInicial visible
+ *   - seleccionarCliente: limpia input.value ANTES de ocultarlo, aborta fetch
+ *   - btnRemoveCliente: aborta fetch, limpia lista, foco via rAF
+ *   - limpiarFormulario: aborta fetch, limpia todo, muestra estado inicial
  */
 
 (function () {
@@ -17,19 +16,19 @@
   const API_HISTORIAL = '/api/ventas/historial-cliente';
   const token = () => localStorage.getItem('token');
 
-  const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto',
-                        'Septiembre','Octubre','Noviembre','Diciembre'];
+  const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   let clienteSeleccionado = null;
   let abortController     = null;
 
-  // ── Helpers fecha año ─────────────────────────────────────────────────────
+  // ── Helpers fecha ────────────────────────────────────────────────────────
   function yearToDesde(y) { return y ? `${y}-01-01` : ''; }
   function yearToHasta(y) { return y ? `${y}-12-31` : ''; }
 
-  // ── Helpers UI ────────────────────────────────────────────────────────────
+  // ── Helpers UI ───────────────────────────────────────────────────────────
   function formatCLP(v) {
-    if (v == null || v === '' || Number(v) === 0) return '—';
+    if (v == null || v === '' || Number(v) === 0) return '\u2014';
     return new Intl.NumberFormat('es-CL', {
       style: 'currency', currency: 'CLP', maximumFractionDigits: 0
     }).format(Number(v));
@@ -51,8 +50,8 @@
   function hide(id) { const el = document.getElementById(id); if (el) el.hidden = true; }
 
   /**
-   * Muestra UNO de los tres estados mutuamente excluyentes.
-   * 'inicial' | 'error' | 'vacio' | null (ocultar todos)
+   * Controlador único de estados: garantiza que solo UNO sea visible.
+   * @param {'inicial'|'error'|'vacio'|null} cual — null oculta todos
    */
   function mostrarEstado(cual) {
     hide('histEstadoInicial');
@@ -61,24 +60,23 @@
     if (cual === 'inicial') show('histEstadoInicial');
     else if (cual === 'error')  show('histEstadoError');
     else if (cual === 'vacio')  show('histEstadoVacio');
-    // null → todos ocultos (cuando se muestran resultados)
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────
   const MODULOS = [
-    { nombre:'Dashboard',        icon:'🏠', url:'../dashboard/index.html',                        area: null },
-    { nombre:'Ventas Asignadas', icon:'📊', url:'../ventas/index.html',                           area:['ventas','gerencia'] },
-    { nombre:'Historial',        icon:'📋', url:'./index.html',                                   area:['ventas','gerencia'], activo: true },
-    { nombre:'Facturación',      icon:'🧾', url:'../../facturacion/facturacion/index.html',        area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',           icon:'🏭', url:'../../bodega/bodega/index.html',                  area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',       icon:'⚙️', url:'../../produccion/produccion/index.html',          area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',        icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',   area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',      icon:'🧪', url:'../../laboratorio/laboratorio/index.html',       area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',         icon:'💰', url:'../../cobranza/cobranza/index.html',              area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',             icon:'👥', url:'../../rrhh/rrhh/index.html',                      area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',     icon:'📜', url:'../../contabilidad/contabilidad/index.html',      area:['contabilidad','gerencia'] },
-    { nombre:'Administración',   icon:'🔧', url:'../../admin/admin/index.html',                    area:['admin'] },
-    { nombre:'Alertas',          icon:'🔔', url:'../../varios/alertas/index.html',                 area: null },
+    { nombre:'Dashboard',        icon:'\uD83C\uDFE0', url:'../dashboard/index.html',                       area: null },
+    { nombre:'Ventas Asignadas', icon:'\uD83D\uDCCA', url:'../ventas/index.html',                          area:['ventas','gerencia'] },
+    { nombre:'Historial',        icon:'\uD83D\uDCCB', url:'./index.html',                                  area:['ventas','gerencia'], activo: true },
+    { nombre:'Facturaci\u00f3n', icon:'\uD83E\uDDFE', url:'../../facturacion/facturacion/index.html',       area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',           icon:'\uD83C\uDFED', url:'../../bodega/bodega/index.html',                 area:['bodega','produccion','gerencia'] },
+    { nombre:'Producci\u00f3n',  icon:'\u2699\uFE0F', url:'../../produccion/produccion/index.html',         area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',        icon:'\uD83D\uDEE0\uFE0F', url:'../../servtecnico/servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',      icon:'\uD83E\uDDEA', url:'../../laboratorio/laboratorio/index.html',      area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',         icon:'\uD83D\uDCB0', url:'../../cobranza/cobranza/index.html',             area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',             icon:'\uD83D\uDC65', url:'../../rrhh/rrhh/index.html',                     area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',     icon:'\uD83D\uDCDC', url:'../../contabilidad/contabilidad/index.html',     area:['contabilidad','gerencia'] },
+    { nombre:'Administraci\u00f3n', icon:'\uD83D\uDD27', url:'../../admin/admin/index.html',                area:['admin'] },
+    { nombre:'Alertas',          icon:'\uD83D\uDD14', url:'../../varios/alertas/index.html',                area: null },
   ];
 
   async function verificarSesion() {
@@ -93,23 +91,22 @@
 
   function cargarSidebar(usuario) {
     const ini = (usuario.nombre || 'U').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase();
-    setText('userName',       usuario.nombre  || usuario.email);
-    setText('userArea',       usuario.area    || '');
-    setText('userAvatar',     ini);
-    setText('chipAvatar',     ini);
-    setText('chipName',       (usuario.nombre || usuario.email).split(' ')[0]);
-    setText('headerDate',     new Date().toLocaleDateString('es-CL',
+    setText('userName',        usuario.nombre  || usuario.email);
+    setText('userArea',        usuario.area    || '');
+    setText('userAvatar',      ini);
+    setText('chipAvatar',      ini);
+    setText('chipName',        (usuario.nombre || usuario.email).split(' ')[0]);
+    setText('headerDate',      new Date().toLocaleDateString('es-CL',
       { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-    setText('welcomeSubtitle', `Área: ${usuario.area || 'Sistema'} — Texpro`);
+    setText('welcomeSubtitle', `\u00c1rea: ${usuario.area || 'Sistema'} \u2014 Texpro`);
 
     const nav      = document.getElementById('sidebarNav');
     const visibles = MODULOS.filter(m => {
-      if (m.area === null) return true;
-      if (usuario.is_admin) return true;
+      if (m.area === null)    return true;
+      if (usuario.is_admin)   return true;
       return m.area.includes(usuario.area);
     });
-
-    if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
+    if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACI\u00d3N</span>
       ${visibles.map(m => `
         <a class="nav-item${m.activo ? ' active' : ''}" href="${m.url}">
           <span style="font-size:1rem">${m.icon}</span>
@@ -135,7 +132,6 @@
     const elDesde    = document.getElementById('fechaDesde');
     const elHasta    = document.getElementById('fechaHasta');
     if (!elDesde || !elHasta) return;
-
     [elDesde, elHasta].forEach(sel => {
       sel.innerHTML = '';
       for (let y = anioActual; y >= 2005; y--) {
@@ -145,12 +141,11 @@
         sel.appendChild(opt);
       }
     });
-
     elDesde.value = String(anioActual - 1);
     elHasta.value = String(anioActual);
   }
 
-  // ── Autocomplete clientes ────────────────────────────────────────────────
+  // ── Autocomplete ─────────────────────────────────────────────────────────
   function initAutocomplete() {
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
@@ -188,26 +183,21 @@
       if (!input.contains(e.target) && !lista.contains(e.target)) lista.hidden = true;
     });
 
-    // ── Quitar chip: abortar fetch, limpiar todo ──────────────────────────
+    // ── Quitar chip ─────────────────────────────────────────────────────────
     btnRem?.addEventListener('click', () => {
-      // 1. Cancelar cualquier búsqueda en vuelo
       if (abortController) { abortController.abort(); abortController = null; }
-      // 2. Resetear estado cliente
       clienteSeleccionado = null;
-      // 3. Limpiar y mostrar input SIN valor residual
-      input.value = '';
-      input.hidden = false;
-      // 4. Ocultar lista y chip
-      lista.hidden = true;
+      // Limpiar y restaurar input sin valor residual
+      input.value   = '';
+      input.hidden  = false;
+      lista.hidden  = true;
       lista.innerHTML = '';
-      chip.hidden = true;
-      // 5. Deshabilitar buscar
+      chip.hidden   = true;
       if (btnBus) btnBus.disabled = true;
-      // 6. Volver al estado inicial
+      // Volver al estado inicial
       mostrarEstado('inicial');
       hide('histResumen');
       hide('histResultados');
-      // 7. Foco al input
       requestAnimationFrame(() => input.focus());
     });
   }
@@ -215,7 +205,6 @@
   async function buscarClientes(q) {
     const lista = document.getElementById('listaClientes');
     if (!lista) return;
-
     abortController = new AbortController();
     try {
       const res  = await fetch(`${API_CLIENTES}?q=${encodeURIComponent(q)}`, {
@@ -235,9 +224,7 @@
         </li>`).join('');
       lista.hidden = false;
       lista.querySelectorAll('li[data-cod]').forEach(li => {
-        li.addEventListener('click', () => seleccionarCliente(
-          li.dataset.cod, li.dataset.nom
-        ));
+        li.addEventListener('click', () => seleccionarCliente(li.dataset.cod, li.dataset.nom));
       });
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -245,45 +232,40 @@
     }
   }
 
-  // ── Seleccionar cliente: limpiar input ANTES de ocultarlo ────────────────
+  // ── Seleccionar cliente ──────────────────────────────────────────────────
   function seleccionarCliente(cod, nom) {
-    // 1. Cancelar fetch en vuelo para que no interfiera
+    // 1. Abortar fetch en vuelo
     if (abortController) { abortController.abort(); abortController = null; }
-
+    // 2. Registrar cliente
     clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
-
+    // 3. Referencias DOM
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
     const chip   = document.getElementById('clienteChip');
     const btnBus = document.getElementById('btnBuscarHistorial');
-
-    // 2. Limpiar valor del input ANTES de ocultarlo (evita carácter residual)
+    // 4. Limpiar valor del input ANTES de ocultarlo (evita caracter residual)
     if (input) { input.value = ''; input.hidden = true; }
+    // 5. Limpiar lista
     if (lista) { lista.hidden = true; lista.innerHTML = ''; }
-
-    // 3. Mostrar chip con código + nombre sin guión
+    // 6. Mostrar chip con código + nombre
     if (chip) {
-      chip.hidden = false;
       const chipNombre = document.getElementById('clienteChipNombre');
       if (chipNombre) chipNombre.textContent = `${cod}  ${nom}`;
+      chip.hidden = false;
     }
-
+    // 7. Habilitar botón buscar
     if (btnBus) btnBus.disabled = false;
   }
 
-  // ── Búsqueda principal ───────────────────────────────────────────────────
+  // ── Buscar historial ─────────────────────────────────────────────────────
   async function buscarHistorial() {
     if (!clienteSeleccionado) return;
-
     const yDesde = document.getElementById('fechaDesde')?.value;
     const yHasta = document.getElementById('fechaHasta')?.value;
     if (!yDesde || !yHasta) { alert('Selecciona el rango de años (Desde / Hasta).'); return; }
     if (Number(yDesde) > Number(yHasta)) { alert('El año "Desde" no puede ser mayor a "Hasta".'); return; }
 
-    const desde = yearToDesde(yDesde);
-    const hasta = yearToHasta(yHasta);
-
-    // Ocultar todos los estados y resultados mientras carga
+    // Ocultar todo mientras carga
     mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
@@ -292,24 +274,22 @@
     if (btnBus) { btnBus.disabled = true; btnBus.textContent = 'Buscando...'; }
 
     try {
-      const params = new URLSearchParams({ codAux: clienteSeleccionado.codAux, desde, hasta });
+      const params = new URLSearchParams({
+        codAux: clienteSeleccionado.codAux,
+        desde:  yearToDesde(yDesde),
+        hasta:  yearToHasta(yHasta)
+      });
       const res  = await fetch(`${API_HISTORIAL}?${params}`, {
         headers: { Authorization: `Bearer ${token()}` }
       });
       const data = await res.json();
-
       if (!res.ok || !data.ok) throw new Error(data.error || 'Error al obtener historial');
-
-      if (!data.historial || !data.historial.length) {
-        mostrarEstado('vacio');
-        return;
-      }
+      if (!data.historial || !data.historial.length) { mostrarEstado('vacio'); return; }
 
       const primerRow = data.historial[0];
       clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
       clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
 
-      // Resultados encontrados → ocultar todos los estados
       mostrarEstado(null);
       renderResumen(data, yDesde, yHasta);
       renderResultados(data.historial, yDesde, yHasta);
@@ -333,8 +313,7 @@
       if (row.CodProd) productos.add(row.CodProd);
       totalMonto += Number(row.TotLinea || 0);
     });
-
-    const periodoLabel = yDesde === yHasta ? String(yDesde) : `${yDesde} — ${yHasta}`;
+    const periodoLabel = yDesde === yHasta ? String(yDesde) : `${yDesde} \u2014 ${yHasta}`;
     const totalFmt = new Intl.NumberFormat('es-CL',
       { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(totalMonto);
 
@@ -345,7 +324,7 @@
         <div class="hist-resumen-row">
           <div class="hist-resumen-item hist-resumen-item--cliente">
             <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </span>
             <div>
               <span class="hist-resumen-label">Cliente</span>
@@ -354,16 +333,16 @@
           </div>
           <div class="hist-resumen-item">
             <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
             </span>
             <div>
-              <span class="hist-resumen-label">Período</span>
+              <span class="hist-resumen-label">Per\u00edodo</span>
               <span class="hist-resumen-valor">${escHtml(periodoLabel)}</span>
             </div>
           </div>
           <div class="hist-resumen-item">
             <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M2 7h20"/></svg>
             </span>
             <div>
               <span class="hist-resumen-label">Productos distintos</span>
@@ -372,10 +351,10 @@
           </div>
           <div class="hist-resumen-item hist-resumen-item--total">
             <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </span>
             <div>
-              <span class="hist-resumen-label">Total período</span>
+              <span class="hist-resumen-label">Total per\u00edodo</span>
               <span class="hist-resumen-valor hist-resumen-valor--total">${totalFmt}</span>
             </div>
           </div>
@@ -384,143 +363,100 @@
     show('histResumen');
   }
 
-  // ── Tablas por año ────────────────────────────────────────────────────────
+  // ── Tablas por año ───────────────────────────────────────────────────────
   function renderResultados(historial, yDesde, yHasta) {
     const contenedor = document.getElementById('histResultados');
     if (!contenedor) return;
     contenedor.innerHTML = '';
-
     const porAnio = {};
     historial.forEach(row => {
       const anio = String(row.Anio);
       const mes  = Number(row.Mes);
       const key  = row.CodProd;
       if (!porAnio[anio]) porAnio[anio] = {};
-      if (!porAnio[anio][key]) {
-        porAnio[anio][key] = { CodProd: row.CodProd, DesProd: row.DetProd || '', meses: {}, total: 0 };
-      }
+      if (!porAnio[anio][key]) porAnio[anio][key] = { CodProd: row.CodProd, DesProd: row.DetProd || '', meses: {}, total: 0 };
       porAnio[anio][key].meses[mes] = (porAnio[anio][key].meses[mes] || 0) + Number(row.TotLinea || 0);
       porAnio[anio][key].total      += Number(row.TotLinea || 0);
     });
-
-    const anios = Object.keys(porAnio).sort((a,b) => Number(b) - Number(a));
-    anios.forEach((anio, idx) => {
-      const productos = Object.values(porAnio[anio]);
-      const bloque    = renderBloqueAnio(anio, productos, idx, yDesde, yHasta);
-      contenedor.appendChild(bloque);
+    Object.keys(porAnio).sort((a,b) => Number(b) - Number(a)).forEach((anio, idx) => {
+      contenedor.appendChild(renderBloqueAnio(anio, Object.values(porAnio[anio]), idx, yDesde, yHasta));
     });
     show('histResultados');
   }
 
   function renderBloqueAnio(anio, productos, idx, yDesde, yHasta) {
-    const anioNum   = Number(anio);
-    const mesInicio = anioNum === Number(yDesde) ? 1 : 1;
-    const mesFin    = anioNum === Number(yHasta) ? 12 : 12;
     const meses = [];
-    for (let m = mesInicio; m <= mesFin; m++) meses.push(m);
-
+    for (let m = 1; m <= 12; m++) meses.push(m);
     productos.sort((a,b) => b.total - a.total);
-
     const totalesMes = {};
-    meses.forEach(m => {
-      totalesMes[m] = productos.reduce((s,p) => s + (p.meses[m] || 0), 0);
-    });
+    meses.forEach(m => { totalesMes[m] = productos.reduce((s,p) => s + (p.meses[m] || 0), 0); });
     const totalAnio = productos.reduce((s,p) => s + p.total, 0);
-
-    const bloque  = document.createElement('div');
+    const bloque    = document.createElement('div');
     bloque.className = 'hist-anio-bloque';
-    const tableId = `tablaAnio${anio}`;
-    const colorClass = ['--c0','--c1','--c2','--c3','--c4'][idx % 5];
+    const tableId   = `tablaAnio${anio}`;
 
     bloque.innerHTML = `
       <div class="hist-anio-header">
-        <span class="hist-anio-badge${colorClass ? ' hist-anio-badge' + colorClass : ''}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-            <line x1="16" x2="16" y1="2" y2="6"/>
-            <line x1="8"  x2="8"  y1="2" y2="6"/>
-            <line x1="3"  x2="21" y1="10" y2="10"/>
-          </svg>
+        <span class="hist-anio-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
           ${anio}
         </span>
         <div class="hist-anio-linea"></div>
-        <span class="hist-anio-resumen">
-          ${productos.length} producto${productos.length!==1?'s':''}
-          &nbsp;·&nbsp;Total: <strong>${formatCLP(totalAnio)}</strong>
-        </span>
+        <span class="hist-anio-resumen">${productos.length} producto${productos.length!==1?'s':''} &nbsp;\u00b7&nbsp; Total: <strong>${formatCLP(totalAnio)}</strong></span>
       </div>
-
       <div class="hist-tabla-card">
         <div class="hist-tabla-header">
           <h3 class="hist-tabla-titulo">Detalle por producto &mdash; ${anio}</h3>
           <div class="hist-tabla-acciones">
-            <input type="text" class="hist-busqueda-tabla"
-              placeholder="Filtrar productos..."
-              data-tabla="${tableId}" />
+            <input type="text" class="hist-busqueda-tabla" placeholder="Filtrar productos..." data-tabla="${tableId}" />
           </div>
         </div>
         <div class="hist-tabla-wrapper">
           <table class="hist-tabla" id="${tableId}">
-            <thead>
-              <tr>
-                <th class="hist-th-codigo">Código</th>
-                <th class="hist-th-desc">Descripción</th>
-                ${meses.map(m=>`<th class="hist-th-mes">${MESES_NOMBRE[m-1]}</th>`).join('')}
-                <th class="hist-th-total">Total ${anio}</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th class="hist-th-codigo">C\u00f3digo</th>
+              <th class="hist-th-desc">Descripci\u00f3n</th>
+              ${meses.map(m=>`<th class="hist-th-mes">${MESES_NOMBRE[m-1]}</th>`).join('')}
+              <th class="hist-th-total">Total ${anio}</th>
+            </tr></thead>
             <tbody id="tbody${tableId}">
-              ${productos.map((p, ri)=>{
+              ${productos.map((p,ri) => {
                 const searchKey = `${p.CodProd} ${p.DesProd}`.toLowerCase();
-                const rowClass  = ri % 2 === 0 ? 'hist-tr-par' : 'hist-tr-impar';
-                return `<tr class="${rowClass}" data-search="${escHtml(searchKey)}">
+                return `<tr class="${ri%2===0?'hist-tr-par':'hist-tr-impar'}" data-search="${escHtml(searchKey)}">
                   <td><span class="hist-cod-prod">${escHtml(p.CodProd)}</span></td>
                   <td><span class="hist-desc-prod" title="${escHtml(p.DesProd)}">${escHtml(p.DesProd)}</span></td>
-                  ${meses.map(m=>{
+                  ${meses.map(m => {
                     const val = p.meses[m] || 0;
-                    if (!val) return '<td class="hist-mes-cero">&mdash;</td>';
-                    return `<td class="hist-mes-valor">${formatCLP(val)}</td>`;
+                    return val ? `<td class="hist-mes-valor">${formatCLP(val)}</td>` : '<td class="hist-mes-cero">&mdash;</td>';
                   }).join('')}
                   <td class="hist-td-total">${formatCLP(p.total)}</td>
                 </tr>`;
               }).join('')}
             </tbody>
-            <tfoot>
-              <tr class="hist-tfoot-row">
-                <td colspan="2"><strong>Total mes</strong></td>
-                ${meses.map(m=>{
-                  const t = totalesMes[m];
-                  return `<td class="hist-tfoot-mes">${t ? formatCLP(t) : '&mdash;'}</td>`;
-                }).join('')}
-                <td class="hist-tfoot-gran-total"><strong>${formatCLP(totalAnio)}</strong></td>
-              </tr>
-            </tfoot>
+            <tfoot><tr class="hist-tfoot-row">
+              <td colspan="2"><strong>Total mes</strong></td>
+              ${meses.map(m => `<td class="hist-tfoot-mes">${totalesMes[m] ? formatCLP(totalesMes[m]) : '&mdash;'}</td>`).join('')}
+              <td class="hist-tfoot-gran-total"><strong>${formatCLP(totalAnio)}</strong></td>
+            </tr></tfoot>
           </table>
         </div>
         <div class="hist-tabla-footer">
-          <span class="hist-tabla-count" id="count${tableId}">
-            ${productos.length} producto${productos.length!==1?'s':''} &nbsp;·&nbsp; Total ${anio}: ${formatCLP(totalAnio)}
-          </span>
+          <span class="hist-tabla-count" id="count${tableId}">${productos.length} producto${productos.length!==1?'s':''} &nbsp;\u00b7&nbsp; Total ${anio}: ${formatCLP(totalAnio)}</span>
         </div>
-      </div>
-    `;
+      </div>`;
 
     bloque.querySelector('.hist-busqueda-tabla')?.addEventListener('input', function() {
       const q = this.value.trim().toLowerCase();
       let visible = 0;
       bloque.querySelectorAll(`#tbody${tableId} tr`).forEach(tr => {
-        const txt = (tr.dataset.search || tr.textContent).toLowerCase();
-        const ok  = !q || txt.includes(q);
+        const ok = !q || (tr.dataset.search || tr.textContent).toLowerCase().includes(q);
         tr.hidden = !ok;
         if (ok) visible++;
       });
       const countEl = bloque.querySelector(`#count${tableId}`);
       if (countEl) countEl.innerHTML =
-        `${visible} producto${visible!==1?'s':''}${q?' <em>(filtrados)</em>':''} &nbsp;·&nbsp; Total ${anio}: ${formatCLP(visible === productos.length ? totalAnio : null)}`;
+        `${visible} producto${visible!==1?'s':''}${q?' <em>(filtrados)</em>':''} &nbsp;\u00b7&nbsp; Total ${anio}: ${formatCLP(visible===productos.length?totalAnio:null)}`;
     });
-
     return bloque;
   }
 
@@ -549,7 +485,7 @@
     cargarSidebar(usuario);
     initYearSelects();
     initAutocomplete();
-    // Estado inicial correcto al cargar
+    // Al cargar: solo estado inicial visible
     mostrarEstado('inicial');
     document.getElementById('btnBuscarHistorial')?.addEventListener('click', buscarHistorial);
     document.getElementById('btnLimpiarHistorial')?.addEventListener('click', limpiarFormulario);
