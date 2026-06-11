@@ -1,15 +1,15 @@
-/* historial.css v2.0.0 — Historial de Cliente — rediseño visual con colores institucionales */
+/* historial.css v2.0.4 */
 
-/* ════ VARIABLES LOCALES ══════════════════════════════════════════════════ */
+/* ════ VARIABLES LOCALES ════════════════════════════════════════════════════ */
 :root {
-  --hist-primary:        #00e2a7;   /* verde Texpro */
+  --hist-primary:        #00e2a7;
   --hist-primary-dark:   #00b386;
   --hist-primary-soft:   rgba(0, 226, 167, 0.12);
   --hist-primary-border: rgba(0, 226, 167, 0.30);
-  --hist-accent:         #0a2540;   /* azul marino institucional */
+  --hist-accent:         #0a2540;
   --hist-accent-mid:     #1a3a5c;
   --hist-gold:           #f5a623;
-  --hist-thead-bg:       #0a2540;   /* encabezado tabla */
+  --hist-thead-bg:       #0a2540;
   --hist-thead-text:     #ffffff;
   --hist-tfoot-bg:       #e8f8f4;
   --hist-tfoot-text:     #0a2540;
@@ -23,7 +23,7 @@
   --hist-radius-sm:      6px;
 }
 
-/* ════ FILTROS ════════════════════════════════════════════════════════════ */
+/* ════ FILTROS ════════════════════════════════════════════════════════ */
 .hist-filtros-section { margin-bottom: 1.5rem; }
 
 .hist-filtros-card {
@@ -80,7 +80,6 @@
   box-shadow: 0 0 0 3px var(--hist-primary-soft);
 }
 
-/* Select año */
 .hist-year-select {
   appearance: none;
   -webkit-appearance: none;
@@ -91,7 +90,7 @@
   cursor: pointer;
 }
 
-/* ── Autocomplete ─────────────────────────────────────────────────────── */
+/* ── Autocomplete ────────────────────────────────────────────────────────── */
 .hist-autocomplete-wrap { position: relative; }
 .hist-input-icon {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -122,7 +121,7 @@
 .hist-ac-codigo { font-weight: 700; color: var(--hist-accent); font-size: .78rem; }
 .hist-ac-nombre { color: #444; font-size: .84rem; }
 
-/* ── Chip cliente ──────────────────────────────────────────────────────── */
+/* ── Chip cliente ─────────────────────────────────────────────────────────── */
 .hist-cliente-chip {
   display: inline-flex; align-items: center; gap: .5rem;
   margin-top: .25rem;
@@ -144,7 +143,7 @@
 }
 .hist-chip-remove:hover { background: rgba(10,37,64,.2); }
 
-/* ════ BOTONES ════════════════════════════════════════════════════════════ */
+/* ════ BOTONES ════════════════════════════════════════════════════════ */
 .btn-buscar {
   display: inline-flex; align-items: center; gap: .4rem;
   padding: .48rem 1.1rem;
@@ -176,7 +175,7 @@
 }
 .btn-limpiar:hover { background: #f5f5f5; border-color: #bbb; }
 
-/* ════ ESTADOS ════════════════════════════════════════════════════════════ */
+/* ════ ESTADOS ════════════════════════════════════════════════════════ */
 .hist-estado {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
@@ -190,7 +189,75 @@
 .hist-estado--error .hist-estado-icono { color: #e57373; }
 .hist-estado--error .hist-estado-titulo { color: #c62828; }
 
-/* ════ RESUMEN ════════════════════════════════════════════════════════════ */
+/* ════ FICHA CLIENTE (visible tras seleccionar, antes de buscar) ═════════ */
+#histFichaCliente { margin-bottom: 1.5rem; }
+
+.hist-ficha-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #fff;
+  border: 1.5px solid var(--hist-primary-border);
+  border-radius: var(--hist-radius);
+  padding: 1rem 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,226,167,.10);
+}
+
+.hist-ficha-icono {
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--hist-primary-soft);
+  color: var(--hist-primary-dark);
+  flex-shrink: 0;
+}
+
+.hist-ficha-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hist-ficha-codigo {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--hist-accent);
+  background: rgba(10,37,64,.07);
+  border-radius: 4px;
+  padding: 1px 6px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.hist-ficha-nombre {
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--hist-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hist-ficha-hint {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .78rem;
+  color: #888;
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.hist-ficha-hint strong { color: var(--hist-accent); }
+
+@media (max-width: 640px) {
+  .hist-ficha-card { flex-wrap: wrap; }
+  .hist-ficha-hint { margin-left: 0; white-space: normal; }
+}
+
+/* ════ RESUMEN ════════════════════════════════════════════════════════ */
 #histResumen { margin-bottom: 1.5rem; }
 
 .hist-resumen-card {
@@ -258,10 +325,6 @@
   letter-spacing: .03em;
   flex-shrink: 0;
 }
-.hist-anio-badge--c1 { background: var(--hist-primary-dark); color: #fff; }
-.hist-anio-badge--c2 { background: #1a3a5c; color: #fff; }
-.hist-anio-badge--c3 { background: #0a7a55; color: #fff; }
-.hist-anio-badge--c4 { background: #004d3b; color: #fff; }
 
 .hist-anio-linea {
   flex: 1; height: 1px;
@@ -316,7 +379,6 @@
   box-shadow: 0 0 0 3px rgba(0,226,167,.2);
 }
 
-/* ── Scroll wrapper ── */
 .hist-tabla-wrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -325,17 +387,13 @@
 .hist-tabla-wrapper::-webkit-scrollbar-track { background: #f4f4f4; }
 .hist-tabla-wrapper::-webkit-scrollbar-thumb { background: var(--hist-primary-border); border-radius: 99px; }
 
-/* ── Tabla ── */
 .hist-tabla {
   width: 100%;
   border-collapse: collapse;
   font-size: .83rem;
 }
 
-/* THEAD */
-.hist-tabla thead tr {
-  background: var(--hist-accent);
-}
+.hist-tabla thead tr { background: var(--hist-accent); }
 .hist-tabla thead th {
   padding: .65rem .85rem;
   font-size: .75rem; font-weight: 700;
@@ -354,7 +412,6 @@
   background: rgba(0,226,167,.08);
 }
 
-/* TBODY filas */
 .hist-tr-par   { background: var(--hist-row-par); }
 .hist-tr-impar { background: var(--hist-row-impar); }
 
@@ -369,7 +426,6 @@
   vertical-align: middle;
 }
 
-/* Columna código */
 .hist-cod-prod {
   font-size: .76rem; font-weight: 700;
   color: var(--hist-accent);
@@ -379,7 +435,6 @@
   white-space: nowrap;
 }
 
-/* Columna descripción */
 .hist-desc-prod {
   color: #333;
   display: -webkit-box;
@@ -389,7 +444,6 @@
   max-width: 280px;
 }
 
-/* Celdas mes */
 .hist-mes-cero  { text-align: right; color: var(--hist-cero-color); }
 .hist-mes-valor {
   text-align: right;
@@ -398,7 +452,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Celda total fila */
 .hist-td-total {
   text-align: right;
   font-weight: 800;
@@ -408,14 +461,10 @@
   border-left: 2px solid var(--hist-primary-border);
 }
 
-/* TFOOT */
-.hist-tfoot-row {
-  background: var(--hist-tfoot-bg) !important;
-}
+.hist-tfoot-row { background: var(--hist-tfoot-bg) !important; }
 .hist-tfoot-row td {
   padding: .6rem .85rem;
-  font-size: .82rem;
-  font-weight: 700;
+  font-size: .82rem; font-weight: 700;
   color: var(--hist-tfoot-text);
   border-top: 2px solid var(--hist-primary);
 }
@@ -432,7 +481,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Footer tarjeta */
 .hist-tabla-footer {
   display: flex; justify-content: space-between; align-items: center;
   padding: .6rem 1.25rem;

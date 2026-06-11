@@ -1,20 +1,16 @@
 'use strict';
 
 /**
- * historial.js v2.0.3
+ * historial.js v2.0.4
  *
- * Flujo de estados (SOLO UNO visible a la vez):
- *   - Al cargar          → mostrarEstado('inicial')
- *   - Al buscar (loading)→ mostrarEstado(null)  [oculta todo, botón dice Buscando...]
- *   - Resultado OK       → mostrarEstado(null)  + renderResumen + renderResultados
- *   - Sin movimientos    → mostrarEstado('vacio')
- *   - Error real API/red → mostrarEstado('error') + mensaje descriptivo
- *   - Al limpiar/quitar  → mostrarEstado('inicial')
- *
- * Input / Chip:
- *   - inputCliente visible al inicio (oculto solo cuando hay cliente seleccionado)
- *   - clienteChip oculto al inicio (visible solo cuando hay cliente seleccionado)
- *   - Al quitar chip: input visible, chip oculto, botón Buscar deshabilitado
+ * Flujo de estados:
+ *   - Al cargar            -> mostrarEstado('inicial')
+ *   - Cliente seleccionado -> mostrarEstado(null) + renderFichaCliente()
+ *   - Al buscar (loading)  -> mostrarEstado(null) + ocultar ficha
+ *   - Resultado OK         -> mostrarEstado(null) + renderResumen + renderResultados
+ *   - Sin movimientos      -> mostrarEstado('vacio')
+ *   - Error real API/red   -> mostrarEstado('error')
+ *   - Al limpiar/quitar    -> mostrarEstado('inicial') + ocultar ficha
  */
 
 (function () {
@@ -53,10 +49,6 @@
     if (el) el.textContent = val;
   }
 
-  /**
-   * Muestra un elemento usando display (no solo hidden),
-   * para garantizar compatibilidad con el CSS inline de seguridad del HTML.
-   */
   function show(id) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -72,11 +64,8 @@
   }
 
   /**
-   * Controlador único de estados.
-   * Garantiza que SOLO UNO sea visible en pantalla.
-   *
-   * @param {'inicial'|'error'|'vacio'|null} cual
-   *   null → oculta todos (mientras carga o cuando hay resultados)
+   * Controlador único de estados: SOLO UNO visible a la vez.
+   * null -> oculta todos (mientras carga o cuando hay resultados).
    */
   function mostrarEstado(cual) {
     hide('histEstadoInicial');
@@ -157,7 +146,7 @@
     });
   }
 
-  // ── Selectores de año (2005 → año actual) ────────────────────────────────
+  // ── Selectores de año ─────────────────────────────────────────────────────────
   function initYearSelects() {
     const anioActual = new Date().getFullYear();
     const elDesde    = document.getElementById('fechaDesde');
@@ -176,6 +165,27 @@
     elHasta.value = String(anioActual);
   }
 
+  // ── Ficha del cliente (visible al seleccionar, antes de buscar) ──────────
+  function renderFichaCliente(cod, nom) {
+    const ficha = document.getElementById('histFichaCliente');
+    if (!ficha) return;
+    ficha.innerHTML = `
+      <div class="hist-ficha-card">
+        <div class="hist-ficha-icono">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="hist-ficha-info">
+          <span class="hist-ficha-codigo">${escHtml(cod)}</span>
+          <span class="hist-ficha-nombre">${escHtml(nom)}</span>
+        </div>
+        <div class="hist-ficha-hint">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          Selecciona el período y pulsa <strong>Buscar</strong> para cargar el historial
+        </div>
+      </div>`;
+    show('histFichaCliente');
+  }
+
   // ── Autocomplete ─────────────────────────────────────────────────────────
   function initAutocomplete() {
     const input  = document.getElementById('inputCliente');
@@ -185,19 +195,13 @@
     const btnBus = document.getElementById('btnBuscarHistorial');
     if (!input) return;
 
-    // Solo busca si hay 2+ caracteres
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      if (q.length < 2) {
-        lista.hidden = true;
-        lista.innerHTML = '';
-        return;
-      }
+      if (q.length < 2) { lista.hidden = true; lista.innerHTML = ''; return; }
       if (abortController) abortController.abort();
       buscarClientes(q);
     });
 
-    // Navegación teclado en lista
     input.addEventListener('keydown', (e) => {
       const items   = lista.querySelectorAll('li[data-cod]');
       const current = lista.querySelector('li[aria-selected="true"]');
@@ -216,35 +220,29 @@
       }
     });
 
-    // Cerrar lista al hacer clic fuera
     document.addEventListener('click', (e) => {
       if (!input.contains(e.target) && !lista.contains(e.target)) lista.hidden = true;
     });
 
-    // ── Quitar chip: vuelve al estado inicial ────────────────────────────
     btnRem?.addEventListener('click', () => {
       if (abortController) { abortController.abort(); abortController = null; }
       clienteSeleccionado = null;
 
-      // Restaurar input limpio y visible
-      input.value  = '';
-      input.hidden = false;
+      input.value         = '';
+      input.hidden        = false;
       input.style.display = '';
 
-      // Ocultar lista y chip
       lista.hidden    = true;
       lista.innerHTML = '';
       chip.hidden     = true;
 
-      // Deshabilitar botón buscar
       if (btnBus) btnBus.disabled = true;
 
-      // Ocultar resultados y volver al estado inicial
+      hide('histFichaCliente');
       hide('histResumen');
       hide('histResultados');
       mostrarEstado('inicial');
 
-      // Dar foco al input
       requestAnimationFrame(() => input.focus());
     });
   }
@@ -281,10 +279,8 @@
 
   // ── Seleccionar cliente ──────────────────────────────────────────────────
   function seleccionarCliente(cod, nom) {
-    // Cancelar cualquier fetch en curso
     if (abortController) { abortController.abort(); abortController = null; }
 
-    // Registrar el cliente
     clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
 
     const input  = document.getElementById('inputCliente');
@@ -292,26 +288,32 @@
     const chip   = document.getElementById('clienteChip');
     const btnBus = document.getElementById('btnBuscarHistorial');
 
-    // Limpiar valor y ocultar input
+    // Limpiar y ocultar input
     if (input) {
       input.value         = '';
       input.hidden        = true;
       input.style.display = 'none';
     }
 
-    // Cerrar lista desplegable
+    // Cerrar lista
     if (lista) { lista.hidden = true; lista.innerHTML = ''; }
 
-    // Mostrar chip con código y nombre
+    // Mostrar chip
     if (chip) {
       const chipNombre = document.getElementById('clienteChipNombre');
-      if (chipNombre) chipNombre.textContent = `${cod}  —  ${nom}`;
+      if (chipNombre) chipNombre.textContent = `${cod}  \u2014  ${nom}`;
       chip.hidden        = false;
       chip.style.display = '';
     }
 
-    // Habilitar botón buscar
+    // Habilitar buscar
     if (btnBus) btnBus.disabled = false;
+
+    // CLAVE: ocultar el estado inicial y mostrar la ficha del cliente
+    mostrarEstado(null);
+    hide('histResumen');
+    hide('histResultados');
+    renderFichaCliente(cod, nom);
   }
 
   // ── Buscar historial ─────────────────────────────────────────────────────
@@ -320,25 +322,17 @@
 
     const yDesde = document.getElementById('fechaDesde')?.value;
     const yHasta = document.getElementById('fechaHasta')?.value;
-    if (!yDesde || !yHasta) {
-      alert('Selecciona el rango de años (Desde / Hasta).');
-      return;
-    }
-    if (Number(yDesde) > Number(yHasta)) {
-      alert('El año "Desde" no puede ser mayor a "Hasta".');
-      return;
-    }
+    if (!yDesde || !yHasta) { alert('Selecciona el rango de años.'); return; }
+    if (Number(yDesde) > Number(yHasta)) { alert('El año "Desde" no puede ser mayor a "Hasta".'); return; }
 
-    // Mientras carga: ocultar todo
+    // Mientras carga: ocultar todo incluyendo la ficha
     mostrarEstado(null);
+    hide('histFichaCliente');
     hide('histResumen');
     hide('histResultados');
 
     const btnBus = document.getElementById('btnBuscarHistorial');
-    if (btnBus) {
-      btnBus.disabled    = true;
-      btnBus.textContent = 'Buscando...';
-    }
+    if (btnBus) { btnBus.disabled = true; btnBus.textContent = 'Buscando...'; }
 
     try {
       const params = new URLSearchParams({
@@ -350,50 +344,37 @@
         headers: { Authorization: `Bearer ${token()}` }
       });
 
-      // Error HTTP real (401, 500, etc.)
       if (!res.ok) {
         let errMsg = `Error ${res.status}`;
-        try {
-          const errData = await res.json();
-          if (errData.error) errMsg = errData.error;
-        } catch { /* no-op */ }
+        try { const d = await res.json(); if (d.error) errMsg = d.error; } catch { /* no-op */ }
         throw new Error(errMsg);
       }
 
       const data = await res.json();
-
-      // La API respondió ok:false (error de negocio)
       if (!data.ok) throw new Error(data.error || 'Error al obtener historial');
 
-      // Sin movimientos para el período → estado vacío
+      // Sin movimientos -> estado vacío
       if (!data.historial || !data.historial.length) {
         mostrarEstado('vacio');
         return;
       }
 
-      // Enriquecer datos del cliente si vienen en la primera fila
+      // Enriquecer datos del cliente
       const primerRow = data.historial[0];
       clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
       clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
 
-      // Mostrar resultados
       mostrarEstado(null);
       renderResumen(data, yDesde, yHasta);
       renderResultados(data.historial, yDesde, yHasta);
 
     } catch (err) {
-      // Solo mostrar estado error ante fallos REALES (red, HTTP, API)
-      // No mostrarlo ante vaciado de resultados (eso usa mostrarEstado('vacio'))
       console.error('[buscarHistorial]', err);
       const msgEl = document.getElementById('histEstadoErrorMsg');
       if (msgEl) msgEl.textContent = err.message || 'Error desconocido. Intenta nuevamente.';
       mostrarEstado('error');
-
     } finally {
-      if (btnBus) {
-        btnBus.disabled    = false;
-        btnBus.textContent = 'Buscar';
-      }
+      if (btnBus) { btnBus.disabled = false; btnBus.textContent = 'Buscar'; }
     }
   }
 
@@ -406,9 +387,7 @@
       if (row.CodProd) productos.add(row.CodProd);
       totalMonto += Number(row.TotLinea || 0);
     });
-    const periodoLabel = yDesde === yHasta
-      ? String(yDesde)
-      : `${yDesde} \u2014 ${yHasta}`;
+    const periodoLabel = yDesde === yHasta ? String(yDesde) : `${yDesde} \u2014 ${yHasta}`;
     const totalFmt = new Intl.NumberFormat('es-CL',
       { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totalMonto);
 
@@ -470,10 +449,7 @@
       const key  = row.CodProd;
       if (!porAnio[anio]) porAnio[anio] = {};
       if (!porAnio[anio][key]) porAnio[anio][key] = {
-        CodProd: row.CodProd,
-        DesProd: row.DetProd || '',
-        meses: {},
-        total: 0
+        CodProd: row.CodProd, DesProd: row.DetProd || '', meses: {}, total: 0
       };
       porAnio[anio][key].meses[mes] = (porAnio[anio][key].meses[mes] || 0) + Number(row.TotLinea || 0);
       porAnio[anio][key].total      += Number(row.TotLinea || 0);
@@ -485,19 +461,19 @@
   }
 
   function renderBloqueAnio(anio, productos, idx, yDesde, yHasta) {
-    const meses = Array.from({ length: 12 }, (_, i) => i + 1);
+    const meses    = Array.from({ length: 12 }, (_, i) => i + 1);
     productos.sort((a, b) => b.total - a.total);
     const totalesMes = {};
     meses.forEach(m => { totalesMes[m] = productos.reduce((s, p) => s + (p.meses[m] || 0), 0); });
-    const totalAnio = productos.reduce((s, p) => s + p.total, 0);
-    const bloque    = document.createElement('div');
+    const totalAnio  = productos.reduce((s, p) => s + p.total, 0);
+    const bloque     = document.createElement('div');
     bloque.className = 'hist-anio-bloque';
-    const tableId   = `tablaAnio${anio}`;
+    const tableId    = `tablaAnio${anio}`;
 
     bloque.innerHTML = `
       <div class="hist-anio-header">
         <span class="hist-anio-badge">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
           ${anio}
         </span>
         <div class="hist-anio-linea"></div>
@@ -572,7 +548,7 @@
     return bloque;
   }
 
-  // ── Limpiar formulario ───────────────────────────────────────────────────
+  // ── Limpiar ──────────────────────────────────────────────────────────────
   function limpiarFormulario() {
     if (abortController) { abortController.abort(); abortController = null; }
     clienteSeleccionado = null;
@@ -582,16 +558,13 @@
     const lista  = document.getElementById('listaClientes');
     const btnBus = document.getElementById('btnBuscarHistorial');
 
-    if (input) {
-      input.value         = '';
-      input.hidden        = false;
-      input.style.display = '';
-    }
+    if (input) { input.value = ''; input.hidden = false; input.style.display = ''; }
     if (chip)  { chip.hidden = true; chip.style.display = 'none'; }
     if (lista) { lista.hidden = true; lista.innerHTML = ''; }
     if (btnBus) btnBus.disabled = true;
 
     initYearSelects();
+    hide('histFichaCliente');
     hide('histResumen');
     hide('histResultados');
     mostrarEstado('inicial');
@@ -606,8 +579,8 @@
     initYearSelects();
     initAutocomplete();
 
-    // Estado inicial: solo "Busca un cliente para comenzar"
     mostrarEstado('inicial');
+    hide('histFichaCliente');
     hide('histResumen');
     hide('histResultados');
 

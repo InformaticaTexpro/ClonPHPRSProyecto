@@ -10,15 +10,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
-  <link rel="stylesheet" href="historial.css?v=2.0.3" />
+  <link rel="stylesheet" href="historial.css?v=2.0.4" />
   <style>
-    /* Garantía extra: ocultar estados secundarios ANTES de que el JS cargue */
+    /* Seguridad pre-JS: ocultar estados secundarios y resultados antes de que cargue el script */
     #histEstadoError,
     #histEstadoVacio,
+    #histFichaCliente,
     #histResumen,
-    #histResultados {
-      display: none;
-    }
+    #histResultados { display: none; }
   </style>
 </head>
 <body>
@@ -85,11 +84,6 @@
             <div class="hist-filtro-grupo hist-filtro-grupo--cliente">
               <label class="hist-filtro-label" for="inputCliente">Cliente</label>
               <div class="hist-autocomplete-wrap">
-                <!--
-                  inputCliente: VISIBLE al inicio (aún no se ha seleccionado cliente).
-                  Se oculta SOLO cuando el usuario selecciona un cliente (seleccionarCliente).
-                  Se vuelve visible al quitar el chip (btnRemoveCliente / limpiar).
-                -->
                 <input
                   type="text"
                   id="inputCliente"
@@ -102,11 +96,6 @@
                 <svg class="hist-input-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <ul class="hist-autocomplete-list" id="listaClientes" role="listbox" hidden></ul>
               </div>
-              <!--
-                clienteChip: OCULTO al inicio.
-                Se muestra cuando el usuario selecciona un cliente.
-                Permite quitar el cliente seleccionado.
-              -->
               <div class="hist-cliente-chip" id="clienteChip" hidden>
                 <span id="clienteChipNombre"></span>
                 <button class="hist-chip-remove" id="btnRemoveCliente" aria-label="Quitar cliente" title="Quitar">
@@ -140,20 +129,10 @@
         </div>
       </section>
 
-      <!--
-        ╔══════════════════════════════════════════════════════════════╗
-        ║  ESTADOS — solo UNO visible a la vez (controlado por JS)    ║
-        ║                                                              ║
-        ║  histEstadoInicial → visible al cargar, sin cliente aún     ║
-        ║  histEstadoError   → solo si falla la conexión/API          ║
-        ║  histEstadoVacio   → cliente OK pero sin movimientos        ║
-        ║                                                              ║
-        ║  Los estados de error y vacío llevan hidden en el HTML para  ║
-        ║  que NO aparezcan antes de que el JS cargue.                ║
-        ╚══════════════════════════════════════════════════════════════╝
-      -->
+      <!-- Ficha del cliente seleccionado (visible tras seleccionar, antes de buscar) -->
+      <div id="histFichaCliente" hidden></div>
 
-      <!-- Estado 1: inicial (visible al cargar) -->
+      <!-- Estado 1: inicial -->
       <div class="hist-estado" id="histEstadoInicial">
         <div class="hist-estado-icono">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -171,7 +150,7 @@
         <p class="hist-estado-sub" id="histEstadoErrorMsg">Intenta nuevamente</p>
       </div>
 
-      <!-- Estado 3: sin registros en el período — hidden por defecto -->
+      <!-- Estado 3: sin registros — hidden por defecto -->
       <div class="hist-estado" id="histEstadoVacio" hidden>
         <div class="hist-estado-icono">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
@@ -192,7 +171,7 @@
     </footer>
   </div>
 
-  <script src="historial.js?v=2.0.3"></script>
+  <script src="historial.js?v=2.0.4"></script>
   <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
 </body>
 </html>
