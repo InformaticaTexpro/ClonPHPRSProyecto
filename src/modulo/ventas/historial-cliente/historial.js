@@ -1,13 +1,14 @@
 'use strict';
 
 /**
- * historial.js v2.0.0
- * Cambios:
- *   - Búsqueda de cliente sin debounce (respuesta inmediata desde 2 caracteres)
- *   - Chip muestra solo nombre sin guión inicial
- *   - Filtros de fecha cambiados a select de año (2005 → año actual)
- *   - yDesde/yHasta son YYYY -> se convierten a YYYY-01-01 / YYYY-12-31
- *   - Rediseño visual de tablas con colores institucionales
+ * historial.js v2.0.1
+ * Fix:
+ *   - Estados (inicial/error/vacío) son mutuamente excluyentes:
+ *     solo uno visible a la vez, nunca los tres juntos.
+ *   - Al seleccionar cliente: input.value se limpia y se cancela
+ *     cualquier fetch en vuelo ANTES de ocultar el input.
+ *   - Al quitar chip (btnRemoveCliente): se aborta fetch en vuelo,
+ *     se limpia value, se restaura input sin carácter residual.
  */
 
 (function () {
@@ -20,7 +21,7 @@
                         'Septiembre','Octubre','Noviembre','Diciembre'];
 
   let clienteSeleccionado = null;
-  let abortController     = null;  // para cancelar fetches anteriores
+  let abortController     = null;
 
   // ── Helpers fecha año ─────────────────────────────────────────────────────
   function yearToDesde(y) { return y ? `${y}-01-01` : ''; }
@@ -48,6 +49,20 @@
 
   function show(id) { const el = document.getElementById(id); if (el) el.hidden = false; }
   function hide(id) { const el = document.getElementById(id); if (el) el.hidden = true; }
+
+  /**
+   * Muestra UNO de los tres estados mutuamente excluyentes.
+   * 'inicial' | 'error' | 'vacio' | null (ocultar todos)
+   */
+  function mostrarEstado(cual) {
+    hide('histEstadoInicial');
+    hide('histEstadoError');
+    hide('histEstadoVacio');
+    if (cual === 'inicial') show('histEstadoInicial');
+    else if (cual === 'error')  show('histEstadoError');
+    else if (cual === 'vacio')  show('histEstadoVacio');
+    // null → todos ocultos (cuando se muestran resultados)
+  }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────
   const MODULOS = [
@@ -121,7 +136,6 @@
     const elHasta    = document.getElementById('fechaHasta');
     if (!elDesde || !elHasta) return;
 
-    // Poblar ambos selects
     [elDesde, elHasta].forEach(sel => {
       sel.innerHTML = '';
       for (let y = anioActual; y >= 2005; y--) {
@@ -132,12 +146,11 @@
       }
     });
 
-    // Valores por defecto: Desde = año actual - 1, Hasta = año actual
     elDesde.value = String(anioActual - 1);
     elHasta.value = String(anioActual);
   }
 
-  // ── Autocomplete clientes — búsqueda inmediata (sin debounce) ────────────
+  // ── Autocomplete clientes ────────────────────────────────────────────────
   function initAutocomplete() {
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
@@ -149,7 +162,6 @@
     input.addEventListener('input', () => {
       const q = input.value.trim();
       if (q.length < 2) { lista.hidden = true; lista.innerHTML = ''; return; }
-      // Cancelar fetch anterior si aún está en vuelo
       if (abortController) abortController.abort();
       buscarClientes(q);
     });
@@ -176,13 +188,27 @@
       if (!input.contains(e.target) && !lista.contains(e.target)) lista.hidden = true;
     });
 
+    // ── Quitar chip: abortar fetch, limpiar todo ──────────────────────────
     btnRem?.addEventListener('click', () => {
+      // 1. Cancelar cualquier búsqueda en vuelo
+      if (abortController) { abortController.abort(); abortController = null; }
+      // 2. Resetear estado cliente
       clienteSeleccionado = null;
+      // 3. Limpiar y mostrar input SIN valor residual
       input.value = '';
-      chip.hidden  = true;
       input.hidden = false;
-      input.focus();
+      // 4. Ocultar lista y chip
+      lista.hidden = true;
+      lista.innerHTML = '';
+      chip.hidden = true;
+      // 5. Deshabilitar buscar
       if (btnBus) btnBus.disabled = true;
+      // 6. Volver al estado inicial
+      mostrarEstado('inicial');
+      hide('histResumen');
+      hide('histResultados');
+      // 7. Foco al input
+      requestAnimationFrame(() => input.focus());
     });
   }
 
@@ -214,25 +240,34 @@
         ));
       });
     } catch (err) {
-      if (err.name === 'AbortError') return; // fetch cancelado, ignorar
+      if (err.name === 'AbortError') return;
       console.error('[buscarClientes]', err);
     }
   }
 
-  // Chip: muestra solo nombre del cliente, SIN guión
+  // ── Seleccionar cliente: limpiar input ANTES de ocultarlo ────────────────
   function seleccionarCliente(cod, nom) {
+    // 1. Cancelar fetch en vuelo para que no interfiera
+    if (abortController) { abortController.abort(); abortController = null; }
+
     clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
+
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
     const chip   = document.getElementById('clienteChip');
     const btnBus = document.getElementById('btnBuscarHistorial');
-    if (input) input.hidden = true;
-    if (lista) lista.hidden = true;
+
+    // 2. Limpiar valor del input ANTES de ocultarlo (evita carácter residual)
+    if (input) { input.value = ''; input.hidden = true; }
+    if (lista) { lista.hidden = true; lista.innerHTML = ''; }
+
+    // 3. Mostrar chip con código + nombre sin guión
     if (chip) {
       chip.hidden = false;
-      // Solo código + nombre, sin guión por defecto
-      document.getElementById('clienteChipNombre').textContent = `${cod}  ${nom}`;
+      const chipNombre = document.getElementById('clienteChipNombre');
+      if (chipNombre) chipNombre.textContent = `${cod}  ${nom}`;
     }
+
     if (btnBus) btnBus.disabled = false;
   }
 
@@ -248,9 +283,8 @@
     const desde = yearToDesde(yDesde);
     const hasta = yearToHasta(yHasta);
 
-    hide('histEstadoInicial');
-    hide('histEstadoError');
-    hide('histEstadoVacio');
+    // Ocultar todos los estados y resultados mientras carga
+    mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
 
@@ -265,12 +299,18 @@
       const data = await res.json();
 
       if (!res.ok || !data.ok) throw new Error(data.error || 'Error al obtener historial');
-      if (!data.historial || !data.historial.length) { show('histEstadoVacio'); return; }
+
+      if (!data.historial || !data.historial.length) {
+        mostrarEstado('vacio');
+        return;
+      }
 
       const primerRow = data.historial[0];
       clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
       clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
 
+      // Resultados encontrados → ocultar todos los estados
+      mostrarEstado(null);
       renderResumen(data, yDesde, yHasta);
       renderResultados(data.historial, yDesde, yHasta);
 
@@ -278,13 +318,13 @@
       console.error('[buscarHistorial]', err);
       const msgEl = document.getElementById('histEstadoErrorMsg');
       if (msgEl) msgEl.textContent = err.message || 'Error desconocido';
-      show('histEstadoError');
+      mostrarEstado('error');
     } finally {
       if (btnBus) { btnBus.disabled = false; btnBus.textContent = 'Buscar'; }
     }
   }
 
-  // ── Tabla resumen ────────────────────────────────────────────────────────
+  // ── Resumen ──────────────────────────────────────────────────────────────
   function renderResumen(data, yDesde, yHasta) {
     const { historial } = data;
     const productos = new Set();
@@ -344,13 +384,12 @@
     show('histResumen');
   }
 
-  // ── Render tablas por año ─────────────────────────────────────────────────
+  // ── Tablas por año ────────────────────────────────────────────────────────
   function renderResultados(historial, yDesde, yHasta) {
     const contenedor = document.getElementById('histResultados');
     if (!contenedor) return;
     contenedor.innerHTML = '';
 
-    // Agrupar: año → CodProd → { meses: {mes: monto}, total }
     const porAnio = {};
     historial.forEach(row => {
       const anio = String(row.Anio);
@@ -487,19 +526,20 @@
 
   // ── Limpiar ──────────────────────────────────────────────────────────────
   function limpiarFormulario() {
+    if (abortController) { abortController.abort(); abortController = null; }
     clienteSeleccionado = null;
     const input  = document.getElementById('inputCliente');
     const chip   = document.getElementById('clienteChip');
+    const lista  = document.getElementById('listaClientes');
     const btnBus = document.getElementById('btnBuscarHistorial');
     if (input) { input.value = ''; input.hidden = false; }
     if (chip)  chip.hidden = true;
+    if (lista) { lista.hidden = true; lista.innerHTML = ''; }
     if (btnBus) btnBus.disabled = true;
     initYearSelects();
     hide('histResumen');
     hide('histResultados');
-    hide('histEstadoError');
-    hide('histEstadoVacio');
-    show('histEstadoInicial');
+    mostrarEstado('inicial');
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -509,6 +549,8 @@
     cargarSidebar(usuario);
     initYearSelects();
     initAutocomplete();
+    // Estado inicial correcto al cargar
+    mostrarEstado('inicial');
     document.getElementById('btnBuscarHistorial')?.addEventListener('click', buscarHistorial);
     document.getElementById('btnLimpiarHistorial')?.addEventListener('click', limpiarFormulario);
   }
