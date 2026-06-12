@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * historial.js v2.0.4
+ * historial.js v2.0.5
  *
  * Flujo de estados:
  *   - Al cargar            -> mostrarEstado('inicial')
@@ -11,6 +11,12 @@
  *   - Sin movimientos      -> mostrarEstado('vacio')
  *   - Error real API/red   -> mostrarEstado('error')
  *   - Al limpiar/quitar    -> mostrarEstado('inicial') + ocultar ficha
+ *
+ * Fix v2.0.5:
+ *   - Chip verde ya no aparece al escribir, solo al seleccionar un cliente
+ *   - Lista de autocompletado se despliega correctamente al escribir
+ *   - Se ignoran respuestas tardías de búsquedas anteriores (stale results)
+ *   - Se garantiza display:block/none además de hidden para compatibilidad CSS
  */
 
 (function () {
@@ -111,8 +117,6 @@
     setText('userName',        usuario.nombre  || usuario.email);
     setText('userArea',        usuario.area    || '');
     setText('userAvatar',      ini);
-    setText('chipAvatar',      ini);
-    setText('chipName',        (usuario.nombre || usuario.email).split(' ')[0]);
     setText('headerDate',      new Date().toLocaleDateString('es-CL',
       { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
     setText('welcomeSubtitle', `\u00c1rea: ${usuario.area || 'Sistema'} \u2014 Texpro`);
@@ -195,9 +199,37 @@
     const btnBus = document.getElementById('btnBuscarHistorial');
     if (!input) return;
 
+    // FIX: garantizar estado limpio al iniciar — chip oculto, botón deshabilitado
+    if (chip)   { chip.hidden = true;  chip.style.display = 'none'; }
+    if (lista)  { lista.hidden = true; lista.style.display = 'none'; lista.innerHTML = ''; }
+    if (btnBus) btnBus.disabled = true;
+
+    // FIX: re-abrir lista al enfocar si ya hay texto válido y no hay cliente seleccionado
+    input.addEventListener('focus', () => {
+      const q = input.value.trim();
+      if (!clienteSeleccionado && q.length >= 2) buscarClientes(q);
+    });
+
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      if (q.length < 2) { lista.hidden = true; lista.innerHTML = ''; return; }
+
+      // FIX: al escribir, limpiar cliente seleccionado y ocultar chip
+      clienteSeleccionado = null;
+      if (chip)   { chip.hidden = true;  chip.style.display = 'none'; }
+      if (btnBus) btnBus.disabled = true;
+      hide('histFichaCliente');
+      hide('histResumen');
+      hide('histResultados');
+
+      if (q.length < 2) {
+        lista.hidden = true;
+        lista.style.display = 'none';
+        lista.innerHTML = '';
+        mostrarEstado('inicial');
+        return;
+      }
+
+      mostrarEstado('inicial');
       if (abortController) abortController.abort();
       buscarClientes(q);
     });
@@ -217,11 +249,15 @@
         if (current) { e.preventDefault(); current.click(); }
       } else if (e.key === 'Escape') {
         lista.hidden = true;
+        lista.style.display = 'none';
       }
     });
 
     document.addEventListener('click', (e) => {
-      if (!input.contains(e.target) && !lista.contains(e.target)) lista.hidden = true;
+      if (!input.contains(e.target) && !lista.contains(e.target)) {
+        lista.hidden = true;
+        lista.style.display = 'none';
+      }
     });
 
     btnRem?.addEventListener('click', () => {
@@ -232,9 +268,12 @@
       input.hidden        = false;
       input.style.display = '';
 
-      lista.hidden    = true;
-      lista.innerHTML = '';
-      chip.hidden     = true;
+      lista.hidden        = true;
+      lista.style.display = 'none';
+      lista.innerHTML     = '';
+
+      chip.hidden         = true;
+      chip.style.display  = 'none';
 
       if (btnBus) btnBus.disabled = true;
 
@@ -250,30 +289,49 @@
   async function buscarClientes(q) {
     const lista = document.getElementById('listaClientes');
     if (!lista) return;
-    abortController = new AbortController();
+
+    const queryActual = q.trim();
+    abortController   = new AbortController();
+    const signal      = abortController.signal;
+
     try {
-      const res  = await fetch(`${API_CLIENTES}?q=${encodeURIComponent(q)}`, {
+      const res  = await fetch(`${API_CLIENTES}?q=${encodeURIComponent(queryActual)}`, {
         headers: { Authorization: `Bearer ${token()}` },
-        signal: abortController.signal
+        signal
       });
+
       const data = await res.json();
+
+      // FIX: ignorar respuesta si fue abortada o si el texto ya cambió (stale result)
+      if (signal.aborted) return;
+      const inputActual = document.getElementById('inputCliente')?.value.trim();
+      if (inputActual !== queryActual) return;
+
       if (!data.ok || !data.clientes?.length) {
-        lista.innerHTML = '<li style="padding:8px 16px;color:#aaa;font-size:.82rem">Sin resultados</li>';
-        lista.hidden = false;
+        lista.innerHTML     = '<li style="padding:8px 16px;color:#aaa;font-size:.82rem">Sin resultados</li>';
+        lista.hidden        = false;
+        lista.style.display = 'block';
         return;
       }
+
       lista.innerHTML = data.clientes.slice(0, 40).map(c => `
         <li role="option" data-cod="${escHtml(c.CodAux)}" data-nom="${escHtml(c.NomAux)}">
           <span class="hist-ac-codigo">${escHtml(c.CodAux)}</span>
           <span class="hist-ac-nombre">${escHtml(c.NomAux)}</span>
         </li>`).join('');
-      lista.hidden = false;
+
+      lista.hidden        = false;
+      lista.style.display = 'block';
+
       lista.querySelectorAll('li[data-cod]').forEach(li => {
         li.addEventListener('click', () => seleccionarCliente(li.dataset.cod, li.dataset.nom));
       });
     } catch (err) {
       if (err.name === 'AbortError') return;
       console.error('[buscarClientes]', err);
+      lista.innerHTML     = '<li style="padding:8px 16px;color:#c00;font-size:.82rem">Error al buscar clientes</li>';
+      lista.hidden        = false;
+      lista.style.display = 'block';
     }
   }
 
@@ -288,17 +346,18 @@
     const chip   = document.getElementById('clienteChip');
     const btnBus = document.getElementById('btnBuscarHistorial');
 
-    // Limpiar y ocultar input
     if (input) {
       input.value         = '';
       input.hidden        = true;
       input.style.display = 'none';
     }
 
-    // Cerrar lista
-    if (lista) { lista.hidden = true; lista.innerHTML = ''; }
+    if (lista) {
+      lista.hidden        = true;
+      lista.style.display = 'none';
+      lista.innerHTML     = '';
+    }
 
-    // Mostrar chip
     if (chip) {
       const chipNombre = document.getElementById('clienteChipNombre');
       if (chipNombre) chipNombre.textContent = `${cod}  \u2014  ${nom}`;
@@ -306,10 +365,8 @@
       chip.style.display = '';
     }
 
-    // Habilitar buscar
     if (btnBus) btnBus.disabled = false;
 
-    // CLAVE: ocultar el estado inicial y mostrar la ficha del cliente
     mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
@@ -325,7 +382,6 @@
     if (!yDesde || !yHasta) { alert('Selecciona el rango de años.'); return; }
     if (Number(yDesde) > Number(yHasta)) { alert('El año "Desde" no puede ser mayor a "Hasta".'); return; }
 
-    // Mientras carga: ocultar todo incluyendo la ficha
     mostrarEstado(null);
     hide('histFichaCliente');
     hide('histResumen');
@@ -353,13 +409,11 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error al obtener historial');
 
-      // Sin movimientos -> estado vacío
       if (!data.historial || !data.historial.length) {
         mostrarEstado('vacio');
         return;
       }
 
-      // Enriquecer datos del cliente
       const primerRow = data.historial[0];
       clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
       clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
@@ -558,9 +612,9 @@
     const lista  = document.getElementById('listaClientes');
     const btnBus = document.getElementById('btnBuscarHistorial');
 
-    if (input) { input.value = ''; input.hidden = false; input.style.display = ''; }
-    if (chip)  { chip.hidden = true; chip.style.display = 'none'; }
-    if (lista) { lista.hidden = true; lista.innerHTML = ''; }
+    if (input)  { input.value = ''; input.hidden = false; input.style.display = ''; }
+    if (chip)   { chip.hidden = true;  chip.style.display = 'none'; }
+    if (lista)  { lista.hidden = true; lista.style.display = 'none'; lista.innerHTML = ''; }
     if (btnBus) btnBus.disabled = true;
 
     initYearSelects();
