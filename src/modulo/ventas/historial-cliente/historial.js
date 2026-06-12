@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * historial.js v2.0.5
+ * historial.js v2.0.6
  *
  * Flujo de estados:
  *   - Al cargar            -> mostrarEstado('inicial')
@@ -12,11 +12,10 @@
  *   - Error real API/red   -> mostrarEstado('error')
  *   - Al limpiar/quitar    -> mostrarEstado('inicial') + ocultar ficha
  *
- * Fix v2.0.5:
- *   - Chip verde ya no aparece al escribir, solo al seleccionar un cliente
- *   - Lista de autocompletado se despliega correctamente al escribir
- *   - Se ignoran respuestas tardías de búsquedas anteriores (stale results)
- *   - Se garantiza display:block/none además de hidden para compatibilidad CSS
+ * Fix v2.0.6:
+ *   - Se separan los AbortController: uno para búsqueda de clientes (acAbortClientes)
+ *     y otro exclusivo para la búsqueda de historial (acAbortHistorial).
+ *     Esto evita que abortar la búsqueda de clientes cancele el fetch del historial.
  */
 
 (function () {
@@ -29,7 +28,8 @@
                         'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   let clienteSeleccionado = null;
-  let abortController     = null;
+  let acAbortClientes     = null;   // AbortController exclusivo para /api/ventas/clientes
+  let acAbortHistorial    = null;   // AbortController exclusivo para /api/ventas/historial-cliente
 
   // ── Helpers fecha ────────────────────────────────────────────────────────
   function yearToDesde(y) { return y ? `${y}-01-01` : ''; }
@@ -69,10 +69,6 @@
     el.style.display = 'none';
   }
 
-  /**
-   * Controlador único de estados: SOLO UNO visible a la vez.
-   * null -> oculta todos (mientras carga o cuando hay resultados).
-   */
   function mostrarEstado(cual) {
     hide('histEstadoInicial');
     hide('histEstadoError');
@@ -150,7 +146,7 @@
     });
   }
 
-  // ── Selectores de año ─────────────────────────────────────────────────────────
+  // ── Selectores de año ─────────────────────────────────────────────────────
   function initYearSelects() {
     const anioActual = new Date().getFullYear();
     const elDesde    = document.getElementById('fechaDesde');
@@ -169,7 +165,7 @@
     elHasta.value = String(anioActual);
   }
 
-  // ── Ficha del cliente (visible al seleccionar, antes de buscar) ──────────
+  // ── Ficha del cliente ────────────────────────────────────────────────────
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
@@ -184,7 +180,7 @@
         </div>
         <div class="hist-ficha-hint">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          Selecciona el período y pulsa <strong>Buscar</strong> para cargar el historial
+          Selecciona el per\u00edodo y pulsa <strong>Buscar</strong> para cargar el historial
         </div>
       </div>`;
     show('histFichaCliente');
@@ -199,12 +195,10 @@
     const btnBus = document.getElementById('btnBuscarHistorial');
     if (!input) return;
 
-    // FIX: garantizar estado limpio al iniciar — chip oculto, botón deshabilitado
     if (chip)   { chip.hidden = true;  chip.style.display = 'none'; }
     if (lista)  { lista.hidden = true; lista.style.display = 'none'; lista.innerHTML = ''; }
     if (btnBus) btnBus.disabled = true;
 
-    // FIX: re-abrir lista al enfocar si ya hay texto válido y no hay cliente seleccionado
     input.addEventListener('focus', () => {
       const q = input.value.trim();
       if (!clienteSeleccionado && q.length >= 2) buscarClientes(q);
@@ -213,7 +207,6 @@
     input.addEventListener('input', () => {
       const q = input.value.trim();
 
-      // FIX: al escribir, limpiar cliente seleccionado y ocultar chip
       clienteSeleccionado = null;
       if (chip)   { chip.hidden = true;  chip.style.display = 'none'; }
       if (btnBus) btnBus.disabled = true;
@@ -230,7 +223,7 @@
       }
 
       mostrarEstado('inicial');
-      if (abortController) abortController.abort();
+      if (acAbortClientes) acAbortClientes.abort();
       buscarClientes(q);
     });
 
@@ -261,7 +254,8 @@
     });
 
     btnRem?.addEventListener('click', () => {
-      if (abortController) { abortController.abort(); abortController = null; }
+      if (acAbortClientes)  { acAbortClientes.abort();  acAbortClientes  = null; }
+      if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
       clienteSeleccionado = null;
 
       input.value         = '';
@@ -290,9 +284,9 @@
     const lista = document.getElementById('listaClientes');
     if (!lista) return;
 
-    const queryActual = q.trim();
-    abortController   = new AbortController();
-    const signal      = abortController.signal;
+    const queryActual  = q.trim();
+    acAbortClientes    = new AbortController();
+    const signal       = acAbortClientes.signal;
 
     try {
       const res  = await fetch(`${API_CLIENTES}?q=${encodeURIComponent(queryActual)}`, {
@@ -302,7 +296,6 @@
 
       const data = await res.json();
 
-      // FIX: ignorar respuesta si fue abortada o si el texto ya cambió (stale result)
       if (signal.aborted) return;
       const inputActual = document.getElementById('inputCliente')?.value.trim();
       if (inputActual !== queryActual) return;
@@ -337,7 +330,8 @@
 
   // ── Seleccionar cliente ──────────────────────────────────────────────────
   function seleccionarCliente(cod, nom) {
-    if (abortController) { abortController.abort(); abortController = null; }
+    // Solo abortar la búsqueda de clientes, NO tocar acAbortHistorial
+    if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
 
     clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
 
@@ -379,8 +373,13 @@
 
     const yDesde = document.getElementById('fechaDesde')?.value;
     const yHasta = document.getElementById('fechaHasta')?.value;
-    if (!yDesde || !yHasta) { alert('Selecciona el rango de años.'); return; }
-    if (Number(yDesde) > Number(yHasta)) { alert('El año "Desde" no puede ser mayor a "Hasta".'); return; }
+    if (!yDesde || !yHasta) { alert('Selecciona el rango de a\u00f1os.'); return; }
+    if (Number(yDesde) > Number(yHasta)) { alert('El a\u00f1o "Desde" no puede ser mayor a "Hasta".'); return; }
+
+    // Cancelar historial previo si estaba en curso, luego crear controller fresco
+    if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
+    acAbortHistorial = new AbortController();
+    const signal     = acAbortHistorial.signal;
 
     mostrarEstado(null);
     hide('histFichaCliente');
@@ -396,9 +395,13 @@
         desde:  yearToDesde(yDesde),
         hasta:  yearToHasta(yHasta)
       });
+
       const res = await fetch(`${API_HISTORIAL}?${params}`, {
-        headers: { Authorization: `Bearer ${token()}` }
+        headers: { Authorization: `Bearer ${token()}` },
+        signal
       });
+
+      if (signal.aborted) return;
 
       if (!res.ok) {
         let errMsg = `Error ${res.status}`;
@@ -423,12 +426,14 @@
       renderResultados(data.historial, yDesde, yHasta);
 
     } catch (err) {
+      if (err.name === 'AbortError') return;
       console.error('[buscarHistorial]', err);
       const msgEl = document.getElementById('histEstadoErrorMsg');
       if (msgEl) msgEl.textContent = err.message || 'Error desconocido. Intenta nuevamente.';
       mostrarEstado('error');
     } finally {
       if (btnBus) { btnBus.disabled = false; btnBus.textContent = 'Buscar'; }
+      acAbortHistorial = null;
     }
   }
 
@@ -604,7 +609,8 @@
 
   // ── Limpiar ──────────────────────────────────────────────────────────────
   function limpiarFormulario() {
-    if (abortController) { abortController.abort(); abortController = null; }
+    if (acAbortClientes)  { acAbortClientes.abort();  acAbortClientes  = null; }
+    if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
     clienteSeleccionado = null;
 
     const input  = document.getElementById('inputCliente');
@@ -624,7 +630,7 @@
     mostrarEstado('inicial');
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
