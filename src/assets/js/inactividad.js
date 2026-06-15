@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * inactividad.js — RSProyecto Texpro v2.2.0
+ * inactividad.js — RSProyecto Texpro v2.3.0
  *
  * Módulo reutilizable de alerta por inactividad.
  * Incluido automáticamente en todos los módulos del sistema.
@@ -15,7 +15,7 @@
  * Configuración opcional (antes de cargar este script):
  *   window.TEXPRO_IDLE_MS   = 15 * 60 * 1000;  // tiempo inactividad (default 15 min)
  *   window.TEXPRO_WARN_SEC  = 60;               // segundos de countdown (default 60)
- *   window.TEXPRO_LOGIN_URL = '...';            // override ruta login
+ *   window.TEXPRO_LOGIN_URL = '...';            // override ruta login (recomendado definirlo por página)
  */
 
 (function () {
@@ -26,12 +26,9 @@
   const LOGIN_URL = window.TEXPRO_LOGIN_URL || _detectarLoginUrl();
 
   function _detectarLoginUrl() {
-    // Desde src/modulo/<area>/<modulo>/ → ../../../varios/login/index.html
-    // Desde src/assets/js/ no se usa directamente, se configura por página
-    const path = window.location.pathname;
-    const partes = path.split('/').filter(Boolean);
-    const niveles = Math.max(partes.length - 1, 3);
-    return '../'.repeat(niveles) + 'varios/login/index.html';
+    // Estrategia: usar origin + ruta absoluta conocida del login.
+    // Evita cálculos relativos frágiles basados en profundidad del path.
+    return window.location.origin + '/src/varios/login/index.html';
   }
 
   // Solo activar si hay token activo
