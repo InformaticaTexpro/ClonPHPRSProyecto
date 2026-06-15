@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * historial.js v2.0.6
+ * historial.js v2.0.7
  *
  * Flujo de estados:
  *   - Al cargar            -> mostrarEstado('inicial')
@@ -11,6 +11,11 @@
  *   - Sin movimientos      -> mostrarEstado('vacio')
  *   - Error real API/red   -> mostrarEstado('error')
  *   - Al limpiar/quitar    -> mostrarEstado('inicial') + ocultar ficha
+ *
+ * Fix v2.0.7:
+ *   - cargarSidebar() ahora actualiza chipAvatar y chipName en el header
+ *     superior derecho. Antes quedaban en '?' y '...' porque solo se
+ *     actualizaba userAvatar/userName del sidebar.
  *
  * Fix v2.0.6:
  *   - Se separan los AbortController: uno para búsqueda de clientes (acAbortClientes)
@@ -28,8 +33,8 @@
                         'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   let clienteSeleccionado = null;
-  let acAbortClientes     = null;   // AbortController exclusivo para /api/ventas/clientes
-  let acAbortHistorial    = null;   // AbortController exclusivo para /api/ventas/historial-cliente
+  let acAbortClientes     = null;
+  let acAbortHistorial    = null;
 
   // ── Helpers fecha ────────────────────────────────────────────────────────
   function yearToDesde(y) { return y ? `${y}-01-01` : ''; }
@@ -110,10 +115,18 @@
 
   function cargarSidebar(usuario) {
     const ini = (usuario.nombre || 'U').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase();
-    setText('userName',        usuario.nombre  || usuario.email);
-    setText('userArea',        usuario.area    || '');
-    setText('userAvatar',      ini);
-    setText('headerDate',      new Date().toLocaleDateString('es-CL',
+    const nombreMostrar = usuario.nombre || usuario.email;
+
+    // Sidebar izquierdo
+    setText('userName',   nombreMostrar);
+    setText('userArea',   usuario.area || '');
+    setText('userAvatar', ini);
+
+    // Header superior derecho — fix v2.0.7: estaban sin actualizar
+    setText('chipAvatar', ini);
+    setText('chipName',   nombreMostrar);
+
+    setText('headerDate', new Date().toLocaleDateString('es-CL',
       { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
     setText('welcomeSubtitle', `\u00c1rea: ${usuario.area || 'Sistema'} \u2014 Texpro`);
 
@@ -330,7 +343,6 @@
 
   // ── Seleccionar cliente ──────────────────────────────────────────────────
   function seleccionarCliente(cod, nom) {
-    // Solo abortar la búsqueda de clientes, NO tocar acAbortHistorial
     if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
 
     clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
@@ -376,7 +388,6 @@
     if (!yDesde || !yHasta) { alert('Selecciona el rango de a\u00f1os.'); return; }
     if (Number(yDesde) > Number(yHasta)) { alert('El a\u00f1o "Desde" no puede ser mayor a "Hasta".'); return; }
 
-    // Cancelar historial previo si estaba en curso, luego crear controller fresco
     if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
     acAbortHistorial = new AbortController();
     const signal     = acAbortHistorial.signal;
