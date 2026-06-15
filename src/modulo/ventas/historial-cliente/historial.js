@@ -1,23 +1,20 @@
 'use strict';
 
 /**
- * historial.js v2.0.9
+ * historial.js v2.1.0
+ *
+ * Fix v2.1.0:
+ *   - Agrega FonAux2 (segundo teléfono) en ficha y resumen.
+ *   - Corrige lectura de email: prueba primerRow.Email, primerRow.email
+ *     y primerRow.EmailAux para cubrir distintas convenciones de la API.
+ *   - clienteSeleccionado ahora incluye tel2 además de tel y email.
  *
  * Fix v2.0.9:
- *   - renderFichaCliente(): muestra email y teléfono del cliente cuando
- *     están disponibles (tras buscar historial).
- *   - renderResumen(): incluye email y teléfono en la tarjeta de resumen.
- *   - seleccionarCliente(): pasa tel y email (vacíos al inicio).
+ *   - renderFichaCliente(): muestra email y teléfono.
+ *   - renderResumen(): incluye email y teléfono.
  *
  * Fix v2.0.8:
- *   - Sistema de visibilidad migrado de style.display a clase .hist--hidden
- *     con !important en CSS.
- *
- * Fix v2.0.7:
- *   - cargarSidebar() actualiza chipAvatar y chipName en el header.
- *
- * Fix v2.0.6:
- *   - AbortController separados para clientes e historial.
+ *   - Visibilidad migrada a clase .hist--hidden.
  */
 
 (function () {
@@ -72,27 +69,35 @@
     hide('histEstadoError');
     hide('histEstadoVacio');
     hide('histSpinner');
-    if (cual === 'inicial')   show('histEstadoInicial');
+    if (cual === 'inicial')    show('histEstadoInicial');
     else if (cual === 'error')    show('histEstadoError');
     else if (cual === 'vacio')    show('histEstadoVacio');
     else if (cual === 'cargando') show('histSpinner');
   }
 
+  /**
+   * Extrae el email de una fila del historial probando múltiples
+   * nombres de campo para cubrir distintas convenciones de la API.
+   */
+  function extraerEmail(row) {
+    return row.Email || row.email || row.EmailAux || row.emailAux || row.MAIL || row.Mail || '';
+  }
+
   // ── Sidebar ──────────────────────────────────────────────────────────────
   const MODULOS = [
-    { nombre: 'Dashboard',        icon: '\uD83C\uDFE0', url: '../dashboard/index.html',                        area: null },
-    { nombre: 'Ventas Asignadas', icon: '\uD83D\uDCCA', url: '../ventas/index.html',                           area: ['ventas', 'gerencia'] },
-    { nombre: 'Historial',        icon: '\uD83D\uDCCB', url: './index.html',                                   area: ['ventas', 'gerencia'], activo: true },
-    { nombre: 'Facturaci\u00f3n', icon: '\uD83E\uDDFE', url: '../../facturacion/facturacion/index.html',        area: ['facturacion', 'contabilidad', 'gerencia'] },
-    { nombre: 'Bodega',           icon: '\uD83C\uDFED', url: '../../bodega/bodega/index.html',                  area: ['bodega', 'produccion', 'gerencia'] },
-    { nombre: 'Producci\u00f3n',  icon: '\u2699\uFE0F', url: '../../produccion/produccion/index.html',          area: ['produccion', 'gerencia'] },
-    { nombre: 'Serv. TEC',        icon: '\uD83D\uDEE0\uFE0F', url: '../../servtecnico/servicio-tecnico/index.html', area: ['servicio-tecnico', 'servicio', 'gerencia'] },
-    { nombre: 'Laboratorio',      icon: '\uD83E\uDDEA', url: '../../laboratorio/laboratorio/index.html',       area: ['laboratorio', 'gerencia'] },
-    { nombre: 'Cobranza',         icon: '\uD83D\uDCB0', url: '../../cobranza/cobranza/index.html',              area: ['cobranza', 'contabilidad', 'gerencia'] },
-    { nombre: 'RRHH',             icon: '\uD83D\uDC65', url: '../../rrhh/rrhh/index.html',                      area: ['rrhh', 'gerencia'] },
-    { nombre: 'Contabilidad',     icon: '\uD83D\uDCDC', url: '../../contabilidad/contabilidad/index.html',      area: ['contabilidad', 'gerencia'] },
-    { nombre: 'Administraci\u00f3n', icon: '\uD83D\uDD27', url: '../../admin/admin/index.html',                 area: ['admin'] },
-    { nombre: 'Alertas',          icon: '\uD83D\uDD14', url: '../../varios/alertas/index.html',                 area: null },
+    { nombre: 'Dashboard',           icon: '\uD83C\uDFE0', url: '../dashboard/index.html',                        area: null },
+    { nombre: 'Ventas Asignadas',     icon: '\uD83D\uDCCA', url: '../ventas/index.html',                           area: ['ventas', 'gerencia'] },
+    { nombre: 'Historial',            icon: '\uD83D\uDCCB', url: './index.html',                                   area: ['ventas', 'gerencia'], activo: true },
+    { nombre: 'Facturaci\u00f3n',     icon: '\uD83E\uDDFE', url: '../../facturacion/facturacion/index.html',        area: ['facturacion', 'contabilidad', 'gerencia'] },
+    { nombre: 'Bodega',               icon: '\uD83C\uDFED', url: '../../bodega/bodega/index.html',                  area: ['bodega', 'produccion', 'gerencia'] },
+    { nombre: 'Producci\u00f3n',      icon: '\u2699\uFE0F', url: '../../produccion/produccion/index.html',          area: ['produccion', 'gerencia'] },
+    { nombre: 'Serv. TEC',            icon: '\uD83D\uDEE0\uFE0F', url: '../../servtecnico/servicio-tecnico/index.html', area: ['servicio-tecnico', 'servicio', 'gerencia'] },
+    { nombre: 'Laboratorio',          icon: '\uD83E\uDDEA', url: '../../laboratorio/laboratorio/index.html',       area: ['laboratorio', 'gerencia'] },
+    { nombre: 'Cobranza',             icon: '\uD83D\uDCB0', url: '../../cobranza/cobranza/index.html',              area: ['cobranza', 'contabilidad', 'gerencia'] },
+    { nombre: 'RRHH',                 icon: '\uD83D\uDC65', url: '../../rrhh/rrhh/index.html',                      area: ['rrhh', 'gerencia'] },
+    { nombre: 'Contabilidad',         icon: '\uD83D\uDCDC', url: '../../contabilidad/contabilidad/index.html',      area: ['contabilidad', 'gerencia'] },
+    { nombre: 'Administraci\u00f3n',  icon: '\uD83D\uDD27', url: '../../admin/admin/index.html',                   area: ['admin'] },
+    { nombre: 'Alertas',              icon: '\uD83D\uDD14', url: '../../varios/alertas/index.html',                 area: null },
   ];
 
   async function verificarSesion() {
@@ -176,20 +181,18 @@
     if (!ficha) return;
 
     const tel   = clienteSeleccionado?.tel   || '';
+    const tel2  = clienteSeleccionado?.tel2  || '';
     const email = clienteSeleccionado?.email || '';
 
-    const contactoHtml = (tel || email) ? `
+    // Ícono teléfono reutilizable
+    const icoTel = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+
+    const contactoHtml = (tel || tel2 || email) ? `
       <div class="hist-ficha-contacto">
-        ${tel ? `
-          <span class="hist-ficha-contacto-item">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            ${escHtml(tel)}
-          </span>` : ''}
-        ${email ? `
-          <a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-            ${escHtml(email)}
-          </a>` : ''}
+        ${tel  ? `<span class="hist-ficha-contacto-item">${icoTel} ${escHtml(tel)}</span>` : ''}
+        ${tel2 ? `<span class="hist-ficha-contacto-item">${icoTel} ${escHtml(tel2)}</span>` : ''}
+        ${email ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}">${icoMail} ${escHtml(email)}</a>` : ''}
       </div>` : '';
 
     ficha.innerHTML = `
@@ -230,21 +233,18 @@
 
     input.addEventListener('input', () => {
       const q = input.value.trim();
-
       clienteSeleccionado = null;
       hide('clienteChip');
       if (btnBus) btnBus.disabled = true;
       hide('histFichaCliente');
       hide('histResumen');
       hide('histResultados');
-
       if (q.length < 2) {
         hide('listaClientes');
         lista.innerHTML = '';
         mostrarEstado('inicial');
         return;
       }
-
       mostrarEstado('inicial');
       if (acAbortClientes) acAbortClientes.abort();
       buscarClientes(q);
@@ -269,30 +269,23 @@
     });
 
     document.addEventListener('click', (e) => {
-      if (!input.contains(e.target) && !lista.contains(e.target)) {
-        hide('listaClientes');
-      }
+      if (!input.contains(e.target) && !lista.contains(e.target)) hide('listaClientes');
     });
 
     btnRem?.addEventListener('click', () => {
       if (acAbortClientes)  { acAbortClientes.abort();  acAbortClientes  = null; }
       if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
       clienteSeleccionado = null;
-
       input.value = '';
       input.classList.remove('hist--hidden');
-
       hide('listaClientes');
       lista.innerHTML = '';
       hide('clienteChip');
-
       if (btnBus) btnBus.disabled = true;
-
       hide('histFichaCliente');
       hide('histResumen');
       hide('histResultados');
       mostrarEstado('inicial');
-
       requestAnimationFrame(() => input.focus());
     });
   }
@@ -300,37 +293,28 @@
   async function buscarClientes(q) {
     const lista = document.getElementById('listaClientes');
     if (!lista) return;
-
     const queryActual = q.trim();
     acAbortClientes   = new AbortController();
     const signal      = acAbortClientes.signal;
-
     try {
       const res  = await fetch(`${API_CLIENTES}?q=${encodeURIComponent(queryActual)}`, {
-        headers: { Authorization: `Bearer ${token()}` },
-        signal
+        headers: { Authorization: `Bearer ${token()}` }, signal
       });
-
       const data = await res.json();
-
       if (signal.aborted) return;
       const inputActual = document.getElementById('inputCliente')?.value.trim();
       if (inputActual !== queryActual) return;
-
       if (!data.ok || !data.clientes?.length) {
         lista.innerHTML = '<li style="padding:8px 16px;color:#aaa;font-size:.82rem">Sin resultados</li>';
         show('listaClientes');
         return;
       }
-
       lista.innerHTML = data.clientes.slice(0, 40).map(c => `
         <li role="option" data-cod="${escHtml(c.CodAux)}" data-nom="${escHtml(c.NomAux)}">
           <span class="hist-ac-codigo">${escHtml(c.CodAux)}</span>
           <span class="hist-ac-nombre">${escHtml(c.NomAux)}</span>
         </li>`).join('');
-
       show('listaClientes');
-
       lista.querySelectorAll('li[data-cod]').forEach(li => {
         li.addEventListener('click', () => seleccionarCliente(li.dataset.cod, li.dataset.nom));
       });
@@ -345,30 +329,22 @@
   // ── Seleccionar cliente ───────────────────────────────────────────────────
   function seleccionarCliente(cod, nom) {
     if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
-
-    clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', email: '' };
+    clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', tel2: '', email: '' };
 
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
     const chip   = document.getElementById('clienteChip');
     const btnBus = document.getElementById('btnBuscarHistorial');
 
-    if (input) {
-      input.value = '';
-      input.classList.add('hist--hidden');
-    }
-
+    if (input) { input.value = ''; input.classList.add('hist--hidden'); }
     hide('listaClientes');
     if (lista) lista.innerHTML = '';
-
     if (chip) {
       const chipNombre = document.getElementById('clienteChipNombre');
       if (chipNombre) chipNombre.textContent = `${cod}  \u2014  ${nom}`;
       show('clienteChip');
     }
-
     if (btnBus) btnBus.disabled = false;
-
     mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
@@ -378,7 +354,6 @@
   // ── Buscar historial ──────────────────────────────────────────────────────
   async function buscarHistorial() {
     if (!clienteSeleccionado) return;
-
     const yDesde = document.getElementById('fechaDesde')?.value;
     const yHasta = document.getElementById('fechaHasta')?.value;
     if (!yDesde || !yHasta) { alert('Selecciona el rango de a\u00f1os.'); return; }
@@ -404,8 +379,7 @@
       });
 
       const res = await fetch(`${API_HISTORIAL}?${params}`, {
-        headers: { Authorization: `Bearer ${token()}` },
-        signal
+        headers: { Authorization: `Bearer ${token()}` }, signal
       });
 
       if (signal.aborted) return;
@@ -427,10 +401,19 @@
         return;
       }
 
-      // Guardar tel y email desde la primera fila del historial
+      // Leer contacto desde la primera fila (con fallbacks para distintos nombres de campo)
       const primerRow = data.historial[0];
-      clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
-      clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
+      if (!clienteSeleccionado.tel)   clienteSeleccionado.tel   = primerRow.FonAux1 || primerRow.fonAux1 || primerRow.Telefono || primerRow.telefono || '';
+      if (!clienteSeleccionado.tel2)  clienteSeleccionado.tel2  = primerRow.FonAux2 || primerRow.fonAux2 || '';
+      if (!clienteSeleccionado.email) clienteSeleccionado.email = extraerEmail(primerRow);
+
+      // Log de debug temporal (quitar en producción si se desea)
+      console.log('[historial] contacto cliente:', {
+        tel:   clienteSeleccionado.tel,
+        tel2:  clienteSeleccionado.tel2,
+        email: clienteSeleccionado.email,
+        camposRow: Object.keys(primerRow)
+      });
 
       renderFichaCliente(clienteSeleccionado.codAux, clienteSeleccionado.nomAux);
       renderResumen(data, yDesde, yHasta);
@@ -466,24 +449,33 @@
       { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totalMonto);
 
     const tel   = clienteSeleccionado?.tel   || '';
+    const tel2  = clienteSeleccionado?.tel2  || '';
     const email = clienteSeleccionado?.email || '';
 
-    const telItem = tel ? `
+    const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+
+    const tel1Item = tel ? `
       <div class="hist-resumen-item">
-        <span class="hist-resumen-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-        </span>
+        <span class="hist-resumen-icon">${icoTel}</span>
         <div>
-          <span class="hist-resumen-label">Tel\u00e9fono</span>
+          <span class="hist-resumen-label">Tel\u00e9fono 1</span>
           <span class="hist-resumen-valor">${escHtml(tel)}</span>
+        </div>
+      </div>` : '';
+
+    const tel2Item = tel2 ? `
+      <div class="hist-resumen-item">
+        <span class="hist-resumen-icon">${icoTel}</span>
+        <div>
+          <span class="hist-resumen-label">Tel\u00e9fono 2</span>
+          <span class="hist-resumen-valor">${escHtml(tel2)}</span>
         </div>
       </div>` : '';
 
     const emailItem = email ? `
       <div class="hist-resumen-item">
-        <span class="hist-resumen-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-        </span>
+        <span class="hist-resumen-icon">${icoMail}</span>
         <div>
           <span class="hist-resumen-label">Email</span>
           <a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}">${escHtml(email)}</a>
@@ -513,7 +505,8 @@
               <span class="hist-resumen-valor">${escHtml(periodoLabel)}</span>
             </div>
           </div>
-          ${telItem}
+          ${tel1Item}
+          ${tel2Item}
           ${emailItem}
           <div class="hist-resumen-item">
             <span class="hist-resumen-icon">
