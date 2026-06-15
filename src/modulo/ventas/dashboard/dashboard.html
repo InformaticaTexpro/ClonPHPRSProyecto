@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Texpro</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar" role="navigation" aria-label="Menú principal">
+    <div class="sidebar-header">
+      <button id="sidebarToggle" class="sidebar-toggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <span class="sidebar-logo">TEXPRO</span>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatar">TX</div>
+      <div class="user-info">
+        <div class="user-name"  id="userName">Cargando…</div>
+        <div class="user-area"  id="userArea"></div>
+      </div>
+    </div>
+
+    <nav id="sidebarNav" class="sidebar-nav"></nav>
+
+    <button id="btnLogout" class="sidebar-logout" aria-label="Cerrar sesión">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      <span class="nav-label">Cerrar sesión</span>
+    </button>
+  </aside>
+
+  <!-- Main wrapper -->
+  <div id="mainWrapper" class="main-wrapper">
+
+    <!-- Header -->
+    <header class="main-header">
+      <button id="headerMenuBtn" class="header-menu-btn" aria-label="Abrir menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div class="header-center">
+        <div class="header-chip">
+          <span class="chip-avatar" id="chipAvatar">TX</span>
+          <span class="chip-name"   id="chipName">Usuario</span>
+        </div>
+        <span class="header-date" id="headerDate"></span>
+      </div>
+      <button id="btnActualizar" class="btn-actualizar" aria-label="Actualizar datos">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+          <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+        Actualizar
+      </button>
+    </header>
+
+    <!-- Content -->
+    <main class="main-content" role="main">
+
+      <!-- Bienvenida -->
+      <section class="welcome-section">
+        <h1 id="welcomeTitle"   class="welcome-title">Hola 👋</h1>
+        <p  id="welcomeSubtitle" class="welcome-subtitle"></p>
+      </section>
+
+      <!-- Filtros -->
+      <section class="filtros-section" aria-label="Filtros de período">
+        <div class="filtros-grupo">
+          <label for="filtroMes"  class="filtro-label">Mes</label>
+          <select id="filtroMes"  class="filtro-select"></select>
+        </div>
+        <div class="filtros-grupo">
+          <label for="filtroAnio" class="filtro-label">Año</label>
+          <select id="filtroAnio" class="filtro-select"></select>
+        </div>
+      </section>
+
+      <!-- KPIs -->
+      <section class="kpi-grid" aria-label="Indicadores clave">
+        <article class="kpi-card">
+          <div class="kpi-label">Ventas del Mes</div>
+          <div class="kpi-value" id="kpiTotalVentas">—</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Meta del Mes</div>
+          <div class="kpi-value" id="kpiMeta">—</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Descuento Promedio</div>
+          <div class="kpi-value" id="kpiDescuento">—</div>
+        </article>
+        <article class="kpi-card kpi-card--progress">
+          <div class="kpi-label">Progreso Meta</div>
+          <div class="kpi-value" id="kpiProgresoPct">—</div>
+          <div class="progress-bar"><div class="progress-fill" id="progresoFill"></div></div>
+        </article>
+      </section>
+
+      <!-- Gráficos -->
+      <section class="graficos-grid" aria-label="Gráficos">
+        <div class="grafico-card grafico-card--evolucion">
+          <h2 class="grafico-titulo" id="graficoTitulo">Evolución Mensual</h2>
+          <div class="grafico-wrap"><canvas id="graficoEvolucion"></canvas></div>
+        </div>
+        <div class="grafico-card grafico-card--torta">
+          <h2 class="grafico-titulo">Distribución Clientes</h2>
+          <div id="tortaVendedorTabs" class="torta-tabs" style="display:none"></div>
+          <div class="grafico-wrap grafico-wrap--torta"><canvas id="graficoClientesDistribucion"></canvas></div>
+        </div>
+      </section>
+
+      <!-- Cartera de clientes -->
+      <section class="seccion-cartera" aria-label="Cartera de Clientes">
+        <h2 class="seccion-titulo">Cartera de Clientes</h2>
+        <div class="cartera-grid" id="carteraGrid">
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="total" aria-expanded="false">
+              <span class="cartera-card-label">Total Clientes</span>
+              <span class="cartera-card-count" id="countTotal">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaTotal" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaTotal" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyTotal"></tbody></table></div>
+            </div>
+          </div>
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="activo" aria-expanded="false">
+              <span class="cartera-card-label">Activos</span>
+              <span class="cartera-card-count" id="countActivo">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaActivo" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaActivo" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyActivo"></tbody></table></div>
+            </div>
+          </div>
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="inactivo" aria-expanded="false">
+              <span class="cartera-card-label">Inactivos</span>
+              <span class="cartera-card-count" id="countInactivo">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaInactivo" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaInactivo" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyInactivo"></tbody></table></div>
+            </div>
+          </div>
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="nuevo" aria-expanded="false">
+              <span class="cartera-card-label">Nuevos</span>
+              <span class="cartera-card-count" id="countNuevo">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaNuevo" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaNuevo" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyNuevo"></tbody></table></div>
+            </div>
+          </div>
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="recuperado" aria-expanded="false">
+              <span class="cartera-card-label">Recuperados</span>
+              <span class="cartera-card-count" id="countRecuperado">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaRecuperado" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaRecuperado" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyRecuperado"></tbody></table></div>
+            </div>
+          </div>
+
+          <div class="cartera-card">
+            <button class="cartera-card-btn" data-tipo="activomes" aria-expanded="false">
+              <span class="cartera-card-label">Activos Mes Actual</span>
+              <span class="cartera-card-count" id="countActivoMes">—</span>
+              <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="listaActivoMes" class="cartera-lista" hidden>
+              <div class="cartera-busqueda-wrap">
+                <input id="busquedaActivoMes" type="search" class="cartera-busqueda" placeholder="Buscar cliente…" />
+              </div>
+              <div class="tabla-wrap"><table class="tabla-base"><thead><tr><th>Código</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th><th>Historial</th></tr></thead><tbody id="tbodyActivoMes"></tbody></table></div>
+            </div>
+          </div>
+
+        </div><!-- /cartera-grid -->
+      </section>
+
+      <!-- Tabla vendedores -->
+      <section class="seccion-tabla" aria-label="Rendimiento por Vendedor">
+        <h2 class="seccion-titulo">Rendimiento por Vendedor</h2>
+        <div class="tabla-wrap">
+          <table class="tabla-base">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Vendedor</th>
+                <th>Folios</th>
+                <th style="text-align:right">Venta Cobrado</th>
+                <th style="text-align:right">Venta Lista</th>
+                <th style="text-align:right">% Desc.</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyVendedores"><tr class="tabla-empty"><td colspan="6">Cargando…</td></tr></tbody>
+            <tfoot id="tfootVendedores"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- Tabla clientes resumen -->
+      <section class="seccion-tabla" aria-label="Clientes por Vendedor">
+        <h2 class="seccion-titulo">Clientes por Vendedor</h2>
+        <div class="tabla-wrap">
+          <table class="tabla-base">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th style="text-align:right">Clientes Histórico</th>
+                <th style="text-align:right">Clientes Período</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyClientesResumen"><tr class="tabla-empty"><td colspan="3">Cargando…</td></tr></tbody>
+            <tfoot id="tfootClientesResumen"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- Ventas del mes -->
+      <section class="seccion-tabla" aria-label="Ventas del Mes">
+        <div class="seccion-header">
+          <h2 class="seccion-titulo">Ventas del Mes</h2>
+          <div class="ventas-filtros">
+            <div class="tipo-toggles" role="group" aria-label="Tipo documento">
+              <button class="tipo-toggle tipo-toggle--activo" data-tipo="F">Facturas</button>
+              <button class="tipo-toggle tipo-toggle--activo" data-tipo="N">Notas</button>
+              <button class="tipo-toggle tipo-toggle--activo" data-tipo="D">Débitos</button>
+            </div>
+            <select id="filtroVendedorVentas" class="filtro-select filtro-select--sm"></select>
+            <input id="busquedaVentas" type="search" class="busqueda-input" placeholder="Buscar folio o cliente…" aria-label="Buscar ventas" />
+          </div>
+          <span id="totalVentasMes" class="total-label"></span>
+        </div>
+        <div class="tabla-wrap">
+          <table class="tabla-base">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Vendedor</th>
+                <th style="text-align:right">Monto</th>
+                <th style="text-align:right">Valor Lista</th>
+                <th style="text-align:right">% Desc.</th>
+                <th style="text-align:center">Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyVentasMes"><tr class="tabla-empty"><td colspan="8">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main><!-- /main-content -->
+  </div><!-- /main-wrapper -->
+
+  <!-- Modal detalle folio -->
+  <div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true"
+       aria-labelledby="modalTitulo" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-titulo"   id="modalTitulo">Detalle</h2>
+          <p  class="modal-subtitulo" id="modalSubtitulo"></p>
+        </div>
+        <button id="modalCerrar" class="modal-cerrar" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6"  y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tabla-wrap">
+        <table class="tabla-base">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Producto</th>
+              <th style="text-align:center">Cantidad</th>
+              <th style="text-align:right">P. Unitario</th>
+              <th style="text-align:right">Total Línea</th>
+            </tr>
+          </thead>
+          <tbody id="modalTbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <span class="modal-total-label">Total:</span>
+        <span class="modal-total-valor" id="modalTotalValor">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="dashboard.js"></script>
+  <!-- Módulo de inactividad: aviso a los 15 min, countdown 60 seg -->
+  <script src="../../shared/inactividad.js"></script>
+</body>
+</html>
