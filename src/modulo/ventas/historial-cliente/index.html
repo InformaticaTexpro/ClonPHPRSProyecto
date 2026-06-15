@@ -10,15 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
-  <link rel="stylesheet" href="historial.css?v=2.0.4" />
-  <style>
-    /* Seguridad pre-JS: ocultar estados secundarios y resultados antes de que cargue el script */
-    #histEstadoError,
-    #histEstadoVacio,
-    #histFichaCliente,
-    #histResumen,
-    #histResultados { display: none; }
-  </style>
+  <link rel="stylesheet" href="historial.css?v=2.0.5" />
+  <!-- SIN bloque <style> inline: la visibilidad la maneja JS con .hist--hidden -->
 </head>
 <body>
 
@@ -94,9 +87,9 @@
                   aria-controls="listaClientes"
                 />
                 <svg class="hist-input-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <ul class="hist-autocomplete-list" id="listaClientes" role="listbox" hidden></ul>
+                <ul class="hist-autocomplete-list hist--hidden" id="listaClientes" role="listbox"></ul>
               </div>
-              <div class="hist-cliente-chip" id="clienteChip" hidden>
+              <div class="hist-cliente-chip hist--hidden" id="clienteChip">
                 <span id="clienteChipNombre"></span>
                 <button class="hist-chip-remove" id="btnRemoveCliente" aria-label="Quitar cliente" title="Quitar">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -129,8 +122,16 @@
         </div>
       </section>
 
-      <!-- Ficha del cliente seleccionado (visible tras seleccionar, antes de buscar) -->
-      <div id="histFichaCliente" hidden></div>
+      <!-- Ficha del cliente (se muestra al seleccionar y al ver resultados) -->
+      <div id="histFichaCliente" class="hist--hidden"></div>
+
+      <!-- Spinner de carga -->
+      <div id="histSpinner" class="hist--hidden">
+        <div class="hist-spinner-wrap">
+          <div class="hist-spinner"></div>
+          <span>Cargando historial...</span>
+        </div>
+      </div>
 
       <!-- Estado 1: inicial -->
       <div class="hist-estado" id="histEstadoInicial">
@@ -141,8 +142,8 @@
         <p class="hist-estado-sub">Selecciona un cliente y el rango de fechas para ver su historial de compras por producto</p>
       </div>
 
-      <!-- Estado 2: error de conexión/API — hidden por defecto -->
-      <div class="hist-estado hist-estado--error" id="histEstadoError" hidden>
+      <!-- Estado 2: error -->
+      <div class="hist-estado hist-estado--error hist--hidden" id="histEstadoError">
         <div class="hist-estado-icono">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
         </div>
@@ -150,8 +151,8 @@
         <p class="hist-estado-sub" id="histEstadoErrorMsg">Intenta nuevamente</p>
       </div>
 
-      <!-- Estado 3: sin registros — hidden por defecto -->
-      <div class="hist-estado" id="histEstadoVacio" hidden>
+      <!-- Estado 3: sin registros -->
+      <div class="hist-estado hist--hidden" id="histEstadoVacio">
         <div class="hist-estado-icono">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
         </div>
@@ -159,9 +160,9 @@
         <p class="hist-estado-sub">El cliente no tiene compras en el rango de fechas seleccionado</p>
       </div>
 
-      <!-- Resumen y resultados — hidden por defecto -->
-      <section id="histResumen" hidden></section>
-      <div id="histResultados" hidden></div>
+      <!-- Resumen y resultados -->
+      <section id="histResumen" class="hist--hidden"></section>
+      <div id="histResultados" class="hist--hidden"></div>
 
     </main>
 
@@ -171,7 +172,7 @@
     </footer>
   </div>
 
-  <script src="historial.js?v=2.0.7"></script>
+  <script src="historial.js?v=2.0.8"></script>
   <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
 </body>
 </html>

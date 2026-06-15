@@ -1,4 +1,4 @@
-/* historial.css v2.0.4 */
+/* historial.css v2.0.5 */
 
 /* ════ VARIABLES LOCALES ════════════════════════════════════════════════════ */
 :root {
@@ -21,6 +21,15 @@
   --hist-cero-color:     #c5c5c5;
   --hist-radius:         10px;
   --hist-radius-sm:      6px;
+}
+
+/* ════ CLASE DE VISIBILIDAD CENTRAL ══════════════════════════════════════════
+   Toda la visibilidad se controla con esta clase. El !important garantiza
+   que sobreescribe cualquier display:none definido en CSS o inline.
+   El JS solo agrega/quita .hist--hidden — nunca toca style.display.
+══════════════════════════════════════════════════════════════════════════════ */
+.hist--hidden {
+  display: none !important;
 }
 
 /* ════ FILTROS ════════════════════════════════════════════════════════ */
@@ -188,6 +197,23 @@
 .hist-estado-sub { font-size: .82rem; max-width: 36ch; margin: 0; }
 .hist-estado--error .hist-estado-icono { color: #e57373; }
 .hist-estado--error .hist-estado-titulo { color: #c62828; }
+
+/* ════ SPINNER DE CARGA ═══════════════════════════════════════════════════ */
+.hist-spinner-wrap {
+  display: flex; align-items: center; justify-content: center;
+  gap: .75rem;
+  padding: 3rem 2rem;
+  color: #888;
+  font-size: .88rem;
+}
+.hist-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--hist-primary-soft);
+  border-top-color: var(--hist-primary);
+  border-radius: 50%;
+  animation: hist-spin .7s linear infinite;
+}
+@keyframes hist-spin { to { transform: rotate(360deg); } }
 
 /* ════ FICHA CLIENTE (visible tras seleccionar, antes de buscar) ═════════ */
 #histFichaCliente { margin-bottom: 1.5rem; }
