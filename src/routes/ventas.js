@@ -374,6 +374,7 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
           c.CodAux,
           RTRIM(c.NomAux)               AS NomAux,
           RTRIM(c.FonAux1)              AS FonAux1,
+          RTRIM(c.FonAux2)              AS FonAux2,
           RTRIM(c.EMail)                AS Email,
           h.CodVendedor,
           CONVERT(varchar(10), h.Fecha, 120) AS Fecha,
