@@ -1,27 +1,21 @@
 'use strict';
 
 /**
- * historial.js v2.5.0
+ * historial.js v2.6.0
+ *
+ * Fix v2.6.0:
+ *   - Agrega Ciudad (JOIN cwtciud via CiuAux→CiuCod) y Dirección (DirAux)
+ *     al historial de cliente.
+ *   - Ambos campos se muestran en la ficha del cliente y en el resumen.
+ *   - Se cargan desde /api/ventas/cliente-info (disponible al seleccionar)
+ *     y también desde primerRow del historial como fallback.
  *
  * Fix v2.5.0:
  *   - Nombre del ítem activo en sidebar cambiado a "Historial Cliente" (estándar).
- *   - Nombres sidebar estandarizados: Dashboard | Ventas Asignadas | Historial Cliente | Alertas
  *
  * Fix v2.4.0:
  *   - Tel1, Tel2 y Email se cargan INMEDIATAMENTE al seleccionar el cliente
  *     desde el autocomplete, sin esperar a pulsar "Buscar".
- *   - seleccionarCliente() lee FonAux1/Email del <li> y llama /api/ventas/cliente-info
- *     para obtener FonAux2 (segundo teléfono).
- *   - Los tres campos se muestran SIEMPRE en la ficha y en el resumen;
- *     si están vacíos se muestra el badge rojo "SIN DATO".
- *
- * Fix v2.3.0:
- *   - Tel1, Tel2 y Email SIEMPRE se muestran en ficha y resumen.
- *   - Si el campo está vacío muestra badge "SIN DATO" (clase .hist-sin-dato)
- *
- * Fix v2.2.0:
- *   - renderFichaCliente() usa layout .hist-ficha-top de dos filas.
- *   - renderResumen() usa .hist-resumen-texto + title para tooltip nativo.
  */
 
 (function () {
@@ -57,7 +51,6 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
   }
 
-  /** HTML del badge rojo "SIN DATO" */
   function sinDatoHtml() {
     return '<span class="hist-sin-dato">SIN DATO</span>';
   }
@@ -93,8 +86,6 @@
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────
-  // Nombres estándar en todos los módulos del área ventas:
-  //   Dashboard | Ventas Asignadas | Historial Cliente (activo) | Alertas
   const MODULOS = [
     { nombre: 'Dashboard',           icon: '\uD83C\uDFE0', url: '../dashboard/index.html',                        area: null },
     { nombre: 'Ventas Asignadas',    icon: '\uD83D\uDCCA', url: '../ventas/index.html',                           area: ['ventas', 'gerencia'] },
@@ -191,12 +182,16 @@
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
 
-    const tel   = clienteSeleccionado?.tel   || '';
-    const tel2  = clienteSeleccionado?.tel2  || '';
-    const email = clienteSeleccionado?.email || '';
+    const tel       = clienteSeleccionado?.tel       || '';
+    const tel2      = clienteSeleccionado?.tel2      || '';
+    const email     = clienteSeleccionado?.email     || '';
+    const direccion = clienteSeleccionado?.direccion || '';
+    const ciudad    = clienteSeleccionado?.ciudad    || '';
 
     const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+    const icoDirec = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    const icoCiudad = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
 
     const tel1Item = tel
       ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel)}">${icoTel} <strong class="hist-ficha-contacto-label">Tel 1:</strong> ${escHtml(tel)}</span>`
@@ -209,6 +204,14 @@
     const emailItem = email
       ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${escHtml(email)}</a>`
       : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${sinDatoHtml()}</span>`;
+
+    const direcItem = direccion
+      ? `<span class="hist-ficha-contacto-item" title="${escHtml(direccion)}">${icoDirec} <strong class="hist-ficha-contacto-label">Direcci\u00f3n:</strong> ${escHtml(direccion)}</span>`
+      : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoDirec} <strong class="hist-ficha-contacto-label">Direcci\u00f3n:</strong> ${sinDatoHtml()}</span>`;
+
+    const ciudadItem = ciudad
+      ? `<span class="hist-ficha-contacto-item" title="${escHtml(ciudad)}">${icoCiudad} <strong class="hist-ficha-contacto-label">Ciudad:</strong> ${escHtml(ciudad)}</span>`
+      : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoCiudad} <strong class="hist-ficha-contacto-label">Ciudad:</strong> ${sinDatoHtml()}</span>`;
 
     ficha.innerHTML = `
       <div class="hist-ficha-card">
@@ -229,6 +232,8 @@
           ${tel1Item}
           ${tel2Item}
           ${emailItem}
+          ${direcItem}
+          ${ciudadItem}
         </div>
       </div>`;
     show('histFichaCliente');
@@ -357,11 +362,13 @@
     if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
 
     clienteSeleccionado = {
-      codAux: cod,
-      nomAux: nom,
-      tel:    tel1   || '',
-      tel2:   '',
-      email:  emailAc || ''
+      codAux:    cod,
+      nomAux:    nom,
+      tel:       tel1    || '',
+      tel2:      '',
+      email:     emailAc || '',
+      direccion: '',
+      ciudad:    ''
     };
 
     const input  = document.getElementById('inputCliente');
@@ -384,6 +391,7 @@
 
     renderFichaCliente(cod, nom);
 
+    // Carga inmediata de todos los datos del cliente
     fetch(`${API_CLI_INFO}?codAux=${encodeURIComponent(cod)}`, {
       headers: { Authorization: `Bearer ${token()}` }
     })
@@ -391,9 +399,11 @@
       .then(data => {
         if (!clienteSeleccionado || clienteSeleccionado.codAux !== cod) return;
         if (data.ok && data.cliente) {
-          clienteSeleccionado.tel   = data.cliente.telefono  || clienteSeleccionado.tel;
-          clienteSeleccionado.tel2  = data.cliente.telefono2 || '';
-          clienteSeleccionado.email = data.cliente.email     || clienteSeleccionado.email;
+          clienteSeleccionado.tel       = data.cliente.telefono  || clienteSeleccionado.tel;
+          clienteSeleccionado.tel2      = data.cliente.telefono2 || '';
+          clienteSeleccionado.email     = data.cliente.email     || clienteSeleccionado.email;
+          clienteSeleccionado.direccion = data.cliente.direccion || '';
+          clienteSeleccionado.ciudad    = data.cliente.ciudad    || '';
           renderFichaCliente(cod, nom);
         }
       })
@@ -449,10 +459,13 @@
         return;
       }
 
+      // Enriquecer clienteSeleccionado con datos del primerRow como fallback
       const primerRow = data.historial[0];
-      if (!clienteSeleccionado.tel)   clienteSeleccionado.tel   = primerRow.FonAux1 || primerRow.fonAux1 || primerRow.Telefono || primerRow.telefono || '';
-      if (!clienteSeleccionado.tel2)  clienteSeleccionado.tel2  = primerRow.FonAux2 || primerRow.fonAux2 || '';
-      if (!clienteSeleccionado.email) clienteSeleccionado.email = extraerEmail(primerRow);
+      if (!clienteSeleccionado.tel)       clienteSeleccionado.tel       = primerRow.FonAux1   || primerRow.fonAux1   || '';
+      if (!clienteSeleccionado.tel2)      clienteSeleccionado.tel2      = primerRow.FonAux2   || primerRow.fonAux2   || '';
+      if (!clienteSeleccionado.email)     clienteSeleccionado.email     = extraerEmail(primerRow);
+      if (!clienteSeleccionado.direccion) clienteSeleccionado.direccion = primerRow.Direccion || primerRow.direccion || '';
+      if (!clienteSeleccionado.ciudad)    clienteSeleccionado.ciudad    = primerRow.Ciudad    || primerRow.ciudad    || '';
 
       renderFichaCliente(clienteSeleccionado.codAux, clienteSeleccionado.nomAux);
       renderResumen(data, yDesde, yHasta);
@@ -486,13 +499,17 @@
     const totalFmt = new Intl.NumberFormat('es-CL',
       { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totalMonto);
 
-    const tel   = clienteSeleccionado?.tel   || '';
-    const tel2  = clienteSeleccionado?.tel2  || '';
-    const email = clienteSeleccionado?.email || '';
+    const tel       = clienteSeleccionado?.tel       || '';
+    const tel2      = clienteSeleccionado?.tel2      || '';
+    const email     = clienteSeleccionado?.email     || '';
+    const direccion = clienteSeleccionado?.direccion || '';
+    const ciudad    = clienteSeleccionado?.ciudad    || '';
     const nomCompleto = `${clienteSeleccionado.codAux} \u2014 ${clienteSeleccionado.nomAux}`;
 
-    const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
-    const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+    const icoTel    = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const icoMail   = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+    const icoDirec  = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    const icoCiudad = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
 
     function item(iconSvg, label, valorHtml, extraClass = '') {
       return `
@@ -525,6 +542,14 @@
       ? `<a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${escHtml(email)}</a>`
       : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
 
+    const direcHtml = direccion
+      ? `<span class="hist-resumen-valor" title="${escHtml(direccion)}">${escHtml(direccion)}</span>`
+      : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
+
+    const ciudadHtml = ciudad
+      ? `<span class="hist-resumen-valor" title="${escHtml(ciudad)}">${escHtml(ciudad)}</span>`
+      : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
+
     seccion.innerHTML = `
       <div class="hist-resumen-card">
         <div class="hist-resumen-row">
@@ -533,9 +558,11 @@
             'hist-resumen-item--cliente')}
           ${item(icoPeriodo, 'Per\u00edodo',
             `<span class="hist-resumen-valor" title="${escHtml(periodoLabel)}">${escHtml(periodoLabel)}</span>`)}
-          ${item(icoTel,  'Tel\u00e9fono 1', tel1Html)}
-          ${item(icoTel,  'Tel\u00e9fono 2', tel2Html)}
-          ${item(icoMail, 'Email',           emailHtml)}
+          ${item(icoTel,    'Tel\u00e9fono 1', tel1Html)}
+          ${item(icoTel,    'Tel\u00e9fono 2', tel2Html)}
+          ${item(icoMail,   'Email',           emailHtml)}
+          ${item(icoDirec,  'Direcci\u00f3n',  direcHtml)}
+          ${item(icoCiudad, 'Ciudad',          ciudadHtml)}
           ${item(icoProd, 'Productos distintos',
             `<span class="hist-resumen-valor hist-resumen-valor--num">${productos.size}</span>`)}
           ${item(icoTotal, 'Total per\u00edodo',

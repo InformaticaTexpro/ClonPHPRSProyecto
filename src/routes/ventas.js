@@ -289,7 +289,6 @@ router.get('/clientes', requireAuth, async (req, res) => {
 
     let query;
     if (admin || !codigos.length) {
-      // Administradores: búsqueda libre sin restricción de vendedor
       query = `
         SELECT TOP 40
           c.CodAux,
@@ -305,7 +304,6 @@ router.get('/clientes', requireAuth, async (req, res) => {
         ORDER BY RTRIM(c.NomAux)
       `;
     } else {
-      // Vendedores: solo clientes asociados a sus códigos de vendedor
       const codigosIn = codigos.map(c => `'${c}'`).join(',');
       query = `
         SELECT TOP 40
@@ -342,7 +340,7 @@ router.get('/clientes', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/cliente-info   — información completa del cliente
 //   ?codAux=XXX
-//   Devuelve: rut, nombre, telefono, telefono2, direccion, comuna, email
+//   Devuelve: rut, nombre, telefono, telefono2, direccion, ciudad, email
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/cliente-info', requireAuth, async (req, res) => {
   try {
@@ -354,14 +352,16 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
       .input('codAux', sql.VarChar(20), codAux)
       .query(`
         SELECT TOP 1
-          RTRIM(c.CodAux)   AS rut,
-          RTRIM(c.NomAux)   AS nombre,
-          RTRIM(c.FonAux1)  AS telefono,
-          RTRIM(c.FonAux2)  AS telefono2,
-          RTRIM(c.DirAux)   AS direccion,
-          RTRIM(c.Ciudad)   AS comuna,
-          RTRIM(c.EMail)    AS email
+          RTRIM(c.CodAux)           AS rut,
+          RTRIM(c.NomAux)           AS nombre,
+          RTRIM(c.FonAux1)          AS telefono,
+          RTRIM(c.FonAux2)          AS telefono2,
+          RTRIM(c.DirAux)           AS direccion,
+          RTRIM(ciud.CiuDes)        AS ciudad,
+          RTRIM(c.EMail)            AS email
         FROM [PRODIN].[softland].[cwtauxi] c
+        LEFT JOIN [PRODIN].[softland].[cwtciud] ciud
+          ON RTRIM(c.CiuAux) = RTRIM(ciud.CiuCod)
         WHERE c.CodAux = @codAux
       `);
 
@@ -405,7 +405,6 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
       .input('desde',  sql.Date, desde)
       .input('hasta',  sql.Date, hasta);
 
-    // Filtro de vendedor: admins ven todo; vendedores solo sus propias transacciones
     const vendedorFiltro = (!admin && codigos.length)
       ? `AND h.CodVendedor IN (${codigos.map(c => `'${c}'`).join(',')})`
       : '';
@@ -413,20 +412,24 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
     const result = await request.query(`
       SELECT
         c.CodAux,
-        RTRIM(c.NomAux)               AS NomAux,
-        RTRIM(c.FonAux1)              AS FonAux1,
-        RTRIM(c.FonAux2)              AS FonAux2,
-        RTRIM(c.EMail)                AS Email,
+        RTRIM(c.NomAux)                    AS NomAux,
+        RTRIM(c.FonAux1)                   AS FonAux1,
+        RTRIM(c.FonAux2)                   AS FonAux2,
+        RTRIM(c.EMail)                     AS Email,
+        RTRIM(c.DirAux)                    AS Direccion,
+        RTRIM(ciud.CiuDes)                 AS Ciudad,
         h.CodVendedor,
         CONVERT(varchar(10), h.Fecha, 120) AS Fecha,
         m.CodProd,
-        CAST(m.DetProd AS varchar(max)) AS DetProd,
+        CAST(m.DetProd AS varchar(max))    AS DetProd,
         m.TotLinea,
-        YEAR(h.Fecha)                 AS Anio,
-        MONTH(h.Fecha)                AS Mes
+        YEAR(h.Fecha)                      AS Anio,
+        MONTH(h.Fecha)                     AS Mes
       FROM [PRODIN].[softland].[iw_gsaen] h
       INNER JOIN [PRODIN].[softland].[cwtauxi] c
         ON c.CodAux = h.CodAux
+      LEFT JOIN [PRODIN].[softland].[cwtciud] ciud
+        ON RTRIM(c.CiuAux) = RTRIM(ciud.CiuCod)
       INNER JOIN [PRODIN].[softland].[iw_gmovi] m
         ON m.Tipo   = h.Tipo
        AND m.NroInt = h.NroInt
