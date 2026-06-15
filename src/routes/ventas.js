@@ -44,8 +44,9 @@ function getCodigos(req) {
 
 /**
  * isAdmin — true si el usuario es administrador O no tiene vendedores asignados.
- * En ambos casos se omite el filtro por CodVendedor para que puedan ver
- * el historial/clientes de toda la cartera.
+ * Se usa ÚNICAMENTE para rutas de "mis ventas" (listado, kpis, resumen, evolucion).
+ * Las rutas de historial y autocomplete de clientes NO usan este helper:
+ * muestran información global sin restricción de vendedor.
  */
 function isAdmin(req) {
   return req.usuario?.is_admin === true || getCodigos(req).length === 0;
@@ -270,8 +271,9 @@ router.get('/resumen', requireAuth, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/clientes   — autocomplete libre (q=texto)
-// Admin / sin cartera: busca en todos los clientes (sin filtro de vendedor).
-// Vendedor normal: restringe a su cartera.
+// FIX: se elimina el filtro por CodVendedor. El autocomplete retorna todos
+// los clientes de la BD que coincidan con la búsqueda, sin importar el
+// vendedor del usuario autenticado. El historial es información global.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
@@ -280,38 +282,22 @@ router.get('/clientes', requireAuth, async (req, res) => {
 
     const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
     const pool  = await getSoftlandPool();
-    const req2  = pool.request()
+    const result = await pool.request()
       .input('q1', sql.NVarChar, `%${qSafe}%`)
-      .input('q2', sql.NVarChar, `%${qSafe}%`);
-
-    let whereVendedor = '';
-    if (!isAdmin(req)) {
-      const codigosIn = getCodigos(req).map(c => `'${c}'`).join(',');
-      whereVendedor = `
-        AND EXISTS (
-          SELECT 1
-          FROM [PRODIN].[softland].[iw_gsaen] h
-          WHERE h.CodAux = c.CodAux
-            AND h.CodVendedor IN (${codigosIn})
-            AND h.Tipo IN ('F','N','D')
-            AND h.Estado <> 'A'
-        )`;
-    }
-
-    const result = await req2.query(`
-      SELECT TOP 40
-        c.CodAux,
-        RTRIM(c.NomAux)   AS NomAux,
-        RTRIM(c.FonAux1)  AS FonAux1,
-        RTRIM(c.EMail)    AS Email
-      FROM [PRODIN].[softland].[cwtauxi] c
-      WHERE (
-        RTRIM(c.NomAux) LIKE @q1
-        OR c.CodAux     LIKE @q2
-      )
-      ${whereVendedor}
-      ORDER BY RTRIM(c.NomAux)
-    `);
+      .input('q2', sql.NVarChar, `%${qSafe}%`)
+      .query(`
+        SELECT TOP 40
+          c.CodAux,
+          RTRIM(c.NomAux)   AS NomAux,
+          RTRIM(c.FonAux1)  AS FonAux1,
+          RTRIM(c.EMail)    AS Email
+        FROM [PRODIN].[softland].[cwtauxi] c
+        WHERE (
+          RTRIM(c.NomAux) LIKE @q1
+          OR c.CodAux     LIKE @q2
+        )
+        ORDER BY RTRIM(c.NomAux)
+      `);
 
     res.json({ ok: true, clientes: result.recordset });
   } catch (err) {
@@ -359,8 +345,9 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/historial-cliente
 //   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
-// Admin / sin cartera: devuelve toda la historia del cliente.
-// Vendedor normal: restringe al CodVendedor de su cartera.
+// FIX: se elimina el filtro por CodVendedor. El historial muestra TODAS
+// las compras del cliente, sin importar con qué vendedor fueron realizadas.
+// El filtro por vendedor solo aplica a las rutas de "mis ventas" del usuario.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/historial-cliente', requireAuth, async (req, res) => {
   try {
@@ -375,13 +362,6 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
     }
     if (desde > hasta) {
       return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
-    }
-
-    // Filtro de vendedor: sólo se aplica para vendedores con cartera asignada.
-    let whereVendedor = '';
-    if (!isAdmin(req)) {
-      const codigosIn = getCodigos(req).map(c => `'${c}'`).join(',');
-      whereVendedor = `AND h.CodVendedor IN (${codigosIn})`;
     }
 
     const pool   = await getSoftlandPool();
@@ -411,10 +391,9 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
         WHERE h.Tipo IN ('F', 'N', 'D')
           AND h.Estado <> 'A'
           AND h.CodAux = @codAux
-          ${whereVendedor}
           AND h.Fecha >= @desde
           AND h.Fecha <= @hasta
-        ORDER BY c.CodAux, h.Fecha DESC, m.CodProd
+        ORDER BY h.Fecha DESC, m.CodProd
       `);
 
     res.json({ ok: true, historial: result.recordset });
