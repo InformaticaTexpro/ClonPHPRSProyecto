@@ -17,6 +17,7 @@
  * 2026-06-11: fix — descuentos redondeados (sin decimales) en KPI global,
  *                    tabla vendedores y tabla ventas del mes
  * 2026-06-15: feat — cartera: agrega columna Historial con botón enlace a historial-cliente
+ * 2026-06-15: fix — sidebar estandarizado: Ventas → Ventas Asignadas, Historial → Historial Cliente
  */
 
 (function () {
@@ -114,9 +115,11 @@
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────────────────────────
+  // Nombres estándar en todos los módulos del área ventas:
+  //   Dashboard (activo) | Ventas Asignadas | Historial Cliente | Alertas
   const MODULOS = [
-    { nombre:'Ventas',         icon:'📊', url:'../ventas/index.html',                              area:['ventas','gerencia'] },
-    { nombre:'Historial',      icon:'📋', url:'../historial-cliente/index.html',                   area:['ventas','gerencia'] },
+    { nombre:'Ventas Asignadas', icon:'📊', url:'../ventas/index.html',                              area:['ventas','gerencia'] },
+    { nombre:'Historial Cliente',icon:'📋', url:'../historial-cliente/index.html',                   area:['ventas','gerencia'] },
     { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
     { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
     { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },

@@ -3,8 +3,9 @@
 /**
  * ventas.js — Ventas Asignadas Texpro
  *
- * 2026-06-15: fix — nombres sidebar estandarizados:
- *   Dashboard | Ventas Asignadas (activo) | Historial Cliente | Alertas
+ * 2026-06-09: fix — iconos unificados; item activo muestra ícono bars SVG
+ * 2026-06-15: fix — restaurar lógica de carga borrada accidentalmente;
+ *                    estandarizar sidebar: Historial → Historial Cliente
  */
 
 (function () {
@@ -86,7 +87,7 @@
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
   // Nombres estándar en todos los módulos del área ventas:
-  //   Dashboard | Ventas Asignadas | Historial Cliente | Alertas
+  //   Dashboard | Ventas Asignadas (activo) | Historial Cliente | Alertas
   const MODULOS = [
     { nombre:'Dashboard',           icon:'🏠', url:'../dashboard/index.html',                       area: null },
     { nombre:'Historial Cliente',   icon:'📋', url:'../historial-cliente/index.html',               area:['ventas','gerencia'] },
@@ -131,18 +132,332 @@
       ${visibles.map(m=>`<a class="nav-item" href="${m.url}"><span style="font-size:1rem">${m.icon}</span><span class="nav-label">${m.nombre}</span></a>`).join('')}`;
 
     const btnLogout = document.getElementById('btnLogout');
-    if (btnLogout) {
-      btnLogout.addEventListener('click', () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '../../varios/login/index.html';
-      });
-    }
-    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+    if (btnLogout) btnLogout.addEventListener('click', () => {
+      localStorage.removeItem('token'); localStorage.removeItem('user');
+      window.location.href = '../../varios/login/index.html';
+    });
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
       document.getElementById('sidebar').classList.toggle('sidebar--collapsed');
       document.getElementById('mainWrapper').classList.toggle('main-wrapper--expanded');
     });
-    document.getElementById('headerMenuBtn')?.addEventListener('click', () => {
+    const headerMenuBtn = document.getElementById('headerMenuBtn');
+    if (headerMenuBtn) headerMenuBtn.addEventListener('click', () => {
       document.getElementById('sidebar').classList.toggle('mobile-open');
     });
   }
+
+  // ── Selectores mes/año ────────────────────────────────────────────────────
+  function initSelectores() {
+    const hoy    = new Date();
+    const selMes = document.getElementById('filtroMes');
+    if (selMes) {
+      MESES_NOMBRE.forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        if (i + 1 === hoy.getMonth() + 1) o.selected = true;
+        selMes.appendChild(o);
+      });
+    }
+    const selAnio = document.getElementById('filtroAnio');
+    if (selAnio) {
+      for (let y = hoy.getFullYear(); y >= 2022; y--) {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        if (y === hoy.getFullYear()) o.selected = true;
+        selAnio.appendChild(o);
+      }
+    }
+  }
+
+  function getParams() {
+    return {
+      mes:  document.getElementById('filtroMes')?.value  || (new Date().getMonth() + 1),
+      anio: document.getElementById('filtroAnio')?.value || new Date().getFullYear()
+    };
+  }
+
+  // ── PANEL COORDINADOR ─────────────────────────────────────────────────────
+  async function cargarListaVendedores() {
+    try {
+      const res  = await fetch(`${API}/vendedores-todos`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok || !data.vendedores?.length) return;
+      todosVendedores = data.vendedores;
+      const sel = document.getElementById('coordVendedor');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— Selecciona vendedor —</option>' +
+        data.vendedores.map(v =>
+          `<option value="${v.cod}">${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+        ).join('');
+    } catch(err) { console.error('[cargarListaVendedores]', err); }
+  }
+
+  async function iniciarPanelCoordinador() {
+    setStyle('panelCoordinador', 'display', 'block');
+    setStyle('panelCompartidos', 'display', 'none');
+    await Promise.all([ cargarListaVendedores(), cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+
+    const btnCompartir = document.getElementById('btnCompartir');
+    if (btnCompartir) btnCompartir.addEventListener('click', async () => {
+      const folio      = document.getElementById('coordFolio')?.value;
+      const vendedor   = document.getElementById('coordVendedor')?.value;
+      const porcentaje = document.getElementById('coordPorcentaje')?.value;
+      const msgEl      = document.getElementById('coordMensaje');
+      if (!folio || !vendedor || !porcentaje) {
+        if (msgEl) { msgEl.textContent = '⚠️ Completa todos los campos'; msgEl.style.color = 'var(--color-danger)'; }
+        return;
+      }
+      try {
+        if (msgEl) { msgEl.textContent = 'Enviando...'; msgEl.style.color = 'var(--color-gray-mid)'; }
+        const res  = await fetch(`${API}/compartir`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token()}` },
+          body: JSON.stringify({ folio:Number(folio), cod_vendedor_compartido:vendedor, porcentaje:Number(porcentaje) })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        if (msgEl) { msgEl.textContent = '✅ Folio asignado correctamente'; msgEl.style.color = 'var(--color-primary)'; }
+        const coordVend = document.getElementById('coordVendedor');
+        const coordPct  = document.getElementById('coordPorcentaje');
+        if (coordVend) coordVend.value = '';
+        if (coordPct)  coordPct.value  = '100';
+        await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+      } catch(err) {
+        const msgEl2 = document.getElementById('coordMensaje');
+        if (msgEl2) { msgEl2.textContent = `❌ ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
+      }
+    });
+  }
+
+  async function cargarFoliosParaCompartir() {
+    try {
+      const res  = await fetch(`${API}/compartir/lista?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      const sel  = document.getElementById('coordFolio');
+      if (!sel) return;
+      if (!data.ok || !data.folios?.length) {
+        sel.innerHTML = '<option value="">— Sin folios disponibles —</option>'; return;
+      }
+      sel.innerHTML = '<option value="">— Selecciona un folio —</option>' +
+        data.folios.map(f =>
+          `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`
+        ).join('');
+    } catch(err) { console.error('[cargarFoliosParaCompartir]', err); }
+  }
+
+  function opcionesVendedores(seleccionado) {
+    return todosVendedores.map(v =>
+      `<option value="${v.cod}" ${v.cod === seleccionado ? 'selected' : ''}>${v.cod} — ${v.nombre||'Sin nombre'}</option>`
+    ).join('');
+  }
+
+  function filaAsignadoVista(c) {
+    return `
+      <td><strong>${c.folio}</strong></td>
+      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+      <td>${c.cliente||'—'}</td>
+      <td>${c.nombre_vendedor_compartido||c.cod_vendedor_compartido||'—'}</td>
+      <td style="text-align:right">${c.porcentaje}%</td>
+      <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+      <td>
+        <div class="crud-acciones">
+          <button class="btn-crud btn-crud--edit" title="Editar"   data-id="${c.id}">&#9998;</button>
+          <button class="btn-crud btn-crud--del"  title="Eliminar" data-id="${c.id}" data-folio="${c.folio}">&times;</button>
+        </div>
+      </td>`;
+  }
+
+  function filaAsignadoEdicion(c) {
+    return `
+      <td><strong>${c.folio}</strong></td>
+      <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+      <td>${c.cliente||'—'}</td>
+      <td>
+        <select class="crud-input-select" id="editVend_${c.id}">
+          <option value="">— Selecciona —</option>
+          ${opcionesVendedores(c.cod_vendedor_compartido)}
+        </select>
+      </td>
+      <td style="text-align:right">
+        <input class="crud-input-pct" type="number" id="editPct_${c.id}" min="1" max="100" value="${c.porcentaje}" />
+      </td>
+      <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+      <td>
+        <div class="crud-acciones">
+          <button class="btn-crud btn-crud--save"   title="Guardar"  data-id="${c.id}" data-folio="${c.folio}">✓</button>
+          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">✕</button>
+        </div>
+      </td>`;
+  }
+
+  async function cargarFoliosAsignados() {
+    try {
+      const res   = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data  = await res.json();
+      const tbody = document.getElementById('tbodyAsignados');
+      if (!tbody) return;
+      setText('totalAsignados', `${(data.asignados||[]).length} registros`);
+      if (!data.ok || !data.asignados?.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin folios asignados este mes</td></tr>'; return;
+      }
+      tbody.innerHTML = data.asignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
+      bindCrudEvents(tbody, data.asignados);
+    } catch(err) { console.error('[cargarFoliosAsignados]', err); }
+  }
+
+  function bindCrudEvents(tbody, asignados) {
+    tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const c  = asignados.find(a => String(a.id) === String(id));
+        const tr = tbody.querySelector(`tr[data-id="${id}"]`);
+        if (!c || !tr) return;
+        tr.innerHTML = filaAsignadoEdicion(c);
+        bindCrudEvents(tbody, asignados);
+      });
+    });
+    tbody.querySelectorAll('.btn-crud--save').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id      = btn.dataset.id;
+        const vendSel = document.getElementById(`editVend_${id}`)?.value;
+        const pctVal  = document.getElementById(`editPct_${id}`)?.value;
+        if (!vendSel || !pctVal) { alert('Completa vendedor y porcentaje'); return; }
+        try {
+          const res  = await fetch(`${API}/asignados/${id}`, {
+            method:'PUT',
+            headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token()}` },
+            body: JSON.stringify({ cod_vendedor_compartido: vendSel, porcentaje: Number(pctVal) })
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error);
+          await cargarFoliosAsignados();
+        } catch(err) { alert(`Error al guardar: ${err.message}`); }
+      });
+    });
+    tbody.querySelectorAll('.btn-crud--cancel').forEach(btn => {
+      btn.addEventListener('click', () => cargarFoliosAsignados());
+    });
+    tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id    = btn.dataset.id;
+        const folio = btn.dataset.folio;
+        if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
+        try {
+          const res  = await fetch(`${API}/asignados/${id}`, {
+            method:'DELETE', headers:{ Authorization:`Bearer ${token()}` }
+          });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error);
+          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+        } catch(err) { alert(`Error al eliminar: ${err.message}`); }
+      });
+    });
+  }
+
+  // ── PANEL COMPARTIDOS (vendedor) ──────────────────────────────────────────
+  async function iniciarPanelCompartidos() {
+    setStyle('panelCompartidos', 'display', 'block');
+    try {
+      const res   = await fetch(`${API}/compartidos?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data  = await res.json();
+      const tbody = document.getElementById('tbodyCompartidos');
+      if (!tbody) return;
+      setText('totalCompartidos', `${(data.compartidos||[]).length} registros`);
+      if (!data.ok || !data.compartidos?.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin folios compartidos este mes</td></tr>'; return;
+      }
+      tbody.innerHTML = data.compartidos.map(c => `<tr>
+        <td><strong>${c.folio}</strong></td>
+        <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+        <td>${c.cliente||'—'}</td>
+        <td>${c.nombre_vendedor_origen||c.cod_vendedor_origen||'—'}</td>
+        <td style="text-align:right">${c.porcentaje}%</td>
+        <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+      </tr>`).join('');
+    } catch(err) { console.error('[iniciarPanelCompartidos]', err); }
+  }
+
+  // ── Tabla principal ventas ────────────────────────────────────────────────
+  async function cargarVentas(usuario) {
+    try {
+      const res   = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data  = await res.json();
+      const tbody = document.getElementById('tbodyVentas');
+      if (!tbody) return;
+      const lista = (data.ventas||[]).filter(v => {
+        if (usuario.is_admin) return true;
+        return String(v.CodVendedor) === String(usuario.cod_vendedor);
+      });
+      setText('totalVentas', `${lista.length} registros`);
+      if (!lista.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin ventas este mes</td></tr>'; return;
+      }
+      tbody.innerHTML = lista.map(v => {
+        const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
+        const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
+        const totLineaReal = Number(v.TotLineaReal || 0);
+        const badgeComp    = v.es_compartido
+          ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
+          : '';
+        return `<tr>
+          <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
+          <td>${v.fecha_formato||'—'}</td>
+          <td>${v.cliente||'—'}</td>
+          <td>${v.CodVendedor||'—'}</td>
+          <td style="text-align:right">${formatCLP(montoMostrar)}</td>
+          <td style="text-align:right">${formatCLP(totLineaReal)}</td>
+          <td style="text-align:right">${pctDesc}</td>
+        </tr>`;
+      }).join('');
+    } catch(err) { console.error('[cargarVentas]', err); }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  async function init() {
+    const usuario = await verificarSesion();
+    if (!usuario) return;
+    cargarSidebar(usuario);
+    initSelectores();
+
+    const esCoord = esCoordinador(usuario);
+    if (esCoord) {
+      await iniciarPanelCoordinador();
+    } else {
+      await iniciarPanelCompartidos();
+    }
+    await cargarVentas(usuario);
+
+    const btnAct = document.getElementById('btnActualizar');
+    if (btnAct) btnAct.addEventListener('click', async () => {
+      mostrarCarga();
+      try {
+        if (esCoord) {
+          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+        } else {
+          await iniciarPanelCompartidos();
+        }
+        await cargarVentas(usuario);
+      } finally { ocultarCarga(); }
+    });
+
+    const selMes  = document.getElementById('filtroMes');
+    const selAnio = document.getElementById('filtroAnio');
+    const onCambioFiltro = async () => {
+      mostrarCarga();
+      try {
+        if (esCoord) {
+          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
+        } else {
+          await iniciarPanelCompartidos();
+        }
+        await cargarVentas(usuario);
+      } finally { ocultarCarga(); }
+    };
+    if (selMes)  selMes.addEventListener('change',  onCambioFiltro);
+    if (selAnio) selAnio.addEventListener('change', onCambioFiltro);
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+})();
