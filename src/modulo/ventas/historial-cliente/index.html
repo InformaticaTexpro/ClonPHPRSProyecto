@@ -11,7 +11,6 @@
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.0" />
   <link rel="stylesheet" href="historial.css?v=2.0.5" />
-  <!-- SIN bloque <style> inline: la visibilidad la maneja JS con .hist--hidden -->
 </head>
 <body>
 
@@ -122,9 +121,6 @@
         </div>
       </section>
 
-      <!-- Ficha del cliente (se muestra al seleccionar y al ver resultados) -->
-      <div id="histFichaCliente" class="hist--hidden"></div>
-
       <!-- Spinner de carga -->
       <div id="histSpinner" class="hist--hidden">
         <div class="hist-spinner-wrap">
@@ -160,7 +156,7 @@
         <p class="hist-estado-sub">El cliente no tiene compras en el rango de fechas seleccionado</p>
       </div>
 
-      <!-- Resumen y resultados -->
+      <!-- Resumen (bloque oscuro — único bloque de info del cliente) -->
       <section id="histResumen" class="hist--hidden"></section>
       <div id="histResultados" class="hist--hidden"></div>
 
@@ -172,7 +168,7 @@
     </footer>
   </div>
 
-  <script src="historial.js?v=2.0.8"></script>
+  <script src="historial.js?v=2.7.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.1.0"></script>
 </body>
 </html>
