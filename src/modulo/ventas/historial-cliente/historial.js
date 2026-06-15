@@ -1,19 +1,16 @@
 'use strict';
 
 /**
- * historial.js v2.2.0
+ * historial.js v2.3.0
+ *
+ * Fix v2.3.0:
+ *   - Tel1, Tel2 y Email SIEMPRE se muestran en ficha y resumen.
+ *   - Si el campo está vacío muestra badge "SIN DATO" (clase .hist-sin-dato)
+ *     para que el equipo pueda identificar datos faltantes en la BD.
  *
  * Fix v2.2.0:
- *   - renderFichaCliente(): usa nuevo layout .hist-ficha-top + .hist-ficha-info
- *     El contacto va en .hist-ficha-contacto fuera de .hist-ficha-top para
- *     evitar que nombres largos compriman el hint.
- *   - renderResumen(): cada item usa .hist-resumen-texto (nuevo wrapper CSS)
- *     con title="" para tooltip nativo al hacer hover sobre texto truncado.
- *   - Elimina console.log de debug de producción.
- *
- * Fix v2.1.0:
- *   - Agrega FonAux2 (segundo teléfono) en ficha y resumen.
- *   - Corrige lectura de email con múltiples fallbacks.
+ *   - renderFichaCliente() usa layout .hist-ficha-top de dos filas.
+ *   - renderResumen() usa .hist-resumen-texto + title para tooltip nativo.
  */
 
 (function () {
@@ -46,6 +43,11 @@
     return String(s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+  }
+
+  /** HTML del badge rojo "SIN DATO" */
+  function sinDatoHtml() {
+    return '<span class="hist-sin-dato">SIN DATO</span>';
   }
 
   function setText(id, val) {
@@ -171,7 +173,7 @@
   }
 
   // ── Ficha del cliente ────────────────────────────────────────────────────
-  // v2.2.0: layout en dos filas para evitar que nombres largos tapen el hint
+  // v2.3.0: Tel1, Tel2 y Email SIEMPRE visibles; muestra badge "SIN DATO" si falta
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
@@ -183,12 +185,20 @@
     const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
-    const contactoHtml = (tel || tel2 || email) ? `
-      <div class="hist-ficha-contacto">
-        ${tel  ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel)}">${icoTel} ${escHtml(tel)}</span>` : ''}
-        ${tel2 ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel2)}">${icoTel} ${escHtml(tel2)}</span>` : ''}
-        ${email ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${icoMail} ${escHtml(email)}</a>` : ''}
-      </div>` : '';
+    // Tel1: siempre visible
+    const tel1Item = tel
+      ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel)}">${icoTel} <strong class="hist-ficha-contacto-label">Tel 1:</strong> ${escHtml(tel)}</span>`
+      : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoTel} <strong class="hist-ficha-contacto-label">Tel 1:</strong> ${sinDatoHtml()}</span>`;
+
+    // Tel2: siempre visible
+    const tel2Item = tel2
+      ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel2)}">${icoTel} <strong class="hist-ficha-contacto-label">Tel 2:</strong> ${escHtml(tel2)}</span>`
+      : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoTel} <strong class="hist-ficha-contacto-label">Tel 2:</strong> ${sinDatoHtml()}</span>`;
+
+    // Email: siempre visible
+    const emailItem = email
+      ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${escHtml(email)}</a>`
+      : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${sinDatoHtml()}</span>`;
 
     ficha.innerHTML = `
       <div class="hist-ficha-card">
@@ -205,7 +215,11 @@
             Selecciona el per\u00edodo y pulsa <strong>Buscar</strong>
           </div>
         </div>
-        ${contactoHtml}
+        <div class="hist-ficha-contacto">
+          ${tel1Item}
+          ${tel2Item}
+          ${emailItem}
+        </div>
       </div>`;
     show('histFichaCliente');
   }
@@ -424,7 +438,7 @@
   }
 
   // ── Resumen ───────────────────────────────────────────────────────────────
-  // v2.2.0: usa .hist-resumen-texto como wrapper para que text-overflow funcione
+  // v2.3.0: Tel1, Tel2 y Email SIEMPRE visibles con badge SIN DATO si vacíos
   function renderResumen(data, yDesde, yHasta) {
     const { historial } = data;
     const productos = new Set();
@@ -445,8 +459,8 @@
     const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
-    // Helper para construir un item del resumen
-    function item(iconSvg, label, valorHtml, rawVal, extraClass = '') {
+    // Helper para un item del resumen
+    function item(iconSvg, label, valorHtml, extraClass = '') {
       return `
         <div class="hist-resumen-item${extraClass ? ' ' + extraClass : ''}">
           <span class="hist-resumen-icon">${iconSvg}</span>
@@ -465,30 +479,37 @@
     const seccion = document.getElementById('histResumen');
     if (!seccion) return;
 
+    // Tel1: siempre
+    const tel1Html = tel
+      ? `<span class="hist-resumen-valor" title="${escHtml(tel)}">${escHtml(tel)}</span>`
+      : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
+
+    // Tel2: siempre
+    const tel2Html = tel2
+      ? `<span class="hist-resumen-valor" title="${escHtml(tel2)}">${escHtml(tel2)}</span>`
+      : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
+
+    // Email: siempre
+    const emailHtml = email
+      ? `<a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${escHtml(email)}</a>`
+      : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
+
     seccion.innerHTML = `
       <div class="hist-resumen-card">
         <div class="hist-resumen-row">
           ${item(icoCliente, 'Cliente',
             `<span class="hist-resumen-valor" title="${escHtml(nomCompleto)}">${escHtml(nomCompleto)}</span>`,
-            nomCompleto, 'hist-resumen-item--cliente')}
+            'hist-resumen-item--cliente')}
           ${item(icoPeriodo, 'Per\u00edodo',
-            `<span class="hist-resumen-valor" title="${escHtml(periodoLabel)}">${escHtml(periodoLabel)}</span>`,
-            periodoLabel)}
-          ${tel  ? item(icoTel,  'Tel\u00e9fono 1',
-            `<span class="hist-resumen-valor" title="${escHtml(tel)}">${escHtml(tel)}</span>`,
-            tel) : ''}
-          ${tel2 ? item(icoTel,  'Tel\u00e9fono 2',
-            `<span class="hist-resumen-valor" title="${escHtml(tel2)}">${escHtml(tel2)}</span>`,
-            tel2) : ''}
-          ${email ? item(icoMail, 'Email',
-            `<a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${escHtml(email)}</a>`,
-            email) : ''}
+            `<span class="hist-resumen-valor" title="${escHtml(periodoLabel)}">${escHtml(periodoLabel)}</span>`)}
+          ${item(icoTel,  'Tel\u00e9fono 1', tel1Html)}
+          ${item(icoTel,  'Tel\u00e9fono 2', tel2Html)}
+          ${item(icoMail, 'Email',           emailHtml)}
           ${item(icoProd, 'Productos distintos',
-            `<span class="hist-resumen-valor hist-resumen-valor--num">${productos.size}</span>`,
-            productos.size)}
+            `<span class="hist-resumen-valor hist-resumen-valor--num">${productos.size}</span>`)}
           ${item(icoTotal, 'Total per\u00edodo',
             `<span class="hist-resumen-valor hist-resumen-valor--total">${totalFmt}</span>`,
-            totalFmt, 'hist-resumen-item--total')}
+            'hist-resumen-item--total')}
         </div>
       </div>`;
     show('histResumen');

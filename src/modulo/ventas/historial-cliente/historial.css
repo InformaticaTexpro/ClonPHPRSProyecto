@@ -1,9 +1,8 @@
-/* historial.css v3.0.0
- * Rediseño visual completo:
- *  - Barra resumen: grid adaptativo, texto truncado, sin overflow
- *  - Ficha cliente: nombre truncado con tooltip, contacto en fila separada
- *  - Tabla: cabecera más compacta, descripción con tooltip
- *  - Tipografía más limpia y jerarquía visual mejorada
+/* historial.css v3.1.0
+ * v3.1.0: Badge .hist-sin-dato (rojo) para campos vacíos Tel1/Tel2/Email.
+ *         .hist-ficha-contacto-item--vacio y .hist-resumen-item--vacio
+ *         para estilizar los campos sin dato.
+ * v3.0.0: Rediseño visual completo.
  */
 
 /* ════ VARIABLES LOCALES ════════════════════════════════════════════════════ */
@@ -16,6 +15,9 @@
   --hist-accent-mid:     #1a3a5c;
   --hist-accent-light:   #f0f4f8;
   --hist-gold:           #f5a623;
+  --hist-sin-dato-bg:    rgba(220, 38, 38, 0.12);
+  --hist-sin-dato-color: #dc2626;
+  --hist-sin-dato-border:rgba(220, 38, 38, 0.30);
   --hist-thead-bg:       #0a2540;
   --hist-tfoot-bg:       #eaf7f3;
   --hist-tfoot-text:     #0a2540;
@@ -33,6 +35,27 @@
 
 /* ════ VISIBILIDAD ══════════════════════════════════════════════════════════ */
 .hist--hidden { display: none !important; }
+
+/* ════ BADGE SIN DATO ═══════════════════════════════════════════════════════
+ * Se usa para campos vacíos: Tel1, Tel2, Email
+ * Rojo llamativo para que sea fácil identificar datos faltantes en la BD
+ ══════════════════════════════════════════════════════════════════════════ */
+.hist-sin-dato {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--hist-sin-dato-color);
+  background: var(--hist-sin-dato-bg);
+  border: 1px solid var(--hist-sin-dato-border);
+  border-radius: 99px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 
 /* ════ FILTROS ══════════════════════════════════════════════════════════════ */
 .hist-filtros-section { margin-bottom: 1.4rem; }
@@ -210,8 +233,7 @@
 /* ════ FICHA CLIENTE ════════════════════════════════════════════════════════
  * Layout de dos filas:
  *   Fila 1: ícono · [código + nombre] · hint
- *   Fila 2: (contacto si existe)
- * El nombre usa text-overflow solo en pantallas pequeñas.
+ *   Fila 2: contacto (Tel1, Tel2, Email — siempre visibles)
  ══════════════════════════════════════════════════════════════════════════ */
 #histFichaCliente { margin-bottom: 1.25rem; }
 
@@ -223,10 +245,9 @@
   box-shadow: 0 2px 10px rgba(0,226,167,.09);
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  gap: .6rem;
 }
 
-/* Fila principal */
 .hist-ficha-top {
   display: flex;
   align-items: center;
@@ -247,7 +268,7 @@
   flex-direction: column;
   gap: 3px;
   flex: 1;
-  min-width: 0; /* crucial para que text-overflow funcione */
+  min-width: 0;
 }
 
 .hist-ficha-codigo {
@@ -264,18 +285,26 @@
 .hist-ficha-nombre {
   font-size: .93rem; font-weight: 700;
   color: var(--hist-accent);
-  /* Permite wrap en pantallas pequeñas; trunca solo si es muy largo */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Fila de contacto */
+/* Fila de contacto: Tel1, Tel2, Email — siempre los 3 */
 .hist-ficha-contacto {
   display: flex;
   flex-wrap: wrap;
-  gap: .4rem .9rem;
-  padding-left: calc(40px + .85rem); /* alinea con el texto de arriba */
+  gap: .4rem .75rem;
+  padding-left: calc(40px + .85rem);
+  align-items: center;
+}
+
+.hist-ficha-contacto-label {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--hist-accent);
+  opacity: .65;
+  margin-right: 2px;
 }
 
 .hist-ficha-contacto-item {
@@ -283,8 +312,19 @@
   font-size: .78rem; color: #555;
   background: var(--hist-accent-light);
   border-radius: 99px;
-  padding: 2px 9px 2px 6px;
+  padding: 3px 10px 3px 7px;
   white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* Item con dato vacío: fondo rojo muy suave */
+.hist-ficha-contacto-item--vacio {
+  background: var(--hist-sin-dato-bg);
+  border-color: var(--hist-sin-dato-border);
+  color: #9a2f2f;
+}
+.hist-ficha-contacto-item--vacio svg {
+  opacity: .5;
 }
 
 .hist-ficha-contacto-link {
@@ -309,8 +349,8 @@
 }
 
 /* ════ RESUMEN ══════════════════════════════════════════════════════════════
- * Grid de 2 columnas en móvil, hasta 6 en escritorio.
- * Cada celda trunca texto largo — sin overflow visible.
+ * Tel1, Tel2 y Email SIEMPRE visibles.
+ * Badge .hist-sin-dato cuando el campo está vacío.
  ══════════════════════════════════════════════════════════════════════════ */
 #histResumen { margin-bottom: 1.4rem; }
 
@@ -321,7 +361,6 @@
   box-shadow: var(--hist-shadow-md);
 }
 
-/* Grid responsivo: 2 cols en móvil → auto-fill en escritorio */
 .hist-resumen-row {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -333,16 +372,11 @@
   display: flex;
   align-items: flex-start;
   gap: .6rem;
-  min-width: 0; /* CLAVE: permite truncado dentro del grid */
+  min-width: 0;
 }
 
-/* Items prioritarios ocupan más espacio */
-.hist-resumen-item--cliente {
-  grid-column: span 2;
-}
-.hist-resumen-item--total {
-  grid-column: span 1;
-}
+.hist-resumen-item--cliente { grid-column: span 2; }
+.hist-resumen-item--total   { grid-column: span 1; }
 
 .hist-resumen-icon {
   display: flex; align-items: center; justify-content: center;
@@ -353,11 +387,17 @@
   margin-top: 1px;
 }
 
+/* Ícono en rojo cuando el campo está vacío */
+.hist-resumen-item--vacio .hist-resumen-icon {
+  background: rgba(220,38,38,.18);
+  color: #f87171;
+}
+
 .hist-resumen-texto {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0; /* permite truncado del hijo */
+  min-width: 0;
   flex: 1;
 }
 
@@ -371,11 +411,10 @@
 .hist-resumen-valor {
   font-size: .86rem; font-weight: 600;
   color: #fff;
-  /* Truncar si es demasiado largo */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Tooltip nativo vía title="" en el HTML */
+  display: block;
 }
 
 .hist-resumen-valor--num {
@@ -388,7 +427,6 @@
   color: var(--hist-primary);
 }
 
-/* Link email en resumen */
 .hist-resumen-link {
   color: var(--hist-primary);
   text-decoration: none;
@@ -399,9 +437,7 @@
 .hist-resumen-link:hover { text-decoration: underline; }
 
 @media (max-width: 600px) {
-  .hist-resumen-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .hist-resumen-row { grid-template-columns: repeat(2, 1fr); }
   .hist-resumen-item--cliente { grid-column: span 2; }
   .hist-resumen-item--total   { grid-column: span 2; }
 }
@@ -532,7 +568,6 @@
   white-space: nowrap;
 }
 
-/* Descripción: una línea, trunca con tooltip nativo */
 .hist-desc-prod {
   color: #333;
   white-space: nowrap;
@@ -540,7 +575,6 @@
   text-overflow: ellipsis;
   max-width: 280px;
   display: block;
-  /* El atributo title="" en el HTML da el tooltip completo */
 }
 
 .hist-mes-cero  { text-align: right; color: var(--hist-cero-color); user-select: none; }
