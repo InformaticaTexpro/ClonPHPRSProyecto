@@ -37,8 +37,18 @@ const {
 } = require('../models/venta');
 const { validarMesAnio } = require('../utils/stringHelpers');
 
+/** Códigos de vendedor asignados al usuario autenticado. */
 function getCodigos(req) {
   return (req.usuario?.vendedores ?? []).map(v => v.cod_vendedor).filter(Boolean);
+}
+
+/**
+ * isAdmin — true si el usuario es administrador O no tiene vendedores asignados.
+ * En ambos casos se omite el filtro por CodVendedor para que puedan ver
+ * el historial/clientes de toda la cartera.
+ */
+function isAdmin(req) {
+  return req.usuario?.is_admin === true || getCodigos(req).length === 0;
 }
 
 // GET /api/ventas
@@ -260,43 +270,48 @@ router.get('/resumen', requireAuth, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/clientes   — autocomplete libre (q=texto)
+// Admin / sin cartera: busca en todos los clientes (sin filtro de vendedor).
+// Vendedor normal: restringe a su cartera.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
-    const codigos = getCodigos(req);
-    if (!codigos.length) return res.json({ ok: true, clientes: [] });
-
     const q = (req.query.q || '').trim();
     if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
 
-    const codigosIn = codigos.map(c => `'${c}'`).join(',');
     const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
-
-    const pool   = await getSoftlandPool();
-    const result = await pool.request()
+    const pool  = await getSoftlandPool();
+    const req2  = pool.request()
       .input('q1', sql.NVarChar, `%${qSafe}%`)
-      .input('q2', sql.NVarChar, `%${qSafe}%`)
-      .query(`
-        SELECT TOP 40
-          c.CodAux,
-          RTRIM(c.NomAux)   AS NomAux,
-          RTRIM(c.FonAux1)  AS FonAux1,
-          RTRIM(c.EMail)    AS Email
-        FROM [PRODIN].[softland].[cwtauxi] c
-        WHERE EXISTS (
+      .input('q2', sql.NVarChar, `%${qSafe}%`);
+
+    let whereVendedor = '';
+    if (!isAdmin(req)) {
+      const codigosIn = getCodigos(req).map(c => `'${c}'`).join(',');
+      whereVendedor = `
+        AND EXISTS (
           SELECT 1
           FROM [PRODIN].[softland].[iw_gsaen] h
           WHERE h.CodAux = c.CodAux
             AND h.CodVendedor IN (${codigosIn})
             AND h.Tipo IN ('F','N','D')
             AND h.Estado <> 'A'
-        )
-        AND (
-          RTRIM(c.NomAux)  LIKE @q1
-          OR c.CodAux      LIKE @q2
-        )
-        ORDER BY RTRIM(c.NomAux)
-      `);
+        )`;
+    }
+
+    const result = await req2.query(`
+      SELECT TOP 40
+        c.CodAux,
+        RTRIM(c.NomAux)   AS NomAux,
+        RTRIM(c.FonAux1)  AS FonAux1,
+        RTRIM(c.EMail)    AS Email
+      FROM [PRODIN].[softland].[cwtauxi] c
+      WHERE (
+        RTRIM(c.NomAux) LIKE @q1
+        OR c.CodAux     LIKE @q2
+      )
+      ${whereVendedor}
+      ORDER BY RTRIM(c.NomAux)
+    `);
 
     res.json({ ok: true, clientes: result.recordset });
   } catch (err) {
@@ -344,12 +359,11 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/historial-cliente
 //   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
+// Admin / sin cartera: devuelve toda la historia del cliente.
+// Vendedor normal: restringe al CodVendedor de su cartera.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/historial-cliente', requireAuth, async (req, res) => {
   try {
-    const codigos = getCodigos(req);
-    if (!codigos.length) return res.json({ ok: true, historial: [] });
-
     const { codAux, desde, hasta } = req.query;
 
     if (!codAux) return res.status(400).json({ ok: false, error: 'Parámetro codAux requerido' });
@@ -363,7 +377,12 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
     }
 
-    const codigosIn = codigos.map(c => `'${c}'`).join(',');
+    // Filtro de vendedor: sólo se aplica para vendedores con cartera asignada.
+    let whereVendedor = '';
+    if (!isAdmin(req)) {
+      const codigosIn = getCodigos(req).map(c => `'${c}'`).join(',');
+      whereVendedor = `AND h.CodVendedor IN (${codigosIn})`;
+    }
 
     const pool   = await getSoftlandPool();
     const result = await pool.request()
@@ -392,7 +411,7 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
         WHERE h.Tipo IN ('F', 'N', 'D')
           AND h.Estado <> 'A'
           AND h.CodAux = @codAux
-          AND h.CodVendedor IN (${codigosIn})
+          ${whereVendedor}
           AND h.Fecha >= @desde
           AND h.Fecha <= @hasta
         ORDER BY c.CodAux, h.Fecha DESC, m.CodProd
