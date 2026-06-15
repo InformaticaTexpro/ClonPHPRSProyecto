@@ -10,7 +10,7 @@
  * GET /api/ventas/resumen-vendedores   — ventas agrupadas por cod_vendedor
  * GET /api/ventas/evolucion            — ventas mes a mes del año
  * GET /api/ventas/meta                 — meta anual/mensual
- * GET /api/ventas/clientes             — autocomplete de clientes (q=texto)
+ * GET /api/ventas/clientes             — autocomplete de clientes (q=texto) filtrado por vendedor
  * GET /api/ventas/cliente-info         — info completa del cliente: ?codAux=
  * GET /api/ventas/historial-cliente    — historial por cliente: ?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
  * GET /api/ventas/folio/:folio         — monto de un folio
@@ -44,9 +44,7 @@ function getCodigos(req) {
 
 /**
  * isAdmin — true si el usuario es administrador O no tiene vendedores asignados.
- * Se usa ÚNICAMENTE para rutas de "mis ventas" (listado, kpis, resumen, evolucion).
- * Las rutas de historial y autocomplete de clientes NO usan este helper:
- * muestran información global sin restricción de vendedor.
+ * Los admins pueden ver todos los clientes sin restricción.
  */
 function isAdmin(req) {
   return req.usuario?.is_admin === true || getCodigos(req).length === 0;
@@ -270,22 +268,29 @@ router.get('/resumen', requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ventas/clientes   — autocomplete libre (q=texto)
-// FIX: se elimina el filtro por CodVendedor. El autocomplete retorna todos
-// los clientes de la BD que coincidan con la búsqueda, sin importar el
-// vendedor del usuario autenticado. El historial es información global.
+// GET /api/ventas/clientes   — autocomplete filtrado por vendedor del usuario
+//   q=texto
+//   Solo retorna clientes que hayan tenido al menos una factura/nota con
+//   alguno de los códigos de vendedor del usuario autenticado.
+//   Los administradores (is_admin=true) ven todos los clientes sin restricción.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
 
-    const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
-    const pool  = await getSoftlandPool();
-    const result = await pool.request()
+    const qSafe   = q.replace(/[%_[\]]/g, c => `[${c}]`);
+    const codigos = getCodigos(req);
+    const admin   = isAdmin(req);
+    const pool    = await getSoftlandPool();
+    const request = pool.request()
       .input('q1', sql.NVarChar, `%${qSafe}%`)
-      .input('q2', sql.NVarChar, `%${qSafe}%`)
-      .query(`
+      .input('q2', sql.NVarChar, `%${qSafe}%`);
+
+    let query;
+    if (admin || !codigos.length) {
+      // Administradores: búsqueda libre sin restricción de vendedor
+      query = `
         SELECT TOP 40
           c.CodAux,
           RTRIM(c.NomAux)   AS NomAux,
@@ -298,8 +303,35 @@ router.get('/clientes', requireAuth, async (req, res) => {
           OR c.CodAux     LIKE @q2
         )
         ORDER BY RTRIM(c.NomAux)
-      `);
+      `;
+    } else {
+      // Vendedores: solo clientes asociados a sus códigos de vendedor
+      const codigosIn = codigos.map(c => `'${c}'`).join(',');
+      query = `
+        SELECT TOP 40
+          c.CodAux,
+          RTRIM(c.NomAux)   AS NomAux,
+          RTRIM(c.FonAux1)  AS FonAux1,
+          RTRIM(c.FonAux2)  AS FonAux2,
+          RTRIM(c.EMail)    AS Email
+        FROM [PRODIN].[softland].[cwtauxi] c
+        WHERE (
+          RTRIM(c.NomAux) LIKE @q1
+          OR c.CodAux     LIKE @q2
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM [PRODIN].[softland].[iw_gsaen] enc
+          WHERE enc.CodAux       = c.CodAux
+            AND enc.CodVendedor  IN (${codigosIn})
+            AND enc.Tipo         IN ('F','N','D')
+            AND enc.Estado       <> 'A'
+        )
+        ORDER BY RTRIM(c.NomAux)
+      `;
+    }
 
+    const result = await request.query(query);
     res.json({ ok: true, clientes: result.recordset });
   } catch (err) {
     console.error('[GET /api/ventas/clientes]', err.message);
@@ -347,9 +379,8 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/historial-cliente
 //   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
-// FIX: se elimina el filtro por CodVendedor. El historial muestra TODAS
-// las compras del cliente, sin importar con qué vendedor fueron realizadas.
-// El filtro por vendedor solo aplica a las rutas de "mis ventas" del usuario.
+//   Muestra el historial de compras del cliente FILTRADO por los códigos de
+//   vendedor del usuario autenticado. Los administradores ven todo el historial.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/historial-cliente', requireAuth, async (req, res) => {
   try {
@@ -366,38 +397,47 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
     }
 
-    const pool   = await getSoftlandPool();
-    const result = await pool.request()
+    const codigos = getCodigos(req);
+    const admin   = isAdmin(req);
+    const pool    = await getSoftlandPool();
+    const request = pool.request()
       .input('codAux', sql.VarChar(20), codAux)
       .input('desde',  sql.Date, desde)
-      .input('hasta',  sql.Date, hasta)
-      .query(`
-        SELECT
-          c.CodAux,
-          RTRIM(c.NomAux)               AS NomAux,
-          RTRIM(c.FonAux1)              AS FonAux1,
-          RTRIM(c.FonAux2)              AS FonAux2,
-          RTRIM(c.EMail)                AS Email,
-          h.CodVendedor,
-          CONVERT(varchar(10), h.Fecha, 120) AS Fecha,
-          m.CodProd,
-          CAST(m.DetProd AS varchar(max)) AS DetProd,
-          m.TotLinea,
-          YEAR(h.Fecha)                 AS Anio,
-          MONTH(h.Fecha)                AS Mes
-        FROM [PRODIN].[softland].[iw_gsaen] h
-        INNER JOIN [PRODIN].[softland].[cwtauxi] c
-          ON c.CodAux = h.CodAux
-        INNER JOIN [PRODIN].[softland].[iw_gmovi] m
-          ON m.Tipo   = h.Tipo
-         AND m.NroInt = h.NroInt
-        WHERE h.Tipo IN ('F', 'N', 'D')
-          AND h.Estado <> 'A'
-          AND h.CodAux = @codAux
-          AND h.Fecha >= @desde
-          AND h.Fecha <= @hasta
-        ORDER BY h.Fecha DESC, m.CodProd
-      `);
+      .input('hasta',  sql.Date, hasta);
+
+    // Filtro de vendedor: admins ven todo; vendedores solo sus propias transacciones
+    const vendedorFiltro = (!admin && codigos.length)
+      ? `AND h.CodVendedor IN (${codigos.map(c => `'${c}'`).join(',')})`
+      : '';
+
+    const result = await request.query(`
+      SELECT
+        c.CodAux,
+        RTRIM(c.NomAux)               AS NomAux,
+        RTRIM(c.FonAux1)              AS FonAux1,
+        RTRIM(c.FonAux2)              AS FonAux2,
+        RTRIM(c.EMail)                AS Email,
+        h.CodVendedor,
+        CONVERT(varchar(10), h.Fecha, 120) AS Fecha,
+        m.CodProd,
+        CAST(m.DetProd AS varchar(max)) AS DetProd,
+        m.TotLinea,
+        YEAR(h.Fecha)                 AS Anio,
+        MONTH(h.Fecha)                AS Mes
+      FROM [PRODIN].[softland].[iw_gsaen] h
+      INNER JOIN [PRODIN].[softland].[cwtauxi] c
+        ON c.CodAux = h.CodAux
+      INNER JOIN [PRODIN].[softland].[iw_gmovi] m
+        ON m.Tipo   = h.Tipo
+       AND m.NroInt = h.NroInt
+      WHERE h.Tipo IN ('F', 'N', 'D')
+        AND h.Estado <> 'A'
+        AND h.CodAux = @codAux
+        AND h.Fecha >= @desde
+        AND h.Fecha <= @hasta
+        ${vendedorFiltro}
+      ORDER BY h.Fecha DESC, m.CodProd
+    `);
 
     res.json({ ok: true, historial: result.recordset });
   } catch (err) {
