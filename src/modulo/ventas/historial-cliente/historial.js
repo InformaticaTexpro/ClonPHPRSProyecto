@@ -1,20 +1,19 @@
 'use strict';
 
 /**
- * historial.js v2.1.0
+ * historial.js v2.2.0
+ *
+ * Fix v2.2.0:
+ *   - renderFichaCliente(): usa nuevo layout .hist-ficha-top + .hist-ficha-info
+ *     El contacto va en .hist-ficha-contacto fuera de .hist-ficha-top para
+ *     evitar que nombres largos compriman el hint.
+ *   - renderResumen(): cada item usa .hist-resumen-texto (nuevo wrapper CSS)
+ *     con title="" para tooltip nativo al hacer hover sobre texto truncado.
+ *   - Elimina console.log de debug de producción.
  *
  * Fix v2.1.0:
  *   - Agrega FonAux2 (segundo teléfono) en ficha y resumen.
- *   - Corrige lectura de email: prueba primerRow.Email, primerRow.email
- *     y primerRow.EmailAux para cubrir distintas convenciones de la API.
- *   - clienteSeleccionado ahora incluye tel2 además de tel y email.
- *
- * Fix v2.0.9:
- *   - renderFichaCliente(): muestra email y teléfono.
- *   - renderResumen(): incluye email y teléfono.
- *
- * Fix v2.0.8:
- *   - Visibilidad migrada a clase .hist--hidden.
+ *   - Corrige lectura de email con múltiples fallbacks.
  */
 
 (function () {
@@ -75,10 +74,6 @@
     else if (cual === 'cargando') show('histSpinner');
   }
 
-  /**
-   * Extrae el email de una fila del historial probando múltiples
-   * nombres de campo para cubrir distintas convenciones de la API.
-   */
   function extraerEmail(row) {
     return row.Email || row.email || row.EmailAux || row.emailAux || row.MAIL || row.Mail || '';
   }
@@ -176,6 +171,7 @@
   }
 
   // ── Ficha del cliente ────────────────────────────────────────────────────
+  // v2.2.0: layout en dos filas para evitar que nombres largos tapen el hint
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
@@ -184,31 +180,32 @@
     const tel2  = clienteSeleccionado?.tel2  || '';
     const email = clienteSeleccionado?.email || '';
 
-    // Ícono teléfono reutilizable
-    const icoTel = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
     const contactoHtml = (tel || tel2 || email) ? `
       <div class="hist-ficha-contacto">
-        ${tel  ? `<span class="hist-ficha-contacto-item">${icoTel} ${escHtml(tel)}</span>` : ''}
-        ${tel2 ? `<span class="hist-ficha-contacto-item">${icoTel} ${escHtml(tel2)}</span>` : ''}
-        ${email ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}">${icoMail} ${escHtml(email)}</a>` : ''}
+        ${tel  ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel)}">${icoTel} ${escHtml(tel)}</span>` : ''}
+        ${tel2 ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel2)}">${icoTel} ${escHtml(tel2)}</span>` : ''}
+        ${email ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${icoMail} ${escHtml(email)}</a>` : ''}
       </div>` : '';
 
     ficha.innerHTML = `
       <div class="hist-ficha-card">
-        <div class="hist-ficha-icono">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div class="hist-ficha-top">
+          <div class="hist-ficha-icono">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="hist-ficha-info">
+            <span class="hist-ficha-codigo">${escHtml(cod)}</span>
+            <span class="hist-ficha-nombre" title="${escHtml(nom)}">${escHtml(nom)}</span>
+          </div>
+          <div class="hist-ficha-hint">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            Selecciona el per\u00edodo y pulsa <strong>Buscar</strong>
+          </div>
         </div>
-        <div class="hist-ficha-info">
-          <span class="hist-ficha-codigo">${escHtml(cod)}</span>
-          <span class="hist-ficha-nombre">${escHtml(nom)}</span>
-          ${contactoHtml}
-        </div>
-        <div class="hist-ficha-hint">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          Selecciona el per\u00edodo y pulsa <strong>Buscar</strong> para cargar el historial
-        </div>
+        ${contactoHtml}
       </div>`;
     show('histFichaCliente');
   }
@@ -401,19 +398,10 @@
         return;
       }
 
-      // Leer contacto desde la primera fila (con fallbacks para distintos nombres de campo)
       const primerRow = data.historial[0];
       if (!clienteSeleccionado.tel)   clienteSeleccionado.tel   = primerRow.FonAux1 || primerRow.fonAux1 || primerRow.Telefono || primerRow.telefono || '';
       if (!clienteSeleccionado.tel2)  clienteSeleccionado.tel2  = primerRow.FonAux2 || primerRow.fonAux2 || '';
       if (!clienteSeleccionado.email) clienteSeleccionado.email = extraerEmail(primerRow);
-
-      // Log de debug temporal (quitar en producción si se desea)
-      console.log('[historial] contacto cliente:', {
-        tel:   clienteSeleccionado.tel,
-        tel2:  clienteSeleccionado.tel2,
-        email: clienteSeleccionado.email,
-        camposRow: Object.keys(primerRow)
-      });
 
       renderFichaCliente(clienteSeleccionado.codAux, clienteSeleccionado.nomAux);
       renderResumen(data, yDesde, yHasta);
@@ -436,6 +424,7 @@
   }
 
   // ── Resumen ───────────────────────────────────────────────────────────────
+  // v2.2.0: usa .hist-resumen-texto como wrapper para que text-overflow funcione
   function renderResumen(data, yDesde, yHasta) {
     const { historial } = data;
     const productos = new Set();
@@ -451,81 +440,55 @@
     const tel   = clienteSeleccionado?.tel   || '';
     const tel2  = clienteSeleccionado?.tel2  || '';
     const email = clienteSeleccionado?.email || '';
+    const nomCompleto = `${clienteSeleccionado.codAux} \u2014 ${clienteSeleccionado.nomAux}`;
 
-    const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
-    const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+    const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
-    const tel1Item = tel ? `
-      <div class="hist-resumen-item">
-        <span class="hist-resumen-icon">${icoTel}</span>
-        <div>
-          <span class="hist-resumen-label">Tel\u00e9fono 1</span>
-          <span class="hist-resumen-valor">${escHtml(tel)}</span>
-        </div>
-      </div>` : '';
+    // Helper para construir un item del resumen
+    function item(iconSvg, label, valorHtml, rawVal, extraClass = '') {
+      return `
+        <div class="hist-resumen-item${extraClass ? ' ' + extraClass : ''}">
+          <span class="hist-resumen-icon">${iconSvg}</span>
+          <div class="hist-resumen-texto">
+            <span class="hist-resumen-label">${label}</span>
+            ${valorHtml}
+          </div>
+        </div>`;
+    }
 
-    const tel2Item = tel2 ? `
-      <div class="hist-resumen-item">
-        <span class="hist-resumen-icon">${icoTel}</span>
-        <div>
-          <span class="hist-resumen-label">Tel\u00e9fono 2</span>
-          <span class="hist-resumen-valor">${escHtml(tel2)}</span>
-        </div>
-      </div>` : '';
-
-    const emailItem = email ? `
-      <div class="hist-resumen-item">
-        <span class="hist-resumen-icon">${icoMail}</span>
-        <div>
-          <span class="hist-resumen-label">Email</span>
-          <a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}">${escHtml(email)}</a>
-        </div>
-      </div>` : '';
+    const icoCliente = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    const icoPeriodo = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`;
+    const icoProd    = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M2 7h20"/></svg>`;
+    const icoTotal   = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
 
     const seccion = document.getElementById('histResumen');
     if (!seccion) return;
+
     seccion.innerHTML = `
       <div class="hist-resumen-card">
         <div class="hist-resumen-row">
-          <div class="hist-resumen-item hist-resumen-item--cliente">
-            <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </span>
-            <div>
-              <span class="hist-resumen-label">Cliente</span>
-              <span class="hist-resumen-valor">${escHtml(clienteSeleccionado.codAux)} &nbsp;\u2014&nbsp; ${escHtml(clienteSeleccionado.nomAux)}</span>
-            </div>
-          </div>
-          <div class="hist-resumen-item">
-            <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-            </span>
-            <div>
-              <span class="hist-resumen-label">Per\u00edodo</span>
-              <span class="hist-resumen-valor">${escHtml(periodoLabel)}</span>
-            </div>
-          </div>
-          ${tel1Item}
-          ${tel2Item}
-          ${emailItem}
-          <div class="hist-resumen-item">
-            <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M2 7h20"/></svg>
-            </span>
-            <div>
-              <span class="hist-resumen-label">Productos distintos</span>
-              <span class="hist-resumen-valor hist-resumen-valor--num">${productos.size}</span>
-            </div>
-          </div>
-          <div class="hist-resumen-item hist-resumen-item--total">
-            <span class="hist-resumen-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </span>
-            <div>
-              <span class="hist-resumen-label">Total per\u00edodo</span>
-              <span class="hist-resumen-valor hist-resumen-valor--total">${totalFmt}</span>
-            </div>
-          </div>
+          ${item(icoCliente, 'Cliente',
+            `<span class="hist-resumen-valor" title="${escHtml(nomCompleto)}">${escHtml(nomCompleto)}</span>`,
+            nomCompleto, 'hist-resumen-item--cliente')}
+          ${item(icoPeriodo, 'Per\u00edodo',
+            `<span class="hist-resumen-valor" title="${escHtml(periodoLabel)}">${escHtml(periodoLabel)}</span>`,
+            periodoLabel)}
+          ${tel  ? item(icoTel,  'Tel\u00e9fono 1',
+            `<span class="hist-resumen-valor" title="${escHtml(tel)}">${escHtml(tel)}</span>`,
+            tel) : ''}
+          ${tel2 ? item(icoTel,  'Tel\u00e9fono 2',
+            `<span class="hist-resumen-valor" title="${escHtml(tel2)}">${escHtml(tel2)}</span>`,
+            tel2) : ''}
+          ${email ? item(icoMail, 'Email',
+            `<a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${escHtml(email)}</a>`,
+            email) : ''}
+          ${item(icoProd, 'Productos distintos',
+            `<span class="hist-resumen-valor hist-resumen-valor--num">${productos.size}</span>`,
+            productos.size)}
+          ${item(icoTotal, 'Total per\u00edodo',
+            `<span class="hist-resumen-valor hist-resumen-valor--total">${totalFmt}</span>`,
+            totalFmt, 'hist-resumen-item--total')}
         </div>
       </div>`;
     show('histResumen');
@@ -548,13 +511,13 @@
       porAnio[anio][key].meses[mes] = (porAnio[anio][key].meses[mes] || 0) + Number(row.TotLinea || 0);
       porAnio[anio][key].total      += Number(row.TotLinea || 0);
     });
-    Object.keys(porAnio).sort((a, b) => Number(b) - Number(a)).forEach((anio, idx) => {
-      contenedor.appendChild(renderBloqueAnio(anio, Object.values(porAnio[anio]), idx, yDesde, yHasta));
+    Object.keys(porAnio).sort((a, b) => Number(b) - Number(a)).forEach((anio) => {
+      contenedor.appendChild(renderBloqueAnio(anio, Object.values(porAnio[anio]), yDesde, yHasta));
     });
     show('histResultados');
   }
 
-  function renderBloqueAnio(anio, productos, idx, yDesde, yHasta) {
+  function renderBloqueAnio(anio, productos, yDesde, yHasta) {
     const meses    = Array.from({ length: 12 }, (_, i) => i + 1);
     productos.sort((a, b) => b.total - a.total);
     const totalesMes = {};
