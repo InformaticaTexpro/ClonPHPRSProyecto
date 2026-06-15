@@ -1,12 +1,19 @@
 'use strict';
 
 /**
- * historial.js v2.3.0
+ * historial.js v2.4.0
+ *
+ * Fix v2.4.0:
+ *   - Tel1, Tel2 y Email se cargan INMEDIATAMENTE al seleccionar el cliente
+ *     desde el autocomplete, sin esperar a pulsar "Buscar".
+ *   - seleccionarCliente() lee FonAux1/Email del <li> y llama /api/ventas/cliente-info
+ *     para obtener FonAux2 (segundo teléfono).
+ *   - Los tres campos se muestran SIEMPRE en la ficha y en el resumen;
+ *     si están vacíos se muestra el badge rojo "SIN DATO".
  *
  * Fix v2.3.0:
  *   - Tel1, Tel2 y Email SIEMPRE se muestran en ficha y resumen.
  *   - Si el campo está vacío muestra badge "SIN DATO" (clase .hist-sin-dato)
- *     para que el equipo pueda identificar datos faltantes en la BD.
  *
  * Fix v2.2.0:
  *   - renderFichaCliente() usa layout .hist-ficha-top de dos filas.
@@ -15,8 +22,9 @@
 
 (function () {
 
-  const API_CLIENTES  = '/api/ventas/clientes';
-  const API_HISTORIAL = '/api/ventas/historial-cliente';
+  const API_CLIENTES    = '/api/ventas/clientes';
+  const API_HISTORIAL   = '/api/ventas/historial-cliente';
+  const API_CLI_INFO    = '/api/ventas/cliente-info';
   const token = () => localStorage.getItem('token');
 
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -173,7 +181,7 @@
   }
 
   // ── Ficha del cliente ────────────────────────────────────────────────────
-  // v2.3.0: Tel1, Tel2 y Email SIEMPRE visibles; muestra badge "SIN DATO" si falta
+  // v2.4.0: Tel1, Tel2 y Email SIEMPRE visibles; muestra badge "SIN DATO" si falta
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
@@ -321,13 +329,19 @@
         return;
       }
       lista.innerHTML = data.clientes.slice(0, 40).map(c => `
-        <li role="option" data-cod="${escHtml(c.CodAux)}" data-nom="${escHtml(c.NomAux)}">
+        <li role="option"
+          data-cod="${escHtml(c.CodAux)}"
+          data-nom="${escHtml(c.NomAux)}"
+          data-tel="${escHtml(c.FonAux1 || '')}"
+          data-email="${escHtml(extraerEmail(c))}">
           <span class="hist-ac-codigo">${escHtml(c.CodAux)}</span>
           <span class="hist-ac-nombre">${escHtml(c.NomAux)}</span>
         </li>`).join('');
       show('listaClientes');
       lista.querySelectorAll('li[data-cod]').forEach(li => {
-        li.addEventListener('click', () => seleccionarCliente(li.dataset.cod, li.dataset.nom));
+        li.addEventListener('click', () =>
+          seleccionarCliente(li.dataset.cod, li.dataset.nom, li.dataset.tel, li.dataset.email)
+        );
       });
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -338,9 +352,19 @@
   }
 
   // ── Seleccionar cliente ───────────────────────────────────────────────────
-  function seleccionarCliente(cod, nom) {
+  // v2.4.0: recibe tel1 y email desde el autocomplete, luego carga tel2
+  //         desde cliente-info de forma asíncrona y actualiza la ficha.
+  function seleccionarCliente(cod, nom, tel1 = '', emailAc = '') {
     if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
-    clienteSeleccionado = { codAux: cod, nomAux: nom, tel: '', tel2: '', email: '' };
+
+    // Inicializar con los datos ya disponibles desde el autocomplete
+    clienteSeleccionado = {
+      codAux: cod,
+      nomAux: nom,
+      tel:    tel1   || '',
+      tel2:   '',           // se cargará con cliente-info
+      email:  emailAc || ''
+    };
 
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
@@ -359,7 +383,27 @@
     mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
+
+    // Renderizar ficha inmediatamente con Tel1 y Email ya disponibles
     renderFichaCliente(cod, nom);
+
+    // Cargar Tel2 (FonAux2) desde cliente-info y actualizar la ficha
+    fetch(`${API_CLI_INFO}?codAux=${encodeURIComponent(cod)}`, {
+      headers: { Authorization: `Bearer ${token()}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!clienteSeleccionado || clienteSeleccionado.codAux !== cod) return;
+        if (data.ok && data.cliente) {
+          // Completar todos los campos con datos frescos de la BD
+          clienteSeleccionado.tel   = data.cliente.telefono  || clienteSeleccionado.tel;
+          clienteSeleccionado.tel2  = data.cliente.telefono2 || '';
+          clienteSeleccionado.email = data.cliente.email     || clienteSeleccionado.email;
+          // Re-renderizar ficha con Tel2 ya disponible
+          renderFichaCliente(cod, nom);
+        }
+      })
+      .catch(err => console.warn('[cliente-info]', err));
   }
 
   // ── Buscar historial ──────────────────────────────────────────────────────
@@ -412,6 +456,7 @@
         return;
       }
 
+      // Completar datos de contacto si aún no están cargados
       const primerRow = data.historial[0];
       if (!clienteSeleccionado.tel)   clienteSeleccionado.tel   = primerRow.FonAux1 || primerRow.fonAux1 || primerRow.Telefono || primerRow.telefono || '';
       if (!clienteSeleccionado.tel2)  clienteSeleccionado.tel2  = primerRow.FonAux2 || primerRow.fonAux2 || '';
@@ -438,7 +483,7 @@
   }
 
   // ── Resumen ───────────────────────────────────────────────────────────────
-  // v2.3.0: Tel1, Tel2 y Email SIEMPRE visibles con badge SIN DATO si vacíos
+  // v2.4.0: Tel1, Tel2 y Email SIEMPRE visibles con badge SIN DATO si vacíos
   function renderResumen(data, yDesde, yHasta) {
     const { historial } = data;
     const productos = new Set();
@@ -459,7 +504,6 @@
     const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
-    // Helper para un item del resumen
     function item(iconSvg, label, valorHtml, extraClass = '') {
       return `
         <div class="hist-resumen-item${extraClass ? ' ' + extraClass : ''}">
