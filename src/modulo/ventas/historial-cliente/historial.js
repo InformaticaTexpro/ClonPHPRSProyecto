@@ -1,7 +1,11 @@
 'use strict';
 
 /**
- * historial.js v2.4.0
+ * historial.js v2.5.0
+ *
+ * Fix v2.5.0:
+ *   - Nombre del ítem activo en sidebar cambiado a "Historial Cliente" (estándar).
+ *   - Nombres sidebar estandarizados: Dashboard | Ventas Asignadas | Historial Cliente | Alertas
  *
  * Fix v2.4.0:
  *   - Tel1, Tel2 y Email se cargan INMEDIATAMENTE al seleccionar el cliente
@@ -89,10 +93,12 @@
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────
+  // Nombres estándar en todos los módulos del área ventas:
+  //   Dashboard | Ventas Asignadas | Historial Cliente (activo) | Alertas
   const MODULOS = [
     { nombre: 'Dashboard',           icon: '\uD83C\uDFE0', url: '../dashboard/index.html',                        area: null },
-    { nombre: 'Ventas Asignadas',     icon: '\uD83D\uDCCA', url: '../ventas/index.html',                           area: ['ventas', 'gerencia'] },
-    { nombre: 'Historial',            icon: '\uD83D\uDCCB', url: './index.html',                                   area: ['ventas', 'gerencia'], activo: true },
+    { nombre: 'Ventas Asignadas',    icon: '\uD83D\uDCCA', url: '../ventas/index.html',                           area: ['ventas', 'gerencia'] },
+    { nombre: 'Historial Cliente',   icon: '\uD83D\uDCCB', url: './index.html',                                   area: ['ventas', 'gerencia'], activo: true },
     { nombre: 'Facturaci\u00f3n',     icon: '\uD83E\uDDFE', url: '../../facturacion/facturacion/index.html',        area: ['facturacion', 'contabilidad', 'gerencia'] },
     { nombre: 'Bodega',               icon: '\uD83C\uDFED', url: '../../bodega/bodega/index.html',                  area: ['bodega', 'produccion', 'gerencia'] },
     { nombre: 'Producci\u00f3n',      icon: '\u2699\uFE0F', url: '../../produccion/produccion/index.html',          area: ['produccion', 'gerencia'] },
@@ -181,7 +187,6 @@
   }
 
   // ── Ficha del cliente ────────────────────────────────────────────────────
-  // v2.4.0: Tel1, Tel2 y Email SIEMPRE visibles; muestra badge "SIN DATO" si falta
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
@@ -193,17 +198,14 @@
     const icoTel  = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
     const icoMail = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
 
-    // Tel1: siempre visible
     const tel1Item = tel
       ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel)}">${icoTel} <strong class="hist-ficha-contacto-label">Tel 1:</strong> ${escHtml(tel)}</span>`
       : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoTel} <strong class="hist-ficha-contacto-label">Tel 1:</strong> ${sinDatoHtml()}</span>`;
 
-    // Tel2: siempre visible
     const tel2Item = tel2
       ? `<span class="hist-ficha-contacto-item" title="${escHtml(tel2)}">${icoTel} <strong class="hist-ficha-contacto-label">Tel 2:</strong> ${escHtml(tel2)}</span>`
       : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoTel} <strong class="hist-ficha-contacto-label">Tel 2:</strong> ${sinDatoHtml()}</span>`;
 
-    // Email: siempre visible
     const emailItem = email
       ? `<a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${escHtml(email)}</a>`
       : `<span class="hist-ficha-contacto-item hist-ficha-contacto-item--vacio">${icoMail} <strong class="hist-ficha-contacto-label">Email:</strong> ${sinDatoHtml()}</span>`;
@@ -351,18 +353,14 @@
     }
   }
 
-  // ── Seleccionar cliente ───────────────────────────────────────────────────
-  // v2.4.0: recibe tel1 y email desde el autocomplete, luego carga tel2
-  //         desde cliente-info de forma asíncrona y actualiza la ficha.
   function seleccionarCliente(cod, nom, tel1 = '', emailAc = '') {
     if (acAbortClientes) { acAbortClientes.abort(); acAbortClientes = null; }
 
-    // Inicializar con los datos ya disponibles desde el autocomplete
     clienteSeleccionado = {
       codAux: cod,
       nomAux: nom,
       tel:    tel1   || '',
-      tel2:   '',           // se cargará con cliente-info
+      tel2:   '',
       email:  emailAc || ''
     };
 
@@ -384,10 +382,8 @@
     hide('histResumen');
     hide('histResultados');
 
-    // Renderizar ficha inmediatamente con Tel1 y Email ya disponibles
     renderFichaCliente(cod, nom);
 
-    // Cargar Tel2 (FonAux2) desde cliente-info y actualizar la ficha
     fetch(`${API_CLI_INFO}?codAux=${encodeURIComponent(cod)}`, {
       headers: { Authorization: `Bearer ${token()}` }
     })
@@ -395,18 +391,15 @@
       .then(data => {
         if (!clienteSeleccionado || clienteSeleccionado.codAux !== cod) return;
         if (data.ok && data.cliente) {
-          // Completar todos los campos con datos frescos de la BD
           clienteSeleccionado.tel   = data.cliente.telefono  || clienteSeleccionado.tel;
           clienteSeleccionado.tel2  = data.cliente.telefono2 || '';
           clienteSeleccionado.email = data.cliente.email     || clienteSeleccionado.email;
-          // Re-renderizar ficha con Tel2 ya disponible
           renderFichaCliente(cod, nom);
         }
       })
       .catch(err => console.warn('[cliente-info]', err));
   }
 
-  // ── Buscar historial ──────────────────────────────────────────────────────
   async function buscarHistorial() {
     if (!clienteSeleccionado) return;
     const yDesde = document.getElementById('fechaDesde')?.value;
@@ -456,7 +449,6 @@
         return;
       }
 
-      // Completar datos de contacto si aún no están cargados
       const primerRow = data.historial[0];
       if (!clienteSeleccionado.tel)   clienteSeleccionado.tel   = primerRow.FonAux1 || primerRow.fonAux1 || primerRow.Telefono || primerRow.telefono || '';
       if (!clienteSeleccionado.tel2)  clienteSeleccionado.tel2  = primerRow.FonAux2 || primerRow.fonAux2 || '';
@@ -482,8 +474,6 @@
     }
   }
 
-  // ── Resumen ───────────────────────────────────────────────────────────────
-  // v2.4.0: Tel1, Tel2 y Email SIEMPRE visibles con badge SIN DATO si vacíos
   function renderResumen(data, yDesde, yHasta) {
     const { historial } = data;
     const productos = new Set();
@@ -523,17 +513,14 @@
     const seccion = document.getElementById('histResumen');
     if (!seccion) return;
 
-    // Tel1: siempre
     const tel1Html = tel
       ? `<span class="hist-resumen-valor" title="${escHtml(tel)}">${escHtml(tel)}</span>`
       : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
 
-    // Tel2: siempre
     const tel2Html = tel2
       ? `<span class="hist-resumen-valor" title="${escHtml(tel2)}">${escHtml(tel2)}</span>`
       : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
 
-    // Email: siempre
     const emailHtml = email
       ? `<a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}" title="${escHtml(email)}">${escHtml(email)}</a>`
       : `<span class="hist-resumen-valor">${sinDatoHtml()}</span>`;
@@ -559,7 +546,6 @@
     show('histResumen');
   }
 
-  // ── Tablas por año ────────────────────────────────────────────────────────
   function renderResultados(historial, yDesde, yHasta) {
     const contenedor = document.getElementById('histResultados');
     if (!contenedor) return;
@@ -670,7 +656,6 @@
     return bloque;
   }
 
-  // ── Limpiar ───────────────────────────────────────────────────────────────
   function limpiarFormulario() {
     if (acAbortClientes)  { acAbortClientes.abort();  acAbortClientes  = null; }
     if (acAbortHistorial) { acAbortHistorial.abort(); acAbortHistorial = null; }
@@ -693,7 +678,6 @@
     mostrarEstado('inicial');
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
