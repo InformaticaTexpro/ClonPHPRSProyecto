@@ -16,6 +16,7 @@
  *                    Recuperados); elimina lista-KPI redundante del HTML
  * 2026-06-11: fix — descuentos redondeados (sin decimales) en KPI global,
  *                    tabla vendedores y tabla ventas del mes
+ * 2026-06-15: feat — cartera: agrega columna Historial con botón enlace a historial-cliente
  */
 
 (function () {
@@ -23,6 +24,9 @@
   const API        = '/api/dashboard';
   const API_CART   = '/api/cartera';
   const token      = () => localStorage.getItem('token');
+
+  // Ruta relativa al módulo historial-cliente
+  const HISTORIAL_URL = '../historial-cliente/index.html';
 
   let graficoEvolucion              = null;
   let graficoClientesDistribucion   = null;
@@ -492,7 +496,10 @@
   function renderTablaCartera(tbodyId, lista, mensajeVacio) {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
-    if (!lista.length) { tbody.innerHTML = `<tr class="tabla-empty"><td colspan="5">${mensajeVacio}</td></tr>`; return; }
+    if (!lista.length) {
+      tbody.innerHTML = `<tr class="tabla-empty"><td colspan="6">${mensajeVacio}</td></tr>`;
+      return;
+    }
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
         ? `<a href="mailto:${escHtml(c.EMail)}" style="color:var(--color-primary);text-decoration:none" title="${escHtml(c.EMail)}">${escHtml(c.EMail)}</a>`
@@ -503,12 +510,20 @@
       const tel2Html = c.FonAux2
         ? `<a href="tel:${escHtml(c.FonAux2)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FonAux2)}</a>`
         : '—';
+      const codEnc = encodeURIComponent(c.CodAux || '');
+      const historialHtml = c.CodAux
+        ? `<a href="${HISTORIAL_URL}?cliente=${codEnc}" class="btn-historial-cliente" title="Ver historial de ${escHtml(c.NomAux || c.CodAux)}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Ver
+          </a>`
+        : '—';
       return `<tr>
           <td><code>${escHtml(c.CodAux) || '—'}</code></td>
           <td>${escHtml(c.NomAux) || '—'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
+          <td style="text-align:center">${historialHtml}</td>
         </tr>`;
     }).join('');
   }
