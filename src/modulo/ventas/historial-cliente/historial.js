@@ -1,15 +1,17 @@
 'use strict';
 
 /**
- * historial.js v2.0.8
+ * historial.js v2.0.9
+ *
+ * Fix v2.0.9:
+ *   - renderFichaCliente(): muestra email y teléfono del cliente cuando
+ *     están disponibles (tras buscar historial).
+ *   - renderResumen(): incluye email y teléfono en la tarjeta de resumen.
+ *   - seleccionarCliente(): pasa tel y email (vacíos al inicio).
  *
  * Fix v2.0.8:
  *   - Sistema de visibilidad migrado de style.display a clase .hist--hidden
- *     con !important en CSS. Elimina conflicto con <style> inline del HTML
- *     que bloqueaba show()/hide() basados en style.display.
- *   - buscarHistorial(): muestra ficha del cliente + resumen + tabla
- *     correctamente al recibir datos de la API.
- *   - spinner de carga visible mientras espera respuesta de la API.
+ *     con !important en CSS.
  *
  * Fix v2.0.7:
  *   - cargarSidebar() actualiza chipAvatar y chipName en el header.
@@ -55,10 +57,6 @@
     if (el) el.textContent = val;
   }
 
-  /**
-   * show / hide usan la clase .hist--hidden (display:none !important en CSS).
-   * NO se toca style.display para evitar conflictos con <style> blocks del HTML.
-   */
   function show(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('hist--hidden');
@@ -74,9 +72,9 @@
     hide('histEstadoError');
     hide('histEstadoVacio');
     hide('histSpinner');
-    if (cual === 'inicial')  show('histEstadoInicial');
-    else if (cual === 'error')   show('histEstadoError');
-    else if (cual === 'vacio')   show('histEstadoVacio');
+    if (cual === 'inicial')   show('histEstadoInicial');
+    else if (cual === 'error')    show('histEstadoError');
+    else if (cual === 'vacio')    show('histEstadoVacio');
     else if (cual === 'cargando') show('histSpinner');
   }
 
@@ -176,6 +174,24 @@
   function renderFichaCliente(cod, nom) {
     const ficha = document.getElementById('histFichaCliente');
     if (!ficha) return;
+
+    const tel   = clienteSeleccionado?.tel   || '';
+    const email = clienteSeleccionado?.email || '';
+
+    const contactoHtml = (tel || email) ? `
+      <div class="hist-ficha-contacto">
+        ${tel ? `
+          <span class="hist-ficha-contacto-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            ${escHtml(tel)}
+          </span>` : ''}
+        ${email ? `
+          <a class="hist-ficha-contacto-item hist-ficha-contacto-link" href="mailto:${escHtml(email)}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            ${escHtml(email)}
+          </a>` : ''}
+      </div>` : '';
+
     ficha.innerHTML = `
       <div class="hist-ficha-card">
         <div class="hist-ficha-icono">
@@ -184,6 +200,7 @@
         <div class="hist-ficha-info">
           <span class="hist-ficha-codigo">${escHtml(cod)}</span>
           <span class="hist-ficha-nombre">${escHtml(nom)}</span>
+          ${contactoHtml}
         </div>
         <div class="hist-ficha-hint">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
@@ -352,7 +369,6 @@
 
     if (btnBus) btnBus.disabled = false;
 
-    // Ocultar estados anteriores y mostrar ficha del cliente
     mostrarEstado(null);
     hide('histResumen');
     hide('histResultados');
@@ -372,7 +388,6 @@
     acAbortHistorial = new AbortController();
     const signal     = acAbortHistorial.signal;
 
-    // Mostrar spinner y ocultar todo lo anterior
     mostrarEstado('cargando');
     hide('histFichaCliente');
     hide('histResumen');
@@ -404,20 +419,19 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error al obtener historial');
 
-      mostrarEstado(null); // ocultar spinner
+      mostrarEstado(null);
 
       if (!data.historial || !data.historial.length) {
-        // Mostrar ficha del cliente + estado vacío
         renderFichaCliente(clienteSeleccionado.codAux, clienteSeleccionado.nomAux);
         mostrarEstado('vacio');
         return;
       }
 
+      // Guardar tel y email desde la primera fila del historial
       const primerRow = data.historial[0];
       clienteSeleccionado.tel   = clienteSeleccionado.tel   || primerRow.FonAux1 || '';
       clienteSeleccionado.email = clienteSeleccionado.email || primerRow.Email   || '';
 
-      // Mostrar ficha del cliente arriba, luego resumen y tabla
       renderFichaCliente(clienteSeleccionado.codAux, clienteSeleccionado.nomAux);
       renderResumen(data, yDesde, yHasta);
       renderResultados(data.historial, yDesde, yHasta);
@@ -451,6 +465,31 @@
     const totalFmt = new Intl.NumberFormat('es-CL',
       { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(totalMonto);
 
+    const tel   = clienteSeleccionado?.tel   || '';
+    const email = clienteSeleccionado?.email || '';
+
+    const telItem = tel ? `
+      <div class="hist-resumen-item">
+        <span class="hist-resumen-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.1 19.79 19.79 0 0 1 1.61 4.5 2 2 0 0 1 3.6 2.32h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </span>
+        <div>
+          <span class="hist-resumen-label">Tel\u00e9fono</span>
+          <span class="hist-resumen-valor">${escHtml(tel)}</span>
+        </div>
+      </div>` : '';
+
+    const emailItem = email ? `
+      <div class="hist-resumen-item">
+        <span class="hist-resumen-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+        </span>
+        <div>
+          <span class="hist-resumen-label">Email</span>
+          <a class="hist-resumen-valor hist-resumen-link" href="mailto:${escHtml(email)}">${escHtml(email)}</a>
+        </div>
+      </div>` : '';
+
     const seccion = document.getElementById('histResumen');
     if (!seccion) return;
     seccion.innerHTML = `
@@ -474,6 +513,8 @@
               <span class="hist-resumen-valor">${escHtml(periodoLabel)}</span>
             </div>
           </div>
+          ${telItem}
+          ${emailItem}
           <div class="hist-resumen-item">
             <span class="hist-resumen-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M2 7h20"/></svg>
@@ -640,7 +681,6 @@
     initYearSelects();
     initAutocomplete();
 
-    // Estado inicial: solo mostrar el banner de búsqueda
     hide('histFichaCliente');
     hide('histResumen');
     hide('histResultados');

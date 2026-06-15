@@ -1,4 +1,4 @@
-/* historial.css v2.0.5 */
+/* historial.css v2.0.6 */
 
 /* ════ VARIABLES LOCALES ════════════════════════════════════════════════════ */
 :root {
@@ -23,11 +23,7 @@
   --hist-radius-sm:      6px;
 }
 
-/* ════ CLASE DE VISIBILIDAD CENTRAL ══════════════════════════════════════════
-   Toda la visibilidad se controla con esta clase. El !important garantiza
-   que sobreescribe cualquier display:none definido en CSS o inline.
-   El JS solo agrega/quita .hist--hidden — nunca toca style.display.
-══════════════════════════════════════════════════════════════════════════════ */
+/* ════ CLASE DE VISIBILIDAD CENTRAL ══════════════════════════════════════════ */
 .hist--hidden {
   display: none !important;
 }
@@ -215,7 +211,7 @@
 }
 @keyframes hist-spin { to { transform: rotate(360deg); } }
 
-/* ════ FICHA CLIENTE (visible tras seleccionar, antes de buscar) ═════════ */
+/* ════ FICHA CLIENTE ═════════════════════════════════════════════════ */
 #histFichaCliente { margin-bottom: 1.5rem; }
 
 .hist-ficha-card {
@@ -241,7 +237,7 @@
 .hist-ficha-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
@@ -265,6 +261,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Contacto: teléfono + email en la ficha */
+.hist-ficha-contacto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  margin-top: 2px;
+}
+
+.hist-ficha-contacto-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .78rem;
+  color: #555;
+}
+
+.hist-ficha-contacto-link {
+  color: var(--hist-primary-dark);
+  text-decoration: none;
+  font-weight: 500;
+}
+.hist-ficha-contacto-link:hover { text-decoration: underline; }
 
 .hist-ficha-hint {
   display: flex;
@@ -333,6 +352,15 @@
   font-size: 1.1rem; font-weight: 800;
   color: var(--hist-primary);
 }
+
+/* Link de email en el resumen (fondo oscuro) */
+.hist-resumen-link {
+  color: var(--hist-primary);
+  text-decoration: none;
+  font-size: .88rem;
+  font-weight: 600;
+}
+.hist-resumen-link:hover { text-decoration: underline; }
 
 /* ════ AÑO BLOQUE ═════════════════════════════════════════════════════════ */
 .hist-anio-bloque { margin-bottom: 2rem; }
