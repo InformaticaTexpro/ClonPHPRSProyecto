@@ -93,7 +93,11 @@ app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// ── Ruta raíz y login explícito
 app.get('/', (_req, res) => res.redirect('/src/modulo/varios/login/index.html'));
+app.get('/login', (_req, res) =>
+  res.sendFile(path.join(__dirname, '..', 'src', 'modulo', 'varios', 'login', 'index.html'))
+);
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -116,8 +120,13 @@ app.use('/api/notificaciones',  notificacionesRoutes);
 app.use('/api/cartera',         carteraRoutes);
 app.use('/api/alertas',         alertasRoutes);
 
+// ── 404: API → JSON | Navegación → redirigir al login
 app.use((req, res) => {
-  res.status(404).json({ ok: false, error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ ok: false, error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+  }
+  // Cualquier ruta de navegación desconocida (sesión expirada, URL inválida, etc.)
+  res.redirect('/login');
 });
 
 app.use((err, _req, res, _next) => {
