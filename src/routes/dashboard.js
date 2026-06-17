@@ -55,12 +55,20 @@
  *   formalmente (número fijo), no clientes con documentos reales.
  *   Ahora ambas columnas provienen de la misma fuente y son comparables.
  *
- * FIX 2026-06-17:
+ * FIX 2026-06-17 (a):
  *   getFoliosYaAsignados — eliminado filtro mes/anio.
  *   Un folio asignado en cualquier período debe quedar excluido del selector
  *   sin importar el mes que se esté visualizando. Antes, un folio de abril
  *   registrado en factura_compartida no era detectado al consultar junio,
  *   haciendo que apareciera disponible cuando ya estaba asignado.
+ *
+ * FIX 2026-06-17 (b):
+ *   /asignados — eliminado filtro mes/anio.
+ *   El INSERT guarda el mes real del folio en Softland (ej. mes=4 para abril).
+ *   Si el panel estaba en marzo (mes=3) y se asignaba un folio de abril,
+ *   el registro quedaba con mes=4 y luego no aparecía en marzo ni en ningún
+ *   mes hasta que el coordinador cambiara al panel de abril. Ahora /asignados
+ *   devuelve todos los folios asignados por el coordinador sin filtro de período.
  */
 
 const express             = require('express');
@@ -138,7 +146,7 @@ async function getFoliosCompartidosConPct(codigos, mes, anio) {
  * para cualquiera de los coordinadores indicados, sin importar el
  * mes/año en que fueron registrados.
  *
- * FIX 2026-06-17: se eliminó el filtro mes/anio que provocaba que
+ * FIX 2026-06-17 (a): se eliminó el filtro mes/anio que provocaba que
  * folios de meses anteriores (ej. abril) no fueran detectados al
  * consultar el panel de junio y siguieran apareciendo como disponibles.
  */
@@ -739,7 +747,7 @@ router.get('/compartir/lista', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
   if (!codigosCoord.length) return res.json({ ok: false, error: 'No autorizado para compartir' });
   try {
-    // FIX 2026-06-17: sin filtro mes/anio — un folio asignado en cualquier
+    // FIX 2026-06-17 (a): sin filtro mes/anio — un folio asignado en cualquier
     // período no debe aparecer como disponible en el selector.
     const foliosYaAsignados = await getFoliosYaAsignados(codigosCoord);
     const excludeClause = foliosYaAsignados.length ? `AND h.Folio NOT IN (${foliosYaAsignados.join(',')})` : '';
@@ -903,22 +911,27 @@ router.get('/compartidos', async (req, res) => {
 });
 
 // ── GET /api/dashboard/asignados
+//
+// FIX 2026-06-17 (b): eliminado filtro mes/anio.
+// El INSERT guarda el mes real del folio en Softland (ej. mes=4 para abril).
+// Si el coordinador asignaba un folio de abril desde el panel de marzo,
+// el registro quedaba con mes=4 y no aparecía en la tabla de "asignados este mes"
+// del panel de marzo, ni en el panel de junio a menos que cambiara al mes correcto.
+// Ahora se devuelven todos los folios asignados por el coordinador sin filtro de período,
+// ordenados por fecha descendente.
 router.get('/asignados', async (req, res) => {
-  const usuario = req.usuario, codigosCoord = getCodigosCoordinador(usuario), hoy = new Date();
-  const { validarMesAnio } = require('../utils/stringHelpers');
-  let mes, anio;
-  try { ({ mes, anio } = validarMesAnio(req.query.mes ?? (hoy.getMonth() + 1), req.query.anio ?? hoy.getFullYear())); }
-  catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+  const usuario = req.usuario, codigosCoord = getCodigosCoordinador(usuario);
   if (!codigosCoord.length) return res.json({ ok: true, asignados: [] });
   try {
     const ph = codigosCoord.map(() => '?').join(',');
     const [rows] = await db.pool.query(`
       SELECT fc.id, fc.folio, fc.fecha, fc.cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje,
-        fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido
+        fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
+        fc.mes, fc.anio
       FROM factura_compartida fc
-      WHERE fc.cod_vendedor_principal IN (${ph}) AND fc.mes = ? AND fc.anio = ? AND fc.rol = 'compartido'
+      WHERE fc.cod_vendedor_principal IN (${ph}) AND fc.rol = 'compartido'
       ORDER BY fc.fecha DESC
-    `, [...codigosCoord, mes, anio]);
+    `, [...codigosCoord]);
     res.json({ ok: true, asignados: rows });
   } catch (err) {
     console.error('[GET /dashboard/asignados]', err.message);
