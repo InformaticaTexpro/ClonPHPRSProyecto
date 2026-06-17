@@ -63,12 +63,17 @@
  *   haciendo que apareciera disponible cuando ya estaba asignado.
  *
  * FIX 2026-06-17 (b):
- *   /asignados — eliminado filtro mes/anio.
- *   El INSERT guarda el mes real del folio en Softland (ej. mes=4 para abril).
- *   Si el panel estaba en marzo (mes=3) y se asignaba un folio de abril,
- *   el registro quedaba con mes=4 y luego no aparecía en marzo ni en ningún
- *   mes hasta que el coordinador cambiara al panel de abril. Ahora /asignados
- *   devuelve todos los folios asignados por el coordinador sin filtro de período.
+ *   /asignados — acepta ?mes=&anio= opcionales para filtrar por período.
+ *   Sin parámetros devuelve todos (uso interno). Con parámetros filtra el
+ *   período seleccionado en el panel (comportamiento esperado por el usuario).
+ *
+ * FIX 2026-06-17 (c):
+ *   POST /compartir — la fecha del folio llegaba de SQL Server como
+ *   '2026-04-01T00:00:00.000Z'. Al construir new Date(f.Fecha).getMonth()+1
+ *   en un servidor con zona horaria UTC-4, la medianoche UTC se interpreta
+ *   como las 20:00 del día anterior (31-03), devolviendo mes=3 en vez de mes=4.
+ *   Solución: extraer mes y anio directamente de la cadena ISO (primeros 10
+ *   caracteres 'YYYY-MM-DD') sin depender de la zona horaria del servidor.
  */
 
 const express             = require('express');
@@ -101,6 +106,27 @@ function getCodigosCoordinador(usuario) {
 
 function mssqlIn(arr) {
   return arr.map(v => `'${v}'`).join(',');
+}
+
+/**
+ * Extrae mes (1-12) y anio (YYYY) de una fecha proveniente de SQL Server
+ * sin usar el constructor Date, evitando desfases por zona horaria del servidor.
+ *
+ * SQL Server devuelve la fecha como un objeto Date de JS o como una cadena
+ * ISO 'YYYY-MM-DDTHH:mm:ss.sssZ'. En ambos casos toISOString() nos da
+ * 'YYYY-MM-DD...' en UTC, que es la fecha real del documento en Softland.
+ *
+ * FIX 2026-06-17 (c): antes se usaba new Date(f.Fecha).getMonth()+1, lo que
+ * en servidores UTC-4 convertía '2026-04-01T00:00:00Z' → 31-mar → mes=3.
+ */
+function mesAnioDesdeSQL(fechaSQL) {
+  // fechaSQL puede ser un objeto Date de mssql o una cadena ISO
+  const iso = (fechaSQL instanceof Date)
+    ? fechaSQL.toISOString()          // ya es UTC → 'YYYY-MM-DDTHH:...'
+    : String(fechaSQL);               // cadena ISO de SQL Server
+  // Tomar solo los primeros 10 caracteres: 'YYYY-MM-DD'
+  const [anioStr, mesStr] = iso.slice(0, 10).split('-');
+  return { mes: parseInt(mesStr, 10), anio: parseInt(anioStr, 10) };
 }
 
 function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
@@ -803,15 +829,23 @@ router.post('/compartir', async (req, res) => {
     const f = resultFolio.recordset[0];
     const montoBase     = Number(f.montoBase);
     const montoAsignado = Math.round(montoBase * porcentaje / 100);
-    const fechaFolio    = new Date(f.Fecha);
-    const mesF = fechaFolio.getMonth() + 1, anioF = fechaFolio.getFullYear();
+
+    // FIX 2026-06-17 (c): extraer mes/anio de la cadena ISO sin usar
+    // new Date().getMonth() para evitar desfase por zona horaria del servidor.
+    // SQL Server devuelve la fecha como objeto Date (UTC) o cadena ISO.
+    // toISOString() siempre da 'YYYY-MM-DDTHH:...' en UTC, que es la fecha real.
+    const { mes: mesF, anio: anioF } = mesAnioDesdeSQL(f.Fecha);
+    const fechaISO = (f.Fecha instanceof Date)
+      ? f.Fecha.toISOString().slice(0, 10)
+      : String(f.Fecha).slice(0, 10);
+
     const nombreVendedorComp  = await getNombreVendedor(cod_vendedor_compartido);
     const nombreCoordinador   = usuario.nombre || `Coordinador (${f.CodVendedor})`;
     await db.pool.query(
       `INSERT INTO factura_compartida(folio,anio,mes,fecha,cliente,monto_neto,monto_asignado,porcentaje,rol,
         cod_vendedor_principal,cod_vendedor_compartido,nombre_vendedor_compartido,fecha_registro,usuario_id)
        VALUES(?,?,?,?,?,?,?,?,'compartido',?,?,?,NOW(),?)`,
-      [String(f.Folio), anioF, mesF, fechaFolio.toISOString().slice(0, 10), f.cliente || '',
+      [String(f.Folio), anioF, mesF, fechaISO, f.cliente || '',
        montoBase, montoAsignado, porcentaje, f.CodVendedor, cod_vendedor_compartido, nombreVendedorComp, usuario.sub]
     );
     const usuarioIdReceptor = await notificacionModel.usuarioIdDesdeCodVendedor(cod_vendedor_compartido);
@@ -912,26 +946,51 @@ router.get('/compartidos', async (req, res) => {
 
 // ── GET /api/dashboard/asignados
 //
-// FIX 2026-06-17 (b): eliminado filtro mes/anio.
-// El INSERT guarda el mes real del folio en Softland (ej. mes=4 para abril).
-// Si el coordinador asignaba un folio de abril desde el panel de marzo,
-// el registro quedaba con mes=4 y no aparecía en la tabla de "asignados este mes"
-// del panel de marzo, ni en el panel de junio a menos que cambiara al mes correcto.
-// Ahora se devuelven todos los folios asignados por el coordinador sin filtro de período,
-// ordenados por fecha descendente.
+// FIX 2026-06-17 (b)+(d): acepta ?mes=&anio= opcionales.
+// - Con mes+anio: filtra por ese período → la tabla del panel muestra solo
+//   los folios asignados correspondientes al mes visualizado.
+// - Sin mes+anio: devuelve todos → útil para validaciones internas y para
+//   getFoliosYaAsignados (que ya no usa este endpoint, pero queda disponible).
+//
+// Razón del cambio: el INSERT guarda el mes real del folio en Softland
+// (ej. mes=4 para un folio del 01-04). Sin filtro, la tabla mostraba folios
+// de todos los meses sin importar qué período estaba seleccionado en el panel.
 router.get('/asignados', async (req, res) => {
   const usuario = req.usuario, codigosCoord = getCodigosCoordinador(usuario);
   if (!codigosCoord.length) return res.json({ ok: true, asignados: [] });
+
+  const { validarMesAnio } = require('../utils/stringHelpers');
+  const hoy = new Date();
+  let filtroMes = null, filtroAnio = null;
+
+  // Solo filtrar si el cliente envía mes Y anio
+  if (req.query.mes != null && req.query.anio != null) {
+    try {
+      const parsed = validarMesAnio(req.query.mes, req.query.anio);
+      filtroMes  = parsed.mes;
+      filtroAnio = parsed.anio;
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+
   try {
     const ph = codigosCoord.map(() => '?').join(',');
+    const params = [...codigosCoord];
+    let filtroSQL = '';
+    if (filtroMes !== null) {
+      filtroSQL = 'AND fc.mes = ? AND fc.anio = ?';
+      params.push(filtroMes, filtroAnio);
+    }
     const [rows] = await db.pool.query(`
       SELECT fc.id, fc.folio, fc.fecha, fc.cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje,
         fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
         fc.mes, fc.anio
       FROM factura_compartida fc
       WHERE fc.cod_vendedor_principal IN (${ph}) AND fc.rol = 'compartido'
+        ${filtroSQL}
       ORDER BY fc.fecha DESC
-    `, [...codigosCoord]);
+    `, params);
     res.json({ ok: true, asignados: rows });
   } catch (err) {
     console.error('[GET /dashboard/asignados]', err.message);
