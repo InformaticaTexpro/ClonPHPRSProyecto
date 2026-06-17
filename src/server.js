@@ -29,7 +29,6 @@ const app  = express();
 const PORT = Number(process.env.PORT || 3000);
 
 // ── Proxy confiable (Render / Railway usan proxy inverso)
-// Necesario para que express-rate-limit lea correctamente X-Forwarded-For
 app.set('trust proxy', 1);
 
 const CDN_SCRIPTS = [
@@ -93,11 +92,8 @@ app.use(express.static(path.join(__dirname, '..')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// ── Ruta raíz y login explícito
+// ── Ruta raíz
 app.get('/', (_req, res) => res.redirect('/src/modulo/varios/login/index.html'));
-app.get('/login', (_req, res) =>
-  res.sendFile(path.join(__dirname, '..', 'src', 'modulo', 'varios', 'login', 'index.html'))
-);
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -120,13 +116,12 @@ app.use('/api/notificaciones',  notificacionesRoutes);
 app.use('/api/cartera',         carteraRoutes);
 app.use('/api/alertas',         alertasRoutes);
 
-// ── 404: API → JSON | Navegación → redirigir al login
+// ── 404: API → JSON | Navegación → redirigir al login con ruta física (CSS intacto)
 app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ ok: false, error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
   }
-  // Cualquier ruta de navegación desconocida (sesión expirada, URL inválida, etc.)
-  res.redirect('/login');
+  res.redirect('/src/modulo/varios/login/index.html');
 });
 
 app.use((err, _req, res, _next) => {
