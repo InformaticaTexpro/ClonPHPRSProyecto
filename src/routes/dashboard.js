@@ -54,6 +54,13 @@
  *   (sin filtro de período). cwtauxven contaba clientes asignados
  *   formalmente (número fijo), no clientes con documentos reales.
  *   Ahora ambas columnas provienen de la misma fuente y son comparables.
+ *
+ * FIX 2026-06-17:
+ *   getFoliosYaAsignados — eliminado filtro mes/anio.
+ *   Un folio asignado en cualquier período debe quedar excluido del selector
+ *   sin importar el mes que se esté visualizando. Antes, un folio de abril
+ *   registrado en factura_compartida no era detectado al consultar junio,
+ *   haciendo que apareciera disponible cuando ya estaba asignado.
  */
 
 const express             = require('express');
@@ -126,17 +133,24 @@ async function getFoliosCompartidosConPct(codigos, mes, anio) {
   }));
 }
 
-async function getFoliosYaAsignados(codigosCoord, mes, anio) {
+/**
+ * Devuelve los folios que ya tienen una fila en factura_compartida
+ * para cualquiera de los coordinadores indicados, sin importar el
+ * mes/año en que fueron registrados.
+ *
+ * FIX 2026-06-17: se eliminó el filtro mes/anio que provocaba que
+ * folios de meses anteriores (ej. abril) no fueran detectados al
+ * consultar el panel de junio y siguieran apareciendo como disponibles.
+ */
+async function getFoliosYaAsignados(codigosCoord) {
   if (!codigosCoord.length) return [];
   const placeholders = codigosCoord.map(() => '?').join(',');
   const [rows] = await db.pool.query(
     `SELECT DISTINCT folio
      FROM factura_compartida
      WHERE cod_vendedor_principal IN (${placeholders})
-       AND mes  = ?
-       AND anio = ?
-       AND rol  = 'compartido'`,
-    [...codigosCoord, mes, anio]
+       AND rol = 'compartido'`,
+    [...codigosCoord]
   );
   return rows.map(r => Number(r.folio));
 }
@@ -725,7 +739,9 @@ router.get('/compartir/lista', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
   if (!codigosCoord.length) return res.json({ ok: false, error: 'No autorizado para compartir' });
   try {
-    const foliosYaAsignados = await getFoliosYaAsignados(codigosCoord, mes, anio);
+    // FIX 2026-06-17: sin filtro mes/anio — un folio asignado en cualquier
+    // período no debe aparecer como disponible en el selector.
+    const foliosYaAsignados = await getFoliosYaAsignados(codigosCoord);
     const excludeClause = foliosYaAsignados.length ? `AND h.Folio NOT IN (${foliosYaAsignados.join(',')})` : '';
     const pool = await getSoftlandPool();
     const result = await pool.request().query(`
