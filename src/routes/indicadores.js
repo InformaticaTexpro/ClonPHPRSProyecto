@@ -3,10 +3,8 @@
 /**
  * indicadores.js — Dólar (mercado) y UF
  *
- * USD  → Se intenta en orden hasta obtener valor:
- *         1. api.frankfurter.app  (Banco Central Europeo, actualiza cada hora hábil)
- *         2. open.er-api.com      (fallback)
- * UF   → mindicador.cl/api/uf    (valor oficial diario)
+ * USD  → v6.exchangerate-api.com (sin redirección, gratuita, sin API key)
+ * UF   → mindicador.cl/api/uf  con SSL permisivo para compatibilidad Windows
  *
  * Caché interno: 5 minutos.
  * Endpoint: GET /api/indicadores
@@ -14,69 +12,71 @@
 
 const express = require('express');
 const https   = require('https');
+const http    = require('http');
 const router  = express.Router();
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-let cache  = null;
+let cache   = null;
 let cacheTS = 0;
 
-function fetchJson(url) {
+/** Descarga JSON desde URL — soporta http y https, con opción de skip SSL */
+function fetchJson(url, options = {}) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'RSProyecto/1.0' } }, (res) => {
+    const parsed  = new URL(url);
+    const lib     = parsed.protocol === 'https:' ? https : http;
+    const reqOpts = {
+      hostname: parsed.hostname,
+      path:     parsed.pathname + parsed.search,
+      method:   'GET',
+      headers:  { 'User-Agent': 'RSProyecto/1.0' },
+      ...options,
+    };
+    const req = lib.request(reqOpts, (res) => {
+      // Seguir redirecciones 301/302 una vez
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        return fetchJson(res.headers.location, options).then(resolve).catch(reject);
+      }
       let raw = '';
-      res.on('data',  c => { raw += c; });
-      res.on('end',   () => {
+      res.on('data', c  => { raw += c; });
+      res.on('end',  () => {
         try { resolve(JSON.parse(raw)); }
         catch (e) { reject(new Error('JSON inválido: ' + e.message)); }
       });
-    }).on('error', reject);
+    });
+    req.on('error', reject);
+    req.end();
   });
-}
-
-/** Obtiene CLP por USD desde frankfurter.app (BCE) */
-async function usdDesdefrankfurter() {
-  // GET https://api.frankfurter.app/latest?from=USD&to=CLP
-  // Responde: { base: 'USD', rates: { CLP: 892.33 }, date: '2026-06-18' }
-  const data = await fetchJson('https://api.frankfurter.app/latest?from=USD&to=CLP');
-  const valor = data?.rates?.CLP ?? null;
-  if (!valor) throw new Error('frankfurter: sin valor CLP');
-  return { valor, fecha: data.date ?? new Date().toISOString() };
-}
-
-/** Fallback: open.er-api.com */
-async function usdDesdeER() {
-  const data = await fetchJson('https://open.er-api.com/v6/latest/USD');
-  const valor = data?.rates?.CLP ?? null;
-  if (!valor) throw new Error('open.er-api: sin valor CLP');
-  const fecha = data?.time_last_update_utc
-    ? new Date(data.time_last_update_utc).toISOString()
-    : new Date().toISOString();
-  return { valor, fecha };
 }
 
 async function obtenerIndicadores() {
   const ahora = Date.now();
   if (cache && (ahora - cacheTS) < CACHE_TTL_MS) return cache;
 
-  // USD con fallback
-  let dolarResult;
+  // --- USD (exchangerate-api.com — sin redirección, responde JSON directo) ---
+  // GET https://open.er-api.com/v6/latest/USD
+  // { rates: { CLP: 892.33, ... }, time_last_update_utc: '...' }
+  let dolarResult = { valor: null, fecha: null };
   try {
-    dolarResult = await usdDesdefrankfurter();
-  } catch (e1) {
-    console.warn('[indicadores] frankfurter falló, usando fallback:', e1.message);
-    try {
-      dolarResult = await usdDesdeER();
-    } catch (e2) {
-      console.error('[indicadores] ambas fuentes USD fallaron:', e2.message);
-      dolarResult = { valor: null, fecha: null };
-    }
+    const usd = await fetchJson('https://open.er-api.com/v6/latest/USD');
+    const valor = usd?.rates?.CLP ?? null;
+    if (!valor) throw new Error('sin valor CLP');
+    dolarResult = {
+      valor,
+      fecha: usd?.time_last_update_utc
+        ? new Date(usd.time_last_update_utc).toISOString()
+        : new Date().toISOString(),
+    };
+  } catch (e) {
+    console.error('[indicadores] USD falló:', e.message);
   }
 
-  // UF oficial
+  // --- UF (mindicador.cl con rejectUnauthorized:false para SSL Windows) ---
   let ufResult = { valor: null, fecha: null };
   try {
-    const ufData = await fetchJson('https://mindicador.cl/api/uf');
-    const s = Array.isArray(ufData?.serie) && ufData.serie.length > 0 ? ufData.serie[0] : null;
+    const uf = await fetchJson('https://mindicador.cl/api/uf', {
+      rejectUnauthorized: false, // workaround SSL schannel Windows
+    });
+    const s = Array.isArray(uf?.serie) && uf.serie.length > 0 ? uf.serie[0] : null;
     ufResult = { valor: s?.valor ?? null, fecha: s?.fecha ?? null };
   } catch (e) {
     console.error('[indicadores] UF falló:', e.message);
