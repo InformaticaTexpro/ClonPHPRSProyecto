@@ -1,31 +1,33 @@
 'use strict';
 
 /**
- * indicadores.js — Dólar y UF en tiempo real
+ * indicadores.js — Dólar (mercado) y UF en tiempo real
  *
- * Fuente: mindicador.cl (API pública, sin autenticación)
+ * USD  → open.er-api.com (tasa de mercado actualizada ~cada hora, sin API key)
+ * UF   → mindicador.cl/api/uf  (valor oficial diario del día)
+ *
+ * Cache interno de 5 minutos para no saturar las APIs externas.
+ *
  * Endpoint: GET /api/indicadores
- *
  * Respuesta:
  *   { ok: true, dolar: { valor, fecha }, uf: { valor, fecha }, actualizadoEn: ISO }
- *
- * Cache interno de 10 minutos para no saturar la API externa.
  */
 
 const express = require('express');
 const https   = require('https');
 const router  = express.Router();
 
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
-let cache = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+let cache  = null;
 let cacheTS = 0;
 
+/** Descarga y parsea JSON desde una URL HTTPS */
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'User-Agent': 'RSProyecto/1.0' } }, (res) => {
       let raw = '';
-      res.on('data', chunk => { raw += chunk; });
-      res.on('end', () => {
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end',  () => {
         try { resolve(JSON.parse(raw)); }
         catch (e) { reject(new Error('JSON inválido: ' + e.message)); }
       });
@@ -37,24 +39,35 @@ async function obtenerIndicadores() {
   const ahora = Date.now();
   if (cache && (ahora - cacheTS) < CACHE_TTL_MS) return cache;
 
-  const [dolarData, ufData] = await Promise.all([
-    fetchJson('https://mindicador.cl/api/dolar'),
+  // USD: tasa de mercado en tiempo real (open.er-api.com — gratuita, sin API key)
+  // Devuelve { base_code: 'USD', rates: { CLP: <valor>, ... }, time_last_update_utc: ... }
+  const [usdData, ufData] = await Promise.all([
+    fetchJson('https://open.er-api.com/v6/latest/USD'),
     fetchJson('https://mindicador.cl/api/uf'),
   ]);
 
-  const serie = (d) => Array.isArray(d?.serie) && d.serie.length > 0 ? d.serie[0] : null;
-  const dolarSerie = serie(dolarData);
-  const ufSerie    = serie(ufData);
+  // --- Dólar (mercado) ---
+  const clpRate = usdData?.rates?.CLP ?? null;
+  const usdFecha = usdData?.time_last_update_utc
+    ? new Date(usdData.time_last_update_utc).toISOString()
+    : new Date().toISOString();
+
+  // --- UF (oficial diaria) ---
+  const ufSerie = Array.isArray(ufData?.serie) && ufData.serie.length > 0
+    ? ufData.serie[0]
+    : null;
 
   cache = {
     ok: true,
     dolar: {
-      valor: dolarSerie?.valor ?? null,
-      fecha: dolarSerie?.fecha ?? null,
+      valor: clpRate,
+      fecha: usdFecha,
+      fuente: 'mercado', // distingue de dólar observado
     },
     uf: {
       valor: ufSerie?.valor ?? null,
       fecha: ufSerie?.fecha ?? null,
+      fuente: 'oficial',
     },
     actualizadoEn: new Date().toISOString(),
   };
@@ -69,7 +82,10 @@ router.get('/', async (_req, res) => {
     res.json(data);
   } catch (err) {
     console.error('[indicadores]', err.message);
-    res.status(502).json({ ok: false, error: 'No se pudo obtener los indicadores económicos.' });
+    res.status(502).json({
+      ok: false,
+      error: 'No se pudo obtener los indicadores económicos.',
+    });
   }
 });
 
