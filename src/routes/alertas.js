@@ -1,11 +1,11 @@
 'use strict';
 /**
- * routes/alertas.js  v2.3
- * Fix v2.3:
- *  - req.usuario.sub en lugar de req.usuario.id (JWT payload usa 'sub')
- *  - tabla `usuario` en lugar de `usuarios` (nombre real en bdtexpro)
- *  - columna `is_active` en lugar de `activo`
- *  - columna `nombre` existe en `usuario` ✓
+ * routes/alertas.js  v2.4
+ * Fix v2.4:
+ *  - debeRecordar: parsear ultimo_recordatorio como fecha LOCAL (no UTC)
+ *    new Date('YYYY-MM-DD') interpreta el string como UTC medianoche, lo que
+ *    en zonas UTC-N desplaza la fecha al día anterior antes de setHours().
+ *    Se usa parseLocalDate() que construye el Date con año/mes/día locales.
  */
 
 const express          = require('express');
@@ -15,16 +15,22 @@ const { requireAuth }  = require('../middlewares/requireAuth');
 
 router.use(requireAuth);
 
+/** Parsea 'YYYY-MM-DD' como fecha LOCAL (evita el desfase UTC en zonas UTC-N/UTC+N) */
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function diasRestantes(fechaVence) {
   const hoy   = new Date(); hoy.setHours(0, 0, 0, 0);
-  const vence = new Date(fechaVence); vence.setHours(0, 0, 0, 0);
+  const vence = parseLocalDate(fechaVence);
   return Math.ceil((vence - hoy) / 86400000);
 }
 
 function debeRecordar(ultimoRec, frecuencia) {
   if (!ultimoRec || frecuencia === 'siempre') return true;
   const hoy    = new Date(); hoy.setHours(0, 0, 0, 0);
-  const ultimo = new Date(ultimoRec); ultimo.setHours(0, 0, 0, 0);
+  const ultimo = parseLocalDate(ultimoRec);   // ← fix: fecha local, no UTC
   const diff   = Math.floor((hoy - ultimo) / 86400000);
   if (frecuencia === 'diaria')    return diff >= 1;
   if (frecuencia === 'semanal')   return diff >= 7;
