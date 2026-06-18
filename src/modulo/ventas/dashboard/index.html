@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.0" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="dashboard.css?v=2.3.7" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -49,6 +49,11 @@
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep" aria-hidden="true">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
         <div class="notif-wrapper" id="notifWrapper">
           <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -151,7 +156,7 @@
             </div>
           </div>
 
-          <!-- ACTIVOS (últimos 90 días) -->
+          <!-- ACTIVOS -->
           <div class="cartera-card cartera-card--activo" id="cardActivo">
             <button class="cartera-card-btn" data-tipo="activo" aria-expanded="false">
               <div class="cartera-card-icono">
@@ -187,7 +192,7 @@
             </div>
           </div>
 
-          <!-- NUEVOS (primera compra en el mes actual) -->
+          <!-- NUEVOS -->
           <div class="cartera-card cartera-card--nuevo" id="cardNuevo">
             <button class="cartera-card-btn" data-tipo="nuevo" aria-expanded="false">
               <div class="cartera-card-icono">
@@ -253,7 +258,6 @@
         </div>
       </section>
 
-      <!-- GRÁFICO DONA — centrado, sin tabla lateral -->
       <section class="tabla-seccion">
         <div class="tabla-card">
           <div class="tabla-header"><h3 class="tabla-titulo">Distribución por Categoría</h3></div>
@@ -302,5 +306,6 @@
 
   <script src="dashboard.js?v=2.3.5"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
 </body>
 </html>
