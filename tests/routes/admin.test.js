@@ -3,21 +3,22 @@
  * tests/routes/admin.test.js
  *
  * Pruebas para endpoints de /api/admin
- * Se mockea requireAuth (como admin) y el pool MySQL.
+ * Se mockea requireAuth + requireAdmin y el pool MySQL.
  */
 
 const request = require('supertest');
 const express = require('express');
 
-// ── Mock requireAuth como admin ──────────────────────────────────────
+// ── Mock requireAuth + requireAdmin ──────────────────────────────────────────
 jest.mock('../../src/middlewares/requireAuth', () => ({
   requireAuth: (req, _res, next) => {
     req.usuario = { sub: 1, is_admin: true, nombre: 'Admin Test' };
     next();
   },
+  requireAdmin: (_req, _res, next) => next(),
 }));
 
-// ── Mock MySQL pool ──────────────────────────────────────────────────
+// ── Mock MySQL pool ───────────────────────────────────────────────────────────
 const mockQuery = jest.fn();
 jest.mock('../../src/config/db', () => ({
   pool: { query: mockQuery },
@@ -30,7 +31,7 @@ app.use('/api/admin', adminRouter);
 
 beforeEach(() => jest.clearAllMocks());
 
-// ── Estructura básica ────────────────────────────────────────────────
+// ── Estructura básica ─────────────────────────────────────────────────────────
 describe('admin — estructura del router', () => {
   test('el módulo admin.js exporta un router válido', () => {
     expect(adminRouter).toBeDefined();
@@ -38,42 +39,98 @@ describe('admin — estructura del router', () => {
   });
 });
 
-// ── GET /api/admin/usuarios ──────────────────────────────────────────
+// ── GET /api/admin/usuarios ───────────────────────────────────────────────────
 describe('GET /api/admin/usuarios', () => {
   test('devuelve lista de usuarios con ok:true', async () => {
     mockQuery.mockResolvedValueOnce([[
-      { id: 1, nombre: 'Ana', email: 'ana@texpro.cl', is_active: 1, is_admin: 0 },
-      { id: 2, nombre: 'Bob', email: 'bob@texpro.cl', is_active: 1, is_admin: 1 },
+      { id: 1, nombre: 'Ana', email: 'ana@texpro.cl', is_admin: 0, activo: 1 },
+      { id: 2, nombre: 'Bob', email: 'bob@texpro.cl', is_admin: 1, activo: 1 },
     ]]);
     const res = await request(app).get('/api/admin/usuarios');
-    // Si la ruta existe y responde, verificamos que no sea 404
-    expect([200, 401, 403]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data).toHaveLength(2);
   });
 
   test('retorna 500 si DB falla', async () => {
     mockQuery.mockRejectedValueOnce(new Error('DB caída'));
     const res = await request(app).get('/api/admin/usuarios');
-    expect([500, 401, 403, 404]).toContain(res.status);
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBe(false);
   });
 });
 
-// ── Seguridad — acceso sin admin ─────────────────────────────────────
-describe('admin — control de acceso', () => {
-  test('usuario no admin recibe 403', async () => {
-    // Remockear requireAuth como no-admin para este test
-    jest.resetModules();
-    jest.mock('../../src/middlewares/requireAuth', () => ({
-      requireAuth: (req, _res, next) => {
-        req.usuario = { sub: 2, is_admin: false };
-        next();
-      },
-    }));
-    // Verificamos que el middleware de admin exista en la ruta
-    expect(adminRouter).toBeDefined();
+// ── GET /api/admin/usuarios/:id ───────────────────────────────────────────────
+describe('GET /api/admin/usuarios/:id', () => {
+  test('devuelve usuario por ID', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      { id: 1, nombre: 'Ana', email: 'ana@texpro.cl', is_admin: 0, activo: 1 },
+    ]]);
+    const res = await request(app).get('/api/admin/usuarios/1');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data).toHaveProperty('email', 'ana@texpro.cl');
+  });
+
+  test('retorna 404 si el usuario no existe', async () => {
+    mockQuery.mockResolvedValueOnce([[]]);
+    const res = await request(app).get('/api/admin/usuarios/999');
+    expect(res.status).toBe(404);
+    expect(res.body.ok).toBe(false);
   });
 });
 
-// ── Tests de validación lógica ───────────────────────────────────────
+// ── PUT /api/admin/usuarios/:id ───────────────────────────────────────────────
+describe('PUT /api/admin/usuarios/:id', () => {
+  test('actualiza usuario correctamente', async () => {
+    mockQuery.mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = await request(app).put('/api/admin/usuarios/2').send({
+      activo: 1, tipo_vendedor: 'P', is_admin: false, cod_vendedor: 'V001',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('retorna 400 si admin intenta quitarse permisos a sí mismo', async () => {
+    // req.usuario.sub = 1, id = 1, is_admin = false → se bloquea
+    const res = await request(app).put('/api/admin/usuarios/1').send({
+      activo: 1, tipo_vendedor: 'P', is_admin: false, cod_vendedor: 'V001',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+  });
+});
+
+// ── POST /api/admin/usuarios/:id/toggle-activo ────────────────────────────────
+describe('POST /api/admin/usuarios/:id/toggle-activo', () => {
+  test('desactiva un usuario activo', async () => {
+    mockQuery
+      .mockResolvedValueOnce([[{ activo: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = await request(app).post('/api/admin/usuarios/2/toggle-activo');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.activo).toBe(false);
+  });
+
+  test('activa un usuario inactivo', async () => {
+    mockQuery
+      .mockResolvedValueOnce([[{ activo: 0 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+    const res = await request(app).post('/api/admin/usuarios/2/toggle-activo');
+    expect(res.status).toBe(200);
+    expect(res.body.activo).toBe(true);
+  });
+
+  test('retorna 404 si el usuario no existe', async () => {
+    mockQuery.mockResolvedValueOnce([[]]);
+    const res = await request(app).post('/api/admin/usuarios/999/toggle-activo');
+    expect(res.status).toBe(404);
+  });
+});
+
+// ── Validaciones de roles ─────────────────────────────────────────────────────
 describe('admin — validaciones', () => {
   test('is_admin true da acceso de administrador', () => {
     const usuario = { sub: 1, is_admin: true };
