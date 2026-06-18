@@ -24,6 +24,7 @@ const adminRoutes           = require('./routes/admin');
 const notificacionesRoutes  = require('./routes/notificaciones');
 const carteraRoutes         = require('./routes/cartera');
 const alertasRoutes         = require('./routes/alertas');
+const indicadoresRoutes     = require('./routes/indicadores');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -115,6 +116,7 @@ app.use('/api/admin',           adminRoutes);
 app.use('/api/notificaciones',  notificacionesRoutes);
 app.use('/api/cartera',         carteraRoutes);
 app.use('/api/alertas',         alertasRoutes);
+app.use('/api/indicadores',     indicadoresRoutes);
 
 // ── 404: API → JSON | Navegación → redirigir al login con ruta física (CSS intacto)
 app.use((req, res) => {
