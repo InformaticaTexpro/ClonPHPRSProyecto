@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= titulo %></title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      color: #222;
+      background: #f7f6f2;
+      padding: 32px;
+    }
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #01696f;
+    }
+    .page-header p { font-size: 13px; color: #888; margin-top: 2px; }
+    /* Filtros */
+    .filtros {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      background: #fff;
+      border: 1px solid #dcd9d5;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .filtros label { font-size: 12px; color: #888; display: block; margin-bottom: 4px; }
+    .filtros select, .filtros input {
+      border: 1px solid #d4d1ca;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      background: #fff;
+      color: #222;
+      min-width: 120px;
+    }
+    .filtros button {
+      background: #01696f;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filtros button:hover { background: #0c4e54; }
+    /* Tabla */
+    .card {
+      background: #fff;
+      border: 1px solid #dcd9d5;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #eee;
+      font-weight: 600;
+      font-size: 14px;
+      color: #01696f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-header .badge {
+      background: #cedcd8;
+      color: #01696f;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #f4fafa; }
+    thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid #eee;
+    }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background .15s; }
+    tbody tr:hover { background: #f9f8f5; }
+    td { padding: 11px 16px; font-size: 13px; color: #333; }
+    .chip {
+      display: inline-block;
+      background: #e6f2f2;
+      color: #01696f;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .btn-pdf {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #01696f;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-pdf:hover { background: #0c4e54; }
+    .empty {
+      text-align: center;
+      padding: 48px 20px;
+      color: #aaa;
+      font-size: 14px;
+    }
+    .empty svg { margin: 0 auto 12px; display: block; opacity: .4; }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div>
+      <h1>RRHH — Confirmaciones de Ventas</h1>
+      <p>Registro de confirmaciones mensuales enviadas por los vendedores y coordinadores</p>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <form class="filtros" method="GET" action="/api/rrhh/confirmaciones">
+    <div>
+      <label>Mes</label>
+      <select name="mes">
+        <option value="">Todos</option>
+        <% for (let i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= (filtroMes == i) ? 'selected' : '' %>><%= meses[i] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <label>Año</label>
+      <input type="number" name="anio" value="<%= filtroAnio %>" min="2024" max="2030" style="width:90px">
+    </div>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  <!-- Tabla -->
+  <div class="card">
+    <div class="card-header">
+      <span>Confirmaciones registradas</span>
+      <span class="badge"><%= confirmaciones.length %></span>
+    </div>
+
+    <% if (confirmaciones.length === 0) { %>
+      <div class="empty">
+        <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-width="1.5" d="M9 12h6m-3-3v6M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/>
+        </svg>
+        No hay confirmaciones para el período seleccionado.
+      </div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Vendedor / Coordinador</th>
+            <th>Email</th>
+            <th>Período</th>
+            <th>Fecha confirmación</th>
+            <th>Folios</th>
+            <th>Ventas propias</th>
+            <th>Ventas asignadas</th>
+            <th>PDF</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% confirmaciones.forEach(c => { %>
+            <tr>
+              <td><%= c.id %></td>
+              <td><strong><%= c.nombre %> <%= c.apellido %></strong></td>
+              <td style="color:#888"><%= c.email || '-' %></td>
+              <td>
+                <span class="chip"><%= meses[c.mes] || c.mes %> <%= c.anio %></span>
+              </td>
+              <td><%= new Date(c.fecha_confirmacion).toLocaleString('es-CL') %></td>
+              <td style="text-align:center"><%= c.total_folios %></td>
+              <td style="text-align:right">
+                $<%= Number(c.total_ventas_propias).toLocaleString('es-CL') %>
+              </td>
+              <td style="text-align:right">
+                $<%= Number(c.total_ventas_asignadas).toLocaleString('es-CL') %>
+              </td>
+              <td>
+                <a class="btn-pdf"
+                   href="/api/rrhh/confirmaciones/<%= c.id %>/pdf"
+                   target="_blank">
+                  📄 Ver PDF
+                </a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+</body>
+</html>

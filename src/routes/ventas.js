@@ -3,19 +3,22 @@
 /**
  * routes/ventas.js — API REST módulo de ventas
  *
- * GET /api/ventas                      — lista de folios del mes
- * GET /api/ventas/kpis                 — KPIs card
- * GET /api/ventas/total                — total ventas del mes
- * GET /api/ventas/resumen              — resumen por vendedor
- * GET /api/ventas/resumen-vendedores   — ventas agrupadas por cod_vendedor
- * GET /api/ventas/evolucion            — ventas mes a mes del año
- * GET /api/ventas/meta                 — meta anual/mensual
- * GET /api/ventas/clientes             — autocomplete de clientes (q=texto) filtrado por vendedor
- * GET /api/ventas/cliente-info         — info completa del cliente: ?codAux=
- * GET /api/ventas/historial-cliente    — historial por cliente: ?codAux=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
- * GET /api/ventas/folio/:folio         — monto de un folio
- * GET /api/ventas/detalle/:folio       — detalle líneas de un folio
- * GET /api/ventas/descuentos           — descuentos por vendedor
+ * GET  /api/ventas                      — lista de folios del mes
+ * GET  /api/ventas/kpis                 — KPIs card
+ * GET  /api/ventas/total                — total ventas del mes
+ * GET  /api/ventas/resumen              — resumen por vendedor
+ * GET  /api/ventas/resumen-vendedores   — ventas agrupadas por cod_vendedor
+ * GET  /api/ventas/evolucion            — ventas mes a mes del año
+ * GET  /api/ventas/meta                 — meta anual/mensual
+ * GET  /api/ventas/clientes             — autocomplete de clientes (q=texto)
+ * GET  /api/ventas/cliente-info         — info completa del cliente: ?codAux=
+ * GET  /api/ventas/historial-cliente    — historial por cliente
+ * GET  /api/ventas/folio/:folio         — monto de un folio
+ * GET  /api/ventas/detalle/:folio       — detalle líneas de un folio
+ * GET  /api/ventas/descuentos           — descuentos por vendedor
+ * POST /api/ventas/confirmar            — confirma ventas del mes → genera PDF
+ * GET  /api/ventas/confirmacion-estado  — estado de confirmación del mes actual
+ * GET  /api/ventas/confirmacion/:id/pdf — descarga el PDF propio del vendedor
  */
 
 const express = require('express');
@@ -36,6 +39,13 @@ const {
   getDescuentosVendedor,
 } = require('../models/venta');
 const { validarMesAnio } = require('../utils/stringHelpers');
+const {
+  existeConfirmacion,
+  crearConfirmacion,
+  obtenerConfirmacionPorId,
+  obtenerConfirmacionUsuario,
+} = require('../models/confirmacion');
+const { generarPdfConfirmacion } = require('../utils/pdfConfirmacion');
 
 /** Códigos de vendedor asignados al usuario autenticado. */
 function getCodigos(req) {
@@ -44,11 +54,14 @@ function getCodigos(req) {
 
 /**
  * isAdmin — true si el usuario es administrador O no tiene vendedores asignados.
- * Los admins pueden ver todos los clientes sin restricción.
  */
 function isAdmin(req) {
   return req.usuario?.is_admin === true || getCodigos(req).length === 0;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rutas existentes (sin cambios)
+// ────────────────────────────────────────────────────────────────────────────
 
 // GET /api/ventas
 router.get('/', requireAuth, async (req, res) => {
@@ -267,13 +280,7 @@ router.get('/resumen', requireAuth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ventas/clientes   — autocomplete filtrado por vendedor del usuario
-//   q=texto
-//   Solo retorna clientes que hayan tenido al menos una factura/nota con
-//   alguno de los códigos de vendedor del usuario autenticado.
-//   Los administradores (is_admin=true) ven todos los clientes sin restricción.
-// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ventas/clientes
 router.get('/clientes', requireAuth, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
@@ -337,11 +344,7 @@ router.get('/clientes', requireAuth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ventas/cliente-info   — información completa del cliente
-//   ?codAux=XXX
-//   Devuelve: rut, nombre, telefono, telefono2, direccion, ciudad, email
-// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/ventas/cliente-info
 router.get('/cliente-info', requireAuth, async (req, res) => {
   try {
     const { codAux } = req.query;
@@ -376,12 +379,7 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/ventas/historial-cliente
-//   ?codAux=XXX  &desde=YYYY-MM-DD  &hasta=YYYY-MM-DD
-//   Muestra el historial de compras del cliente FILTRADO por los códigos de
-//   vendedor del usuario autenticado. Los administradores ven todo el historial.
-// ─────────────────────────────────────────────────────────────────────────────
 router.get('/historial-cliente', requireAuth, async (req, res) => {
   try {
     const { codAux, desde, hasta } = req.query;
@@ -489,6 +487,204 @@ router.get('/descuentos', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[GET /api/ventas/descuentos]', err.message);
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// NUEVAS RUTAS — Confirmación de ventas
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ventas/confirmacion-estado
+ * Retorna si el usuario ya confirmó el mes/año solicitado.
+ * ?mes=6&anio=2026
+ */
+router.get('/confirmacion-estado', requireAuth, async (req, res) => {
+  try {
+    let mes, anio;
+    try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+
+    const usuarioId = req.usuario.id;
+    const conf = await obtenerConfirmacionUsuario({ usuarioId, mes, anio });
+
+    res.json({
+      ok: true,
+      confirmado: !!conf,
+      confirmacion: conf ? {
+        id:                 conf.id,
+        fecha_confirmacion: conf.fecha_confirmacion,
+        total_folios:       conf.total_folios,
+        nombre_archivo:     conf.nombre_archivo,
+      } : null,
+    });
+  } catch (err) {
+    console.error('[GET /api/ventas/confirmacion-estado]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener estado de confirmación' });
+  }
+});
+
+/**
+ * POST /api/ventas/confirmar
+ * Confirma todas las ventas del mes para el usuario autenticado.
+ * Body: { mes: number, anio: number }
+ *
+ * Flujo:
+ *  1. Valida que no exista confirmación previa (409 si ya existe)
+ *  2. Consulta ventas propias desde Softland
+ *  3. Consulta ventas asignadas desde factura_compartida (MySQL)
+ *  4. Consulta meta mensual
+ *  5. Genera PDF con Puppeteer
+ *  6. Inserta registro en confirmaciones_ventas
+ *  7. Retorna { ok, id, nombreArchivo }
+ */
+router.post('/confirmar', requireAuth, async (req, res) => {
+  try {
+    let mes, anio;
+    try { ({ mes, anio } = validarMesAnio(req.body.mes, req.body.anio)); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+
+    const usuarioId = req.usuario.id;
+    const usuario   = req.usuario; // { id, nombre, apellido, email, vendedores, is_admin }
+
+    // 1. Verificar confirmación previa
+    const yaConfirmado = await existeConfirmacion({ usuarioId, mes, anio });
+    if (yaConfirmado) {
+      return res.status(409).json({
+        ok:    false,
+        error: `Ya confirmaste el período ${mes}/${anio}. Solo se permite una confirmación por mes.`,
+      });
+    }
+
+    const codigos = getCodigos(req);
+
+    // 2. Ventas propias desde Softland
+    let ventasPropias = [];
+    let totalPropias  = 0;
+
+    if (codigos.length > 0) {
+      const codigosIn = codigos.map(c => `'${c}'`).join(',');
+      const pool      = await getSoftlandPool();
+      const result    = await pool.request()
+        .input('mes', sql.Int, mes)
+        .input('anio', sql.Int, anio)
+        .query(`
+          SELECT
+            enc.Folio,
+            RTRIM(enc.NomAux)                    AS NomAux,
+            CONVERT(varchar(10), enc.Fecha, 120) AS Fecha,
+            enc.CodVendedor,
+            SUM(m.TotLinea)                      AS TotLinea,
+            CASE
+              WHEN SUM(m.TotLinea) > 0 AND SUM(m.TotLinea) < SUM(m.CantFacturada * t.PrecioVta)
+              THEN ROUND((1 - SUM(m.TotLinea) / NULLIF(SUM(m.CantFacturada * t.PrecioVta),0))*100, 2)
+              ELSE 0
+            END AS pctDescuento
+          FROM [PRODIN].[softland].[iw_gsaen] enc
+          INNER JOIN [PRODIN].[softland].[iw_gmovi] m
+            ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+          INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+          WHERE enc.Tipo IN ('F','N','D') AND enc.Estado <> 'A'
+            AND enc.CodVendedor IN (${codigosIn})
+            AND MONTH(enc.Fecha) = @mes AND YEAR(enc.Fecha) = @anio
+          GROUP BY enc.Folio, enc.NomAux, enc.Fecha, enc.CodVendedor
+          ORDER BY enc.Fecha
+        `);
+      ventasPropias = result.recordset;
+      totalPropias  = ventasPropias.reduce((a, v) => a + Number(v.TotLinea || 0), 0);
+    }
+
+    // 3. Ventas asignadas (factura_compartida en MySQL)
+    const [fcRows] = await db.query(
+      `SELECT folio, cliente, fecha, monto_asignado, porcentaje, rol,
+              cod_vendedor_principal, cod_vendedor_compartido, nombre_vendedor_compartido
+       FROM factura_compartida
+       WHERE usuario_id = ? AND mes = ? AND anio = ?
+       ORDER BY fecha`,
+      [usuarioId, mes, anio]
+    );
+    const ventasAsignadas  = fcRows;
+    const totalAsignadas   = fcRows.reduce((a, f) => a + Number(f.monto_asignado || 0), 0);
+
+    // 4. Meta mensual
+    const [metaRows] = await db.query(
+      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
+      [usuarioId, anio]
+    );
+    const metaAnual = metaRows.length ? Number(metaRows[0].meta) : 0;
+    const meta      = metaAnual > 0 ? Math.round(metaAnual / 12) : 0;
+
+    // 5. Generar PDF
+    const { rutaPdf, nombreArchivo } = await generarPdfConfirmacion({
+      usuario:         { id: usuarioId, nombre: usuario.nombre, apellido: usuario.apellido, email: usuario.email },
+      mes,
+      anio,
+      ventasPropias,
+      ventasAsignadas,
+      meta,
+      totalPropias:    Math.round(totalPropias),
+      totalAsignadas:  Math.round(totalAsignadas),
+    });
+
+    // 6. Insertar en BD
+    const ip = req.ip || req.headers['x-forwarded-for'] || null;
+    const id = await crearConfirmacion({
+      usuarioId,
+      mes,
+      anio,
+      rutaPdf,
+      nombreArchivo,
+      totalVentasPropias:      Math.round(totalPropias),
+      totalVentasAsignadas:    Math.round(totalAsignadas),
+      totalFolios:             ventasPropias.length,
+      totalFacturasCompartidas: ventasAsignadas.length,
+      ip,
+    });
+
+    res.json({
+      ok:           true,
+      id,
+      nombreArchivo,
+      totalPropias:  Math.round(totalPropias),
+      totalAsignadas: Math.round(totalAsignadas),
+      totalFolios:   ventasPropias.length,
+    });
+  } catch (err) {
+    console.error('[POST /api/ventas/confirmar]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al generar la confirmación' });
+  }
+});
+
+/**
+ * GET /api/ventas/confirmacion/:id/pdf
+ * El vendedor descarga su propio PDF (solo puede ver el suyo).
+ */
+router.get('/confirmacion/:id/pdf', requireAuth, async (req, res) => {
+  try {
+    const fs   = require('fs');
+    const path = require('path');
+    const id   = Number(req.params.id);
+    if (!id || isNaN(id)) return res.status(400).json({ ok: false, error: 'ID inválido' });
+
+    const conf = await obtenerConfirmacionPorId(id);
+    if (!conf) return res.status(404).json({ ok: false, error: 'Confirmación no encontrada' });
+
+    // Solo el propio usuario puede descargar su PDF (o admin)
+    if (!req.usuario.is_admin && conf.usuario_id !== req.usuario.id) {
+      return res.status(403).json({ ok: false, error: 'Sin permiso para este archivo' });
+    }
+
+    const rutaAbsoluta = path.join(process.cwd(), conf.ruta_pdf);
+    if (!fs.existsSync(rutaAbsoluta)) {
+      return res.status(404).json({ ok: false, error: 'Archivo no encontrado' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${conf.nombre_archivo}"`);
+    fs.createReadStream(rutaAbsoluta).pipe(res);
+  } catch (err) {
+    console.error('[GET /api/ventas/confirmacion/:id/pdf]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al servir el PDF' });
   }
 });
 
