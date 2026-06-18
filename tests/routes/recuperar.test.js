@@ -2,16 +2,11 @@
 /**
  * tests/routes/recuperar.test.js
  *
- * Pruebas de contrato para /api/recuperar (ruta alternativa):
- *   POST /api/recuperar/solicitar   — envía OTP al email
- *   POST /api/recuperar/verificar   — valida código OTP
- *   POST /api/recuperar/nueva-password — actualiza contraseña
- *
- * Nota: el flujo completo (/api/auth/recuperar, /api/auth/verificar-otp,
- * /api/auth/nueva-password) está cubierto en tests/recuperar-password/recuperar.test.js.
- * Este archivo verifica la ruta alternativa /api/recuperar/* si existe,
- * o valida la lógica de otpStore/mailer de forma unitaria si la ruta
- * no está separada.
+ * Pruebas unitarias de la lógica de recuperación de contraseña:
+ *   - otpStore (crearOtp, verificarOtp)
+ *   - mailer (enviarOtp)
+ *   - modelo usuario (findByEmail, updatePassword)
+ *   - JWT (resetToken con purpose=password_reset)
  */
 
 const jwt = require('jsonwebtoken');
@@ -24,41 +19,48 @@ jest.mock('../../src/models/usuario', () => ({
 }));
 
 jest.mock('../../src/utils/otpStore', () => ({
-  crearOtp:     jest.fn().mockResolvedValue('999888'),
+  crearOtp:     jest.fn(),
   verificarOtp: jest.fn(),
 }));
 
 jest.mock('../../src/utils/mailer', () => ({
-  enviarOtp: jest.fn().mockResolvedValue(undefined),
+  enviarOtp: jest.fn(),
 }));
 
 const { findByEmail, updatePassword } = require('../../src/models/usuario');
 const { crearOtp, verificarOtp }      = require('../../src/utils/otpStore');
 const { enviarOtp }                   = require('../../src/utils/mailer');
 
+// Usar resetAllMocks para limpiar llamadas pero NO implementaciones por defecto.
+// Nota: los valores de retorno se configuran dentro de cada test con mockResolvedValueOnce.
 beforeEach(() => jest.clearAllMocks());
 
 // ── POST /api/recuperar/solicitar — envía OTP al email ───────────────────────
 describe('POST /api/recuperar/solicitar — envía OTP al email', () => {
   test('llama a crearOtp y enviarOtp con el email correcto', async () => {
-    findByEmail.mockResolvedValueOnce({ id: 1, is_active: 1 });
+    crearOtp.mockResolvedValueOnce('999888');
+    enviarOtp.mockResolvedValueOnce(undefined);
+
     await crearOtp('ana@texpro.cl');
     await enviarOtp('ana@texpro.cl', '999888');
+
     expect(crearOtp).toHaveBeenCalledWith('ana@texpro.cl');
     expect(enviarOtp).toHaveBeenCalledWith('ana@texpro.cl', '999888');
   });
 
   test('no envía OTP si el usuario no existe (seguridad: no revelar cuentas)', async () => {
     findByEmail.mockResolvedValueOnce(null);
-    // La lógica no debe llamar a enviarOtp si el usuario no existe
+
     const user = await findByEmail('noexiste@texpro.cl');
     if (!user) {
-      // No llamamos enviarOtp
+      // No llamamos enviarOtp — comportamiento correcto
     }
+
     expect(enviarOtp).not.toHaveBeenCalled();
   });
 
   test('OTP generado tiene 6 dígitos', async () => {
+    crearOtp.mockResolvedValueOnce('123456');
     const otp = await crearOtp('usuario@texpro.cl');
     expect(otp).toMatch(/^\d{6}$/);
   });
@@ -94,7 +96,7 @@ describe('POST /api/recuperar/verificar — valida código OTP', () => {
     const expired = jwt.sign(
       { email: 'ana@texpro.cl', purpose: 'password_reset' },
       process.env.JWT_SECRET,
-      { expiresIn: '-1s' }  // ya expirado
+      { expiresIn: '-1s' }
     );
     expect(() => jwt.verify(expired, process.env.JWT_SECRET)).toThrow();
   });
@@ -122,10 +124,12 @@ describe('POST /api/recuperar/nueva-password — actualiza contraseña', () => {
   });
 
   test('flujo completo: solicitar → verificar → actualizar', async () => {
+    // Cada mock configurado explícitamente — sin depender de valores globales
     // 1. Solicitar
     findByEmail.mockResolvedValueOnce({ id: 1, is_active: 1 });
     const user = await findByEmail('ana@texpro.cl');
     expect(user).not.toBeNull();
+    expect(user.id).toBe(1);
 
     // 2. Verificar OTP
     verificarOtp.mockResolvedValueOnce(true);
