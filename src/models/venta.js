@@ -155,6 +155,7 @@ async function getVentas({ codigos, mes, anio }) {
       CONVERT(VARCHAR(10), gsaen.Fecha, 103) AS fecha_formato,
       gsaen.SubTotal                         AS monto,
       gsaen.CodVendedor,
+      RTRIM(gsaen.CodAux)                    AS cod_cliente,
       cwtauxi.nomAux                         AS cliente,
       COALESCE(gsaen.TotDesc, 0)             AS descuento
     FROM [PRODIN].[softland].[iw_gsaen] gsaen
@@ -215,7 +216,7 @@ async function getDetalleFolio({ folio }) {
       gsaen.Fecha,
       gsaen.CodVendedor,
       gsaen.CanCod,
-      gsaen.CodAux,
+      RTRIM(gsaen.CodAux)                                         AS CodAux,
       cvl.CodCan,
       cwtauxi.nomAux                                              AS Cliente,
       gmovi.CodProd,
