@@ -7,8 +7,8 @@
  * El PDF se guarda en storage/confirmaciones/ (relativo a la raíz del proyecto).
  */
 
-const path    = require('path');
-const fs      = require('fs');
+const path      = require('path');
+const fs        = require('fs');
 const puppeteer = require('puppeteer');
 
 const STORAGE_DIR = path.join(process.cwd(), 'storage', 'confirmaciones');
@@ -37,14 +37,15 @@ const MESES = [
  */
 function filasPropias(ventas) {
   if (!ventas || ventas.length === 0) {
-    return '<tr><td colspan="5" style="text-align:center;color:#888">Sin ventas propias en el período</td></tr>';
+    return '<tr><td colspan="6" style="text-align:center;color:#888">Sin ventas propias en el período</td></tr>';
   }
   return ventas.map(v => `
     <tr>
       <td>${v.Folio ?? ''}</td>
+      <td>${v.cod_cliente ?? v.CodAux ?? '—'}</td>
       <td>${v.NomAux ?? v.cliente ?? ''}</td>
-      <td>${v.Fecha ? new Date(v.Fecha).toLocaleDateString('es-CL') : ''}</td>
-      <td style="text-align:right">${fmtCLP(v.TotLinea ?? v.monto_neto)}</td>
+      <td>${v.Fecha ? new Date(v.Fecha).toLocaleDateString('es-CL') : (v.fecha_formato ?? '')}</td>
+      <td style="text-align:right">${fmtCLP(v.TotLinea ?? v.monto ?? v.monto_neto)}</td>
       <td style="text-align:center">${v.pctDescuento != null ? v.pctDescuento + '%' : '-'}</td>
     </tr>`).join('');
 }
@@ -54,11 +55,12 @@ function filasPropias(ventas) {
  */
 function filasAsignadas(facturas) {
   if (!facturas || facturas.length === 0) {
-    return '<tr><td colspan="5" style="text-align:center;color:#888">Sin ventas asignadas en el período</td></tr>';
+    return '<tr><td colspan="6" style="text-align:center;color:#888">Sin ventas asignadas en el período</td></tr>';
   }
   return facturas.map(f => `
     <tr>
       <td>${f.folio ?? ''}</td>
+      <td>${f.cod_cliente ?? f.CodAux ?? '—'}</td>
       <td>${f.cliente ?? ''}</td>
       <td>${f.fecha ? new Date(f.fecha).toLocaleDateString('es-CL') : ''}</td>
       <td style="text-align:right">${fmtCLP(f.monto_asignado)}</td>
@@ -258,6 +260,7 @@ function generarHTML({ usuario, mes, anio, ventasPropias, ventasAsignadas, meta,
     <thead>
       <tr>
         <th>Folio</th>
+        <th>Cód. Cliente</th>
         <th>Cliente</th>
         <th>Fecha</th>
         <th style="text-align:right">Monto Neto</th>
@@ -267,7 +270,7 @@ function generarHTML({ usuario, mes, anio, ventasPropias, ventasAsignadas, meta,
     <tbody>${filasPropias(ventasPropias)}</tbody>
     <tfoot>
       <tr>
-        <td colspan="3"><strong>TOTAL VENTAS PROPIAS</strong></td>
+        <td colspan="4"><strong>TOTAL VENTAS PROPIAS</strong></td>
         <td style="text-align:right"><strong>${fmtCLP(totalPropias)}</strong></td>
         <td></td>
       </tr>
@@ -280,6 +283,7 @@ function generarHTML({ usuario, mes, anio, ventasPropias, ventasAsignadas, meta,
     <thead>
       <tr>
         <th>Folio</th>
+        <th>Cód. Cliente</th>
         <th>Cliente</th>
         <th>Fecha</th>
         <th style="text-align:right">Monto Asignado</th>
@@ -289,7 +293,7 @@ function generarHTML({ usuario, mes, anio, ventasPropias, ventasAsignadas, meta,
     <tbody>${filasAsignadas(ventasAsignadas)}</tbody>
     <tfoot>
       <tr>
-        <td colspan="3"><strong>TOTAL VENTAS ASIGNADAS</strong></td>
+        <td colspan="4"><strong>TOTAL VENTAS ASIGNADAS</strong></td>
         <td style="text-align:right"><strong>${fmtCLP(totalAsignadas)}</strong></td>
         <td></td>
       </tr>
