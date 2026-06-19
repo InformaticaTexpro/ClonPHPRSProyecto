@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.7" />
-  <link rel="stylesheet" href="ventas.css?v=1.0.0" />
+  <link rel="stylesheet" href="ventas.css?v=1.1.0" />
 </head>
 <body>
 
@@ -83,7 +83,7 @@
 
     <main class="main-content">
 
-      <!-- Barra bienvenida + filtros + boton PDF -->
+      <!-- Barra bienvenida + filtros + botón PDF -->
       <div class="welcome-bar">
         <div class="welcome-text">
           <h2 id="welcomeTitle">Hola 👋</h2>
@@ -113,15 +113,11 @@
             <div class="coord-form-row">
               <div class="coord-form-group">
                 <label class="coord-label" for="coordFolio">Folio</label>
-                <select class="filtro-select" id="coordFolio">
-                  <option value="">— Selecciona un folio —</option>
-                </select>
+                <select class="filtro-select" id="coordFolio"><option value="">— Selecciona un folio —</option></select>
               </div>
               <div class="coord-form-group">
                 <label class="coord-label" for="coordVendedor">Vendedor</label>
-                <select class="filtro-select" id="coordVendedor">
-                  <option value="">— Selecciona vendedor —</option>
-                </select>
+                <select class="filtro-select" id="coordVendedor"><option value="">— Selecciona vendedor —</option></select>
               </div>
               <div class="coord-form-group coord-form-group--sm">
                 <label class="coord-label" for="coordPorcentaje">% Participación</label>
@@ -171,6 +167,7 @@
             <table class="dash-tabla">
               <thead>
                 <tr>
+                  <th style="width:40px"></th>
                   <th>Folio</th><th>Fecha</th><th>Cliente</th>
                   <th>Vendedor Origen</th>
                   <th style="text-align:right">% Part.</th>
@@ -178,7 +175,7 @@
                 </tr>
               </thead>
               <tbody id="tbodyCompartidos">
-                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -196,6 +193,7 @@
             <table class="dash-tabla">
               <thead>
                 <tr>
+                  <th style="width:40px"></th>
                   <th>Folio</th><th>Fecha</th><th>Cliente</th>
                   <th>Cód. Vendedor</th>
                   <th style="text-align:right">Monto</th>
@@ -204,7 +202,7 @@
                 </tr>
               </thead>
               <tbody id="tbodyVentas">
-                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+                <tr class="tabla-empty"><td colspan="8">Cargando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -214,7 +212,7 @@
     </main>
   </div>
 
-  <script src="ventas.js?v=1.0.2"></script>
+  <script src="ventas.js?v=1.1.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
   <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
 </body>

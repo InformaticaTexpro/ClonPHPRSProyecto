@@ -2,13 +2,10 @@
 
 /**
  * ventas.js — Ventas Asignadas Texpro
- *
- * 2026-06-09: fix — iconos unificados; item activo muestra ícono bars SVG
- * 2026-06-15: fix — restaurar lógica de carga borrada accidentalmente;
- *                    estandarizar sidebar: Historial → Historial Cliente
- * 2026-06-19: feat — botón PDF en barra superior
- *             fix  — vendedor origen en compartidos usa campo 'coordinador'
- *             fix  — ventas del mes filtra por todos los codigos del usuario
+ * 2026-06-19: feat — detalle de productos por folio expandible (2 bloques)
+ *             fix  — vendedor origen usa campo 'coordinador'
+ *             fix  — ventas del mes filtra todos los codigos del usuario
+ *             feat — botón PDF en barra superior
  */
 
 (function () {
@@ -36,9 +33,8 @@
     if (el) el.style[prop] = value;
   }
 
-  // Obtiene todos los codigos de vendedor del usuario (igual que el backend)
   function getCodigosUsuario(usuario) {
-    if (usuario.is_admin) return null; // null = mostrar todo
+    if (usuario.is_admin) return null;
     return (usuario.vendedores || []).map(v => String(v.cod_vendedor || v.cod)).filter(Boolean);
   }
 
@@ -95,6 +91,119 @@
     return (usuario.vendedores || []).some(v => v.tipo === 'C');
   }
 
+  // ── Detalle de productos por folio ────────────────────────────────────────
+  // Cache para no recargar el mismo folio dos veces
+  const _detalleCache = {};
+
+  async function toggleDetalle(folio, trExpand, colspan) {
+    // Si ya está abierto, cerrar
+    if (trExpand.classList.contains('detalle-open')) {
+      trExpand.classList.remove('detalle-open');
+      trExpand.innerHTML = '';
+      return;
+    }
+
+    // Mostrar loader inline
+    trExpand.classList.add('detalle-open');
+    trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-loading"><span class="detalle-spinner"></span> Cargando detalle del folio ${folio}…</div></td>`;
+
+    try {
+      if (!_detalleCache[folio]) {
+        const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error al cargar detalle');
+        _detalleCache[folio] = data;
+      }
+      const data = _detalleCache[folio];
+      trExpand.innerHTML = `<td colspan="${colspan}">${renderDetalle(data)}</td>`;
+    } catch (err) {
+      trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-error">⚠️ ${err.message}</div></td>`;
+    }
+  }
+
+  function renderDetalle(data) {
+    const d0 = data.detalle?.[0] || {};
+
+    // Bloque 1: encabezado del folio
+    const bloque1 = `
+      <div class="det-bloque det-bloque1">
+        <div class="det-campo">
+          <span class="det-label">Folio</span>
+          <span class="det-valor">${d0.Folio || data.folio || '—'}</span>
+        </div>
+        <div class="det-campo">
+          <span class="det-label">Fecha</span>
+          <span class="det-valor">${d0.Fecha || '—'}</span>
+        </div>
+        <div class="det-campo">
+          <span class="det-label">Cód. Vendedor</span>
+          <span class="det-valor">${d0.CodVendedor || '—'}</span>
+        </div>
+        <div class="det-campo det-campo--wide">
+          <span class="det-label">Cliente</span>
+          <span class="det-valor">${d0.Cliente || '—'}</span>
+        </div>
+        <div class="det-campo">
+          <span class="det-label">Canal (CanCod)</span>
+          <span class="det-valor">${d0.CanCod || '—'}</span>
+        </div>
+        <div class="det-campo">
+          <span class="det-label">Factor histórico</span>
+          <span class="det-valor">${data.factor != null ? data.factor : '—'}</span>
+        </div>
+      </div>`;
+
+    // Bloque 2: tabla de productos
+    const filas = (data.detalle || []).map(p => {
+      const cant      = Number(p.CantFacturada) || 0;
+      const precReal  = Number(p.precio_unitario_cobrado) || 0;   // precio real cobrado
+      const precVta   = Number(p.precio_lista_actual)     || 0;   // precio lista Softland
+      const totReal   = Number(p.TotLinea)                || 0;   // total cobrado
+      const totVta    = Number(p.valor_historico_linea)   || 0;   // total histórico
+      const desc = precVta > 0
+        ? Math.round((1 - Math.abs(precReal) / Math.abs(precVta)) * 10000) / 100
+        : 0;
+      const descStr = desc !== 0 ? `${desc}%` : '—';
+      const negativo = totReal < 0;
+      return `
+        <tr class="${negativo ? 'det-row-neg' : ''}">
+          <td class="det-td">${p.CodProd || '—'}</td>
+          <td class="det-td det-td--desc">${p.DesProd || '—'}</td>
+          <td class="det-td det-td--num">${cant}</td>
+          <td class="det-td det-td--num">${formatCLP(precReal)}</td>
+          <td class="det-td det-td--num">${formatCLP(precVta)}</td>
+          <td class="det-td det-td--num ${negativo ? 'det-neg' : 'det-pos'}">${formatCLP(totReal)}</td>
+          <td class="det-td det-td--num">${formatCLP(totVta)}</td>
+          <td class="det-td det-td--num">${descStr}</td>
+        </tr>`;
+    }).join('');
+
+    const bloque2 = `
+      <div class="det-bloque det-bloque2">
+        <div class="det-tabla-wrap">
+          <table class="det-tabla">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Producto / Descripción</th>
+                <th class="det-th--num">Cant.</th>
+                <th class="det-th--num">Precio Real</th>
+                <th class="det-th--num">Precio Venta</th>
+                <th class="det-th--num">Total Real</th>
+                <th class="det-th--num">Total Venta</th>
+                <th class="det-th--num">Descuento</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filas || '<tr><td colspan="8" style="text-align:center;padding:1rem">Sin líneas de detalle</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    return `<div class="det-contenedor">${bloque1}${bloque2}</div>`;
+  }
+
   // ── PDF ───────────────────────────────────────────────────────────────────
   async function cargarLibreriaPDF() {
     if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
@@ -123,14 +232,12 @@
     const btnPdf = document.getElementById('btnGenerarPDF');
     try {
       if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Generando...'; }
-
       const jsPDF    = await cargarLibreriaPDF();
       const doc      = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
       const mesLabel = getMesFiltro();
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-      // ── Encabezado ───────────────────────────────────────────────
       doc.setFillColor(0, 174, 142);
       doc.rect(0, 0, 297, 18, 'F');
       doc.setTextColor(255, 255, 255);
@@ -142,97 +249,76 @@
 
       let y = 24;
 
-      // ── Tabla Ventas del Mes ───────────────────────────────────────────
       doc.setFontSize(10); doc.setFont('helvetica', 'bold');
       doc.text(`Ventas del Mes — ${mesLabel}`, 14, y); y += 3;
 
       const filasV = [...(document.getElementById('tbodyVentas')
-        ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
-        .map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()));
+        ?.querySelectorAll('tr:not(.tabla-empty):not(.detalle-expand-row)') || [])]
+        .map(tr => [...tr.querySelectorAll('td:not(.det-btn-td)')].map(td => td.innerText.trim()));
 
       doc.autoTable({
         startY: y,
         head: [['Folio', 'Fecha', 'Cliente', 'Cód. Vendedor', 'Monto', 'TotLineaReal', 'Descuento']],
         body: filasV.length ? filasV : [['Sin ventas este mes', '', '', '', '', '', '']],
-        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+        styles: { fontSize: 8, cellPadding: 2.5 },
         headStyles: { fillColor: [0, 174, 142], textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [245, 250, 248] },
         columnStyles: {
-          0: { cellWidth: 18 },
-          1: { cellWidth: 24 },
-          2: { cellWidth: 70 },
-          3: { cellWidth: 26 },
-          4: { cellWidth: 34, halign: 'right' },
-          5: { cellWidth: 34, halign: 'right' },
-          6: { cellWidth: 20, halign: 'right' },
+          0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 70 },
+          3: { cellWidth: 26 }, 4: { cellWidth: 34, halign:'right' },
+          5: { cellWidth: 34, halign:'right' }, 6: { cellWidth: 20, halign:'right' },
         },
         margin: { left: 14, right: 14 },
       });
-
       y = doc.lastAutoTable.finalY + 10;
 
-      // ── Tabla Ventas Compartidas (vendedor) ─────────────────────────────
       const panelComp = document.getElementById('panelCompartidos');
       if (panelComp && panelComp.style.display !== 'none') {
         if (y > 170) { doc.addPage(); y = 14; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
-
         const filasC = [...(document.getElementById('tbodyCompartidos')
-          ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
-          .map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()));
-
+          ?.querySelectorAll('tr:not(.tabla-empty):not(.detalle-expand-row)') || [])]
+          .map(tr => [...tr.querySelectorAll('td:not(.det-btn-td)')].map(td => td.innerText.trim()));
         doc.autoTable({
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
           body: filasC.length ? filasC : [['Sin folios compartidos', '', '', '', '', '']],
-          styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+          styles: { fontSize: 8, cellPadding: 2.5 },
           headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [245, 248, 252] },
           columnStyles: {
-            0: { cellWidth: 18 },
-            1: { cellWidth: 24 },
-            2: { cellWidth: 80 },
-            3: { cellWidth: 50 },
-            4: { cellWidth: 18, halign: 'right' },
-            5: { cellWidth: 36, halign: 'right' },
+            0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 80 },
+            3: { cellWidth: 50 }, 4: { cellWidth: 18, halign:'right' }, 5: { cellWidth: 36, halign:'right' },
           },
           margin: { left: 14, right: 14 },
         });
         y = doc.lastAutoTable.finalY + 10;
       }
 
-      // ── Tabla Folios Asignados (coordinador) ───────────────────────────
       const panelAsig = document.getElementById('panelCoordinador');
       if (panelAsig && panelAsig.style.display !== 'none') {
         if (y > 170) { doc.addPage(); y = 14; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
-
         const filasA = [...(document.getElementById('tbodyAsignados')
           ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
           .map(tr => [...tr.querySelectorAll('td')].slice(0, 6).map(td => td.innerText.trim()));
-
         doc.autoTable({
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Asignado', '% Part.', 'Monto Asignado']],
           body: filasA.length ? filasA : [['Sin folios asignados', '', '', '', '', '']],
-          styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+          styles: { fontSize: 8, cellPadding: 2.5 },
           headStyles: { fillColor: [100, 60, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [248, 246, 252] },
           columnStyles: {
-            0: { cellWidth: 18 },
-            1: { cellWidth: 24 },
-            2: { cellWidth: 80 },
-            3: { cellWidth: 50 },
-            4: { cellWidth: 18, halign: 'right' },
-            5: { cellWidth: 36, halign: 'right' },
+            0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 80 },
+            3: { cellWidth: 50 }, 4: { cellWidth: 18, halign:'right' }, 5: { cellWidth: 36, halign:'right' },
           },
           margin: { left: 14, right: 14 },
         });
       }
 
-      // ── Footer ─────────────────────────────────────────────────────
       const totalPags = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPags; i++) {
         doc.setPage(i);
@@ -240,9 +326,7 @@
         doc.text(`TEXPRO — Documento interno. Página ${i} de ${totalPags}`, 14, 205);
         doc.text(hoy, 260, 205);
       }
-
       doc.save(`Reporte_Ventas_${mesLabel.replace(' ', '_')}.pdf`);
-
     } catch (err) {
       console.error('[generarPDF]', err);
       alert('Error al generar el PDF. Intenta nuevamente.');
@@ -287,14 +371,9 @@
       if (usuario.is_admin) return true;
       return m.area.includes(usuario.area);
     });
-
     const svgVentas = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
-
     if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
-      <a class="nav-item active" href="#">
-        ${svgVentas}
-        <span class="nav-label">Ventas Asignadas</span>
-      </a>
+      <a class="nav-item active" href="#">${svgVentas}<span class="nav-label">Ventas Asignadas</span></a>
       ${visibles.map(m=>`<a class="nav-item" href="${m.url}"><span style="font-size:1rem">${m.icon}</span><span class="nav-label">${m.nombre}</span></a>`).join('')}`;
 
     const btnLogout = document.getElementById('btnLogout');
@@ -313,7 +392,7 @@
     });
   }
 
-  // ── Selectores mes/año ───────────────────────────────────────────────────
+  // ── Selectores mes/año ────────────────────────────────────────────────────
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -343,6 +422,28 @@
     };
   }
 
+  // ── Helper: fila de detalle expandible ───────────────────────────────────
+  // Agrega un <tr class="detalle-expand-row"> después de cada fila de datos
+  // y bindea el botón de la fila padre
+  function bindDetalleRows(tbody, folioField, colspan) {
+    tbody.querySelectorAll('tr[data-folio]').forEach(tr => {
+      const folio   = tr.dataset.folio;
+      const trExp   = document.createElement('tr');
+      trExp.className = 'detalle-expand-row';
+      trExp.innerHTML = `<td colspan="${colspan}"></td>`;
+      tr.after(trExp);
+
+      tr.querySelector('.btn-det')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Rotar icono
+        const svg = tr.querySelector('.det-chevron');
+        const yaAbierto = trExp.classList.contains('detalle-open');
+        if (svg) svg.style.transform = yaAbierto ? 'rotate(0deg)' : 'rotate(180deg)';
+        toggleDetalle(folio, trExp, colspan);
+      });
+    });
+  }
+
   // ── PANEL COORDINADOR ─────────────────────────────────────────────────────
   async function cargarListaVendedores() {
     try {
@@ -353,9 +454,7 @@
       const sel = document.getElementById('coordVendedor');
       if (!sel) return;
       sel.innerHTML = '<option value="">— Selecciona vendedor —</option>' +
-        data.vendedores.map(v =>
-          `<option value="${v.cod}">${v.cod} — ${v.nombre||'Sin nombre'}</option>`
-        ).join('');
+        data.vendedores.map(v => `<option value="${v.cod}">${v.cod} — ${v.nombre||'Sin nombre'}</option>`).join('');
     } catch(err) { console.error('[cargarListaVendedores]', err); }
   }
 
@@ -406,9 +505,7 @@
         sel.innerHTML = '<option value="">— Sin folios disponibles —</option>'; return;
       }
       sel.innerHTML = '<option value="">— Selecciona un folio —</option>' +
-        data.folios.map(f =>
-          `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`
-        ).join('');
+        data.folios.map(f => `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`).join('');
     } catch(err) { console.error('[cargarFoliosParaCompartir]', err); }
   }
 
@@ -521,7 +618,7 @@
     });
   }
 
-  // ── PANEL COMPARTIDOS (vendedor) ─────────────────────────────────────────
+  // ── PANEL COMPARTIDOS (vendedor) ──────────────────────────────────────────
   async function iniciarPanelCompartidos() {
     setStyle('panelCompartidos', 'display', 'block');
     try {
@@ -531,14 +628,17 @@
       if (!tbody) return;
       setText('totalCompartidos', `${(data.compartidos||[]).length} registros`);
       if (!data.ok || !data.compartidos?.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin folios compartidos este mes</td></tr>'; return;
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin folios compartidos este mes</td></tr>'; return;
       }
       tbody.innerHTML = data.compartidos.map(c => {
-        // El backend devuelve el nombre del coordinador en el campo 'coordinador'
-        // Tambien puede venir en nombre_vendedor_principal o cod_vendedor_principal como fallback
         const origen = c.coordinador || c.nombre_vendedor_principal || c.cod_vendedor_principal || '—';
-        return `<tr>
-          <td><strong>${c.folio}</strong></td>
+        return `<tr data-folio="${c.folio}">
+          <td>
+            <button class="btn-det" title="Ver detalle" aria-label="Ver detalle folio ${c.folio}">
+              <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <strong>${c.folio}</strong>
+          </td>
           <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
           <td>${c.cliente||'—'}</td>
           <td>${origen}</td>
@@ -546,10 +646,11 @@
           <td style="text-align:right">${formatCLP(c.monto || c.monto_asignado)}</td>
         </tr>`;
       }).join('');
+      bindDetalleRows(tbody, 'folio', 6);
     } catch(err) { console.error('[iniciarPanelCompartidos]', err); }
   }
 
-  // ── Tabla principal ventas ───────────────────────────────────────────────
+  // ── Tabla ventas del mes ──────────────────────────────────────────────────
   async function cargarVentas(usuario) {
     try {
       const res   = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -557,19 +658,15 @@
       const tbody = document.getElementById('tbodyVentas');
       if (!tbody) return;
 
-      // Obtener todos los codigos del usuario para filtrar correctamente
       const codigos = getCodigosUsuario(usuario);
-
-      // Filtrar: si es admin o codigos es null -> mostrar todo;
-      // de lo contrario mostrar las filas cuyo CodVendedor este en la lista de codigos
       const lista = (data.ventas||[]).filter(v => {
-        if (!codigos) return true; // admin
+        if (!codigos) return true;
         return codigos.includes(String(v.CodVendedor));
       });
 
       setText('totalVentas', `${lista.length} registros`);
       if (!lista.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin ventas este mes</td></tr>'; return;
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin ventas este mes</td></tr>'; return;
       }
       tbody.innerHTML = lista.map(v => {
         const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
@@ -578,7 +675,12 @@
         const badgeComp    = v.es_compartido
           ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
           : '';
-        return `<tr>
+        return `<tr data-folio="${v.Folio}">
+          <td class="det-btn-td">
+            <button class="btn-det" title="Ver detalle" aria-label="Ver detalle folio ${v.Folio}">
+              <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </td>
           <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
           <td>${v.fecha_formato||'—'}</td>
           <td>${v.cliente||'—'}</td>
@@ -588,10 +690,11 @@
           <td style="text-align:right">${pctDesc}</td>
         </tr>`;
       }).join('');
+      bindDetalleRows(tbody, 'folio', 8);
     } catch(err) { console.error('[cargarVentas]', err); }
   }
 
-  // ── Init ────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
@@ -607,7 +710,6 @@
     }
     await cargarVentas(usuario);
 
-    // Botón PDF
     const btnPdf = document.getElementById('btnGenerarPDF');
     if (btnPdf) btnPdf.addEventListener('click', generarPDF);
 
