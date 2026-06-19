@@ -6,6 +6,8 @@
  * 2026-06-19: fix — endpoint /api/dashboard/ventas → /api/dashboard/ventas-mes
  *             fix — mapear TotLineaReal desde campo correcto de la API (v.TotLineaReal)
  * 2026-06-19: fix — cargarFoliosAsignados usa /api/dashboard/asignados (no /compartir/asignados)
+ * 2026-06-19: fix — generarPDF usa datos en memoria (_ultimasVentas, _ultimosCompartidos, _ultimosAsignados)
+ *             en vez de leer el DOM (evita columna de botón y datos desplazados)
  */
 
 (function () {
@@ -13,8 +15,11 @@
   const API   = '/api/dashboard';
   const token = () => localStorage.getItem('token');
 
-  let todosVendedores = [];
-  let _usuarioActual  = null;
+  let todosVendedores     = [];
+  let _usuarioActual      = null;
+  let _ultimasVentas      = [];
+  let _ultimosCompartidos = [];
+  let _ultimosAsignados   = [];
 
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -119,8 +124,6 @@
   function renderDetalle(data) {
     const d0 = data.detalle?.[0] || {};
 
-    // ── BLOQUE 1: Folio / Fecha / Cód. Cliente / Cliente / CanCod ────────────
-    // CodAux viene ahora del modelo (campo cwtaux)
     const bloque1 = `
       <div class="det-bloque det-bloque1">
         <div class="det-campo">
@@ -145,9 +148,6 @@
         </div>
       </div>`;
 
-    // ── BLOQUE 2: tabla de productos ─────────────────────────────────────────
-    // Columnas (8): Código | Descripción | Cant | Precio Real | Precio Venta | Total Real | Total Venta | Descuento
-    // (columna "Producto" eliminada)
     const filas = (data.detalle || []).map(p => {
       const cant     = Number(p.CantFacturada) || 0;
       const precReal = Number(p.precio_unitario_cobrado) || 0;
@@ -236,6 +236,7 @@
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
 
+      // ── Encabezado ──────────────────────────────────────────────────────
       doc.setFillColor(0, 174, 142);
       doc.rect(0, 0, 297, 18, 'F');
       doc.setTextColor(255, 255, 255);
@@ -247,83 +248,125 @@
 
       let y = 24;
 
+      // ── TABLA VENTAS DEL MES (datos desde array en memoria) ─────────────
       doc.setFontSize(10); doc.setFont('helvetica', 'bold');
       doc.text(`Ventas del Mes — ${mesLabel}`, 14, y); y += 3;
 
-      const filasV = [...(document.getElementById('tbodyVentas')
-        ?.querySelectorAll('tr:not(.tabla-empty):not(.detalle-expand-row)') || [])]
-        .map(tr => [...tr.querySelectorAll('td:not(.det-btn-td)')].map(td => td.innerText.trim()));
+      const filasV = _ultimasVentas.map(v => {
+        const pct          = Number(v.pct_descuento) || 0;
+        const totLineaReal = v.TotLineaReal ?? v.monto;
+        return [
+          String(v.Folio || '—'),
+          v.fecha_formato || '—',
+          v.cliente || '—',
+          String(v.CodVendedor || '—'),
+          formatCLP(v.monto),
+          formatCLP(totLineaReal),
+          pct ? `${pct}%` : '—',
+        ];
+      });
 
       doc.autoTable({
         startY: y,
         head: [['Folio', 'Fecha', 'Cliente', 'Cód. Vendedor', 'Monto', 'TotLineaReal', 'Descuento']],
         body: filasV.length ? filasV : [['Sin ventas este mes', '', '', '', '', '', '']],
-        styles: { fontSize: 8, cellPadding: 2.5 },
+        styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
         headStyles: { fillColor: [0, 174, 142], textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [245, 250, 248] },
         columnStyles: {
-          0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 70 },
-          3: { cellWidth: 26 }, 4: { cellWidth: 34, halign:'right' },
-          5: { cellWidth: 34, halign:'right' }, 6: { cellWidth: 20, halign:'right' },
+          0: { cellWidth: 18 },
+          1: { cellWidth: 24 },
+          2: { cellWidth: 76 },
+          3: { cellWidth: 26, halign: 'center' },
+          4: { cellWidth: 34, halign: 'right' },
+          5: { cellWidth: 34, halign: 'right' },
+          6: { cellWidth: 22, halign: 'right' },
         },
         margin: { left: 14, right: 14 },
       });
       y = doc.lastAutoTable.finalY + 10;
 
+      // ── TABLA COMPARTIDOS (datos desde array en memoria) ─────────────────
       const panelComp = document.getElementById('panelCompartidos');
-      if (panelComp && panelComp.style.display !== 'none') {
+      if (panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
         if (y > 170) { doc.addPage(); y = 14; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
-        const filasC = [...(document.getElementById('tbodyCompartidos')
-          ?.querySelectorAll('tr:not(.tabla-empty):not(.detalle-expand-row)') || [])]
-          .map(tr => [...tr.querySelectorAll('td:not(.det-btn-td)')].map(td => td.innerText.trim()));
+
+        const filasC = _ultimosCompartidos.map(c => [
+          String(c.folio || '—'),
+          c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
+          c.cliente || '—',
+          c.coordinador || c.cod_vendedor_principal || '—',
+          `${c.porcentaje}%`,
+          formatCLP(c.monto_asignado),
+        ]);
+
         doc.autoTable({
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
-          body: filasC.length ? filasC : [['Sin folios compartidos', '', '', '', '', '']],
-          styles: { fontSize: 8, cellPadding: 2.5 },
+          body: filasC,
+          styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
           headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [245, 248, 252] },
           columnStyles: {
-            0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 80 },
-            3: { cellWidth: 50 }, 4: { cellWidth: 18, halign:'right' }, 5: { cellWidth: 36, halign:'right' },
+            0: { cellWidth: 18 },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 86 },
+            3: { cellWidth: 56 },
+            4: { cellWidth: 18, halign: 'right' },
+            5: { cellWidth: 36, halign: 'right' },
           },
           margin: { left: 14, right: 14 },
         });
         y = doc.lastAutoTable.finalY + 10;
       }
 
+      // ── TABLA ASIGNADOS (datos desde array en memoria) ───────────────────
       const panelAsig = document.getElementById('panelCoordinador');
-      if (panelAsig && panelAsig.style.display !== 'none') {
+      if (panelAsig && panelAsig.style.display !== 'none' && _ultimosAsignados.length) {
         if (y > 170) { doc.addPage(); y = 14; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
-        const filasA = [...(document.getElementById('tbodyAsignados')
-          ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
-          .map(tr => [...tr.querySelectorAll('td')].slice(0, 6).map(td => td.innerText.trim()));
+
+        const filasA = _ultimosAsignados.map(c => [
+          String(c.folio || '—'),
+          c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
+          c.cliente || '—',
+          c.nombre_vendedor_compartido || c.cod_vendedor_compartido || '—',
+          `${c.porcentaje}%`,
+          formatCLP(c.monto_asignado),
+        ]);
+
         doc.autoTable({
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Asignado', '% Part.', 'Monto Asignado']],
-          body: filasA.length ? filasA : [['Sin folios asignados', '', '', '', '', '']],
-          styles: { fontSize: 8, cellPadding: 2.5 },
+          body: filasA,
+          styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
           headStyles: { fillColor: [100, 60, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [248, 246, 252] },
           columnStyles: {
-            0: { cellWidth: 18 }, 1: { cellWidth: 24 }, 2: { cellWidth: 80 },
-            3: { cellWidth: 50 }, 4: { cellWidth: 18, halign:'right' }, 5: { cellWidth: 36, halign:'right' },
+            0: { cellWidth: 18 },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 86 },
+            3: { cellWidth: 56 },
+            4: { cellWidth: 18, halign: 'right' },
+            5: { cellWidth: 36, halign: 'right' },
           },
           margin: { left: 14, right: 14 },
         });
       }
 
+      // ── Pie de página ────────────────────────────────────────────────────
       const totalPags = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPags; i++) {
         doc.setPage(i);
         doc.setFontSize(7); doc.setTextColor(160, 160, 160);
         doc.text(`TEXPRO — Documento interno. Página ${i} de ${totalPags}`, 14, 205);
         doc.text(hoy, 260, 205);
+        doc.setTextColor(0, 0, 0);
       }
+
       doc.save(`Reporte_Ventas_${mesLabel.replace(' ', '_')}.pdf`);
     } catch (err) {
       console.error('[generarPDF]', err);
@@ -549,27 +592,25 @@
       </td>`;
   }
 
-  // FIX 2026-06-19: endpoint corregido de /compartir/asignados → /asignados
-  // El backend expone GET /api/dashboard/asignados (para coordinadores).
-  // /compartir/asignados no existe y generaba 404.
   async function cargarFoliosAsignados() {
     try {
       const res  = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
+      _ultimosAsignados = data.asignados || [];
       if (!tbody) return;
-      if (!data.ok || !data.asignados?.length) {
+      if (!_ultimosAsignados.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
         return;
       }
-      tbody.innerHTML = data.asignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
+      tbody.innerHTML = _ultimosAsignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
       tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
         btn.addEventListener('click', () => {
           const tr = btn.closest('tr');
           const id = btn.dataset.id;
-          const c  = data.asignados.find(x => String(x.id) === id);
+          const c  = _ultimosAsignados.find(x => String(x.id) === id);
           if (c) tr.innerHTML = filaAsignadoEdicion(c);
-          bindCrudSave(tbody, data);
+          bindCrudSave(tbody, _ultimosAsignados);
         });
       });
       tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
@@ -613,9 +654,6 @@
   }
 
   // ── Carga principal de ventas ─────────────────────────────────────────────
-  // FIX 2026-06-19: endpoint corregido de /api/dashboard/ventas → /api/dashboard/ventas-mes
-  // El backend no tiene ruta /ventas, el correcto es /ventas-mes.
-  // FIX 2026-06-19: campo TotLineaReal mapeado desde v.TotLineaReal (no v.totLineaReal).
   async function cargarVentas() {
     mostrarCarga();
     try {
@@ -628,21 +666,22 @@
       ]);
       const [dataV, dataC] = await Promise.all([resV.json(), resC.json()]);
 
+      // ── Guardar en memoria para PDF ───────────────────────────────────────
+      _ultimasVentas      = dataV.ventas      || [];
+      _ultimosCompartidos = dataC.compartidos || [];
+
       // ── Tabla ventas del mes ──────────────────────────────────────────────
       const tbodyV  = document.getElementById('tbodyVentas');
       const cntV    = document.getElementById('cuentaVentas');
-      const ventas  = dataV.ventas || [];
 
-      if (cntV) cntV.textContent = `${ventas.length} registros`;
+      if (cntV) cntV.textContent = `${_ultimasVentas.length} registros`;
 
-      if (!ventas.length) {
+      if (!_ultimasVentas.length) {
         if (tbodyV) tbodyV.innerHTML = '<tr class="tabla-empty"><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin ventas este mes</td></tr>';
       } else {
         if (tbodyV) {
-          tbodyV.innerHTML = ventas.map(v => {
-            // pct_descuento viene directamente del backend en /ventas-mes
+          tbodyV.innerHTML = _ultimasVentas.map(v => {
             const pct = Number(v.pct_descuento) || 0;
-            // TotLineaReal: campo de la API que representa el valor a precio lista real
             const totLineaReal = v.TotLineaReal ?? v.monto;
             return `
             <tr data-folio="${v.Folio}">
@@ -671,15 +710,14 @@
       // ── Tabla compartidos ─────────────────────────────────────────────────
       const tbodyC   = document.getElementById('tbodyCompartidos');
       const cntC     = document.getElementById('cuentaCompartidos');
-      const compartidos = dataC.compartidos || [];
 
-      if (cntC) cntC.textContent = `${compartidos.length} registros`;
+      if (cntC) cntC.textContent = `${_ultimosCompartidos.length} registros`;
 
-      if (!compartidos.length) {
+      if (!_ultimosCompartidos.length) {
         if (tbodyC) tbodyC.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:2rem;color:#aaa">Sin folios compartidos este mes</td></tr>';
       } else {
         if (tbodyC) {
-          tbodyC.innerHTML = compartidos.map(c => `
+          tbodyC.innerHTML = _ultimosCompartidos.map(c => `
             <tr data-folio="${c.folio}">
               <td class="det-btn-td">
                 <button class="btn-det" title="Ver detalle">
