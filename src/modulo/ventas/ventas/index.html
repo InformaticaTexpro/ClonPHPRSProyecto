@@ -1,9 +1,216 @@
-<!-- INSTRUCCION: agregar en header-right, entre header-date y notif-wrapper:
-<span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
-  <span class="hind-label">USD</span><span class="hind-valor">—</span>
-  <span class="hind-sep" aria-hidden="true">|</span>
-  <span class="hind-label">UF</span><span class="hind-valor">—</span>
-</span>
-Y al final antes de </body>:
-<script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
--->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro — Ventas Asignadas</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="ventas.css?v=1.0.0" />
+</head>
+<body>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <h1 class="header-title">Ventas Asignadas</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep" aria-hidden="true">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Marcar todo leído
+              </button>
+            </div>
+            <ul class="notif-lista" id="notifLista" role="list">
+              <li class="notif-empty">Sin notificaciones nuevas</li>
+            </ul>
+          </div>
+        </div>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">?</div>
+          <span class="chip-name" id="chipName">...</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+
+      <!-- Barra bienvenida + filtros -->
+      <div class="welcome-bar">
+        <div class="welcome-text">
+          <h2 id="welcomeTitle">Hola 👋</h2>
+          <p id="welcomeSubtitle">Cargando...</p>
+        </div>
+        <div class="welcome-filtros">
+          <select class="filtro-select" id="filtroMes"></select>
+          <select class="filtro-select" id="filtroAnio"></select>
+          <button class="btn-buscar" id="btnActualizar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Actualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL COORDINADOR -->
+      <section class="tabla-seccion" id="panelCoordinador" style="display:none">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">Compartir Folio con Vendedor</h3>
+          </div>
+          <div class="coord-form">
+            <div class="coord-form-row">
+              <div class="coord-form-group">
+                <label class="coord-label" for="coordFolio">Folio</label>
+                <select class="filtro-select" id="coordFolio">
+                  <option value="">— Selecciona un folio —</option>
+                </select>
+              </div>
+              <div class="coord-form-group">
+                <label class="coord-label" for="coordVendedor">Vendedor</label>
+                <select class="filtro-select" id="coordVendedor">
+                  <option value="">— Selecciona vendedor —</option>
+                </select>
+              </div>
+              <div class="coord-form-group coord-form-group--sm">
+                <label class="coord-label" for="coordPorcentaje">% Participación</label>
+                <input class="filtro-select" type="number" id="coordPorcentaje" min="1" max="100" value="100" />
+              </div>
+              <div class="coord-form-group coord-form-group--btn">
+                <label class="coord-label">&nbsp;</label>
+                <button class="btn-buscar" id="btnCompartir">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
+                  Compartir
+                </button>
+              </div>
+            </div>
+            <p class="coord-mensaje" id="coordMensaje"></p>
+          </div>
+          <div class="tabla-header" style="margin-top:1.5rem">
+            <h3 class="tabla-titulo">Folios Asignados</h3>
+            <span class="tabla-total" id="totalAsignados">0 registros</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Folio</th><th>Fecha</th><th>Cliente</th>
+                  <th>Vendedor Asignado</th>
+                  <th style="text-align:right">% Part.</th>
+                  <th style="text-align:right">Monto Asignado</th>
+                  <th style="text-align:center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyAsignados">
+                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL COMPARTIDOS (vendedor) -->
+      <section class="tabla-seccion" id="panelCompartidos" style="display:none">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">Ventas Compartidas Conmigo</h3>
+            <span class="tabla-total" id="totalCompartidos">0 registros</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Folio</th><th>Fecha</th><th>Cliente</th>
+                  <th>Vendedor Origen</th>
+                  <th style="text-align:right">% Part.</th>
+                  <th style="text-align:right">Monto Asignado</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyCompartidos">
+                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TABLA VENTAS DEL MES -->
+      <section class="tabla-seccion">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <h3 class="tabla-titulo">Ventas del Mes</h3>
+            <span class="tabla-total" id="totalVentas">0 registros</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Folio</th><th>Fecha</th><th>Cliente</th>
+                  <th>Cód. Vendedor</th>
+                  <th style="text-align:right">Monto</th>
+                  <th style="text-align:right">TotLineaReal</th>
+                  <th style="text-align:right">Descuento</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyVentas">
+                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="ventas.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+</body>
+</html>
