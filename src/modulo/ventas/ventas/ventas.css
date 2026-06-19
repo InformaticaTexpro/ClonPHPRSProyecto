@@ -1,4 +1,4 @@
-/* ventas.css v1.2.0 — Ventas Asignadas + detalle de productos (2 bloques) */
+/* ventas.css v1.3.0 — Ventas Asignadas + detalle de productos (2 bloques) */
 
 /* ── Botón de detalle (chevron) ─────────────────────────────────────────── */
 .btn-det {
@@ -30,14 +30,15 @@
 
 /* ── Fila expandible ────────────────────────────────────────────────────── */
 .detalle-expand-row > td {
-  padding: 0;
+  padding: 0 !important;
   border: none;
   overflow: hidden;
   max-height: 0;
   transition: max-height 0.3s ease;
+  /* Sin padding lateral: el contenido interno maneja su propio espaciado */
 }
 .detalle-expand-row.detalle-open > td {
-  padding: 0;
+  padding: 0 !important;
   max-height: 2000px;
 }
 
@@ -77,6 +78,9 @@
   background: var(--color-surface, #fafafa);
   border-top: 2px solid var(--color-primary, #00ae8e);
   padding: 16px 20px 20px;
+  /* Resetear cualquier herencia de márgenes de la celda padre */
+  box-sizing: border-box;
+  width: 100%;
   animation: det-fadeIn 0.22s ease;
 }
 @keyframes det-fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
@@ -92,6 +96,9 @@
   background: var(--color-surface-offset, #f4f4f0);
   border: 1px solid var(--color-border, #e0e0e0);
   border-radius: 8px;
+  /* Asegurar que ocupa el 100% del contenedor y no desborde */
+  width: 100%;
+  box-sizing: border-box;
 }
 .det-campo {
   display: flex;
@@ -117,19 +124,25 @@
 }
 
 /* ── BLOQUE 2: tabla de productos ───────────────────────────────────────── */
-/* Columnas: Código | Producto | Descripción | Cant | Precio Real |          */
-/*           Precio Venta | Total Real | Total Venta | Descuento             */
-.det-bloque2 {}
+/* Columnas (8): Código | Descripción | Cant | Precio Real |                 */
+/*               Precio Venta | Total Real | Total Venta | Descuento         */
+.det-bloque2 {
+  width: 100%;
+  box-sizing: border-box;
+}
 .det-tabla-wrap {
   overflow-x: auto;
   border-radius: 8px;
   border: 1px solid var(--color-border, #e8e8e8);
+  width: 100%;
+  box-sizing: border-box;
 }
 .det-tabla {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
-  min-width: 980px;   /* más ancho por 9 columnas */
+  min-width: 820px;   /* ajustado para 8 columnas (antes 980px con 9) */
+  table-layout: auto;
 }
 .det-tabla thead tr {
   background: var(--color-surface-offset, #f2f2f2);
@@ -169,23 +182,15 @@
   font-size: 0.8rem;
   white-space: nowrap;
   color: var(--color-text-muted, #555);
-  width: 90px;
+  width: 100px;
 }
-/* Nombre corto del producto */
-.det-td--nom {
-  max-width: 180px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-}
-/* Descripción larga */
+/* Descripción larga — ocupa el espacio restante */
 .det-td--desc {
-  max-width: 280px;
+  max-width: 340px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--color-text-muted, #666);
+  color: var(--color-text, #333);
 }
 .det-td--num {
   text-align: right;

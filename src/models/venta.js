@@ -215,6 +215,7 @@ async function getDetalleFolio({ folio }) {
       gsaen.Fecha,
       gsaen.CodVendedor,
       gsaen.CanCod,
+      gsaen.CodAux,
       cvl.CodCan,
       cwtauxi.nomAux                                              AS Cliente,
       gmovi.CodProd,
@@ -251,7 +252,7 @@ async function getDetalleFolio({ folio }) {
   SELECT
     Folio,
     CONVERT(VARCHAR(10), Fecha, 103)                              AS Fecha,
-    CodVendedor, CanCod, CodCan, Cliente,
+    CodVendedor, CanCod, CodCan, CodAux, Cliente,
     CodProd, DesProd, CantFacturada, TotLinea,
     precio_unitario_cobrado,
     precio_unitario_cobrado_hist,

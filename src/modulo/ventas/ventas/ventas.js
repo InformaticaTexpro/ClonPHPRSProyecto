@@ -2,8 +2,7 @@
 
 /**
  * ventas.js — Ventas Asignadas Texpro
- * 2026-06-19: feat — detalle folio 2 bloques: bloque1 (folio/fecha/codCliente/cliente/canCod)
- *                    bloque2 tabla (código/producto/descripción/cant/precioReal/precioVenta/totReal/totVenta/descuento)
+ * 2026-06-19: fix — eliminar col Producto, mostrar CodAux como Cód.Cliente, corregir alineación detalle
  */
 
 (function () {
@@ -118,6 +117,7 @@
     const d0 = data.detalle?.[0] || {};
 
     // ── BLOQUE 1: Folio / Fecha / Cód. Cliente / Cliente / CanCod ────────────
+    // CodAux viene ahora del modelo (campo cwtaux)
     const bloque1 = `
       <div class="det-bloque det-bloque1">
         <div class="det-campo">
@@ -130,7 +130,7 @@
         </div>
         <div class="det-campo">
           <span class="det-label">Cód. Cliente</span>
-          <span class="det-valor">${d0.CodCliente || d0.CodClie || '—'}</span>
+          <span class="det-valor">${d0.CodAux || '—'}</span>
         </div>
         <div class="det-campo det-campo--wide">
           <span class="det-label">Cliente</span>
@@ -143,11 +143,12 @@
       </div>`;
 
     // ── BLOQUE 2: tabla de productos ─────────────────────────────────────────
-    // Columnas: Código | Producto | Descripción | Cant | Precio Real | Precio Venta | Total Real | Total Venta | Descuento
+    // Columnas (8): Código | Descripción | Cant | Precio Real | Precio Venta | Total Real | Total Venta | Descuento
+    // (columna "Producto" eliminada)
     const filas = (data.detalle || []).map(p => {
       const cant     = Number(p.CantFacturada) || 0;
       const precReal = Number(p.precio_unitario_cobrado) || 0;
-      const precVta  = Number(p.precio_lista_actual)     || 0;
+      const precVta  = Number(p.precio_lista_real)       || 0;
       const totReal  = Number(p.TotLinea)                || 0;
       const totVta   = Number(p.valor_historico_linea)   || 0;
       const desc = precVta > 0
@@ -156,18 +157,12 @@
       const descStr  = desc !== 0 ? `${desc}%` : '—';
       const negativo = totReal < 0;
 
-      // Separar código del nombre/descripción
-      // CodProd  → código del artículo
-      // NomProd  → nombre comercial corto (si existe) ó parte inicial de DesProd
-      // DesProd  → descripción completa
       const codProd  = p.CodProd  || '—';
-      const nomProd  = p.NomProd  || p.nombre_producto || '—';
-      const desProd  = p.DesProd  || p.descripcion     || '—';
+      const desProd  = p.DesProd  || p.descripcion || '—';
 
       return `
         <tr class="${negativo ? 'det-row-neg' : ''}">
           <td class="det-td det-td--cod">${codProd}</td>
-          <td class="det-td det-td--nom">${nomProd}</td>
           <td class="det-td det-td--desc">${desProd}</td>
           <td class="det-td det-td--num">${cant}</td>
           <td class="det-td det-td--num">${formatCLP(precReal)}</td>
@@ -185,7 +180,6 @@
             <thead>
               <tr>
                 <th>Código</th>
-                <th>Producto</th>
                 <th>Descripción</th>
                 <th class="det-th--num">Cant.</th>
                 <th class="det-th--num">Precio Real</th>
@@ -196,7 +190,7 @@
               </tr>
             </thead>
             <tbody>
-              ${filas || '<tr><td colspan="9" style="text-align:center;padding:1rem">Sin líneas de detalle</td></tr>'}
+              ${filas || '<tr><td colspan="8" style="text-align:center;padding:1rem">Sin líneas de detalle</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -540,207 +534,190 @@
           ${opcionesVendedores(c.cod_vendedor_compartido)}
         </select>
       </td>
-      <td style="text-align:right">
-        <input class="crud-input-pct" type="number" id="editPct_${c.id}" min="1" max="100" value="${c.porcentaje}" />
+      <td>
+        <input type="number" class="crud-input" id="editPct_${c.id}" value="${c.porcentaje}" min="1" max="100" style="width:60px">
       </td>
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
       <td>
         <div class="crud-acciones">
-          <button class="btn-crud btn-crud--save"   title="Guardar"  data-id="${c.id}" data-folio="${c.folio}">✓</button>
-          <button class="btn-crud btn-crud--cancel" title="Cancelar" data-id="${c.id}">✕</button>
+          <button class="btn-crud btn-crud--save" data-id="${c.id}">✔</button>
+          <button class="btn-crud btn-crud--cancel" data-id="${c.id}">✖</button>
         </div>
       </td>`;
   }
 
   async function cargarFoliosAsignados() {
     try {
-      const res   = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
-      const data  = await res.json();
+      const res  = await fetch(`${API}/compartir/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
       if (!tbody) return;
-      setText('totalAsignados', `${(data.asignados||[]).length} registros`);
-      if (!data.ok || !data.asignados?.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin folios asignados este mes</td></tr>'; return;
+      if (!data.ok || !data.compartidos?.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
+        return;
       }
-      tbody.innerHTML = data.asignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
-      bindCrudEvents(tbody, data.asignados);
+      tbody.innerHTML = data.compartidos.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
+      tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tr = btn.closest('tr');
+          const id = btn.dataset.id;
+          const c  = data.compartidos.find(x => String(x.id) === id);
+          if (c) tr.innerHTML = filaAsignadoEdicion(c);
+          bindCrudSave(tbody, data);
+        });
+      });
+      tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id    = btn.dataset.id;
+          const folio = btn.dataset.folio;
+          if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
+          try {
+            const r = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            await cargarFoliosAsignados();
+          } catch(err) { alert(`Error: ${err.message}`); }
+        });
+      });
     } catch(err) { console.error('[cargarFoliosAsignados]', err); }
   }
 
-  function bindCrudEvents(tbody, asignados) {
-    tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.id;
-        const c  = asignados.find(a => String(a.id) === String(id));
-        const tr = tbody.querySelector(`tr[data-id="${id}"]`);
-        if (!c || !tr) return;
-        tr.innerHTML = filaAsignadoEdicion(c);
-        bindCrudEvents(tbody, asignados);
-      });
-    });
+  function bindCrudSave(tbody, data) {
     tbody.querySelectorAll('.btn-crud--save').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id      = btn.dataset.id;
-        const vendSel = document.getElementById(`editVend_${id}`)?.value;
-        const pctVal  = document.getElementById(`editPct_${id}`)?.value;
-        if (!vendSel || !pctVal) { alert('Completa vendedor y porcentaje'); return; }
+        const id  = btn.dataset.id;
+        const v   = document.getElementById(`editVend_${id}`)?.value;
+        const pct = document.getElementById(`editPct_${id}`)?.value;
+        if (!v || !pct) { alert('Completa los campos'); return; }
         try {
-          const res  = await fetch(`${API}/asignados/${id}`, {
+          const r = await fetch(`${API}/compartir/${id}`, {
             method:'PUT',
             headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token()}` },
-            body: JSON.stringify({ cod_vendedor_compartido: vendSel, porcentaje: Number(pctVal) })
+            body: JSON.stringify({ cod_vendedor_compartido:v, porcentaje:Number(pct) })
           });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error);
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error);
           await cargarFoliosAsignados();
-        } catch(err) { alert(`Error al guardar: ${err.message}`); }
+        } catch(err) { alert(`Error: ${err.message}`); }
       });
     });
     tbody.querySelectorAll('.btn-crud--cancel').forEach(btn => {
       btn.addEventListener('click', () => cargarFoliosAsignados());
     });
-    tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id    = btn.dataset.id;
-        const folio = btn.dataset.folio;
-        if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
-        try {
-          const res  = await fetch(`${API}/asignados/${id}`, {
-            method:'DELETE', headers:{ Authorization:`Bearer ${token()}` }
-          });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error);
-          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
-        } catch(err) { alert(`Error al eliminar: ${err.message}`); }
-      });
-    });
   }
 
-  // ── PANEL COMPARTIDOS (vendedor) ──────────────────────────────────────────
-  async function iniciarPanelCompartidos() {
-    setStyle('panelCompartidos', 'display', 'block');
+  // ── Carga principal de ventas ─────────────────────────────────────────────
+  async function cargarVentas() {
+    mostrarCarga();
     try {
-      const res   = await fetch(`${API}/compartidos?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
-      const data  = await res.json();
-      const tbody = document.getElementById('tbodyCompartidos');
-      if (!tbody) return;
-      setText('totalCompartidos', `${(data.compartidos||[]).length} registros`);
-      if (!data.ok || !data.compartidos?.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin folios compartidos este mes</td></tr>'; return;
+      const params  = getParams();
+      const headers = { Authorization:`Bearer ${token()}` };
+
+      const [resV, resC] = await Promise.all([
+        fetch(`${API}/ventas?${new URLSearchParams(params)}`, { headers }),
+        fetch(`${API}/compartidos?${new URLSearchParams(params)}`, { headers }),
+      ]);
+      const [dataV, dataC] = await Promise.all([resV.json(), resC.json()]);
+
+      // ── Tabla ventas del mes ──────────────────────────────────────────────
+      const tbodyV  = document.getElementById('tbodyVentas');
+      const cntV    = document.getElementById('cuentaVentas');
+      const ventas  = dataV.ventas || [];
+
+      if (cntV) cntV.textContent = `${ventas.length} registros`;
+
+      if (!ventas.length) {
+        if (tbodyV) tbodyV.innerHTML = '<tr class="tabla-empty"><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin ventas este mes</td></tr>';
+      } else {
+        if (tbodyV) {
+          // Calcular totLineaReal desde la API (se calcula en el backend por descuentos)
+          tbodyV.innerHTML = ventas.map(v => {
+            const pct = v.descuento && v.monto
+              ? Math.round((v.descuento / (v.monto + v.descuento)) * 10000) / 100
+              : 0;
+            return `
+            <tr data-folio="${v.Folio}">
+              <td class="det-btn-td">
+                <button class="btn-det" title="Ver detalle">
+                  <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+              </td>
+              <td><strong>${v.Folio}</strong></td>
+              <td>${v.fecha_formato || '—'}</td>
+              <td>${v.cliente || '—'}</td>
+              <td>${v.CodVendedor || '—'}</td>
+              <td style="text-align:right">${formatCLP(v.monto)}</td>
+              <td style="text-align:right;color:var(--color-success,#27ae60)">${formatCLP(v.totLineaReal ?? v.monto)}</td>
+              <td style="text-align:right">${pct ? pct+'%' : '—'}</td>
+            </tr>`;
+          }).join('');
+          bindDetalleRows(tbodyV, 'Folio', 8);
+        }
       }
-      tbody.innerHTML = data.compartidos.map(c => {
-        const origen = c.coordinador || c.nombre_vendedor_principal || c.cod_vendedor_principal || '—';
-        return `<tr data-folio="${c.folio}">
-          <td>
-            <button class="btn-det" title="Ver detalle" aria-label="Ver detalle folio ${c.folio}">
-              <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <strong>${c.folio}</strong>
-          </td>
-          <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-          <td>${c.cliente||'—'}</td>
-          <td>${origen}</td>
-          <td style="text-align:right">${c.porcentaje}%</td>
-          <td style="text-align:right">${formatCLP(c.monto || c.monto_asignado)}</td>
-        </tr>`;
-      }).join('');
-      bindDetalleRows(tbody, 'folio', 6);
-    } catch(err) { console.error('[iniciarPanelCompartidos]', err); }
-  }
 
-  // ── Tabla ventas del mes ──────────────────────────────────────────────────
-  async function cargarVentas(usuario) {
-    try {
-      const res   = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
-      const data  = await res.json();
-      const tbody = document.getElementById('tbodyVentas');
-      if (!tbody) return;
+      // ── Tabla compartidos ─────────────────────────────────────────────────
+      const tbodyC   = document.getElementById('tbodyCompartidos');
+      const cntC     = document.getElementById('cuentaCompartidos');
+      const compartidos = dataC.compartidos || [];
 
-      const codigos = getCodigosUsuario(usuario);
-      const lista = (data.ventas||[]).filter(v => {
-        if (!codigos) return true;
-        return codigos.includes(String(v.CodVendedor));
-      });
+      if (cntC) cntC.textContent = `${compartidos.length} registros`;
 
-      setText('totalVentas', `${lista.length} registros`);
-      if (!lista.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin ventas este mes</td></tr>'; return;
+      if (!compartidos.length) {
+        if (tbodyC) tbodyC.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:2rem;color:#aaa">Sin folios compartidos este mes</td></tr>';
+      } else {
+        if (tbodyC) {
+          tbodyC.innerHTML = compartidos.map(c => `
+            <tr data-folio="${c.folio}">
+              <td class="det-btn-td">
+                <button class="btn-det" title="Ver detalle">
+                  <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+              </td>
+              <td><strong>${c.folio}</strong></td>
+              <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+              <td>${c.cliente || '—'}</td>
+              <td>${c.nombre_vendedor_origen || c.cod_vendedor_origen || '—'}</td>
+              <td style="text-align:right">${c.porcentaje}%</td>
+              <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+            </tr>`).join('');
+          bindDetalleRows(tbodyC, 'folio', 7);
+        }
       }
-      tbody.innerHTML = lista.map(v => {
-        const pctDesc      = v.pct_descuento > 0 ? `${v.pct_descuento}%` : '—';
-        const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
-        const totLineaReal = Number(v.TotLineaReal || 0);
-        const badgeComp    = v.es_compartido
-          ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
-          : '';
-        return `<tr data-folio="${v.Folio}">
-          <td class="det-btn-td">
-            <button class="btn-det" title="Ver detalle" aria-label="Ver detalle folio ${v.Folio}">
-              <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-          </td>
-          <td><strong>${v.Folio||'—'}</strong>${badgeComp}</td>
-          <td>${v.fecha_formato||'—'}</td>
-          <td>${v.cliente||'—'}</td>
-          <td>${v.CodVendedor||'—'}</td>
-          <td style="text-align:right">${formatCLP(montoMostrar)}</td>
-          <td style="text-align:right">${formatCLP(totLineaReal)}</td>
-          <td style="text-align:right">${pctDesc}</td>
-        </tr>`;
-      }).join('');
-      bindDetalleRows(tbody, 'folio', 8);
-    } catch(err) { console.error('[cargarVentas]', err); }
+
+    } catch (err) {
+      console.error('[cargarVentas]', err);
+    } finally {
+      ocultarCarga();
+    }
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  async function init() {
-    const usuario = await verificarSesion();
-    if (!usuario) return;
-    _usuarioActual = usuario;
-    cargarSidebar(usuario);
+  document.addEventListener('DOMContentLoaded', async () => {
+    _usuarioActual = await verificarSesion();
+    if (!_usuarioActual) return;
+
+    cargarSidebar(_usuarioActual);
     initSelectores();
 
-    const esCoord = esCoordinador(usuario);
-    if (esCoord) {
+    if (esCoordinador(_usuarioActual)) {
       await iniciarPanelCoordinador();
     } else {
-      await iniciarPanelCompartidos();
+      setStyle('panelCompartidos',  'display', 'block');
+      setStyle('panelCoordinador', 'display', 'none');
     }
-    await cargarVentas(usuario);
 
-    const btnPdf = document.getElementById('btnGenerarPDF');
-    if (btnPdf) btnPdf.addEventListener('click', generarPDF);
+    await cargarVentas();
 
-    const btnAct = document.getElementById('btnActualizar');
-    if (btnAct) btnAct.addEventListener('click', async () => {
-      mostrarCarga();
-      try {
-        if (esCoord) {
-          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
-        } else {
-          await iniciarPanelCompartidos();
-        }
-        await cargarVentas(usuario);
-      } finally { ocultarCarga(); }
-    });
-
-    const selMes  = document.getElementById('filtroMes');
-    const selAnio = document.getElementById('filtroAnio');
-    const onCambioFiltro = async () => {
-      mostrarCarga();
-      try {
-        if (esCoord) {
-          await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
-        } else {
-          await iniciarPanelCompartidos();
-        }
-        await cargarVentas(usuario);
-      } finally { ocultarCarga(); }
-    };
-    if (selMes)  selMes.addEventListener('change',  onCambioFiltro);
-    if (selAnio) selAnio.addEventListener('change', onCambioFiltro);
-  }
-
-  document.addEventListener('DOMContentLoaded', init);
+    document.getElementById('btnActualizar')?.addEventListener('click', cargarVentas);
+    document.getElementById('btnGenerarPDF')?.addEventListener('click', generarPDF);
+  });
 
 })();
