@@ -6,6 +6,7 @@
  * 2026-06-09: fix — iconos unificados; item activo muestra ícono bars SVG
  * 2026-06-15: fix — restaurar lógica de carga borrada accidentalmente;
  *                    estandarizar sidebar: Historial → Historial Cliente
+ * 2026-06-19: feat — botón y lógica de generación de PDF (jsPDF + autoTable)
  */
 
 (function () {
@@ -14,6 +15,7 @@
   const token = () => localStorage.getItem('token');
 
   let todosVendedores = [];
+  let _usuarioActual  = null;
 
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -85,9 +87,166 @@
     return (usuario.vendedores || []).some(v => v.tipo === 'C');
   }
 
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  async function cargarLibreriaPDF() {
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    return window.jspdf.jsPDF;
+  }
+
+  function getMesFiltro() {
+    const mes  = document.getElementById('filtroMes')?.value  || (new Date().getMonth() + 1);
+    const anio = document.getElementById('filtroAnio')?.value || new Date().getFullYear();
+    return `${MESES_NOMBRE[Number(mes) - 1]} ${anio}`;
+  }
+
+  async function generarPDF() {
+    const btnPdf = document.getElementById('btnGenerarPDF');
+    try {
+      if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Generando...'; }
+
+      const jsPDF    = await cargarLibreriaPDF();
+      const doc      = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+      const mesLabel = getMesFiltro();
+      const nombre   = _usuarioActual?.nombre || 'Vendedor';
+      const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+      // ── Encabezado ─────────────────────────────────────────────────────────
+      doc.setFillColor(0, 174, 142);
+      doc.rect(0, 0, 297, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+      doc.text('TEXPRO — Reporte de Ventas Asignadas', 14, 11);
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+      doc.text(`Vendedor: ${nombre}   |   Período: ${mesLabel}   |   Emitido: ${hoy}`, 14, 16);
+      doc.setTextColor(0, 0, 0);
+
+      let y = 24;
+
+      // ── Tabla Ventas del Mes ───────────────────────────────────────────────
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+      doc.text(`Ventas del Mes — ${mesLabel}`, 14, y); y += 3;
+
+      const filasV = [...(document.getElementById('tbodyVentas')
+        ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
+        .map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()));
+
+      doc.autoTable({
+        startY: y,
+        head: [['Folio', 'Fecha', 'Cliente', 'Cód. Vendedor', 'Monto', 'TotLineaReal', 'Descuento']],
+        body: filasV.length ? filasV : [['Sin ventas este mes', '', '', '', '', '', '']],
+        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+        headStyles: { fillColor: [0, 174, 142], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 250, 248] },
+        columnStyles: {
+          0: { cellWidth: 18 },
+          1: { cellWidth: 24 },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 26 },
+          4: { cellWidth: 34, halign: 'right' },
+          5: { cellWidth: 34, halign: 'right' },
+          6: { cellWidth: 20, halign: 'right' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      y = doc.lastAutoTable.finalY + 10;
+
+      // ── Tabla Ventas Compartidas (vendedor) ────────────────────────────────
+      const panelComp = document.getElementById('panelCompartidos');
+      if (panelComp && panelComp.style.display !== 'none') {
+        if (y > 170) { doc.addPage(); y = 14; }
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
+
+        const filasC = [...(document.getElementById('tbodyCompartidos')
+          ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
+          .map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()));
+
+        doc.autoTable({
+          startY: y,
+          head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
+          body: filasC.length ? filasC : [['Sin folios compartidos', '', '', '', '', '']],
+          styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+          headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [245, 248, 252] },
+          columnStyles: {
+            0: { cellWidth: 18 },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 80 },
+            3: { cellWidth: 50 },
+            4: { cellWidth: 18, halign: 'right' },
+            5: { cellWidth: 36, halign: 'right' },
+          },
+          margin: { left: 14, right: 14 },
+        });
+        y = doc.lastAutoTable.finalY + 10;
+      }
+
+      // ── Tabla Folios Asignados (coordinador) ───────────────────────────────
+      const panelAsig = document.getElementById('panelCoordinador');
+      if (panelAsig && panelAsig.style.display !== 'none') {
+        if (y > 170) { doc.addPage(); y = 14; }
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
+
+        const filasA = [...(document.getElementById('tbodyAsignados')
+          ?.querySelectorAll('tr:not(.tabla-empty)') || [])]
+          .map(tr => [...tr.querySelectorAll('td')].slice(0, 6).map(td => td.innerText.trim()));
+
+        doc.autoTable({
+          startY: y,
+          head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Asignado', '% Part.', 'Monto Asignado']],
+          body: filasA.length ? filasA : [['Sin folios asignados', '', '', '', '', '']],
+          styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica' },
+          headStyles: { fillColor: [100, 60, 180], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 246, 252] },
+          columnStyles: {
+            0: { cellWidth: 18 },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 80 },
+            3: { cellWidth: 50 },
+            4: { cellWidth: 18, halign: 'right' },
+            5: { cellWidth: 36, halign: 'right' },
+          },
+          margin: { left: 14, right: 14 },
+        });
+      }
+
+      // ── Footer en todas las páginas ────────────────────────────────────────
+      const totalPags = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPags; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+        doc.text(`TEXPRO — Documento interno. Página ${i} de ${totalPags}`, 14, 205);
+        doc.text(hoy, 260, 205);
+      }
+
+      doc.save(`Reporte_Ventas_${mesLabel.replace(' ', '_')}.pdf`);
+
+    } catch (err) {
+      console.error('[generarPDF]', err);
+      alert('Error al generar el PDF. Intenta nuevamente.');
+    } finally {
+      if (btnPdf) {
+        btnPdf.disabled = false;
+        btnPdf.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Generar PDF`;
+      }
+    }
+  }
+
   // ── Sidebar ───────────────────────────────────────────────────────────────
-  // Nombres estándar en todos los módulos del área ventas:
-  //   Dashboard | Ventas Asignadas (activo) | Historial Cliente | Alertas
   const MODULOS = [
     { nombre:'Dashboard',           icon:'🏠', url:'../dashboard/index.html',                       area: null },
     { nombre:'Historial Cliente',   icon:'📋', url:'../historial-cliente/index.html',               area:['ventas','gerencia'] },
@@ -121,7 +280,6 @@
       return m.area.includes(usuario.area);
     });
 
-    // SVG de gráfico de barras para el ítem activo (Ventas Asignadas)
     const svgVentas = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
 
     if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
@@ -417,6 +575,7 @@
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
+    _usuarioActual = usuario;
     cargarSidebar(usuario);
     initSelectores();
 
@@ -427,6 +586,10 @@
       await iniciarPanelCompartidos();
     }
     await cargarVentas(usuario);
+
+    // Botón PDF
+    const btnPdf = document.getElementById('btnGenerarPDF');
+    if (btnPdf) btnPdf.addEventListener('click', generarPDF);
 
     const btnAct = document.getElementById('btnActualizar');
     if (btnAct) btnAct.addEventListener('click', async () => {
