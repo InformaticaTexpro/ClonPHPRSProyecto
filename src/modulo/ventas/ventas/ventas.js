@@ -2,10 +2,8 @@
 
 /**
  * ventas.js — Ventas Asignadas Texpro
- * 2026-06-19: feat — detalle de productos por folio expandible (2 bloques)
- *             fix  — vendedor origen usa campo 'coordinador'
- *             fix  — ventas del mes filtra todos los codigos del usuario
- *             feat — botón PDF en barra superior
+ * 2026-06-19: feat — detalle folio 2 bloques: bloque1 (folio/fecha/codCliente/cliente/canCod)
+ *                    bloque2 tabla (código/producto/descripción/cant/precioReal/precioVenta/totReal/totVenta/descuento)
  */
 
 (function () {
@@ -92,21 +90,16 @@
   }
 
   // ── Detalle de productos por folio ────────────────────────────────────────
-  // Cache para no recargar el mismo folio dos veces
   const _detalleCache = {};
 
   async function toggleDetalle(folio, trExpand, colspan) {
-    // Si ya está abierto, cerrar
     if (trExpand.classList.contains('detalle-open')) {
       trExpand.classList.remove('detalle-open');
       trExpand.innerHTML = '';
       return;
     }
-
-    // Mostrar loader inline
     trExpand.classList.add('detalle-open');
     trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-loading"><span class="detalle-spinner"></span> Cargando detalle del folio ${folio}…</div></td>`;
-
     try {
       if (!_detalleCache[folio]) {
         const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -124,7 +117,7 @@
   function renderDetalle(data) {
     const d0 = data.detalle?.[0] || {};
 
-    // Bloque 1: encabezado del folio
+    // ── BLOQUE 1: Folio / Fecha / Cód. Cliente / Cliente / CanCod ────────────
     const bloque1 = `
       <div class="det-bloque det-bloque1">
         <div class="det-campo">
@@ -136,39 +129,46 @@
           <span class="det-valor">${d0.Fecha || '—'}</span>
         </div>
         <div class="det-campo">
-          <span class="det-label">Cód. Vendedor</span>
-          <span class="det-valor">${d0.CodVendedor || '—'}</span>
+          <span class="det-label">Cód. Cliente</span>
+          <span class="det-valor">${d0.CodCliente || d0.CodClie || '—'}</span>
         </div>
         <div class="det-campo det-campo--wide">
           <span class="det-label">Cliente</span>
           <span class="det-valor">${d0.Cliente || '—'}</span>
         </div>
         <div class="det-campo">
-          <span class="det-label">Canal (CanCod)</span>
+          <span class="det-label">CanCod</span>
           <span class="det-valor">${d0.CanCod || '—'}</span>
-        </div>
-        <div class="det-campo">
-          <span class="det-label">Factor histórico</span>
-          <span class="det-valor">${data.factor != null ? data.factor : '—'}</span>
         </div>
       </div>`;
 
-    // Bloque 2: tabla de productos
+    // ── BLOQUE 2: tabla de productos ─────────────────────────────────────────
+    // Columnas: Código | Producto | Descripción | Cant | Precio Real | Precio Venta | Total Real | Total Venta | Descuento
     const filas = (data.detalle || []).map(p => {
-      const cant      = Number(p.CantFacturada) || 0;
-      const precReal  = Number(p.precio_unitario_cobrado) || 0;   // precio real cobrado
-      const precVta   = Number(p.precio_lista_actual)     || 0;   // precio lista Softland
-      const totReal   = Number(p.TotLinea)                || 0;   // total cobrado
-      const totVta    = Number(p.valor_historico_linea)   || 0;   // total histórico
+      const cant     = Number(p.CantFacturada) || 0;
+      const precReal = Number(p.precio_unitario_cobrado) || 0;
+      const precVta  = Number(p.precio_lista_actual)     || 0;
+      const totReal  = Number(p.TotLinea)                || 0;
+      const totVta   = Number(p.valor_historico_linea)   || 0;
       const desc = precVta > 0
         ? Math.round((1 - Math.abs(precReal) / Math.abs(precVta)) * 10000) / 100
         : 0;
-      const descStr = desc !== 0 ? `${desc}%` : '—';
+      const descStr  = desc !== 0 ? `${desc}%` : '—';
       const negativo = totReal < 0;
+
+      // Separar código del nombre/descripción
+      // CodProd  → código del artículo
+      // NomProd  → nombre comercial corto (si existe) ó parte inicial de DesProd
+      // DesProd  → descripción completa
+      const codProd  = p.CodProd  || '—';
+      const nomProd  = p.NomProd  || p.nombre_producto || '—';
+      const desProd  = p.DesProd  || p.descripcion     || '—';
+
       return `
         <tr class="${negativo ? 'det-row-neg' : ''}">
-          <td class="det-td">${p.CodProd || '—'}</td>
-          <td class="det-td det-td--desc">${p.DesProd || '—'}</td>
+          <td class="det-td det-td--cod">${codProd}</td>
+          <td class="det-td det-td--nom">${nomProd}</td>
+          <td class="det-td det-td--desc">${desProd}</td>
           <td class="det-td det-td--num">${cant}</td>
           <td class="det-td det-td--num">${formatCLP(precReal)}</td>
           <td class="det-td det-td--num">${formatCLP(precVta)}</td>
@@ -185,7 +185,8 @@
             <thead>
               <tr>
                 <th>Código</th>
-                <th>Producto / Descripción</th>
+                <th>Producto</th>
+                <th>Descripción</th>
                 <th class="det-th--num">Cant.</th>
                 <th class="det-th--num">Precio Real</th>
                 <th class="det-th--num">Precio Venta</th>
@@ -195,7 +196,7 @@
               </tr>
             </thead>
             <tbody>
-              ${filas || '<tr><td colspan="8" style="text-align:center;padding:1rem">Sin líneas de detalle</td></tr>'}
+              ${filas || '<tr><td colspan="9" style="text-align:center;padding:1rem">Sin líneas de detalle</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -423,8 +424,6 @@
   }
 
   // ── Helper: fila de detalle expandible ───────────────────────────────────
-  // Agrega un <tr class="detalle-expand-row"> después de cada fila de datos
-  // y bindea el botón de la fila padre
   function bindDetalleRows(tbody, folioField, colspan) {
     tbody.querySelectorAll('tr[data-folio]').forEach(tr => {
       const folio   = tr.dataset.folio;
@@ -435,7 +434,6 @@
 
       tr.querySelector('.btn-det')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Rotar icono
         const svg = tr.querySelector('.det-chevron');
         const yaAbierto = trExp.classList.contains('detalle-open');
         if (svg) svg.style.transform = yaAbierto ? 'rotate(0deg)' : 'rotate(180deg)';

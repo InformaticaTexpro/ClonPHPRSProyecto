@@ -1,4 +1,4 @@
-/* ventas.css v1.1.0 — Ventas Asignadas + detalle de productos */
+/* ventas.css v1.2.0 — Ventas Asignadas + detalle de productos (2 bloques) */
 
 /* ── Botón de detalle (chevron) ─────────────────────────────────────────── */
 .btn-det {
@@ -81,39 +81,44 @@
 }
 @keyframes det-fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
-/* ── Bloque 1: encabezado del folio ─────────────────────────────────────── */
+/* ── BLOQUE 1: encabezado del folio ─────────────────────────────────────── */
+/* Campos: Folio | Fecha | Cód. Cliente | Cliente | CanCod                  */
 .det-bloque1 {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
-  padding-bottom: 14px;
+  gap: 12px 28px;
+  padding: 12px 16px;
   margin-bottom: 14px;
-  border-bottom: 1px solid var(--color-border, #e8e8e8);
+  background: var(--color-surface-offset, #f4f4f0);
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: 8px;
 }
 .det-campo {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 120px;
+  min-width: 110px;
 }
 .det-campo--wide {
-  min-width: 240px;
+  min-width: 220px;
   flex: 1;
 }
 .det-label {
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--color-text-muted, #888);
 }
 .det-valor {
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--color-text, #222);
 }
 
-/* ── Bloque 2: tabla de productos ───────────────────────────────────────── */
+/* ── BLOQUE 2: tabla de productos ───────────────────────────────────────── */
+/* Columnas: Código | Producto | Descripción | Cant | Precio Real |          */
+/*           Precio Venta | Total Real | Total Venta | Descuento             */
 .det-bloque2 {}
 .det-tabla-wrap {
   overflow-x: auto;
@@ -124,15 +129,15 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
-  min-width: 820px;
+  min-width: 980px;   /* más ancho por 9 columnas */
 }
 .det-tabla thead tr {
   background: var(--color-surface-offset, #f2f2f2);
 }
 .det-tabla thead th {
   padding: 8px 10px;
-  font-weight: 600;
-  font-size: 0.75rem;
+  font-weight: 700;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted, #666);
@@ -158,11 +163,29 @@
   color: var(--color-text, #333);
   vertical-align: middle;
 }
-.det-td--desc {
-  max-width: 260px;
+/* Código producto: compacto */
+.det-td--cod {
+  font-family: monospace;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--color-text-muted, #555);
+  width: 90px;
+}
+/* Nombre corto del producto */
+.det-td--nom {
+  max-width: 180px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+}
+/* Descripción larga */
+.det-td--desc {
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted, #666);
 }
 .det-td--num {
   text-align: right;
