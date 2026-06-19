@@ -8,6 +8,7 @@
  * 2026-06-19: fix — cargarFoliosAsignados usa /api/dashboard/asignados (no /compartir/asignados)
  * 2026-06-19: fix — generarPDF usa datos en memoria (_ultimasVentas, _ultimosCompartidos, _ultimosAsignados)
  *             en vez de leer el DOM (evita columna de botón y datos desplazados)
+ * 2026-06-19: feat — generarPDF muestra detalle completo de productos por folio (no resumen)
  */
 
 (function () {
@@ -226,70 +227,154 @@
     return `${MESES_NOMBRE[Number(mes) - 1]} ${anio}`;
   }
 
+  /**
+   * Obtiene el detalle de un folio (usa cache si ya fue cargado en pantalla).
+   */
+  async function fetchDetalleFolio(folio) {
+    if (_detalleCache[folio]) return _detalleCache[folio];
+    const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || `Error detalle folio ${folio}`);
+    _detalleCache[folio] = data;
+    return data;
+  }
+
   async function generarPDF() {
     const btnPdf = document.getElementById('btnGenerarPDF');
     try {
       if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Generando...'; }
+
       const jsPDF    = await cargarLibreriaPDF();
       const doc      = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
       const mesLabel = getMesFiltro();
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-      // ── Encabezado ──────────────────────────────────────────────────────
-      doc.setFillColor(0, 174, 142);
-      doc.rect(0, 0, 297, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-      doc.text('TEXPRO — Reporte de Ventas Asignadas', 14, 11);
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-      doc.text(`Vendedor: ${nombre}   |   Período: ${mesLabel}   |   Emitido: ${hoy}`, 14, 16);
-      doc.setTextColor(0, 0, 0);
+      // ── Helper: encabezado de página ─────────────────────────────────────
+      function addPageHeader() {
+        doc.setFillColor(0, 174, 142);
+        doc.rect(0, 0, 297, 18, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+        doc.text('TEXPRO — Reporte de Ventas Asignadas', 14, 11);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text(`Vendedor: ${nombre}   |   Período: ${mesLabel}   |   Emitido: ${hoy}`, 14, 16);
+        doc.setTextColor(0, 0, 0);
+      }
 
+      addPageHeader();
       let y = 24;
 
-      // ── TABLA VENTAS DEL MES (datos desde array en memoria) ─────────────
-      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-      doc.text(`Ventas del Mes — ${mesLabel}`, 14, y); y += 3;
+      // ── DETALLE COMPLETO POR FOLIO ───────────────────────────────────────
+      if (_ultimasVentas.length) {
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+        doc.text(`Detalle de Folios — ${mesLabel}`, 14, y);
+        y += 5;
 
-      const filasV = _ultimasVentas.map(v => {
-        const pct          = Number(v.pct_descuento) || 0;
-        const totLineaReal = v.TotLineaReal ?? v.monto;
-        return [
-          String(v.Folio || '—'),
-          v.fecha_formato || '—',
-          v.cliente || '—',
-          String(v.CodVendedor || '—'),
-          formatCLP(v.monto),
-          formatCLP(totLineaReal),
-          pct ? `${pct}%` : '—',
-        ];
-      });
+        for (const venta of _ultimasVentas) {
+          // Obtener detalle del folio
+          let detalleData = null;
+          try {
+            detalleData = await fetchDetalleFolio(venta.Folio);
+          } catch (e) {
+            console.warn(`[PDF] No se pudo cargar detalle del folio ${venta.Folio}:`, e);
+          }
 
-      doc.autoTable({
-        startY: y,
-        head: [['Folio', 'Fecha', 'Cliente', 'Cód. Vendedor', 'Monto', 'TotLineaReal', 'Descuento']],
-        body: filasV.length ? filasV : [['Sin ventas este mes', '', '', '', '', '', '']],
-        styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
-        headStyles: { fillColor: [0, 174, 142], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [245, 250, 248] },
-        columnStyles: {
-          0: { cellWidth: 18 },
-          1: { cellWidth: 24 },
-          2: { cellWidth: 76 },
-          3: { cellWidth: 26, halign: 'center' },
-          4: { cellWidth: 34, halign: 'right' },
-          5: { cellWidth: 34, halign: 'right' },
-          6: { cellWidth: 22, halign: 'right' },
-        },
-        margin: { left: 14, right: 14 },
-      });
-      y = doc.lastAutoTable.finalY + 10;
+          const d0       = detalleData?.detalle?.[0] || {};
+          const lineas   = detalleData?.detalle || [];
+          const cliente  = d0.Cliente || venta.cliente || '—';
+          const fecha    = d0.Fecha   || venta.fecha_formato || '—';
+          const codAux   = d0.CodAux  || '—';
+          const canCod   = d0.CanCod  || '—';
 
-      // ── TABLA COMPARTIDOS (datos desde array en memoria) ─────────────────
+          // Salto de página si no hay espacio suficiente (mínimo 30mm para encabezado + 1 fila)
+          if (y > 175) {
+            doc.addPage();
+            addPageHeader();
+            y = 24;
+          }
+
+          // ── Sub-encabezado del folio ──────────────────────────────────
+          doc.setFillColor(240, 248, 246);
+          doc.rect(14, y, 269, 8, 'F');
+          doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+          doc.setTextColor(0, 100, 80);
+          doc.text(`Folio: ${venta.Folio}`, 16, y + 5.5);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(40, 40, 40);
+          doc.text(`Fecha: ${fecha}`, 48, y + 5.5);
+          doc.text(`Cód. Cliente: ${codAux}`, 80, y + 5.5);
+          doc.text(`Cliente: ${cliente}`, 120, y + 5.5);
+          doc.text(`CanCod: ${canCod}`, 240, y + 5.5);
+          y += 10;
+
+          // ── Tabla de productos del folio ──────────────────────────────
+          const filasProductos = lineas.map(p => {
+            const cant     = Number(p.CantFacturada) || 0;
+            const precReal = Number(p.precio_unitario_cobrado) || 0;
+            const precVta  = Number(p.precio_lista_real)       || 0;
+            const totReal  = Number(p.TotLinea)                || 0;
+            const totVta   = Number(p.valor_historico_linea)   || 0;
+            const desc     = precVta > 0
+              ? Math.round((1 - Math.abs(precReal) / Math.abs(precVta)) * 10000) / 100
+              : 0;
+            return [
+              p.CodProd || '—',
+              p.DesProd || p.descripcion || '—',
+              String(cant),
+              formatCLP(precReal),
+              formatCLP(precVta),
+              formatCLP(totReal),
+              formatCLP(totVta),
+              desc !== 0 ? `${desc}%` : '—',
+            ];
+          });
+
+          doc.autoTable({
+            startY: y,
+            head: [['Código', 'Descripción', 'Cant.', 'Precio Real', 'Precio Venta', 'Total Real', 'Total Venta', 'Descuento']],
+            body: filasProductos.length
+              ? filasProductos
+              : [['Sin productos', '', '', '', '', '', '', '']],
+            styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+            headStyles: { fillColor: [0, 140, 115], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
+            alternateRowStyles: { fillColor: [248, 252, 251] },
+            columnStyles: {
+              0: { cellWidth: 28 },
+              1: { cellWidth: 88 },
+              2: { cellWidth: 14, halign: 'right' },
+              3: { cellWidth: 30, halign: 'right' },
+              4: { cellWidth: 30, halign: 'right' },
+              5: { cellWidth: 30, halign: 'right' },
+              6: { cellWidth: 30, halign: 'right' },
+              7: { cellWidth: 19, halign: 'right' },
+            },
+            margin: { left: 14, right: 14 },
+            didParseCell(data) {
+              // Colorear Total Real negativo en rojo
+              if (data.column.index === 5 && data.section === 'body') {
+                const raw = lineas[data.row.index];
+                if (raw && Number(raw.TotLinea) < 0) {
+                  data.cell.styles.textColor = [180, 30, 30];
+                } else if (raw && Number(raw.TotLinea) > 0) {
+                  data.cell.styles.textColor = [0, 130, 80];
+                }
+              }
+            },
+          });
+
+          y = doc.lastAutoTable.finalY + 6;
+        }
+      } else {
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text('Sin ventas registradas para el período seleccionado.', 14, y);
+        y += 10;
+      }
+
+      // ── TABLA COMPARTIDOS (resumen) ──────────────────────────────────────
       const panelComp = document.getElementById('panelCompartidos');
       if (panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
-        if (y > 170) { doc.addPage(); y = 14; }
+        if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
 
@@ -322,10 +407,10 @@
         y = doc.lastAutoTable.finalY + 10;
       }
 
-      // ── TABLA ASIGNADOS (datos desde array en memoria) ───────────────────
+      // ── TABLA ASIGNADOS (resumen) ────────────────────────────────────────
       const panelAsig = document.getElementById('panelCoordinador');
       if (panelAsig && panelAsig.style.display !== 'none' && _ultimosAsignados.length) {
-        if (y > 170) { doc.addPage(); y = 14; }
+        if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
 
