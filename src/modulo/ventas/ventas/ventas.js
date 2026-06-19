@@ -3,6 +3,9 @@
 /**
  * ventas.js — Ventas Asignadas Texpro
  * 2026-06-19: fix — eliminar col Producto, mostrar CodAux como Cód.Cliente, corregir alineación detalle
+ * 2026-06-19: fix — endpoint /api/dashboard/ventas → /api/dashboard/ventas-mes
+ *             fix — mapear TotLineaReal desde campo correcto de la API (v.TotLineaReal)
+ * 2026-06-19: fix — cargarFoliosAsignados usa /api/dashboard/asignados (no /compartir/asignados)
  */
 
 (function () {
@@ -546,22 +549,25 @@
       </td>`;
   }
 
+  // FIX 2026-06-19: endpoint corregido de /compartir/asignados → /asignados
+  // El backend expone GET /api/dashboard/asignados (para coordinadores).
+  // /compartir/asignados no existe y generaba 404.
   async function cargarFoliosAsignados() {
     try {
-      const res  = await fetch(`${API}/compartir/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const res  = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
       if (!tbody) return;
-      if (!data.ok || !data.compartidos?.length) {
+      if (!data.ok || !data.asignados?.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
         return;
       }
-      tbody.innerHTML = data.compartidos.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
+      tbody.innerHTML = data.asignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
       tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
         btn.addEventListener('click', () => {
           const tr = btn.closest('tr');
           const id = btn.dataset.id;
-          const c  = data.compartidos.find(x => String(x.id) === id);
+          const c  = data.asignados.find(x => String(x.id) === id);
           if (c) tr.innerHTML = filaAsignadoEdicion(c);
           bindCrudSave(tbody, data);
         });
@@ -607,6 +613,9 @@
   }
 
   // ── Carga principal de ventas ─────────────────────────────────────────────
+  // FIX 2026-06-19: endpoint corregido de /api/dashboard/ventas → /api/dashboard/ventas-mes
+  // El backend no tiene ruta /ventas, el correcto es /ventas-mes.
+  // FIX 2026-06-19: campo TotLineaReal mapeado desde v.TotLineaReal (no v.totLineaReal).
   async function cargarVentas() {
     mostrarCarga();
     try {
@@ -614,7 +623,7 @@
       const headers = { Authorization:`Bearer ${token()}` };
 
       const [resV, resC] = await Promise.all([
-        fetch(`${API}/ventas?${new URLSearchParams(params)}`, { headers }),
+        fetch(`${API}/ventas-mes?${new URLSearchParams(params)}`, { headers }),
         fetch(`${API}/compartidos?${new URLSearchParams(params)}`, { headers }),
       ]);
       const [dataV, dataC] = await Promise.all([resV.json(), resC.json()]);
@@ -630,11 +639,11 @@
         if (tbodyV) tbodyV.innerHTML = '<tr class="tabla-empty"><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin ventas este mes</td></tr>';
       } else {
         if (tbodyV) {
-          // Calcular totLineaReal desde la API (se calcula en el backend por descuentos)
           tbodyV.innerHTML = ventas.map(v => {
-            const pct = v.descuento && v.monto
-              ? Math.round((v.descuento / (v.monto + v.descuento)) * 10000) / 100
-              : 0;
+            // pct_descuento viene directamente del backend en /ventas-mes
+            const pct = Number(v.pct_descuento) || 0;
+            // TotLineaReal: campo de la API que representa el valor a precio lista real
+            const totLineaReal = v.TotLineaReal ?? v.monto;
             return `
             <tr data-folio="${v.Folio}">
               <td class="det-btn-td">
@@ -651,7 +660,7 @@
               <td>${v.cliente || '—'}</td>
               <td>${v.CodVendedor || '—'}</td>
               <td style="text-align:right">${formatCLP(v.monto)}</td>
-              <td style="text-align:right;color:var(--color-success,#27ae60)">${formatCLP(v.totLineaReal ?? v.monto)}</td>
+              <td style="text-align:right;color:var(--color-success,#27ae60)">${formatCLP(totLineaReal)}</td>
               <td style="text-align:right">${pct ? pct+'%' : '—'}</td>
             </tr>`;
           }).join('');
@@ -684,7 +693,7 @@
               <td><strong>${c.folio}</strong></td>
               <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
               <td>${c.cliente || '—'}</td>
-              <td>${c.nombre_vendedor_origen || c.cod_vendedor_origen || '—'}</td>
+              <td>${c.coordinador || c.cod_vendedor_principal || '—'}</td>
               <td style="text-align:right">${c.porcentaje}%</td>
               <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
             </tr>`).join('');
