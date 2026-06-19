@@ -6,7 +6,9 @@
  * 2026-06-09: fix — iconos unificados; item activo muestra ícono bars SVG
  * 2026-06-15: fix — restaurar lógica de carga borrada accidentalmente;
  *                    estandarizar sidebar: Historial → Historial Cliente
- * 2026-06-19: feat — botón y lógica de generación de PDF (jsPDF + autoTable)
+ * 2026-06-19: feat — botón PDF en barra superior
+ *             fix  — vendedor origen en compartidos usa campo 'coordinador'
+ *             fix  — ventas del mes filtra por todos los codigos del usuario
  */
 
 (function () {
@@ -32,6 +34,12 @@
   function setStyle(id, prop, value) {
     const el = document.getElementById(id);
     if (el) el.style[prop] = value;
+  }
+
+  // Obtiene todos los codigos de vendedor del usuario (igual que el backend)
+  function getCodigosUsuario(usuario) {
+    if (usuario.is_admin) return null; // null = mostrar todo
+    return (usuario.vendedores || []).map(v => String(v.cod_vendedor || v.cod)).filter(Boolean);
   }
 
   // ── Spinner ───────────────────────────────────────────────────────────────
@@ -122,7 +130,7 @@
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-      // ── Encabezado ─────────────────────────────────────────────────────────
+      // ── Encabezado ───────────────────────────────────────────────
       doc.setFillColor(0, 174, 142);
       doc.rect(0, 0, 297, 18, 'F');
       doc.setTextColor(255, 255, 255);
@@ -134,7 +142,7 @@
 
       let y = 24;
 
-      // ── Tabla Ventas del Mes ───────────────────────────────────────────────
+      // ── Tabla Ventas del Mes ───────────────────────────────────────────
       doc.setFontSize(10); doc.setFont('helvetica', 'bold');
       doc.text(`Ventas del Mes — ${mesLabel}`, 14, y); y += 3;
 
@@ -163,7 +171,7 @@
 
       y = doc.lastAutoTable.finalY + 10;
 
-      // ── Tabla Ventas Compartidas (vendedor) ────────────────────────────────
+      // ── Tabla Ventas Compartidas (vendedor) ─────────────────────────────
       const panelComp = document.getElementById('panelCompartidos');
       if (panelComp && panelComp.style.display !== 'none') {
         if (y > 170) { doc.addPage(); y = 14; }
@@ -194,7 +202,7 @@
         y = doc.lastAutoTable.finalY + 10;
       }
 
-      // ── Tabla Folios Asignados (coordinador) ───────────────────────────────
+      // ── Tabla Folios Asignados (coordinador) ───────────────────────────
       const panelAsig = document.getElementById('panelCoordinador');
       if (panelAsig && panelAsig.style.display !== 'none') {
         if (y > 170) { doc.addPage(); y = 14; }
@@ -224,7 +232,7 @@
         });
       }
 
-      // ── Footer en todas las páginas ────────────────────────────────────────
+      // ── Footer ─────────────────────────────────────────────────────
       const totalPags = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPags; i++) {
         doc.setPage(i);
@@ -305,7 +313,7 @@
     });
   }
 
-  // ── Selectores mes/año ────────────────────────────────────────────────────
+  // ── Selectores mes/año ───────────────────────────────────────────────────
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -513,7 +521,7 @@
     });
   }
 
-  // ── PANEL COMPARTIDOS (vendedor) ──────────────────────────────────────────
+  // ── PANEL COMPARTIDOS (vendedor) ─────────────────────────────────────────
   async function iniciarPanelCompartidos() {
     setStyle('panelCompartidos', 'display', 'block');
     try {
@@ -525,28 +533,40 @@
       if (!data.ok || !data.compartidos?.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin folios compartidos este mes</td></tr>'; return;
       }
-      tbody.innerHTML = data.compartidos.map(c => `<tr>
-        <td><strong>${c.folio}</strong></td>
-        <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-        <td>${c.cliente||'—'}</td>
-        <td>${c.nombre_vendedor_origen||c.cod_vendedor_origen||'—'}</td>
-        <td style="text-align:right">${c.porcentaje}%</td>
-        <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
-      </tr>`).join('');
+      tbody.innerHTML = data.compartidos.map(c => {
+        // El backend devuelve el nombre del coordinador en el campo 'coordinador'
+        // Tambien puede venir en nombre_vendedor_principal o cod_vendedor_principal como fallback
+        const origen = c.coordinador || c.nombre_vendedor_principal || c.cod_vendedor_principal || '—';
+        return `<tr>
+          <td><strong>${c.folio}</strong></td>
+          <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+          <td>${c.cliente||'—'}</td>
+          <td>${origen}</td>
+          <td style="text-align:right">${c.porcentaje}%</td>
+          <td style="text-align:right">${formatCLP(c.monto || c.monto_asignado)}</td>
+        </tr>`;
+      }).join('');
     } catch(err) { console.error('[iniciarPanelCompartidos]', err); }
   }
 
-  // ── Tabla principal ventas ────────────────────────────────────────────────
+  // ── Tabla principal ventas ───────────────────────────────────────────────
   async function cargarVentas(usuario) {
     try {
       const res   = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data  = await res.json();
       const tbody = document.getElementById('tbodyVentas');
       if (!tbody) return;
+
+      // Obtener todos los codigos del usuario para filtrar correctamente
+      const codigos = getCodigosUsuario(usuario);
+
+      // Filtrar: si es admin o codigos es null -> mostrar todo;
+      // de lo contrario mostrar las filas cuyo CodVendedor este en la lista de codigos
       const lista = (data.ventas||[]).filter(v => {
-        if (usuario.is_admin) return true;
-        return String(v.CodVendedor) === String(usuario.cod_vendedor);
+        if (!codigos) return true; // admin
+        return codigos.includes(String(v.CodVendedor));
       });
+
       setText('totalVentas', `${lista.length} registros`);
       if (!lista.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin ventas este mes</td></tr>'; return;
@@ -571,7 +591,7 @@
     } catch(err) { console.error('[cargarVentas]', err); }
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Init ────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
