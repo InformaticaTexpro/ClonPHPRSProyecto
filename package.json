@@ -6,8 +6,8 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node -e \"process.env.NODE_TLS_REJECT_UNAUTHORIZED='0'\" src/server.js",
-    "dev": "node --watch -e \"process.env.NODE_TLS_REJECT_UNAUTHORIZED='0'\" src/server.js",
+    "start": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 node src/server.js",
+    "dev": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 node --watch src/server.js",
     "lint": "eslint .",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.3.1",
