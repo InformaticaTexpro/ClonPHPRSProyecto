@@ -6,8 +6,8 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node -e \"process.env.NODE_TLS_REJECT_UNAUTHORIZED='0'\" src/server.js",
+    "dev": "node --watch -e \"process.env.NODE_TLS_REJECT_UNAUTHORIZED='0'\" src/server.js",
     "lint": "eslint .",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
