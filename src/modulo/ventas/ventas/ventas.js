@@ -39,11 +39,6 @@
     if (el) el.style[prop] = value;
   }
 
-  function getCodigosUsuario(usuario) {
-    if (usuario.is_admin) return null;
-    return (usuario.vendedores || []).map(v => String(v.cod_vendedor || v.cod)).filter(Boolean);
-  }
-
   // ── Spinner ───────────────────────────────────────────────────────────────
   let cargaOverlay = null;
 
@@ -695,7 +690,7 @@
           const id = btn.dataset.id;
           const c  = _ultimosAsignados.find(x => String(x.id) === id);
           if (c) tr.innerHTML = filaAsignadoEdicion(c);
-          bindCrudSave(tbody, _ultimosAsignados);
+          bindCrudSave(tbody);
         });
       });
       tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
@@ -714,7 +709,7 @@
     } catch(err) { console.error('[cargarFoliosAsignados]', err); }
   }
 
-  function bindCrudSave(tbody, data) {
+  function bindCrudSave(tbody) {
     tbody.querySelectorAll('.btn-crud--save').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id  = btn.dataset.id;

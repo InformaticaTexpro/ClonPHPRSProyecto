@@ -31,14 +31,19 @@
 
 const express             = require('express');
 const router              = express.Router();
+const sql                 = require('mssql');
 const { requireAuth }     = require('../middlewares/requireAuth');
 const db                  = require('../config/db');
 const { getSoftlandPool } = require('../config/db.softland');
 
 router.use(requireAuth);
 
-function mssqlIn(arr) {
-  return arr.map(v => `'${v}'`).join(',');
+function bindMssqlIn(request, valores, prefijo = 'cod') {
+  return valores.map((valor, index) => {
+    const name = `${prefijo}${index}`;
+    request.input(name, sql.VarChar(20), String(valor));
+    return `@${name}`;
+  }).join(',');
 }
 
 async function getCodigosVendedor(usuarioId) {
@@ -66,7 +71,8 @@ router.get('/', async (req, res) => {
     }
 
     const pool      = await getSoftlandPool();
-    const inClause  = mssqlIn(codigos);
+    const request   = pool.request();
+    const inClause  = bindMssqlIn(request, codigos);
 
     // ── CONSULTA ÚNICA: detalle completo de cada cliente con flags de segmento ──
     //
@@ -78,7 +84,7 @@ router.get('/', async (req, res) => {
     //        para manejar correctamente múltiples compras en el mismo mes.
     //   C3 — Existe al menos una compra ANTERIOR a (FechaMinMesActual - 90 días),
     //        confirmando que el cliente tiene historial previo (no es nuevo).
-    const resDetalle = await pool.request().query(`
+    const resDetalle = await request.query(`
       WITH Clientes AS (
           SELECT CodAux
           FROM [PRODIN].[softland].[cwtauxven]

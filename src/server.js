@@ -1,8 +1,3 @@
-// PRIMERA línea absoluta — antes de cualquier require.
-// Necesario en Windows/Node 20 para deshabilitar verificación TLS en
-// llamadas a APIs externas (mindicador.cl, BCCH).
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 'use strict';
 
 /**
@@ -33,9 +28,6 @@ const indicadoresRoutes     = require('./routes/indicadores');
 
 const vendedoresRoutes      = require('./routes/vendedores');   // ← NUEVO
 const rrhhRoutes            = require('./routes/rrhh');
-
-const vendedoresRoutes      = require('./routes/vendedores');
-
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -132,7 +124,6 @@ app.use('/api/indicadores',     indicadoresRoutes);
 app.use('/api/vendedores',      vendedoresRoutes);   // ← NUEVO
 app.use('/api/rrhh',            rrhhRoutes);
 
-app.use('/api/vendedores',      vendedoresRoutes);
 
 
 // ── 404

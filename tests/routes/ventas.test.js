@@ -24,7 +24,6 @@ jest.mock('../../src/middlewares/requireAuth', () => ({
 }));
 
 // ── Mock modelo venta ─────────────────────────────────────────────────────────
-const mockGetVentas = jest.fn();
 jest.mock('../../src/models/venta', () => ({
   getVentas:            jest.fn(),
   getTotalVentas:       jest.fn(),

@@ -291,7 +291,6 @@
   function initAutocomplete() {
     const input  = document.getElementById('inputCliente');
     const lista  = document.getElementById('listaClientes');
-    const chip   = document.getElementById('clienteChip');
     const btnRem = document.getElementById('btnRemoveCliente');
     const btnBus = document.getElementById('btnBuscarHistorial');
     if (!input) return;
@@ -516,7 +515,7 @@
       if (!clienteSeleccionado.ciudad)    clienteSeleccionado.ciudad    = primerRow.Ciudad    || primerRow.ciudad    || '';
 
       renderResumen(data, yDesde, yHasta);
-      renderResultados(data.historial, yDesde, yHasta);
+      renderResultados(data.historial);
 
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -534,7 +533,7 @@
     }
   }
 
-  function renderResultados(historial, yDesde, yHasta) {
+  function renderResultados(historial) {
     const contenedor = document.getElementById('histResultados');
     if (!contenedor) return;
     contenedor.innerHTML = '';
@@ -551,12 +550,12 @@
       porAnio[anio][key].total      += Number(row.TotLinea || 0);
     });
     Object.keys(porAnio).sort((a, b) => Number(b) - Number(a)).forEach((anio) => {
-      contenedor.appendChild(renderBloqueAnio(anio, Object.values(porAnio[anio]), yDesde, yHasta));
+      contenedor.appendChild(renderBloqueAnio(anio, Object.values(porAnio[anio])));
     });
     show('histResultados');
   }
 
-  function renderBloqueAnio(anio, productos, yDesde, yHasta) {
+  function renderBloqueAnio(anio, productos) {
     const meses    = Array.from({ length: 12 }, (_, i) => i + 1);
     productos.sort((a, b) => b.total - a.total);
     const totalesMes = {};

@@ -690,7 +690,7 @@
   }
 
   // ── Cargar todo ───────────────────────────────────────────────────────────────────────────
-  async function cargarTodo(usuario) {
+  async function cargarTodo() {
     mostrarCarga();
     try {
       await Promise.all([
@@ -744,9 +744,9 @@
     if (modalOverlay) modalOverlay.addEventListener('click', e => { if (e.target===e.currentTarget) cerrarModal(); });
     document.addEventListener('keydown', e => { if (e.key==='Escape') cerrarModal(); });
     const btnAct = document.getElementById('btnActualizar');
-    if (btnAct) btnAct.addEventListener('click', () => cargarTodo(usuario));
+    if (btnAct) btnAct.addEventListener('click', () => cargarTodo());
 
-    cargarTodo(usuario);
+    cargarTodo();
   }
 
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);

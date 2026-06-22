@@ -25,7 +25,8 @@ jest.mock('../../src/config/db', () => ({
 }));
 
 // ── Mock Softland ────────────────────────────────────────────────────
-const mockRequest = jest.fn().mockReturnValue({
+const mockSoftlandRequest = {
+  input: jest.fn().mockReturnThis(),
   query: jest.fn().mockResolvedValue({
     recordset: [
       {
@@ -36,7 +37,8 @@ const mockRequest = jest.fn().mockReturnValue({
       },
     ],
   }),
-});
+};
+const mockRequest = jest.fn().mockReturnValue(mockSoftlandRequest);
 jest.mock('../../src/config/db.softland', () => ({
   getSoftlandPool: jest.fn().mockResolvedValue({ request: mockRequest }),
 }));
@@ -67,6 +69,15 @@ describe('GET /api/cartera', () => {
     expect(Array.isArray(res.body.nuevos)).toBe(true);
     expect(Array.isArray(res.body.recuperados)).toBe(true);
     expect(Array.isArray(res.body.activosMesActual)).toBe(true);
+  });
+
+  test('parametriza codigos de vendedor en consulta Softland', async () => {
+    await request(app).get('/api/cartera');
+    const sqlQuery = mockSoftlandRequest.query.mock.calls.at(-1)[0];
+
+    expect(mockSoftlandRequest.input).toHaveBeenCalledWith('cod0', expect.anything(), 'V001');
+    expect(sqlQuery).toContain('VenCod IN (@cod0)');
+    expect(sqlQuery).not.toContain("IN ('V001')");
   });
 
   test('KPIs son números', async () => {

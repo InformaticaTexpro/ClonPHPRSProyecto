@@ -18,10 +18,6 @@
     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
   ];
 
-  function fmtCLP(n) {
-    return '$' + Number(n || 0).toLocaleString('es-CL');
-  }
-
   /**
    * Verifica el estado de confirmación para mes/anio y actualiza la UI.
    */

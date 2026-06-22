@@ -129,25 +129,6 @@ function mesAnioDesdeSQL(fechaSQL) {
   return { mes: parseInt(mesStr, 10), anio: parseInt(anioStr, 10) };
 }
 
-function sqlPrecioListaUnitarioReal({ factorExpr = null } = {}) {
-  const factor = factorExpr ? ` * (${factorExpr})` : '';
-  return `
-    CASE
-      WHEN h.Tipo = 'N' AND m.CodProd LIKE 'NC%'
-        THEN ISNULL(m.TotLinea / NULLIF(m.CantFacturada, 0), 0)${factor}
-      WHEN ISNULL(m.CantFacturada, 0) <= 0
-        THEN 0
-      WHEN cl.CodCan = '301'
-        THEN ISNULL(t.PrecioVta, 0) * 1.10${factor}
-      ELSE ISNULL(t.PrecioVta, 0)${factor}
-    END
-  `;
-}
-
-function sqlBaseListaRealTotal({ factorExpr = null } = {}) {
-  return `(${sqlPrecioListaUnitarioReal({ factorExpr })}) * ISNULL(m.CantFacturada, 0)`;
-}
-
 async function getFoliosCompartidosConPct(codigos, mes, anio) {
   if (!codigos.length) return [];
   const placeholders = codigos.map(() => '?').join(',');
@@ -960,7 +941,6 @@ router.get('/asignados', async (req, res) => {
   if (!codigosCoord.length) return res.json({ ok: true, asignados: [] });
 
   const { validarMesAnio } = require('../utils/stringHelpers');
-  const hoy = new Date();
   let filtroMes = null, filtroAnio = null;
 
   // Solo filtrar si el cliente envía mes Y anio

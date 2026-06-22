@@ -8,22 +8,6 @@
 const https = require('https');
 const { EventEmitter } = require('events');
 
-// ── Helper: simula respuesta https ────────────────────────────────────────────
-function mockHttpsResponse(statusCode, body) {
-  jest.spyOn(https, 'request').mockImplementation((_opts, cb) => {
-    const res = new EventEmitter();
-    res.statusCode = statusCode;
-    const req = new EventEmitter();
-    req.write = jest.fn();
-    req.end   = () => {
-      if (cb) cb(res);
-      res.emit('data', JSON.stringify(body));
-      res.emit('end');
-    };
-    return req;
-  });
-}
-
 beforeEach(() => {
   jest.restoreAllMocks();
   // Variables de entorno requeridas por mailer

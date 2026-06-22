@@ -17,8 +17,6 @@ jest.mock('mssql', () => ({
   connect: jest.fn().mockResolvedValue(mockPool),
 }));
 
-const sql = require('mssql');
-
 // Reset module between tests to clear the internal _pool singleton
 beforeEach(() => {
   jest.resetModules();

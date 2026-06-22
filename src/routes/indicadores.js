@@ -10,8 +10,7 @@
  *   Registro en: https://si3.bcentral.cl/estadisticas/Principal1/inicio/index.htm
  *
  * Fuente fallback : mindicador.cl
- *   NODE_TLS_REJECT_UNAUTHORIZED=0 debe estar seteado ANTES de que
- *   arranque Node (lo hace server.js en su primera línea).
+ *   Se usa TLS verificado por Node; si la llamada falla, responde el fallback.
  *
  * Caché: 30 minutos.
  */
@@ -24,8 +23,7 @@ const CACHE_TTL_MS = 30 * 60 * 1000;
 let cache   = null;
 let cacheTS = 0;
 
-// Agente HTTPS que ignora errores de certificado
-const tlsAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true });
+const tlsAgent = new https.Agent({ keepAlive: true });
 
 // ─── HTTP/HTTPS helper ────────────────────────────────────────────────────────
 function fetchJson(url, reintentos = 3) {

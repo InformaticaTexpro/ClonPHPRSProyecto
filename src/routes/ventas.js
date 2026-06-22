@@ -32,7 +32,6 @@ const { buildPrecioListaRealCASE } = require('../utils/precioHistorico');
 const {
   getTotalVentas,
   getResumenPorVendedor,
-  getClientesPorVendedor,
   getVentas,
   getMontoFolio,
   getDetalleFolio,

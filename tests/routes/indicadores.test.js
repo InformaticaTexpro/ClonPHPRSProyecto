@@ -24,14 +24,6 @@ function mockHttps(jsonBody) {
   });
 }
 
-function mockHttpsError(message) {
-  jest.spyOn(https, 'request').mockImplementation((_url, _opts, _cb) => {
-    const req = new EventEmitter();
-    req.end = () => req.emit('error', new Error(message));
-    return req;
-  });
-}
-
 beforeEach(() => jest.restoreAllMocks());
 
 // ── Tests de la función fetchJson (indirectamente via el módulo) ──────
