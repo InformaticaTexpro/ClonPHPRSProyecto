@@ -1,3 +1,8 @@
+// PRIMERA línea absoluta — antes de cualquier require.
+// Necesario en Windows/Node 20 para deshabilitar verificación TLS en
+// llamadas a APIs externas (mindicador.cl, BCCH).
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 'use strict';
 
 /**
@@ -25,7 +30,7 @@ const notificacionesRoutes  = require('./routes/notificaciones');
 const carteraRoutes         = require('./routes/cartera');
 const alertasRoutes         = require('./routes/alertas');
 const indicadoresRoutes     = require('./routes/indicadores');
-const vendedoresRoutes      = require('./routes/vendedores');   // ← NUEVO
+const vendedoresRoutes      = require('./routes/vendedores');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -118,9 +123,9 @@ app.use('/api/notificaciones',  notificacionesRoutes);
 app.use('/api/cartera',         carteraRoutes);
 app.use('/api/alertas',         alertasRoutes);
 app.use('/api/indicadores',     indicadoresRoutes);
-app.use('/api/vendedores',      vendedoresRoutes);   // ← NUEVO
+app.use('/api/vendedores',      vendedoresRoutes);
 
-// ── 404: API → JSON | Navegación → redirigir al login con ruta física (CSS intacto)
+// ── 404
 app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ ok: false, error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
