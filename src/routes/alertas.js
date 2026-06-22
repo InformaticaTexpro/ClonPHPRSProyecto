@@ -1,11 +1,11 @@
 'use strict';
 /**
- * routes/alertas.js  v2.4
- * Fix v2.4:
- *  - debeRecordar: parsear ultimo_recordatorio como fecha LOCAL (no UTC)
- *    new Date('YYYY-MM-DD') interpreta el string como UTC medianoche, lo que
- *    en zonas UTC-N desplaza la fecha al día anterior antes de setHours().
- *    Se usa parseLocalDate() que construye el Date con año/mes/día locales.
+ * routes/alertas.js  v2.5
+ * Fix v2.5:
+ *  - parseLocalDate: acepta tanto string 'YYYY-MM-DD' como objeto Date de MySQL.
+ *    MySQL2 devuelve columnas DATE como objetos Date JS, no como strings,
+ *    por lo que str.split('-') lanzaba TypeError.
+ *  - diasRestantes / debeRecordar actualizados para usar la nueva parseLocalDate.
  */
 
 const express          = require('express');
@@ -15,22 +15,50 @@ const { requireAuth }  = require('../middlewares/requireAuth');
 
 router.use(requireAuth);
 
-/** Parsea 'YYYY-MM-DD' como fecha LOCAL (evita el desfase UTC en zonas UTC-N/UTC+N) */
-function parseLocalDate(str) {
+/**
+ * Parsea una fecha como local (sin desfase UTC).
+ * Acepta:
+ *   - string 'YYYY-MM-DD'  → proveniente de JSON o campos TEXT
+ *   - objeto Date          → proveniente de mysql2 con columnas DATE/DATETIME
+ *   - null / undefined     → retorna null
+ */
+function parseLocalDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    // mysql2 devuelve DATE como Date con hora 00:00:00 UTC
+    // Usamos UTC para extraer año/mes/día y construir fecha local
+    return new Date(val.getUTCFullYear(), val.getUTCMonth(), val.getUTCDate());
+  }
+  // string 'YYYY-MM-DD'
+  const str = String(val).substring(0, 10);
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
+/** Convierte cualquier valor fecha a string 'YYYY-MM-DD' */
+function toDateStr(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    const y = val.getUTCFullYear();
+    const m = String(val.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(val.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(val).substring(0, 10);
+}
+
 function diasRestantes(fechaVence) {
-  const hoy   = new Date(); hoy.setHours(0, 0, 0, 0);
-  const vence = parseLocalDate(fechaVence);
-  return Math.ceil((vence - hoy) / 86400000);
+  const fecha = parseLocalDate(fechaVence);
+  if (!fecha) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.ceil((fecha - hoy) / 86400000);
 }
 
 function debeRecordar(ultimoRec, frecuencia) {
   if (!ultimoRec || frecuencia === 'siempre') return true;
   const hoy    = new Date(); hoy.setHours(0, 0, 0, 0);
-  const ultimo = parseLocalDate(ultimoRec);   // ← fix: fecha local, no UTC
+  const ultimo = parseLocalDate(ultimoRec);
+  if (!ultimo) return true;
   const diff   = Math.floor((hoy - ultimo) / 86400000);
   if (frecuencia === 'diaria')    return diff >= 1;
   if (frecuencia === 'semanal')   return diff >= 7;
@@ -75,6 +103,7 @@ router.get('/', async (req, res) => {
 
     const data = rows.map(r => ({
       ...r,
+      fecha_vence:       toDateStr(r.fecha_vence),
       dias_restantes:    diasRestantes(r.fecha_vence),
       destinatarios_ids: r.destinatarios_ids
         ? r.destinatarios_ids.split(',').map(Number)
@@ -167,7 +196,11 @@ router.get('/pendientes', async (req, res) => {
 
     const data = rows
       .filter(r => debeRecordar(r.ultimo_recordatorio, r.frecuencia_recordatorio))
-      .map(r => ({ ...r, dias_restantes: diasRestantes(r.fecha_vence) }));
+      .map(r => ({
+        ...r,
+        fecha_vence:    toDateStr(r.fecha_vence),
+        dias_restantes: diasRestantes(r.fecha_vence),
+      }));
 
     res.json({ ok: true, data });
   } catch (e) {

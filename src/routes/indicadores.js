@@ -26,27 +26,33 @@ let cacheTS = 0;
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, {
-      method: 'GET',
+      method : 'GET',
       headers: { 'User-Agent': 'RSProyecto/1.0 (Texpro)' },
+      // mindicador.cl puede tener certificado intermedio problemático en Windows
       rejectUnauthorized: false,
     }, (res) => {
+      // Redireccionamiento 301/302 manual (por si acaso)
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        fetchJson(res.headers.location).then(resolve).catch(reject);
+        res.resume();
+        return;
+      }
       let raw = '';
       res.on('data', c  => { raw += c; });
       res.on('end',  () => {
+        if (!raw.trimStart().startsWith('{') && !raw.trimStart().startsWith('[')) {
+          return reject(new Error('Respuesta no es JSON: ' + raw.substring(0, 80)));
+        }
         try   { resolve(JSON.parse(raw)); }
         catch (e) { reject(new Error('JSON inválido: ' + e.message)); }
       });
     });
     req.on('error', reject);
-    req.setTimeout(8000, () => { req.destroy(new Error('timeout')); });
+    req.setTimeout(10000, () => { req.destroy(new Error('timeout')); });
     req.end();
   });
 }
 
-/**
- * Llama a mindicador.cl/api/{indicador} (sin fecha).
- * Retorna el último valor de la serie.
- */
 async function fetchMindicador(indicador) {
   const data  = await fetchJson(`https://mindicador.cl/api/${indicador}`);
   const serie = data?.serie;
