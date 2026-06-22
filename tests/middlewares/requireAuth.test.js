@@ -109,7 +109,24 @@ describe('requireAuth', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.usuario).toBeDefined();
     expect(req.usuario.sub).toBe(7);
+    expect(req.usuario.id).toBe(7);
     expect(req.usuario.email).toBe('u@texpro.cl');
+  });
+
+  test('acepta token legado con id y sin sub', async () => {
+    const token = jwt.sign(
+      { id: 9, email: 'legacy@texpro.cl', is_admin: false, vendedores: [] },
+      TEST_SECRET,
+      { expiresIn: '1h' }
+    );
+    const req   = buildReq(`Bearer ${token}`);
+    const res   = buildRes();
+    const next  = jest.fn();
+    await requireAuth(req, res, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.usuario.id).toBe(9);
+    expect(req.usuario.sub).toBe(9);
+    expect(getVendedoresByUsuarioId).toHaveBeenCalledWith(9);
   });
 
   test('req.usuario.vendedores proviene de la BD (no del JWT)', async () => {

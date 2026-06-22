@@ -8,7 +8,7 @@ USE bdtexpro;
 
 CREATE TABLE IF NOT EXISTS `confirmaciones_ventas` (
   `id`                  INT(10) UNSIGNED     NOT NULL AUTO_INCREMENT,
-  `usuario_id`          BIGINT(20)           NOT NULL                  COMMENT 'FK → usuarios.id',
+  `usuario_id`          BIGINT(20)           NOT NULL                  COMMENT 'FK → usuario.id',
   `mes`                 TINYINT(4)           NOT NULL                  COMMENT '1–12',
   `anio`                SMALLINT(6)          NOT NULL,
   `fecha_confirmacion`  DATETIME             NOT NULL DEFAULT current_timestamp(),
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `confirmaciones_ventas` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_usuario_mes_anio` (`usuario_id`, `mes`, `anio`),
   CONSTRAINT `fk_confirmacion_usuario`
-    FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`)
+    FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`)
     ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4

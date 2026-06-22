@@ -17,11 +17,6 @@ const {
   obtenerConfirmacionPorId,
 } = require('../models/confirmacion');
 
-const MESES = [
-  '', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
-];
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/rrhh/confirmaciones
 // Lista todas las confirmaciones de ventas (para vista RRHH).
@@ -32,18 +27,6 @@ router.get('/confirmaciones', requireAuth, async (req, res) => {
     const anio = req.query.anio ? Number(req.query.anio) : undefined;
     const confirmaciones = await listarConfirmaciones({ mes, anio });
 
-    // Si el cliente pide HTML (navegador), renderiza la vista
-    if (req.accepts('html') && !req.headers['x-requested-with']) {
-      return res.render('rrhh', {
-        titulo: 'RRHH — Confirmaciones de Ventas',
-        confirmaciones,
-        meses: MESES,
-        filtroMes:  mes  || '',
-        filtroAnio: anio || new Date().getFullYear(),
-      });
-    }
-
-    // JSON para peticiones API
     res.json({ ok: true, confirmaciones });
   } catch (err) {
     console.error('[GET /api/rrhh/confirmaciones]', err.message);

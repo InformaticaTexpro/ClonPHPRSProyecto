@@ -98,8 +98,11 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Verificar servidor arranca
-        run: node -e "require('./src/server.js')" --check || true
+      - name: Verificar sintaxis del servidor
+        run: node --check src/server.js
+
+      - name: Ejecutar build
+        run: npm run build
 
       - name: Subir artefacto de build
         uses: actions/upload-artifact@v4

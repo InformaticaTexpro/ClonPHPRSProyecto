@@ -61,6 +61,7 @@ router.post('/login', async (req, res) => {
     );
 
     const payload = {
+      id:        user.id,
       sub:       user.id,
       email:     user.email,
       nombre:    user.nombre,
@@ -158,6 +159,7 @@ router.post('/refresh', async (req, res) => {
     );
 
     const nuevoPayload = {
+      id:        user.id,
       sub:       user.id,
       email:     user.email,
       nombre:    user.nombre,

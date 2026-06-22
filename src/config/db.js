@@ -38,4 +38,8 @@ async function testConnection() {
   }
 }
 
-module.exports = { pool, testConnection };
+function query(sql, params) {
+  return pool.query(sql, params);
+}
+
+module.exports = { pool, query, testConnection };

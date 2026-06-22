@@ -40,6 +40,7 @@ describe('generarToken', () => {
   test('el payload contiene sub, email, is_admin, vendedores y area', () => {
     const token   = generarToken(usuarioBase);
     const decoded = jwt.decode(token);
+    expect(decoded.id).toBe(42);
     expect(decoded.sub).toBe(42);
     expect(decoded.email).toBe('vendedor@texpro.cl');
     expect(decoded.is_admin).toBe(false);
@@ -52,6 +53,7 @@ describe('generarToken', () => {
     const usuarioConId = { id: 99, email: 'otro@texpro.cl', is_admin: true };
     const token   = generarToken(usuarioConId);
     const decoded = jwt.decode(token);
+    expect(decoded.id).toBe(99);
     expect(decoded.sub).toBe(99);
   });
 

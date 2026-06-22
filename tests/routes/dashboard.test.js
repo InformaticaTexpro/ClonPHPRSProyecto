@@ -75,7 +75,7 @@ describe('GET /api/dashboard/resumen — devuelve KPIs correctos', () => {
 
   test('retorna 400 con mes inválido', async () => {
     const res = await request(app).get('/api/dashboard/resumen?mes=13&anio=2026');
-    expect([400, 500]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   test('sin vendedores retorna KPIs en cero', async () => {
@@ -106,36 +106,30 @@ describe('GET /api/dashboard/evolucion — evolución mensual', () => {
 
   test('año inválido retorna error', async () => {
     const res = await request(app).get('/api/dashboard/evolucion?anio=1990');
-    expect([400, 500]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 });
 
 // ── POST /api/dashboard/compartir — asigna porcentaje a folio ────────────────
 describe('POST /api/dashboard/compartir — asigna porcentaje a folio', () => {
-  test('asigna porcentaje a folio existente', async () => {
-    // Folio existe
-    mockQuery.mockResolvedValueOnce([[{ folio: 1001, total: 500000 }]]);
-    // Upsert ok
-    mockQuery.mockResolvedValueOnce([{ affectedRows: 1 }]);
+  test('retorna 400 si falta vendedor compartido', async () => {
     const res = await request(app)
       .post('/api/dashboard/compartir')
       .send({ folio: 1001, porcentaje: 50 });
-    // Acepta 200 (ok) o 404 (folio no en Softland) según la implementación
-    expect([200, 400, 404, 500]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   test('retorna error si faltan parámetros obligatorios', async () => {
     const res = await request(app)
       .post('/api/dashboard/compartir')
       .send({});
-    expect([400, 422, 500]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
-  test('porcentaje fuera de rango es rechazado o retorna error controlado', async () => {
+  test('porcentaje fuera de rango retorna 400', async () => {
     const res = await request(app)
       .post('/api/dashboard/compartir')
-      .send({ folio: 1001, porcentaje: 150 });
-    // La ruta puede aceptar o rechazar — lo importante es que no lanza uncaught
-    expect(res.status).toBeLessThan(600);
+      .send({ folio: 1001, cod_vendedor_compartido: 'V002', porcentaje: 150 });
+    expect(res.status).toBe(400);
   });
 });

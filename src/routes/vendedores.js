@@ -59,7 +59,8 @@ const upload = multer({
 
 // ─── Helper: verificar acceso ─────────────────────────────────────────────────
 function puedeAcceder(req, targetId) {
-  return req.usuario.isAdmin || req.usuario.sub === Number(targetId);
+  const usuarioId = req.usuario.id ?? req.usuario.sub;
+  return req.usuario.is_admin || Number(usuarioId) === Number(targetId);
 }
 
 // =============================================================================

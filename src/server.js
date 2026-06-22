@@ -26,6 +26,7 @@ const carteraRoutes         = require('./routes/cartera');
 const alertasRoutes         = require('./routes/alertas');
 const indicadoresRoutes     = require('./routes/indicadores');
 const vendedoresRoutes      = require('./routes/vendedores');   // ← NUEVO
+const rrhhRoutes            = require('./routes/rrhh');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -119,6 +120,7 @@ app.use('/api/cartera',         carteraRoutes);
 app.use('/api/alertas',         alertasRoutes);
 app.use('/api/indicadores',     indicadoresRoutes);
 app.use('/api/vendedores',      vendedoresRoutes);   // ← NUEVO
+app.use('/api/rrhh',            rrhhRoutes);
 
 // ── 404: API → JSON | Navegación → redirigir al login con ruta física (CSS intacto)
 app.use((req, res) => {

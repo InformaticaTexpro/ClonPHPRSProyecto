@@ -7,7 +7,7 @@
  *
  * Fuente de datos principal:
  *   MySQL (bdtexpro), tablas: usuario, usuario_vendedor,
- *   usuario_permisos, vendedor_meta, tasas_descuentos.
+ *   usuario_permiso, vendedor_meta, tasas_descuentos.
  *
  * Este módulo es consumido por:
  *   - rutas de autenticación
@@ -65,7 +65,7 @@ async function getVendedoresByUsuarioId(usuarioId) {
 
 async function getPermisosByUsuarioId(usuarioId) {
   const [rows] = await pool.execute(
-    'SELECT * FROM usuario_permisos WHERE usuario_id = ?',
+    'SELECT * FROM usuario_permiso WHERE usuario_id = ?',
     [usuarioId]
   );
   return rows;

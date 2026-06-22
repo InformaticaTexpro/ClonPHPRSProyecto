@@ -52,11 +52,16 @@ function getCodigos(req) {
   return (req.usuario?.vendedores ?? []).map(v => v.cod_vendedor).filter(Boolean);
 }
 
-/**
- * isAdmin — true si el usuario es administrador O no tiene vendedores asignados.
- */
-function isAdmin(req) {
-  return req.usuario?.is_admin === true || getCodigos(req).length === 0;
+function getUsuarioId(req) {
+  return req.usuario?.id ?? req.usuario?.sub;
+}
+
+function buildInParams(request, valores, prefijo = 'cod') {
+  return valores.map((valor, index) => {
+    const name = `${prefijo}${index}`;
+    request.input(name, sql.VarChar(20), String(valor));
+    return `@${name}`;
+  }).join(',');
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -87,7 +92,7 @@ router.get('/kpis', requireAuth, async (req, res) => {
     try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
-    const usuarioId = req.usuario?.id;
+    const usuarioId = getUsuarioId(req);
     const [metaRows] = await db.query(
       `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
       [usuarioId, anio]
@@ -97,7 +102,6 @@ router.get('/kpis', requireAuth, async (req, res) => {
 
     if (!codigos.length) return res.json({ ok: true, totalVentas: 0, metaMes, totalDescuento: 0 });
 
-    const codigosIn = codigos.map(c => `'${c}'`).join(',');
     const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
       campoFecha: 'enc.Fecha', campoCodProd: 'm.CodProd',
       campoTotLinea: 'm.TotLinea', campoCant: 'm.CantFacturada',
@@ -105,8 +109,10 @@ router.get('/kpis', requireAuth, async (req, res) => {
     });
 
     const pool   = await getSoftlandPool();
-    const result = await pool.request()
-      .input('mes', sql.Int, mes).input('anio', sql.Int, anio)
+    const request = pool.request()
+      .input('mes', sql.Int, mes).input('anio', sql.Int, anio);
+    const codigosIn = buildInParams(request, codigos);
+    const result = await request
       .query(`
         SELECT
           enc.CodVendedor,
@@ -157,7 +163,7 @@ router.get('/meta', requireAuth, async (req, res) => {
     let anio;
     try { ({ anio } = validarMesAnio(req.query.mes ?? '1', req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
-    const usuarioId = req.usuario?.id;
+    const usuarioId = getUsuarioId(req);
     const [rows] = await db.query(
       `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
       [usuarioId, anio]
@@ -180,7 +186,6 @@ router.get('/resumen-vendedores', requireAuth, async (req, res) => {
     try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
-    const codigosIn = codigos.map(c => `'${c}'`).join(',');
     const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
       campoFecha: 'enc.Fecha', campoCodProd: 'm.CodProd',
       campoTotLinea: 'm.TotLinea', campoCant: 'm.CantFacturada',
@@ -188,8 +193,10 @@ router.get('/resumen-vendedores', requireAuth, async (req, res) => {
     });
 
     const pool   = await getSoftlandPool();
-    const result = await pool.request()
-      .input('mes', sql.Int, mes).input('anio', sql.Int, anio)
+    const request = pool.request()
+      .input('mes', sql.Int, mes).input('anio', sql.Int, anio);
+    const codigosIn = buildInParams(request, codigos);
+    const result = await request
       .query(`
         SELECT
           enc.CodVendedor                                                AS codVendedor,
@@ -231,7 +238,7 @@ router.get('/evolucion', requireAuth, async (req, res) => {
     try { ({ anio } = validarMesAnio(req.query.mes ?? '1', req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
     const codigos   = getCodigos(req);
-    const usuarioId = req.usuario?.id;
+    const usuarioId = getUsuarioId(req);
 
     const [metaRows] = await db.query(
       `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
@@ -244,12 +251,14 @@ router.get('/evolucion', requireAuth, async (req, res) => {
       return res.json({ ok: true, evolucion: Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, ventas: 0, meta: metaMes })) });
     }
 
-    const pool   = await getSoftlandPool();
-    const result = await pool.request().input('anio', sql.Int, anio).query(`
+    const pool = await getSoftlandPool();
+    const request = pool.request().input('anio', sql.Int, anio);
+    const codigosIn = buildInParams(request, codigos);
+    const result = await request.query(`
       SELECT MONTH(enc.Fecha) AS mes, SUM(m.TotLinea) AS ventas
       FROM [PRODIN].[softland].[iw_gsaen] enc
       INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
-      WHERE enc.CodVendedor IN (${codigos.map(c => `'${c}'`).join(',')})
+      WHERE enc.CodVendedor IN (${codigosIn})
         AND YEAR(enc.Fecha) = @anio AND enc.Tipo IN ('F','N','D') AND enc.Estado <> 'A'
       GROUP BY MONTH(enc.Fecha) ORDER BY mes
     `);
@@ -286,17 +295,13 @@ router.get('/clientes', requireAuth, async (req, res) => {
     const q = (req.query.q || '').trim();
     if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
 
-    const qSafe   = q.replace(/[%_[\]]/g, c => `[${c}]`);
-    const codigos = getCodigos(req);
-    const admin   = isAdmin(req);
-    const pool    = await getSoftlandPool();
+    const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
+    const pool = await getSoftlandPool();
     const request = pool.request()
       .input('q1', sql.NVarChar, `%${qSafe}%`)
       .input('q2', sql.NVarChar, `%${qSafe}%`);
 
-    let query;
-    if (admin || !codigos.length) {
-      query = `
+    const result = await request.query(`
         SELECT TOP 40
           c.CodAux,
           RTRIM(c.NomAux)   AS NomAux,
@@ -309,34 +314,7 @@ router.get('/clientes', requireAuth, async (req, res) => {
           OR c.CodAux     LIKE @q2
         )
         ORDER BY RTRIM(c.NomAux)
-      `;
-    } else {
-      const codigosIn = codigos.map(c => `'${c}'`).join(',');
-      query = `
-        SELECT TOP 40
-          c.CodAux,
-          RTRIM(c.NomAux)   AS NomAux,
-          RTRIM(c.FonAux1)  AS FonAux1,
-          RTRIM(c.FonAux2)  AS FonAux2,
-          RTRIM(c.EMail)    AS Email
-        FROM [PRODIN].[softland].[cwtauxi] c
-        WHERE (
-          RTRIM(c.NomAux) LIKE @q1
-          OR c.CodAux     LIKE @q2
-        )
-        AND EXISTS (
-          SELECT 1
-          FROM [PRODIN].[softland].[iw_gsaen] enc
-          WHERE enc.CodAux       = c.CodAux
-            AND enc.CodVendedor  IN (${codigosIn})
-            AND enc.Tipo         IN ('F','N','D')
-            AND enc.Estado       <> 'A'
-        )
-        ORDER BY RTRIM(c.NomAux)
-      `;
-    }
-
-    const result = await request.query(query);
+      `);
     res.json({ ok: true, clientes: result.recordset });
   } catch (err) {
     console.error('[GET /api/ventas/clientes]', err.message);
@@ -395,17 +373,11 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
     }
 
-    const codigos = getCodigos(req);
-    const admin   = isAdmin(req);
-    const pool    = await getSoftlandPool();
+    const pool = await getSoftlandPool();
     const request = pool.request()
       .input('codAux', sql.VarChar(20), codAux)
       .input('desde',  sql.Date, desde)
       .input('hasta',  sql.Date, hasta);
-
-    const vendedorFiltro = (!admin && codigos.length)
-      ? `AND h.CodVendedor IN (${codigos.map(c => `'${c}'`).join(',')})`
-      : '';
 
     const result = await request.query(`
       SELECT
@@ -436,7 +408,6 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
         AND h.CodAux = @codAux
         AND h.Fecha >= @desde
         AND h.Fecha <= @hasta
-        ${vendedorFiltro}
       ORDER BY h.Fecha DESC, m.CodProd
     `);
 
@@ -505,7 +476,7 @@ router.get('/confirmacion-estado', requireAuth, async (req, res) => {
     try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
-    const usuarioId = req.usuario.id;
+    const usuarioId = getUsuarioId(req);
     const conf = await obtenerConfirmacionUsuario({ usuarioId, mes, anio });
 
     res.json({
@@ -544,7 +515,7 @@ router.post('/confirmar', requireAuth, async (req, res) => {
     try { ({ mes, anio } = validarMesAnio(req.body.mes, req.body.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
-    const usuarioId = req.usuario.id;
+    const usuarioId = getUsuarioId(req);
     const usuario   = req.usuario; // { id, nombre, apellido, email, vendedores, is_admin }
 
     // 1. Verificar confirmación previa
@@ -563,11 +534,12 @@ router.post('/confirmar', requireAuth, async (req, res) => {
     let totalPropias  = 0;
 
     if (codigos.length > 0) {
-      const codigosIn = codigos.map(c => `'${c}'`).join(',');
-      const pool      = await getSoftlandPool();
-      const result    = await pool.request()
+      const pool = await getSoftlandPool();
+      const request = pool.request()
         .input('mes', sql.Int, mes)
-        .input('anio', sql.Int, anio)
+        .input('anio', sql.Int, anio);
+      const codigosIn = buildInParams(request, codigos);
+      const result = await request
         .query(`
           SELECT
             enc.Folio,
@@ -670,7 +642,7 @@ router.get('/confirmacion/:id/pdf', requireAuth, async (req, res) => {
     if (!conf) return res.status(404).json({ ok: false, error: 'Confirmación no encontrada' });
 
     // Solo el propio usuario puede descargar su PDF (o admin)
-    if (!req.usuario.is_admin && conf.usuario_id !== req.usuario.id) {
+    if (!req.usuario.is_admin && Number(conf.usuario_id) !== Number(getUsuarioId(req))) {
       return res.status(403).json({ ok: false, error: 'Sin permiso para este archivo' });
     }
 

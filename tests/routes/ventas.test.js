@@ -42,13 +42,15 @@ jest.mock('../../src/config/db', () => ({
 }));
 
 // ── Mock Softland pool ────────────────────────────────────────────────────────
+const mockSoftlandRequest = {
+  input: jest.fn().mockReturnThis(),
+  query: jest.fn().mockResolvedValue({ recordset: [] }),
+};
+
 jest.mock('../../src/config/db.softland', () => ({
   getSoftlandPool: jest.fn().mockResolvedValue({
     connected: true,
-    request: jest.fn().mockReturnValue({
-      input: jest.fn().mockReturnThis(),
-      query: jest.fn().mockResolvedValue({ recordset: [] }),
-    }),
+    request: jest.fn(() => mockSoftlandRequest),
   }),
 }));
 
@@ -63,7 +65,11 @@ const app = express();
 app.use(express.json());
 app.use('/api/ventas', ventasRouter);
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockUsuario.vendedores = [{ cod_vendedor: 'V001', tipo: 'P' }];
+  mockSoftlandRequest.query.mockResolvedValue({ recordset: [] });
+});
 
 // ── GET /api/ventas — requiere autenticación JWT ──────────────────────────────
 describe('GET /api/ventas — requiere autenticación JWT', () => {
@@ -77,26 +83,14 @@ describe('GET /api/ventas — requiere autenticación JWT', () => {
   });
 
   test('usuario sin vendedores asignados retorna array vacío', async () => {
-    // Temporalmente cambiamos el mock para usuario sin vendedores
-    const { requireAuth } = require('../../src/middlewares/requireAuth');
-    const app2 = express();
-    app2.use(express.json());
-    // Nuevo router con usuario sin vendedores
-    jest.resetModules();
-    jest.mock('../../src/middlewares/requireAuth', () => ({
-      requireAuth: (req, _res, next) => {
-        req.usuario = { sub: 2, id: 2, nombre: 'Bob', is_admin: false, vendedores: [] };
-        next();
-      },
-      requireAdmin: (_req, _res, next) => next(),
-    }));
-    // Reutilizamos la instancia ya montada — usuario sin vendedores
-    // La ruta retorna [] cuando codigos.length === 0
-    getVentas.mockResolvedValueOnce([]);
+    const vendedoresOriginales = mockUsuario.vendedores;
+    mockUsuario.vendedores = [];
     const res = await request(app).get('/api/ventas?mes=1&anio=2026');
-    // Puede ser ok:true con ventas:[] o ventas con datos según vendedores
-    expect(res.status).toBeLessThan(500);
-    expect(res.body.ok).toBe(true);
+    mockUsuario.vendedores = vendedoresOriginales;
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, ventas: [] });
+    expect(getVentas).not.toHaveBeenCalled();
   });
 });
 
@@ -173,5 +167,24 @@ describe('GET /api/ventas — valida códigos de vendedor', () => {
     const res = await request(app).get('/api/ventas?mes=6&anio=2026');
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
+  });
+});
+
+describe('GET /api/ventas clientes e historial', () => {
+  test('autocomplete no filtra clientes por vendedor', async () => {
+    await request(app).get('/api/ventas/clientes?q=ac');
+
+    const sqlQuery = mockSoftlandRequest.query.mock.calls.at(-1)[0];
+    expect(sqlQuery).not.toMatch(/CodVendedor\s+IN/i);
+    expect(sqlQuery).not.toMatch(/\bEXISTS\b/i);
+  });
+
+  test('historial de cliente no filtra documentos por vendedor', async () => {
+    await request(app)
+      .get('/api/ventas/historial-cliente?codAux=C001&desde=2026-01-01&hasta=2026-12-31');
+
+    const sqlQuery = mockSoftlandRequest.query.mock.calls.at(-1)[0];
+    expect(sqlQuery).not.toMatch(/CodVendedor\s+IN/i);
+    expect(sqlQuery).not.toContain('@cod0');
   });
 });

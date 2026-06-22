@@ -66,7 +66,9 @@ describe('POST /api/auth/login', () => {
     expect(res.body).toHaveProperty('token');
     const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET);
     expect(decoded.email).toBe('ana@texpro.cl');
+    expect(decoded.id).toBe(1);
     expect(decoded.sub).toBe(1);
+    expect(res.body.user.id).toBe(1);
   });
 
   test('devuelve 401 con contraseña incorrecta', async () => {

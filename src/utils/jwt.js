@@ -36,6 +36,7 @@ function generarToken(usuario) {
 
   return jwt.sign(
     {
+      id:        sub,
       sub,
       email:      usuario.email,
       is_admin:   Boolean(usuario.is_admin),

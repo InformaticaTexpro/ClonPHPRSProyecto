@@ -50,9 +50,9 @@ async function crearConfirmacion({
  */
 async function obtenerConfirmacionPorId(id) {
   const [rows] = await db.query(
-    `SELECT cv.*, u.nombre, u.apellido, u.email
+    `SELECT cv.*, u.nombre, '' AS apellido, u.email
      FROM confirmaciones_ventas cv
-     INNER JOIN usuarios u ON u.id = cv.usuario_id
+     INNER JOIN usuario u ON u.id = cv.usuario_id
      WHERE cv.id = ?`,
     [id]
   );
@@ -78,7 +78,7 @@ async function listarConfirmaciones({ mes, anio } = {}) {
        cv.id,
        cv.usuario_id,
        u.nombre,
-       u.apellido,
+       '' AS apellido,
        u.email,
        cv.mes,
        cv.anio,
@@ -89,7 +89,7 @@ async function listarConfirmaciones({ mes, anio } = {}) {
        cv.total_folios,
        cv.total_facturas_compartidas
      FROM confirmaciones_ventas cv
-     INNER JOIN usuarios u ON u.id = cv.usuario_id
+     INNER JOIN usuario u ON u.id = cv.usuario_id
      ${where}
      ORDER BY cv.fecha_confirmacion DESC`,
     params

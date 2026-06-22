@@ -29,15 +29,22 @@ async function requireAuth(req, res, next) {
     // Verificación de firma y expiración del token.
     const payload = verificarToken(token);
 
+    const usuarioId = payload.sub ?? payload.id;
+    if (!usuarioId) {
+      return res.status(401).json({ ok: false, error: 'Token invalido.' });
+    }
+
     // Recargar vendedores frescos desde MySQL para que
     // cambios en usuario_vendedor (tipo C, nuevos códigos, etc.)
     // sean visibles sin necesidad de re-login.
-    const vendedores = await getVendedoresByUsuarioId(payload.sub);
+    const vendedores = await getVendedoresByUsuarioId(usuarioId);
 
     // req.usuario queda como fuente única de identidad/autorización
     // para todo el request lifecycle.
     req.usuario = {
       ...payload,
+      id: usuarioId,
+      sub: usuarioId,
       vendedores,          // sobreescribe los del JWT con los de la BD
     };
 
