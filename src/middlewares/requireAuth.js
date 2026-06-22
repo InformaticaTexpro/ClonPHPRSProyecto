@@ -1,55 +1,43 @@
 'use strict';
 
 /**
- * requireAuth.js — Middleware de autenticación JWT
- *
- * Decodifica el token y luego enriquece req.usuario con los vendedores
- * frescos desde MySQL, de modo que cambios en usuario_vendedor (tipo, cod_vendedor)
- * se reflejen sin necesidad de que el usuario vuelva a hacer login.
+ * requireAuth.js — Middleware de autenticación y autorización JWT.
  */
 
-const { verificarToken }             = require('../utils/jwt');
-const { getVendedoresByUsuarioId }   = require('../models/usuario');
+const { verificarToken } = require('../utils/jwt');
+const { getVendedoresByUsuarioId } = require('../models/usuario');
 
 async function requireAuth(req, res, next) {
   try {
-    // Header esperado: Authorization: Bearer <jwt>
     const authHeader = req.headers['authorization'] || '';
-    const token      = authHeader.startsWith('Bearer ')
+    const token = authHeader.startsWith('Bearer ')
       ? authHeader.slice(7).trim()
       : null;
 
     if (!token) {
       return res.status(401).json({
-        ok:    false,
+        ok: false,
         error: 'Token requerido. Incluye Authorization: Bearer <token>'
       });
     }
 
-    // Verificación de firma y expiración del token.
     const payload = verificarToken(token);
-
     const usuarioId = payload.sub ?? payload.id;
     if (!usuarioId) {
-      return res.status(401).json({ ok: false, error: 'Token invalido.' });
+      return res.status(401).json({ ok: false, error: 'Token inválido.' });
     }
 
-    // Recargar vendedores frescos desde MySQL para que
-    // cambios en usuario_vendedor (tipo C, nuevos códigos, etc.)
-    // sean visibles sin necesidad de re-login.
     const vendedores = await getVendedoresByUsuarioId(usuarioId);
 
-    // req.usuario queda como fuente única de identidad/autorización
-    // para todo el request lifecycle.
     req.usuario = {
       ...payload,
       id: usuarioId,
       sub: usuarioId,
-      vendedores,          // sobreescribe los del JWT con los de la BD
+      area: String(payload.area || '').trim(),
+      vendedores,
     };
 
     next();
-
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ ok: false, error: 'Token expirado. Vuelve a iniciar sesión.' });
@@ -58,10 +46,6 @@ async function requireAuth(req, res, next) {
   }
 }
 
-/**
- * requireAdmin — Middleware que exige is_admin = true
- * Debe usarse DESPUÉS de requireAuth.
- */
 function requireAdmin(req, res, next) {
   if (!req.usuario?.is_admin) {
     return res.status(403).json({ ok: false, error: 'Acceso restringido a administradores.' });
@@ -69,4 +53,19 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin };
+/**
+ * Permite acceso a usuarios administradores o pertenecientes al área RRHH.
+ * Debe usarse después de requireAuth.
+ */
+function requireRrhhOrAdmin(req, res, next) {
+  const area = String(req.usuario?.area || '').trim().toLowerCase();
+  const esRrhh = ['rrhh', 'recursos humanos', 'rh'].includes(area);
+
+  if (!req.usuario?.is_admin && !esRrhh) {
+    return res.status(403).json({ ok: false, error: 'Acceso restringido a RRHH o administradores.' });
+  }
+
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, requireRrhhOrAdmin };
