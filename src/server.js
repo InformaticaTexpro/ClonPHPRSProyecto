@@ -28,6 +28,9 @@ const indicadoresRoutes     = require('./routes/indicadores');
 
 const vendedoresRoutes      = require('./routes/vendedores');   // ← NUEVO
 const rrhhRoutes            = require('./routes/rrhh');
+const { requireAuth }       = require('./middlewares/requireAuth');
+const { getDetalleFolio }   = require('./models/venta');
+const { validateFolio }     = require('./utils/validators');
 
 const app  = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -114,6 +117,22 @@ app.use('/api/auth/refresh',    loginLimiter);
 app.use('/api/auth',            authRoutes);
 app.use('/api/auth',            recuperarRoutes);
 app.use('/api/ventas',          ventasRoutes);
+
+// Compatibilidad para Ventas Asignadas: el detalle del dashboard debe exponer
+// CodAux desde Softland.cwtauxi para completar el campo "Cód. Cliente".
+app.get('/api/dashboard/detalle/:folio', requireAuth, async (req, res) => {
+  try {
+    const folio = validateFolio(req.params.folio);
+    const detalle = await getDetalleFolio({ folio });
+    res.json({ ok: true, folio, detalle });
+  } catch (err) {
+    const msg = err.message || 'Error al obtener detalle del folio';
+    const status = msg.toLowerCase().includes('inválid') ? 400 : 500;
+    console.error('[GET /api/dashboard/detalle]', msg);
+    res.status(status).json({ ok: false, error: status === 400 ? msg : 'Error al obtener detalle del folio' });
+  }
+});
+
 app.use('/api/dashboard',       dashboardRoutes);
 app.use('/api/admin',           adminRoutes);
 app.use('/api/notificaciones',  notificacionesRoutes);
