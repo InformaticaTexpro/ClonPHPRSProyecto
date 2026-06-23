@@ -1,15 +1,5 @@
 'use strict';
 
-/**
- * routes/dashboard.panel.js
- *
- * Rutas específicas del panel coordinador de Ventas Asignadas.
- *
- * La tabla "Folios Asignados" debe respetar el mes/año seleccionado en el
- * panel. Si no se envía período, devuelve todas las asignaciones del
- * coordinador para mantener compatibilidad con usos internos.
- */
-
 const express = require('express');
 const router = express.Router();
 
@@ -21,12 +11,11 @@ router.use(requireAuth);
 
 function getCodigosCoordinador(usuario) {
   return (usuario?.vendedores || [])
-    .filter(v => v.tipo === 'C')
-    .map(v => v.cod_vendedor)
+    .filter(v => String(v.tipo || '').toUpperCase() === 'C')
+    .map(v => String(v.cod_vendedor || '').trim())
     .filter(Boolean);
 }
 
-// GET /api/dashboard/asignados
 router.get('/asignados', async (req, res) => {
   const codigosCoord = getCodigosCoordinador(req.usuario);
   if (!codigosCoord.length) return res.json({ ok: true, asignados: [] });
@@ -34,7 +23,7 @@ router.get('/asignados', async (req, res) => {
   let filtroMes = null;
   let filtroAnio = null;
 
-  if (req.query.mes != null || req.query.anio != null) {
+  if (req.query.mes != null && req.query.anio != null) {
     try {
       const parsed = validarMesAnio(req.query.mes, req.query.anio);
       filtroMes = parsed.mes;
@@ -50,11 +39,11 @@ router.get('/asignados', async (req, res) => {
     let filtroPeriodo = '';
 
     if (filtroMes !== null) {
-      filtroPeriodo = 'AND fc.mes = ? AND fc.anio = ?';
+      filtroPeriodo = 'AND MONTH(fc.fecha) = ? AND YEAR(fc.fecha) = ?';
       params.push(filtroMes, filtroAnio);
     }
 
-    const [rows] = await db.pool.query(`
+    const sql = `
       SELECT
         fc.id,
         fc.folio,
@@ -73,8 +62,9 @@ router.get('/asignados', async (req, res) => {
         AND fc.rol = 'compartido'
         ${filtroPeriodo}
       ORDER BY fc.fecha DESC, fc.folio DESC
-    `, params);
+    `;
 
+    const [rows] = await db.pool.query(sql, params);
     res.json({ ok: true, asignados: rows });
   } catch (err) {
     console.error('[GET /api/dashboard/asignados panel]', err.message);
