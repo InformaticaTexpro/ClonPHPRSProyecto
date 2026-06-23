@@ -20,7 +20,6 @@ const authRoutes            = require('./routes/auth');
 const recuperarRoutes       = require('./routes/recuperar');
 const ventasRoutes          = require('./routes/ventas');
 const dashboardAjustesRoutes = require('./routes/dashboard.ajustes');
-const dashboardPanelRoutes  = require('./routes/dashboard.panel');
 const dashboardRoutes       = require('./routes/dashboard');
 const adminRoutes           = require('./routes/admin');
 const notificacionesRoutes  = require('./routes/notificaciones');
@@ -137,10 +136,8 @@ app.get('/api/dashboard/detalle/:folio', requireAuth, async (req, res) => {
 
 // Orden importante:
 // 1) dashboardAjustesRoutes corrige prorrateo de ventas compartidas.
-// 2) dashboardPanelRoutes mantiene el panel coordinador filtrado por período.
-// 3) dashboardRoutes conserva el resto de endpoints originales.
+// 2) dashboardRoutes conserva endpoints originales, incluido /asignados.
 app.use('/api/dashboard',       dashboardAjustesRoutes);
-app.use('/api/dashboard',       dashboardPanelRoutes);
 app.use('/api/dashboard',       dashboardRoutes);
 app.use('/api/admin',           adminRoutes);
 app.use('/api/notificaciones',  notificacionesRoutes);
