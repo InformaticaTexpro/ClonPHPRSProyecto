@@ -252,13 +252,24 @@ async function getDetalleFolio({ folio }) {
   )
   SELECT
     Folio,
-    CONVERT(VARCHAR(10), Fecha, 103)                              AS Fecha,
-    CodVendedor, CanCod, CodCan, CodAux, Cliente,
-    CodProd, DesProd, CantFacturada, TotLinea,
+    CONVERT(VARCHAR(10), Fecha, 103)                                         AS Fecha,
+    CodVendedor,
+    CanCod,
+    CodCan,
+    CodAux,
+    Cliente,
+    CodProd,
+    DesProd,
+    CantFacturada,
+    TotLinea,
     precio_unitario_cobrado,
     precio_unitario_cobrado_hist,
-    precio_lista_real                                             AS precio_historico_base,
+    PrecioVta,
+    precio_lista_real,
+    precio_lista_real                                                       AS precio_historico_base,
     precio_historico_ajustado,
+    ROUND(precio_lista_real * CantFacturada, 0)                              AS valor_historico_linea,
+    ROUND(precio_unitario_cobrado * CantFacturada, 0)                        AS valor_cobrado_linea,
     ROUND(precio_historico_ajustado - precio_unitario_cobrado_hist, 4)       AS descuento_unitario_pesos,
     ROUND(
       (precio_historico_ajustado - precio_unitario_cobrado_hist)
