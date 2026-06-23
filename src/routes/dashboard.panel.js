@@ -5,9 +5,9 @@
  *
  * Rutas específicas del panel coordinador de Ventas Asignadas.
  *
- * Mantiene visible la tabla "Folios Asignados" con todas las asignaciones
- * administrables por el coordinador, independiente del filtro mes/año usado
- * por la tabla "Ventas del Mes".
+ * La tabla "Folios Asignados" debe respetar el mes/año seleccionado en el
+ * panel. Si no se envía período, devuelve todas las asignaciones del
+ * coordinador para mantener compatibilidad con usos internos.
  */
 
 const express = require('express');
@@ -15,6 +15,7 @@ const router = express.Router();
 
 const db = require('../config/db');
 const { requireAuth } = require('../middlewares/requireAuth');
+const { validarMesAnio } = require('../utils/stringHelpers');
 
 router.use(requireAuth);
 
@@ -26,15 +27,33 @@ function getCodigosCoordinador(usuario) {
 }
 
 // GET /api/dashboard/asignados
-// El panel coordinador debe mostrar todas las asignaciones creadas por sus
-// códigos coordinadores. No se filtra por mes/anio aunque el frontend envíe
-// esos parámetros, porque ese filtro ocultaba asignaciones históricas vigentes.
 router.get('/asignados', async (req, res) => {
   const codigosCoord = getCodigosCoordinador(req.usuario);
   if (!codigosCoord.length) return res.json({ ok: true, asignados: [] });
 
+  let filtroMes = null;
+  let filtroAnio = null;
+
+  if (req.query.mes != null || req.query.anio != null) {
+    try {
+      const parsed = validarMesAnio(req.query.mes, req.query.anio);
+      filtroMes = parsed.mes;
+      filtroAnio = parsed.anio;
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+
   try {
     const placeholders = codigosCoord.map(() => '?').join(',');
+    const params = [...codigosCoord];
+    let filtroPeriodo = '';
+
+    if (filtroMes !== null) {
+      filtroPeriodo = 'AND fc.mes = ? AND fc.anio = ?';
+      params.push(filtroMes, filtroAnio);
+    }
+
     const [rows] = await db.pool.query(`
       SELECT
         fc.id,
@@ -52,8 +71,9 @@ router.get('/asignados', async (req, res) => {
       FROM factura_compartida fc
       WHERE fc.cod_vendedor_principal IN (${placeholders})
         AND fc.rol = 'compartido'
+        ${filtroPeriodo}
       ORDER BY fc.fecha DESC, fc.folio DESC
-    `, codigosCoord);
+    `, params);
 
     res.json({ ok: true, asignados: rows });
   } catch (err) {
