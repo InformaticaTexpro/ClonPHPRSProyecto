@@ -5,8 +5,8 @@
  *
  * - Carga USD y UF desde /api/indicadores y los muestra en #headerIndicadores.
  * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
- *   En el submenú Ventas Asignadas se mantienen separadas las tablas:
- *   Folios Asignados / Ventas Compartidas y Ventas del Mes.
+ * - Activa auto-refresh global de filtros mes/año reutilizando #btnActualizar,
+ *   por lo que cada pantalla mantiene su overlay "Cargando datos..." actual.
  */
 
 (function () {
@@ -118,6 +118,30 @@
     return originalFetch(input, init);
   };
 
+  function activarAutoRefreshFiltros() {
+    const filtros = [
+      document.getElementById('filtroMes'),
+      document.getElementById('filtroAnio'),
+    ].filter(Boolean);
+
+    const boton = document.getElementById('btnActualizar');
+    if (!filtros.length || !boton || boton.dataset.autoRefreshBound === '1') return;
+
+    boton.dataset.autoRefreshBound = '1';
+    let timer = null;
+
+    const refrescar = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!boton.disabled) boton.click();
+      }, 150);
+    };
+
+    filtros.forEach(filtro => {
+      filtro.addEventListener('change', refrescar);
+    });
+  }
+
   async function cargarIndicadores() {
     const el = document.getElementById('headerIndicadores');
     if (!el) return;
@@ -153,6 +177,7 @@
 
   function init() {
     cargarIndicadores();
+    activarAutoRefreshFiltros();
     setInterval(cargarIndicadores, REFRESH_MS);
   }
 
