@@ -19,6 +19,7 @@ const { testConnection }    = require('./config/db');
 const authRoutes            = require('./routes/auth');
 const recuperarRoutes       = require('./routes/recuperar');
 const ventasRoutes          = require('./routes/ventas');
+const dashboardPanelRoutes  = require('./routes/dashboard.panel');
 const dashboardRoutes       = require('./routes/dashboard');
 const adminRoutes           = require('./routes/admin');
 const notificacionesRoutes  = require('./routes/notificaciones');
@@ -133,6 +134,9 @@ app.get('/api/dashboard/detalle/:folio', requireAuth, async (req, res) => {
   }
 });
 
+// Debe montarse antes de dashboardRoutes: mantiene visible el panel coordinador
+// de Folios Asignados sin afectar Ventas del Mes ni el resto del dashboard.
+app.use('/api/dashboard',       dashboardPanelRoutes);
 app.use('/api/dashboard',       dashboardRoutes);
 app.use('/api/admin',           adminRoutes);
 app.use('/api/notificaciones',  notificacionesRoutes);
