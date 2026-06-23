@@ -9,120 +9,162 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../assets/styles/tokens.css?v=2.1.0" />
-  <link rel="stylesheet" href="gerencia.css?v=1.0.0" />
+  <link rel="stylesheet" href="gerencia.css?v=1.0.1" />
 </head>
 <body>
-  <main class="gerencia-page">
-    <section class="hero-panel" aria-labelledby="page-title">
-      <div class="hero-brand">
-        <img src="../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="hero-logo" />
-        <div>
-          <p class="eyebrow">Módulo Gerencia</p>
-          <h1 id="page-title">Panel Comercial Ejecutivo</h1>
-          <p class="hero-description">
-            Visualización consolidada de ventas empresa, comparativo anual y desempeño por vendedor.
-          </p>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <span class="nav-section-title">NAVEGACIÓN</span>
+      <a class="nav-item" href="../ventas/dashboard/index.html"><span>🏠</span><span class="nav-label">Dashboard</span></a>
+      <a class="nav-item active" href="index.html"><span>📈</span><span class="nav-label">Gerencia</span></a>
+      <a class="nav-item" href="../ventas/ventas/index.html"><span>📊</span><span class="nav-label">Ventas Asignadas</span></a>
+      <a class="nav-item" href="../ventas/historial-cliente/index.html"><span>📋</span><span class="nav-label">Historial Cliente</span></a>
+      <a class="nav-item" href="../varios/alertas/index.html"><span>🔔</span><span class="nav-label">Alertas</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Gerencia</span>
+          <span class="user-area" id="userArea">Comercial</span>
         </div>
       </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <span>⎋</span><span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
 
-      <div class="hero-actions" aria-label="Filtros del panel">
-        <label class="filter-control">
-          <span>Año base</span>
-          <select id="yearFilter" aria-label="Seleccionar año base"></select>
-        </label>
-        <label class="filter-control">
-          <span>Vendedor</span>
-          <select id="sellerFilter" aria-label="Seleccionar vendedor"></select>
-        </label>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Gerencia Comercial</h1>
       </div>
-    </section>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores comerciales">Vista ejecutiva</span>
+      </div>
+    </header>
 
-    <section class="kpi-grid" aria-label="Indicadores comerciales principales">
-      <article class="kpi-card primary">
-        <span class="kpi-label">Ventas total empresa</span>
-        <strong id="kpiTotalEmpresa">$0</strong>
-        <small id="kpiTotalHelp">Año seleccionado</small>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label">Variación vs año anterior</span>
-        <strong id="kpiVariacion">0%</strong>
-        <small id="kpiVariacionHelp">Comparación acumulada anual</small>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label">Promedio mensual</span>
-        <strong id="kpiPromedio">$0</strong>
-        <small>Ventas promedio por mes</small>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label">Mejor vendedor</span>
-        <strong id="kpiMejorVendedor">-</strong>
-        <small id="kpiMejorVendedorHelp">Según año seleccionado</small>
-      </article>
-    </section>
-
-    <section class="dashboard-grid">
-      <article class="panel panel-wide">
-        <div class="panel-header">
+    <main class="gerencia-page">
+      <section class="hero-panel" aria-labelledby="page-title">
+        <div class="hero-brand">
+          <img src="../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="hero-logo" />
           <div>
-            <h2>Ventas empresa por mes</h2>
-            <p>Comparación mensual entre el año base y el año anterior.</p>
+            <p class="eyebrow">Módulo Gerencia</p>
+            <h2 id="page-title">Panel Comercial Ejecutivo</h2>
+            <p class="hero-description">
+              Visualización consolidada de ventas empresa, comparativo anual y desempeño por vendedor.
+            </p>
           </div>
         </div>
-        <div class="chart-box">
-          <canvas id="monthlySalesChart" aria-label="Gráfico comparativo de ventas mensuales" role="img"></canvas>
-        </div>
-      </article>
 
-      <article class="panel">
+        <div class="hero-actions" aria-label="Filtros del panel">
+          <label class="filter-control">
+            <span>Año base</span>
+            <select id="yearFilter" aria-label="Seleccionar año base"></select>
+          </label>
+          <label class="filter-control">
+            <span>Vendedor</span>
+            <select id="sellerFilter" aria-label="Seleccionar vendedor"></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="kpi-grid" aria-label="Indicadores comerciales principales">
+        <article class="kpi-card primary">
+          <span class="kpi-label">Ventas total empresa</span>
+          <strong id="kpiTotalEmpresa">$0</strong>
+          <small id="kpiTotalHelp">Año seleccionado</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Variación vs año anterior</span>
+          <strong id="kpiVariacion">0%</strong>
+          <small id="kpiVariacionHelp">Comparación acumulada anual</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Promedio mensual</span>
+          <strong id="kpiPromedio">$0</strong>
+          <small>Ventas promedio por mes</small>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Mejor vendedor</span>
+          <strong id="kpiMejorVendedor">-</strong>
+          <small id="kpiMejorVendedorHelp">Según año seleccionado</small>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel panel-wide">
+          <div class="panel-header">
+            <div>
+              <h2>Ventas empresa por mes</h2>
+              <p>Comparación mensual entre el año base y el año anterior.</p>
+            </div>
+          </div>
+          <div class="chart-box">
+            <canvas id="monthlySalesChart" aria-label="Gráfico comparativo de ventas mensuales" role="img"></canvas>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Comparativa anual</h2>
+              <p>Total comercial consolidado por año.</p>
+            </div>
+          </div>
+          <div class="chart-box compact">
+            <canvas id="annualComparisonChart" aria-label="Gráfico de comparación anual" role="img"></canvas>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Ranking por vendedor</h2>
+              <p>Participación comercial del año seleccionado.</p>
+            </div>
+          </div>
+          <div class="chart-box compact">
+            <canvas id="sellerRankingChart" aria-label="Gráfico de ventas por vendedor" role="img"></canvas>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="seller-table-title">
         <div class="panel-header">
           <div>
-            <h2>Comparativa anual</h2>
-            <p>Total comercial consolidado por año.</p>
+            <h2 id="seller-table-title">Detalle comercial por vendedor</h2>
+            <p>Ventas, participación y variación contra el año anterior.</p>
           </div>
         </div>
-        <div class="chart-box compact">
-          <canvas id="annualComparisonChart" aria-label="Gráfico de comparación anual" role="img"></canvas>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Vendedor</th>
+                <th>Ventas año base</th>
+                <th>Ventas año anterior</th>
+                <th>Variación</th>
+                <th>Participación</th>
+              </tr>
+            </thead>
+            <tbody id="sellerTableBody"></tbody>
+          </table>
         </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Ranking por vendedor</h2>
-            <p>Participación comercial del año seleccionado.</p>
-          </div>
-        </div>
-        <div class="chart-box compact">
-          <canvas id="sellerRankingChart" aria-label="Gráfico de ventas por vendedor" role="img"></canvas>
-        </div>
-      </article>
-    </section>
-
-    <section class="panel table-panel" aria-labelledby="seller-table-title">
-      <div class="panel-header">
-        <div>
-          <h2 id="seller-table-title">Detalle comercial por vendedor</h2>
-          <p>Ventas, participación y variación contra el año anterior.</p>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Vendedor</th>
-              <th>Ventas año base</th>
-              <th>Ventas año anterior</th>
-              <th>Variación</th>
-              <th>Participación</th>
-            </tr>
-          </thead>
-          <tbody id="sellerTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="gerencia.js?v=1.0.0"></script>
+  <script src="gerencia.js?v=1.0.1"></script>
+  <script src="../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>
