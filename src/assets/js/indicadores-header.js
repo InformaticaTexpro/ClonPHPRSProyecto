@@ -4,14 +4,19 @@
  * indicadores-header.js — RSProyecto Texpro
  *
  * - Carga USD y UF desde /api/indicadores y los muestra en #headerIndicadores.
- * - Parchea /api/dashboard/ventas-mes para fusionar ventas asignadas desde
- *   /api/dashboard/compartidos antes de que dashboard.js renderice la tabla.
+ * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
+ *   En el submenú Ventas Asignadas se mantienen separadas las tablas:
+ *   Folios Asignados / Ventas Compartidas y Ventas del Mes.
  */
 
 (function () {
 
   const REFRESH_MS = 5 * 60 * 1000;
   const originalFetch = window.fetch.bind(window);
+
+  function debeFusionarVentasAsignadas() {
+    return window.location.pathname.includes('/src/modulo/ventas/dashboard/');
+  }
 
   function fmt(valor, decimales) {
     if (valor == null || Number.isNaN(Number(valor))) return '—';
@@ -104,7 +109,7 @@
   window.fetch = function patchedFetch(input, init) {
     try {
       const url = new URL(typeof input === 'string' ? input : input.url, window.location.origin);
-      if (url.pathname === '/api/dashboard/ventas-mes') {
+      if (debeFusionarVentasAsignadas() && url.pathname === '/api/dashboard/ventas-mes') {
         return fetchMergedVentasMes(input, init);
       }
     } catch {
