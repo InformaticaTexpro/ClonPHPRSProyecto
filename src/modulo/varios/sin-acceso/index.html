@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Texpro — Acceso Restringido</title>
   <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
@@ -187,11 +190,11 @@
       <section class="info-grid" aria-label="Detalle del acceso">
         <div class="info-box">
           <span>Usuario</span>
-          <strong id="usuarioNombre">Cargando...</strong>
+          <strong id="usuarioNombre">Resolviendo usuario...</strong>
         </div>
         <div class="info-box">
           <span>Área actual</span>
-          <strong id="usuarioArea">Cargando...</strong>
+          <strong id="usuarioArea">Resolviendo área...</strong>
         </div>
         <div class="info-box">
           <span>Módulo solicitado</span>
@@ -204,7 +207,7 @@
       </section>
 
       <div class="actions">
-        <a class="btn btn-primary" id="btnVolverModulo" href="#">↩ Volver a mi módulo</a>
+        <a class="btn btn-primary" id="btnVolverModulo" href="/src/modulo/ventas/dashboard/index.html">↩ Volver a mi módulo</a>
       </div>
     </main>
 
@@ -225,7 +228,7 @@
       bodega: { nombre: 'Bodega', url: '/src/modulo/bodega/bodega/index.html' },
       facturacion: { nombre: 'Facturación', url: '/src/modulo/facturacion/facturacion/index.html' },
       rrhh: { nombre: 'RRHH', url: '/src/modulo/rrhh/rrhh/index.html' },
-      recursos-humanos: { nombre: 'RRHH', url: '/src/modulo/rrhh/rrhh/index.html' },
+      'recursos-humanos': { nombre: 'RRHH', url: '/src/modulo/rrhh/rrhh/index.html' },
       contabilidad: { nombre: 'Contabilidad', url: '/src/modulo/contabilidad/contabilidad/index.html' },
       cobranza: { nombre: 'Contabilidad', url: '/src/modulo/contabilidad/contabilidad/index.html' },
       'servicio-tecnico': { nombre: 'Servicio Técnico', url: '/src/modulo/servtecnico/servicio-tecnico/index.html' },
@@ -256,20 +259,53 @@
       if (el) el.textContent = value || '—';
     }
 
-    function getUsuarioLocal() {
+    function parseJSONSafe(raw) {
+      try { return raw ? JSON.parse(raw) : null; }
+      catch { return null; }
+    }
+
+    function decodificarJwt(token) {
       try {
-        const raw = localStorage.getItem('user') || localStorage.getItem('usuario');
-        return raw ? JSON.parse(raw) : null;
+        if (!token || !token.includes('.')) return null;
+        const payload = token.split('.')[1]
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const json = decodeURIComponent(
+          atob(payload)
+            .split('')
+            .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        return JSON.parse(json);
       } catch {
         return null;
       }
     }
 
-    function moduloPorArea(area) {
-      const normalizada = normalizarArea(area);
-      const modulo = MODULOS_PRINCIPALES[normalizada];
-      if (modulo) return modulo;
+    function normalizarUsuario(raw) {
+      if (!raw) return null;
+      const user = raw.user || raw.usuario || raw;
       return {
+        id: user.id || user.usuario_id || user.sub || '',
+        nombre: user.nombre || user.name || user.usuario || user.email || 'Usuario',
+        email: user.email || user.correo || '',
+        usuario: user.usuario || user.username || '',
+        area: user.area || user.Area || user.departamento || user.depto || '',
+        is_admin: Boolean(user.is_admin || user.admin || user.es_admin),
+      };
+    }
+
+    function getUsuarioGuardado() {
+      return normalizarUsuario(parseJSONSafe(sessionStorage.getItem('texpro_user')))
+        || normalizarUsuario(parseJSONSafe(localStorage.getItem('user')))
+        || normalizarUsuario(parseJSONSafe(localStorage.getItem('usuario')))
+        || normalizarUsuario(decodificarJwt(localStorage.getItem('token')));
+    }
+
+    function moduloPorArea(area, isAdmin) {
+      if (isAdmin) return MODULOS_PRINCIPALES.admin;
+      const normalizada = normalizarArea(area);
+      return MODULOS_PRINCIPALES[normalizada] || {
         nombre: 'Ventas',
         url: '/src/modulo/ventas/dashboard/index.html',
       };
@@ -280,7 +316,7 @@
       const moduloSolicitado = params.get('modulo') || 'Módulo restringido';
       const nombre = usuario?.nombre || usuario?.email || usuario?.usuario || 'Usuario';
       const area = usuario?.area || 'Sin área asignada';
-      const modulo = moduloPorArea(usuario?.area);
+      const modulo = moduloPorArea(usuario?.area, usuario?.is_admin);
 
       setText('usuarioNombre', nombre);
       setText('usuarioArea', area);
@@ -292,25 +328,34 @@
     }
 
     async function cargarUsuario() {
-      const usuarioLocal = getUsuarioLocal();
-      if (usuarioLocal) pintarUsuario(usuarioLocal);
+      const usuarioGuardado = getUsuarioGuardado();
+      if (usuarioGuardado) pintarUsuario(usuarioGuardado);
+      else pintarUsuario({ nombre: 'Usuario no identificado', area: '' });
 
       const token = localStorage.getItem('token');
-      if (!token) {
-        if (!usuarioLocal) pintarUsuario({ nombre: 'Usuario', area: '' });
-        return;
-      }
+      if (!token) return;
 
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3500);
         const res = await fetch('/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         const data = await res.json().catch(() => null);
         if (!res.ok || !data?.ok || !data?.user) throw new Error(data?.error || 'Sesión no disponible');
-        pintarUsuario(data.user);
+
+        const usuario = normalizarUsuario(data.user);
+        if (usuario) {
+          const payload = JSON.stringify(usuario);
+          sessionStorage.setItem('texpro_user', payload);
+          localStorage.setItem('user', payload);
+          localStorage.setItem('usuario', payload);
+          pintarUsuario(usuario);
+        }
       } catch (err) {
         console.warn('[sin-acceso]', err.message);
-        if (!usuarioLocal) pintarUsuario({ nombre: 'Usuario', area: '' });
       }
     }
 
