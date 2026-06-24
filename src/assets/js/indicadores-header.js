@@ -7,6 +7,7 @@
  * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
  * - Activa auto-refresh global de filtros mes/año reutilizando #btnActualizar,
  *   por lo que cada pantalla mantiene su overlay "Cargando datos..." actual.
+ * - Agrega el acceso al módulo Gerencia en el sidebar para usuarios administradores.
  */
 
 (function () {
@@ -142,6 +143,60 @@
     });
   }
 
+  async function obtenerUsuarioActual() {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+      const res = await originalFetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) return null;
+      return data.user || null;
+    } catch (err) {
+      console.warn('[gerencia-menu] no se pudo validar usuario:', err.message);
+      return null;
+    }
+  }
+
+  function esAdmin(usuario) {
+    return usuario?.is_admin === true || usuario?.is_admin === 1 || usuario?.is_admin === '1';
+  }
+
+  function insertarMenuGerencia() {
+    const nav = document.getElementById('sidebarNav');
+    if (!nav || nav.querySelector('[data-module="gerencia"]')) return false;
+
+    const link = document.createElement('a');
+    link.className = 'nav-item';
+    link.href = '../../gerencia/index.html';
+    link.dataset.module = 'gerencia';
+    link.innerHTML = '<span style="font-size:1rem">📈</span><span class="nav-label">Gerencia</span>';
+
+    const adminLink = Array.from(nav.querySelectorAll('.nav-item')).find(item =>
+      item.textContent.trim().toLowerCase().includes('administración')
+    );
+
+    if (adminLink) nav.insertBefore(link, adminLink);
+    else nav.appendChild(link);
+
+    return true;
+  }
+
+  async function activarMenuGerenciaAdmin() {
+    if (!debeFusionarVentasAsignadas()) return;
+
+    const usuario = await obtenerUsuarioActual();
+    if (!esAdmin(usuario)) return;
+
+    let intentos = 0;
+    const timer = setInterval(() => {
+      intentos += 1;
+      if (insertarMenuGerencia() || intentos >= 20) clearInterval(timer);
+    }, 150);
+  }
+
   async function cargarIndicadores() {
     const el = document.getElementById('headerIndicadores');
     if (!el) return;
@@ -178,6 +233,7 @@
   function init() {
     cargarIndicadores();
     activarAutoRefreshFiltros();
+    activarMenuGerenciaAdmin();
     setInterval(cargarIndicadores, REFRESH_MS);
   }
 
