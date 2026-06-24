@@ -30,11 +30,18 @@
   }
 
   function formatDescuentoVenta(v) {
-    const pct = Number(v.pct_descuento ?? v.pctDescuento ?? v.porcentaje_descuento);
-    if (Number.isFinite(pct) && pct !== 0) return `${Math.round(pct * 100) / 100}%`;
+    const valorReal = Number(v.valor_real ?? v.ValorReal ?? v.monto ?? v.TotLinea ?? 0);
+    const totLineaReal = Number(v.TotLineaReal ?? v.tot_linea_real ?? v.total_lista_real ?? v.valor_historico_linea ?? 0);
 
-    const monto = Number(v.descuento ?? v.Descuento ?? v.TotDesc ?? 0);
-    if (Number.isFinite(monto) && monto !== 0) return formatCLP(monto);
+    if (
+      Number.isFinite(valorReal) &&
+      Number.isFinite(totLineaReal) &&
+      Math.abs(totLineaReal) > 0 &&
+      Math.abs(valorReal) < Math.abs(totLineaReal)
+    ) {
+      const pct = (1 - (Math.abs(valorReal) / Math.abs(totLineaReal))) * 100;
+      return `${Math.round(pct * 100) / 100}%`;
+    }
 
     return '—';
   }
