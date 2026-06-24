@@ -5,8 +5,9 @@
  *
  * Corrección específica para el submenú Ventas Asignadas:
  * - Mantiene separadas las tablas Folios Asignados / Compartidas y Ventas del Mes.
- * - Al presionar Actualizar, fuerza la recarga visual de los contadores correctos.
+ * - Al presionar Actualizar, sincroniza contadores sin bloquear la carga principal.
  * - Calcula visualmente el descuento en Ventas del Mes cuando la API no lo envía explícito.
+ * - No usa MutationObserver para evitar ciclos de refresco y overlay pegado.
  * - No aplica en el dashboard principal.
  */
 
@@ -145,29 +146,32 @@
     }
   }
 
+  function programarAjustesVisuales() {
+    window.setTimeout(() => {
+      actualizarDescuentosVentasMes();
+    }, 500);
+  }
+
   function init() {
     if (!window.location.pathname.includes('/src/modulo/ventas/ventas/')) return;
 
-    const refrescar = () => {
-      setTimeout(() => {
+    const refrescarAuxiliar = () => {
+      window.setTimeout(() => {
         cargarFoliosAsignadosSubmenu();
         sincronizarContadores();
-        actualizarDescuentosVentasMes();
-      }, 300);
+        programarAjustesVisuales();
+      }, 700);
     };
 
-    refrescar();
-    document.getElementById('btnActualizar')?.addEventListener('click', refrescar);
-    document.getElementById('filtroMes')?.addEventListener('change', refrescar);
-    document.getElementById('filtroAnio')?.addEventListener('change', refrescar);
+    window.setTimeout(() => {
+      cargarFoliosAsignadosSubmenu();
+      sincronizarContadores();
+      programarAjustesVisuales();
+    }, 900);
 
-    const tbodyVentas = document.getElementById('tbodyVentas');
-    if (tbodyVentas) {
-      new MutationObserver(() => actualizarDescuentosVentasMes()).observe(tbodyVentas, {
-        childList: true,
-        subtree: true,
-      });
-    }
+    document.getElementById('btnActualizar')?.addEventListener('click', refrescarAuxiliar);
+    document.getElementById('filtroMes')?.addEventListener('change', refrescarAuxiliar);
+    document.getElementById('filtroAnio')?.addEventListener('change', refrescarAuxiliar);
   }
 
   if (document.readyState === 'loading') {
