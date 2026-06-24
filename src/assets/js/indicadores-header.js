@@ -7,6 +7,7 @@
  * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
  * - Activa auto-refresh global de filtros mes/año reutilizando #btnActualizar,
  *   por lo que cada pantalla mantiene su overlay "Cargando datos..." actual.
+ * - Carga la sidebar central por módulos desplegables cuando existe #sidebarNav.
  */
 
 (function () {
@@ -142,6 +143,17 @@
     });
   }
 
+  function cargarSidebarModulos() {
+    if (!document.getElementById('sidebarNav')) return;
+    if (window.__APP_SIDEBAR_LOADED__) return;
+
+    window.__APP_SIDEBAR_LOADED__ = true;
+    const script = document.createElement('script');
+    script.src = '/src/assets/js/app-sidebar.js?v=1.0.0';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   async function cargarIndicadores() {
     const el = document.getElementById('headerIndicadores');
     if (!el) return;
@@ -176,6 +188,7 @@
   }
 
   function init() {
+    cargarSidebarModulos();
     cargarIndicadores();
     activarAutoRefreshFiltros();
     setInterval(cargarIndicadores, REFRESH_MS);
