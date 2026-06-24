@@ -1,4 +1,64 @@
-/* ventas.css v1.3.0 — Ventas Asignadas + detalle de productos (2 bloques) */
+/* ventas.css v1.3.2 — Ventas Asignadas + detalle de productos (2 bloques) */
+
+/* ── Refuerzo sidebar para evitar links HTML sin estilos ─────────────────── */
+.sidebar {
+  background: var(--color-sidebar-bg, #1f1f1f);
+  color: var(--color-sidebar-text, #fff);
+}
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px;
+}
+.sidebar-link,
+.sidebar-nav a {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.82) !important;
+  text-decoration: none !important;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.sidebar-link:visited,
+.sidebar-nav a:visited {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.sidebar-link:hover,
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff !important;
+  transform: translateX(2px);
+}
+.sidebar-link.active,
+.sidebar-nav a.active {
+  background: var(--color-primary, #00ae8e);
+  color: #fff !important;
+  box-shadow: 0 6px 14px rgba(0, 174, 142, 0.18);
+}
+.sidebar-icon {
+  width: 20px;
+  min-width: 20px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1rem;
+}
+.sidebar--collapsed .sidebar-link,
+.sidebar--collapsed .sidebar-nav a {
+  justify-content: center;
+  padding-inline: 8px;
+}
+.sidebar--collapsed .sidebar-link span:not(.sidebar-icon),
+.sidebar--collapsed .sidebar-nav a span:not(.sidebar-icon) {
+  display: none;
+}
 
 /* ── Botón de detalle (chevron) ─────────────────────────────────────────── */
 .btn-det {
@@ -35,7 +95,6 @@
   overflow: hidden;
   max-height: 0;
   transition: max-height 0.3s ease;
-  /* Sin padding lateral: el contenido interno maneja su propio espaciado */
 }
 .detalle-expand-row.detalle-open > td {
   padding: 0 !important;
@@ -78,7 +137,6 @@
   background: var(--color-surface, #fafafa);
   border-top: 2px solid var(--color-primary, #00ae8e);
   padding: 16px 20px 20px;
-  /* Resetear cualquier herencia de márgenes de la celda padre */
   box-sizing: border-box;
   width: 100%;
   animation: det-fadeIn 0.22s ease;
@@ -96,7 +154,6 @@
   background: var(--color-surface-offset, #f4f4f0);
   border: 1px solid var(--color-border, #e0e0e0);
   border-radius: 8px;
-  /* Asegurar que ocupa el 100% del contenedor y no desborde */
   width: 100%;
   box-sizing: border-box;
 }
@@ -139,13 +196,18 @@
 }
 .det-tabla {
   width: 100%;
+  min-width: 940px;
   border-collapse: collapse;
+  border-spacing: 0;
   font-size: 0.82rem;
-  min-width: 820px;   /* ajustado para 8 columnas (antes 980px con 9) */
-  table-layout: auto;
+  table-layout: fixed;
 }
 .det-tabla thead tr {
   background: var(--color-surface-offset, #f2f2f2);
+}
+.det-tabla thead th,
+.det-tabla tbody td {
+  box-sizing: border-box;
 }
 .det-tabla thead th {
   padding: 8px 10px;
@@ -156,7 +218,32 @@
   color: var(--color-text-muted, #666);
   border-bottom: 1px solid var(--color-border, #e8e8e8);
   white-space: nowrap;
+  text-align: left;
 }
+.det-tabla thead th:nth-child(1),
+.det-tabla tbody td:nth-child(1) { width: 112px; }
+
+.det-tabla thead th:nth-child(2),
+.det-tabla tbody td:nth-child(2) { width: 310px; }
+
+.det-tabla thead th:nth-child(3),
+.det-tabla tbody td:nth-child(3) { width: 70px; text-align: center; }
+
+.det-tabla thead th:nth-child(4),
+.det-tabla tbody td:nth-child(4) { width: 118px; text-align: right; }
+
+.det-tabla thead th:nth-child(5),
+.det-tabla tbody td:nth-child(5) { width: 126px; text-align: right; }
+
+.det-tabla thead th:nth-child(6),
+.det-tabla tbody td:nth-child(6) { width: 118px; text-align: right; }
+
+.det-tabla thead th:nth-child(7),
+.det-tabla tbody td:nth-child(7) { width: 126px; text-align: right; }
+
+.det-tabla thead th:nth-child(8),
+.det-tabla tbody td:nth-child(8) { width: 98px; text-align: right; }
+
 .det-th--num {
   text-align: right;
 }
@@ -176,24 +263,19 @@
   color: var(--color-text, #333);
   vertical-align: middle;
 }
-/* Código producto: compacto */
 .det-td--cod {
   font-family: monospace;
   font-size: 0.8rem;
   white-space: nowrap;
   color: var(--color-text-muted, #555);
-  width: 100px;
 }
-/* Descripción larga — ocupa el espacio restante */
 .det-td--desc {
-  max-width: 340px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-text, #333);
 }
 .det-td--num {
-  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

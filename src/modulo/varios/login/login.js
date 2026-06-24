@@ -8,6 +8,7 @@
  * Salidas:
  *   - token JWT en localStorage
  *   - perfil resumido en sessionStorage (texpro_user)
+ *   - perfil resumido en localStorage (user) para validaciones globales
  *
  * Dependencia backend:
  *   /api/auth/login devuelve { ok, token, user, ... }
@@ -15,17 +16,37 @@
  * Flujo:
  *   1. Valida campos (email + password)
  *   2. Llama a POST /api/auth/login con fetch
- *   3. Guarda sesión en sessionStorage
- *   4. Redirige al dashboard
+ *   3. Guarda sesión del usuario autenticado
+ *   4. Redirige al módulo principal según usuario.area
  */
 
 (function () {
   'use strict';
 
   // ── Configuración ────────────────────────────────────────────
-  const API_BASE      = window.API_BASE || window.location.origin;
-  const LOGIN_URL     = `${API_BASE}/api/auth/login`;
-  // Ruta ajustada: desde varios/login/ → ../../ventas/dashboard/
+  const API_BASE  = window.API_BASE || window.location.origin;
+  const LOGIN_URL = `${API_BASE}/api/auth/login`;
+
+  const MODULOS_PRINCIPALES = {
+    ventas: '../../ventas/dashboard/index.html',
+    venta: '../../ventas/dashboard/index.html',
+    vendedores: '../../ventas/dashboard/index.html',
+    comercial: '../../ventas/dashboard/index.html',
+    produccion: '../../produccion/produccion/index.html',
+    bodega: '../../bodega/bodega/index.html',
+    facturacion: '../../facturacion/facturacion/index.html',
+    rrhh: '../../rrhh/rrhh/index.html',
+    'recursos-humanos': '../../rrhh/rrhh/index.html',
+    contabilidad: '../../contabilidad/contabilidad/index.html',
+    cobranza: '../../contabilidad/contabilidad/index.html',
+    'servicio-tecnico': '../../servtecnico/servicio-tecnico/index.html',
+    servicio: '../../servtecnico/servicio-tecnico/index.html',
+    'serv-tecnico': '../../servtecnico/servicio-tecnico/index.html',
+    admin: '../../admin/admin/index.html',
+    administracion: '../../admin/admin/index.html',
+    gerencia: '../../ventas/dashboard/index.html',
+  };
+
   const DASHBOARD_URL = '../../ventas/dashboard/index.html';
 
   // ── Referencias DOM ───────────────────────────────────────
@@ -69,6 +90,28 @@
     btnLoader.style.display = state ? 'flex' : 'none';
   }
 
+  function normalizarArea(area) {
+    return String(area || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-');
+  }
+
+  function getModuloPrincipal(user) {
+    const area = normalizarArea(user?.area);
+    return MODULOS_PRINCIPALES[area] || DASHBOARD_URL;
+  }
+
+  function guardarUsuario(user) {
+    if (!user) return;
+    const payload = JSON.stringify(user);
+    sessionStorage.setItem('texpro_user', payload);
+    localStorage.setItem('user', payload);
+    localStorage.setItem('usuario', payload);
+  }
+
   // ── Limpiar error al escribir ───────────────────────────────
   [inputUsuario, inputPass].forEach(el =>
     el.addEventListener('input', limpiarError)
@@ -108,10 +151,10 @@
 
       // ── Guardar sesión ──────────────────────────────────────────
       if (data.token) localStorage.setItem('token', data.token);
-      if (data.user)  sessionStorage.setItem('texpro_user', JSON.stringify(data.user));
+      guardarUsuario(data.user);
 
-      // ── Redirigir al dashboard ──────────────────────────────────
-      window.location.href = DASHBOARD_URL;
+      // ── Redirigir al módulo principal ───────────────────────────
+      window.location.href = getModuloPrincipal(data.user);
 
     } catch (err) {
       console.error('[login] Error de red:', err);

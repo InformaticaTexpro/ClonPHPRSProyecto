@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro — Acceso Restringido</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      min-height:100vh;
+      font-family:var(--font-secondary,'Open Sans',sans-serif);
+      background:
+        radial-gradient(circle at top left, rgba(0,226,167,.18), transparent 32rem),
+        linear-gradient(135deg, #111827 0%, #1A1D23 52%, #0F172A 100%);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:2rem;
+    }
+    .access-card {
+      width:min(680px, 100%);
+      background:rgba(255,255,255,.96);
+      color:#1A1D23;
+      border-radius:26px;
+      box-shadow:0 28px 80px rgba(0,0,0,.32);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.18);
+    }
+    .access-top {
+      padding:2rem 2rem 1.4rem;
+      background:linear-gradient(135deg, rgba(0,226,167,.18), rgba(255,255,255,0));
+      border-bottom:1px solid #E8EAF0;
+      display:flex;
+      align-items:center;
+      gap:1rem;
+    }
+    .brand-icon {
+      width:58px;
+      height:58px;
+      border-radius:16px;
+      background:#1A1D23;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+      box-shadow:0 10px 24px rgba(0,0,0,.18);
+    }
+    .brand-icon img { width:40px; height:40px; border-radius:10px; object-fit:cover; }
+    .brand-text span {
+      display:block;
+      font-family:var(--font-primary,'Montserrat',sans-serif);
+      font-weight:800;
+      font-size:.82rem;
+      letter-spacing:.16em;
+      color:#00A885;
+      text-transform:uppercase;
+      margin-bottom:.15rem;
+    }
+    .brand-text strong {
+      font-family:var(--font-primary,'Montserrat',sans-serif);
+      font-size:1.3rem;
+      color:#1A1D23;
+    }
+    .access-body { padding:2rem; }
+    .status-pill {
+      display:inline-flex;
+      align-items:center;
+      gap:.45rem;
+      padding:.42rem .75rem;
+      border-radius:999px;
+      background:rgba(220,38,38,.10);
+      color:#B91C1C;
+      font-size:.78rem;
+      font-weight:700;
+      margin-bottom:1rem;
+    }
+    h1 {
+      font-family:var(--font-primary,'Montserrat',sans-serif);
+      font-size:clamp(1.8rem, 4vw, 2.45rem);
+      line-height:1.08;
+      margin-bottom:.8rem;
+      color:#111827;
+    }
+    .lead {
+      color:#5B6472;
+      font-size:1rem;
+      line-height:1.65;
+      max-width:58ch;
+      margin-bottom:1.35rem;
+    }
+    .info-grid {
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0,1fr));
+      gap:.85rem;
+      margin:1.2rem 0 1.6rem;
+    }
+    .info-box {
+      border:1px solid #E8EAF0;
+      border-radius:16px;
+      padding:1rem;
+      background:#F8FAFC;
+    }
+    .info-box span {
+      display:block;
+      color:#6B7280;
+      font-size:.72rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:.35rem;
+    }
+    .info-box strong {
+      font-size:1rem;
+      color:#111827;
+      word-break:break-word;
+    }
+    .actions {
+      display:flex;
+      flex-wrap:wrap;
+      gap:.8rem;
+      align-items:center;
+    }
+    .btn {
+      appearance:none;
+      border:0;
+      border-radius:12px;
+      padding:.82rem 1.1rem;
+      font-weight:800;
+      font-size:.9rem;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:.5rem;
+      transition:transform .15s, box-shadow .15s, background .15s;
+    }
+    .btn:hover { transform:translateY(-1px); }
+    .btn-primary {
+      background:#00E2A7;
+      color:#07120F;
+      box-shadow:0 10px 22px rgba(0,226,167,.25);
+    }
+    .access-footer {
+      padding:1rem 2rem;
+      border-top:1px solid #E8EAF0;
+      color:#8A94A6;
+      font-size:.78rem;
+      background:#FBFCFE;
+    }
+    @media (max-width:620px) {
+      body { padding:1rem; }
+      .access-top, .access-body { padding:1.4rem; }
+      .access-footer { padding:1rem 1.4rem; }
+      .info-grid { grid-template-columns:1fr; }
+      .actions { flex-direction:column; align-items:stretch; }
+      .btn { width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <article class="access-card" aria-live="polite">
+    <header class="access-top">
+      <div class="brand-icon">
+        <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" onerror="this.style.display='none'" />
+      </div>
+      <div class="brand-text">
+        <span>Texpro RSProyecto</span>
+        <strong>Control de acceso</strong>
+      </div>
+    </header>
+
+    <main class="access-body">
+      <div class="status-pill">🔒 Acceso restringido</div>
+      <h1>No posee acceso a este módulo</h1>
+      <p class="lead">
+        Tu usuario se autenticó correctamente, pero el área asignada no tiene permisos para ingresar al módulo solicitado.
+        Si necesitas acceso, solicita autorización a administración o informática.
+      </p>
+
+      <section class="info-grid" aria-label="Detalle del acceso">
+        <div class="info-box">
+          <span>Usuario</span>
+          <strong id="usuarioNombre">Resolviendo usuario...</strong>
+        </div>
+        <div class="info-box">
+          <span>Área actual</span>
+          <strong id="usuarioArea">Resolviendo área...</strong>
+        </div>
+        <div class="info-box">
+          <span>Módulo solicitado</span>
+          <strong id="moduloSolicitado">—</strong>
+        </div>
+        <div class="info-box">
+          <span>Módulo principal</span>
+          <strong id="moduloPrincipal">—</strong>
+        </div>
+      </section>
+
+      <div class="actions">
+        <a class="btn btn-primary" id="btnVolverModulo" href="/src/modulo/ventas/dashboard/index.html">↩ Volver a mi módulo</a>
+      </div>
+    </main>
+
+    <footer class="access-footer">
+      Seguridad interna — Accesos controlados por área del usuario.
+    </footer>
+  </article>
+
+  <script>
+    'use strict';
+
+    const MODULOS_PRINCIPALES = {
+      ventas: { nombre: 'Ventas', url: '/src/modulo/ventas/dashboard/index.html' },
+      venta: { nombre: 'Ventas', url: '/src/modulo/ventas/dashboard/index.html' },
+      vendedores: { nombre: 'Ventas', url: '/src/modulo/ventas/dashboard/index.html' },
+      comercial: { nombre: 'Ventas', url: '/src/modulo/ventas/dashboard/index.html' },
+      produccion: { nombre: 'Producción', url: '/src/modulo/produccion/produccion/index.html' },
+      bodega: { nombre: 'Bodega', url: '/src/modulo/bodega/bodega/index.html' },
+      facturacion: { nombre: 'Facturación', url: '/src/modulo/facturacion/facturacion/index.html' },
+      rrhh: { nombre: 'RRHH', url: '/src/modulo/rrhh/rrhh/index.html' },
+      'recursos-humanos': { nombre: 'RRHH', url: '/src/modulo/rrhh/rrhh/index.html' },
+      contabilidad: { nombre: 'Contabilidad', url: '/src/modulo/contabilidad/contabilidad/index.html' },
+      cobranza: { nombre: 'Contabilidad', url: '/src/modulo/contabilidad/contabilidad/index.html' },
+      'servicio-tecnico': { nombre: 'Servicio Técnico', url: '/src/modulo/servtecnico/servicio-tecnico/index.html' },
+      servicio: { nombre: 'Servicio Técnico', url: '/src/modulo/servtecnico/servicio-tecnico/index.html' },
+      'serv-tecnico': { nombre: 'Servicio Técnico', url: '/src/modulo/servtecnico/servicio-tecnico/index.html' },
+      admin: { nombre: 'Administración', url: '/src/modulo/admin/admin/index.html' },
+      administracion: { nombre: 'Administración', url: '/src/modulo/admin/admin/index.html' },
+      gerencia: { nombre: 'Ventas', url: '/src/modulo/ventas/dashboard/index.html' },
+    };
+
+    function normalizarArea(area) {
+      return String(area || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '-');
+    }
+
+    function appUrl(path) {
+      const idx = window.location.pathname.indexOf('/src/');
+      const base = idx > 0 ? window.location.pathname.slice(0, idx) : '';
+      return `${base}${path}`;
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value || '—';
+    }
+
+    function parseJSONSafe(raw) {
+      try { return raw ? JSON.parse(raw) : null; }
+      catch { return null; }
+    }
+
+    function decodificarJwt(token) {
+      try {
+        if (!token || !token.includes('.')) return null;
+        const payload = token.split('.')[1]
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const json = decodeURIComponent(
+          atob(payload)
+            .split('')
+            .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        return JSON.parse(json);
+      } catch {
+        return null;
+      }
+    }
+
+    function normalizarUsuario(raw) {
+      if (!raw) return null;
+      const user = raw.user || raw.usuario || raw;
+      return {
+        id: user.id || user.usuario_id || user.sub || '',
+        nombre: user.nombre || user.name || user.usuario || user.email || 'Usuario',
+        email: user.email || user.correo || '',
+        usuario: user.usuario || user.username || '',
+        area: user.area || user.Area || user.departamento || user.depto || '',
+        is_admin: Boolean(user.is_admin || user.admin || user.es_admin),
+      };
+    }
+
+    function getUsuarioGuardado() {
+      return normalizarUsuario(parseJSONSafe(sessionStorage.getItem('texpro_user')))
+        || normalizarUsuario(parseJSONSafe(localStorage.getItem('user')))
+        || normalizarUsuario(parseJSONSafe(localStorage.getItem('usuario')))
+        || normalizarUsuario(decodificarJwt(localStorage.getItem('token')));
+    }
+
+    function moduloPorArea(area, isAdmin) {
+      if (isAdmin) return MODULOS_PRINCIPALES.admin;
+      const normalizada = normalizarArea(area);
+      return MODULOS_PRINCIPALES[normalizada] || {
+        nombre: 'Ventas',
+        url: '/src/modulo/ventas/dashboard/index.html',
+      };
+    }
+
+    function pintarUsuario(usuario) {
+      const params = new URLSearchParams(window.location.search);
+      const moduloSolicitado = params.get('modulo') || 'Módulo restringido';
+      const nombre = usuario?.nombre || usuario?.email || usuario?.usuario || 'Usuario';
+      const area = usuario?.area || 'Sin área asignada';
+      const modulo = moduloPorArea(usuario?.area, usuario?.is_admin);
+
+      setText('usuarioNombre', nombre);
+      setText('usuarioArea', area);
+      setText('moduloSolicitado', moduloSolicitado);
+      setText('moduloPrincipal', modulo.nombre);
+
+      const btnVolver = document.getElementById('btnVolverModulo');
+      if (btnVolver) btnVolver.href = appUrl(modulo.url);
+    }
+
+    async function cargarUsuario() {
+      const usuarioGuardado = getUsuarioGuardado();
+      if (usuarioGuardado) pintarUsuario(usuarioGuardado);
+      else pintarUsuario({ nombre: 'Usuario no identificado', area: '' });
+
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok || !data?.user) throw new Error(data?.error || 'Sesión no disponible');
+
+        const usuario = normalizarUsuario(data.user);
+        if (usuario) {
+          const payload = JSON.stringify(usuario);
+          sessionStorage.setItem('texpro_user', payload);
+          localStorage.setItem('user', payload);
+          localStorage.setItem('usuario', payload);
+          pintarUsuario(usuario);
+        }
+      } catch (err) {
+        console.warn('[sin-acceso]', err.message);
+      }
+    }
+
+    cargarUsuario();
+  </script>
+</body>
+</html>

@@ -5,7 +5,9 @@
  *
  * Corrección específica para el submenú Ventas Asignadas:
  * - Mantiene separadas las tablas Folios Asignados / Compartidas y Ventas del Mes.
- * - Al presionar Actualizar, fuerza la recarga visual de los contadores correctos.
+ * - Al presionar Actualizar, sincroniza contadores sin bloquear la carga principal.
+ * - Calcula visualmente el descuento en Ventas del Mes cuando la API no lo envía explícito.
+ * - No usa MutationObserver para evitar ciclos de refresco y overlay pegado.
  * - No aplica en el dashboard principal.
  */
 
@@ -32,6 +34,51 @@
   function fechaCL(fecha) {
     if (!fecha) return '—';
     return new Date(fecha).toLocaleDateString('es-CL');
+  }
+
+  function parseCLP(texto) {
+    if (!texto) return 0;
+    const limpio = String(texto)
+      .replace(/\$/g, '')
+      .replace(/\./g, '')
+      .replace(/,/g, '.')
+      .replace(/\s/g, '')
+      .trim();
+    const valor = Number(limpio);
+    return Number.isFinite(valor) ? valor : 0;
+  }
+
+  function formatPct(valor) {
+    if (!Number.isFinite(valor) || Math.abs(valor) < 0.005) return '—';
+    return `${Math.round(valor * 100) / 100}%`;
+  }
+
+  function actualizarDescuentosVentasMes() {
+    const tbody = document.getElementById('tbodyVentas');
+    if (!tbody) return;
+
+    tbody.querySelectorAll('tr[data-folio]').forEach(tr => {
+      const celdas = tr.querySelectorAll('td');
+      if (celdas.length < 8) return;
+
+      const celdaMonto = celdas[5];
+      const celdaTotalReal = celdas[6];
+      const celdaDescuento = celdas[7];
+
+      const descuentoActual = celdaDescuento.textContent.trim();
+      if (descuentoActual && descuentoActual !== '—') return;
+
+      const monto = parseCLP(celdaMonto.textContent);
+      const totalReal = parseCLP(celdaTotalReal.textContent);
+
+      if (!totalReal || !monto || Math.abs(totalReal) <= Math.abs(monto)) {
+        celdaDescuento.textContent = '—';
+        return;
+      }
+
+      const pct = (1 - (Math.abs(monto) / Math.abs(totalReal))) * 100;
+      celdaDescuento.textContent = formatPct(pct);
+    });
   }
 
   function filaAsignado(c) {
@@ -99,20 +146,32 @@
     }
   }
 
+  function programarAjustesVisuales() {
+    window.setTimeout(() => {
+      actualizarDescuentosVentasMes();
+    }, 500);
+  }
+
   function init() {
     if (!window.location.pathname.includes('/src/modulo/ventas/ventas/')) return;
 
-    const refrescar = () => {
-      setTimeout(() => {
+    const refrescarAuxiliar = () => {
+      window.setTimeout(() => {
         cargarFoliosAsignadosSubmenu();
         sincronizarContadores();
-      }, 250);
+        programarAjustesVisuales();
+      }, 700);
     };
 
-    refrescar();
-    document.getElementById('btnActualizar')?.addEventListener('click', refrescar);
-    document.getElementById('filtroMes')?.addEventListener('change', refrescar);
-    document.getElementById('filtroAnio')?.addEventListener('change', refrescar);
+    window.setTimeout(() => {
+      cargarFoliosAsignadosSubmenu();
+      sincronizarContadores();
+      programarAjustesVisuales();
+    }, 900);
+
+    document.getElementById('btnActualizar')?.addEventListener('click', refrescarAuxiliar);
+    document.getElementById('filtroMes')?.addEventListener('change', refrescarAuxiliar);
+    document.getElementById('filtroAnio')?.addEventListener('change', refrescarAuxiliar);
   }
 
   if (document.readyState === 'loading') {

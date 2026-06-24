@@ -29,6 +29,23 @@
     return new Intl.NumberFormat('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(Number(v));
   }
 
+  function formatDescuentoVenta(v) {
+    const valorReal = Number(v.valor_real ?? v.ValorReal ?? v.monto ?? v.TotLinea ?? 0);
+    const totLineaReal = Number(v.TotLineaReal ?? v.tot_linea_real ?? v.total_lista_real ?? v.valor_historico_linea ?? 0);
+
+    if (
+      Number.isFinite(valorReal) &&
+      Number.isFinite(totLineaReal) &&
+      Math.abs(totLineaReal) > 0 &&
+      Math.abs(valorReal) < Math.abs(totLineaReal)
+    ) {
+      const pct = (1 - (Math.abs(valorReal) / Math.abs(totLineaReal))) * 100;
+      return `${Math.round(pct * 100) / 100}%`;
+    }
+
+    return '—';
+  }
+
   function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
@@ -222,9 +239,6 @@
     return `${MESES_NOMBRE[Number(mes) - 1]} ${anio}`;
   }
 
-  /**
-   * Obtiene el detalle de un folio (usa cache si ya fue cargado en pantalla).
-   */
   async function fetchDetalleFolio(folio) {
     if (_detalleCache[folio]) return _detalleCache[folio];
     const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -245,7 +259,6 @@
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-      // ── Helper: encabezado de página ─────────────────────────────────────
       function addPageHeader() {
         doc.setFillColor(0, 174, 142);
         doc.rect(0, 0, 297, 18, 'F');
@@ -260,14 +273,12 @@
       addPageHeader();
       let y = 24;
 
-      // ── DETALLE COMPLETO POR FOLIO ───────────────────────────────────────
       if (_ultimasVentas.length) {
         doc.setFontSize(11); doc.setFont('helvetica', 'bold');
         doc.text(`Detalle de Folios — ${mesLabel}`, 14, y);
         y += 5;
 
         for (const venta of _ultimasVentas) {
-          // Obtener detalle del folio
           let detalleData = null;
           try {
             detalleData = await fetchDetalleFolio(venta.Folio);
@@ -282,14 +293,12 @@
           const codAux   = d0.CodAux  || '—';
           const canCod   = d0.CanCod  || '—';
 
-          // Salto de página si no hay espacio suficiente (mínimo 30mm para encabezado + 1 fila)
           if (y > 175) {
             doc.addPage();
             addPageHeader();
             y = 24;
           }
 
-          // ── Sub-encabezado del folio ──────────────────────────────────
           doc.setFillColor(240, 248, 246);
           doc.rect(14, y, 269, 8, 'F');
           doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
@@ -303,7 +312,6 @@
           doc.text(`CanCod: ${canCod}`, 240, y + 5.5);
           y += 10;
 
-          // ── Tabla de productos del folio ──────────────────────────────
           const filasProductos = lineas.map(p => {
             const cant     = Number(p.CantFacturada) || 0;
             const precReal = Number(p.precio_unitario_cobrado) || 0;
@@ -346,7 +354,6 @@
             },
             margin: { left: 14, right: 14 },
             didParseCell(data) {
-              // Colorear Total Real negativo en rojo
               if (data.column.index === 5 && data.section === 'body') {
                 const raw = lineas[data.row.index];
                 if (raw && Number(raw.TotLinea) < 0) {
@@ -366,7 +373,6 @@
         y += 10;
       }
 
-      // ── TABLA COMPARTIDOS (resumen) ──────────────────────────────────────
       const panelComp = document.getElementById('panelCompartidos');
       if (panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
         if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
@@ -402,7 +408,6 @@
         y = doc.lastAutoTable.finalY + 10;
       }
 
-      // ── TABLA ASIGNADOS (resumen) ────────────────────────────────────────
       const panelAsig = document.getElementById('panelCoordinador');
       if (panelAsig && panelAsig.style.display !== 'none' && _ultimosAsignados.length) {
         if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
@@ -437,7 +442,6 @@
         });
       }
 
-      // ── Pie de página ────────────────────────────────────────────────────
       const totalPags = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPags; i++) {
         doc.setPage(i);
@@ -459,63 +463,40 @@
     }
   }
 
-  // ── Sidebar ───────────────────────────────────────────────────────────────
   const MODULOS = [
     { nombre:'Dashboard',           icon:'🏠', url:'../dashboard/index.html',                       area: null },
     { nombre:'Historial Cliente',   icon:'📋', url:'../historial-cliente/index.html',               area:['ventas','gerencia'] },
     { nombre:'Facturación',         icon:'🧾', url:'../../facturacion/facturacion/index.html',      area:['facturacion','contabilidad','gerencia'] },
     { nombre:'Bodega',              icon:'🏭', url:'../../bodega/bodega/index.html',                area:['bodega','produccion','gerencia'] },
-    { nombre:'Producción',          icon:'⚙️', url:'../../produccion/produccion/index.html',        area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',           icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html', area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',         icon:'🧪', url:'../../laboratorio/laboratorio/index.html',      area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',            icon:'💰', url:'../../cobranza/cobranza/index.html',             area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',                icon:'👥', url:'../../rrhh/rrhh/index.html',                    area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',        icon:'📜', url:'../../contabilidad/contabilidad/index.html',    area:['contabilidad','gerencia'] },
-    { nombre:'Administración',      icon:'🔧', url:'../../admin/admin/index.html',                  area:['admin'] },
-    { nombre:'Alertas',             icon:'🔔', url:'../../varios/alertas/index.html',               area: null },
+    { nombre:'RRHH',                icon:'👥', url:'../../rrhh/remuneraciones/index.html',          area:['rrhh','gerencia'] },
+    { nombre:'Asignar Ventas',      icon:'🤝', url:'index.html',                                    area:['ventas','gerencia'] },
   ];
 
   function cargarSidebar(usuario) {
-    const ini = (usuario.nombre||'U').split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase();
-    setText('userName',    usuario.nombre  || usuario.email);
-    setText('userArea',    usuario.area    || '');
-    setText('userAvatar',  ini);
-    setText('chipAvatar',  ini);
-    setText('chipName',    (usuario.nombre||usuario.email).split(' ')[0]);
-    setText('headerDate',  new Date().toLocaleDateString('es-CL',
-      { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-    setText('welcomeSubtitle', `Área: ${usuario.area||'Sistema'} — Texpro`);
-
-    const nav      = document.getElementById('sidebarNav');
-    const visibles = MODULOS.filter(m => {
-      if (m.area === null) return true;
-      if (usuario.is_admin) return true;
-      return m.area.includes(usuario.area);
+    const nav = document.getElementById('sidebarNav');
+    if (!nav) return;
+    const area = (usuario.area || '').toLowerCase();
+    nav.innerHTML = MODULOS
+      .filter(m => !m.area || m.area.includes(area))
+      .map(m => `<a href="${m.url}" class="sidebar-link ${m.url==='index.html'?'active':''}"><span class="sidebar-icon">${m.icon}</span><span>${m.nombre}</span></a>`)
+      .join('');
+    setText('userName', usuario.nombre || usuario.usuario || 'Usuario');
+    setText('chipName', usuario.nombre || usuario.usuario || 'Usuario');
+    setText('userArea', usuario.area || '');
+    const inicial = (usuario.nombre || usuario.usuario || '?').charAt(0).toUpperCase();
+    setText('userAvatar', inicial);
+    setText('chipAvatar', inicial);
+    setText('headerDate', new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' }));
+    document.getElementById('btnLogout')?.addEventListener('click', () => { localStorage.removeItem('token'); window.location.href='../../varios/login/index.html'; });
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+      document.getElementById('sidebar')?.classList.toggle('sidebar--collapsed');
+      document.getElementById('mainWrapper')?.classList.toggle('main-wrapper--expanded');
     });
-    const svgVentas = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
-    if (nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
-      <a class="nav-item active" href="#">${svgVentas}<span class="nav-label">Ventas Asignadas</span></a>
-      ${visibles.map(m=>`<a class="nav-item" href="${m.url}"><span style="font-size:1rem">${m.icon}</span><span class="nav-label">${m.nombre}</span></a>`).join('')}`;
-
-    const btnLogout = document.getElementById('btnLogout');
-    if (btnLogout) btnLogout.addEventListener('click', () => {
-      localStorage.removeItem('token'); localStorage.removeItem('user');
-      window.location.href = '../../varios/login/index.html';
-    });
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('sidebar--collapsed');
-      document.getElementById('mainWrapper').classList.toggle('main-wrapper--expanded');
-    });
-    const headerMenuBtn = document.getElementById('headerMenuBtn');
-    if (headerMenuBtn) headerMenuBtn.addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('mobile-open');
-    });
+    document.getElementById('headerMenuBtn')?.addEventListener('click', () => document.getElementById('sidebar')?.classList.toggle('sidebar--open'));
   }
 
-  // ── Selectores mes/año ────────────────────────────────────────────────────
   function initSelectores() {
-    const hoy    = new Date();
+    const hoy = new Date();
     const selMes = document.getElementById('filtroMes');
     if (selMes) {
       MESES_NOMBRE.forEach((m, i) => {
@@ -543,7 +524,6 @@
     };
   }
 
-  // ── Helper: fila de detalle expandible ───────────────────────────────────
   function bindDetalleRows(tbody, folioField, colspan) {
     tbody.querySelectorAll('tr[data-folio]').forEach(tr => {
       const folio   = tr.dataset.folio;
@@ -562,7 +542,6 @@
     });
   }
 
-  // ── PANEL COORDINADOR ─────────────────────────────────────────────────────
   async function cargarListaVendedores() {
     try {
       const res  = await fetch(`${API}/vendedores-todos`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -678,6 +657,7 @@
       const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
       _ultimosAsignados = data.asignados || [];
+      setText('totalAsignados', `${_ultimosAsignados.length} registros`);
       if (!tbody) return;
       if (!_ultimosAsignados.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
@@ -733,7 +713,6 @@
     });
   }
 
-  // ── Carga principal de ventas ─────────────────────────────────────────────
   async function cargarVentas() {
     mostrarCarga();
     try {
@@ -746,24 +725,18 @@
       ]);
       const [dataV, dataC] = await Promise.all([resV.json(), resC.json()]);
 
-      // ── Guardar en memoria para PDF ───────────────────────────────────────
       _ultimasVentas      = dataV.ventas      || [];
       _ultimosCompartidos = dataC.compartidos || [];
 
-      // ── Tabla ventas del mes ──────────────────────────────────────────────
-      const tbodyV  = document.getElementById('tbodyVentas');
-      const cntV    = document.getElementById('cuentaVentas');
-
-      if (cntV) cntV.textContent = `${_ultimasVentas.length} registros`;
+      const tbodyV = document.getElementById('tbodyVentas');
+      setText('totalVentas', `${_ultimasVentas.length} registros`);
 
       if (!_ultimasVentas.length) {
         if (tbodyV) tbodyV.innerHTML = '<tr class="tabla-empty"><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin ventas este mes</td></tr>';
-      } else {
-        if (tbodyV) {
-          tbodyV.innerHTML = _ultimasVentas.map(v => {
-            const pct = Number(v.pct_descuento) || 0;
-            const totLineaReal = v.TotLineaReal ?? v.monto;
-            return `
+      } else if (tbodyV) {
+        tbodyV.innerHTML = _ultimasVentas.map(v => {
+          const totLineaReal = v.TotLineaReal ?? v.monto;
+          return `
             <tr data-folio="${v.Folio}">
               <td class="det-btn-td">
                 <button class="btn-det" title="Ver detalle">
@@ -780,43 +753,37 @@
               <td>${v.CodVendedor || '—'}</td>
               <td style="text-align:right">${formatCLP(v.monto)}</td>
               <td style="text-align:right;color:var(--color-success,#27ae60)">${formatCLP(totLineaReal)}</td>
-              <td style="text-align:right">${pct ? pct+'%' : '—'}</td>
+              <td style="text-align:right">${formatDescuentoVenta(v)}</td>
             </tr>`;
-          }).join('');
-          bindDetalleRows(tbodyV, 'Folio', 8);
-        }
+        }).join('');
+        bindDetalleRows(tbodyV, 'Folio', 8);
       }
 
-      // ── Tabla compartidos ─────────────────────────────────────────────────
-      const tbodyC   = document.getElementById('tbodyCompartidos');
-      const cntC     = document.getElementById('cuentaCompartidos');
-
-      if (cntC) cntC.textContent = `${_ultimosCompartidos.length} registros`;
+      const tbodyC = document.getElementById('tbodyCompartidos');
+      setText('totalCompartidos', `${_ultimosCompartidos.length} registros`);
 
       if (!_ultimosCompartidos.length) {
         if (tbodyC) tbodyC.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:2rem;color:#aaa">Sin folios compartidos este mes</td></tr>';
-      } else {
-        if (tbodyC) {
-          tbodyC.innerHTML = _ultimosCompartidos.map(c => `
-            <tr data-folio="${c.folio}">
-              <td class="det-btn-td">
-                <button class="btn-det" title="Ver detalle">
-                  <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-              </td>
-              <td><strong>${c.folio}</strong></td>
-              <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-              <td>${c.cliente || '—'}</td>
-              <td>${c.coordinador || c.cod_vendedor_principal || '—'}</td>
-              <td style="text-align:right">${c.porcentaje}%</td>
-              <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
-            </tr>`).join('');
-          bindDetalleRows(tbodyC, 'folio', 7);
-        }
+      } else if (tbodyC) {
+        tbodyC.innerHTML = _ultimosCompartidos.map(c => `
+          <tr data-folio="${c.folio}">
+            <td class="det-btn-td">
+              <button class="btn-det" title="Ver detalle">
+                <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            </td>
+            <td><strong>${c.folio}</strong></td>
+            <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
+            <td>${c.cliente || '—'}</td>
+            <td>${c.coordinador || c.cod_vendedor_principal || '—'}</td>
+            <td style="text-align:right">${c.porcentaje}%</td>
+            <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
+          </tr>`).join('');
+        bindDetalleRows(tbodyC, 'folio', 7);
       }
 
     } catch (err) {
@@ -826,7 +793,6 @@
     }
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
     _usuarioActual = await verificarSesion();
     if (!_usuarioActual) return;
