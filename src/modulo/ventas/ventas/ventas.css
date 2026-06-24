@@ -1,4 +1,64 @@
-/* ventas.css v1.3.1 — Ventas Asignadas + detalle de productos (2 bloques) */
+/* ventas.css v1.3.2 — Ventas Asignadas + detalle de productos (2 bloques) */
+
+/* ── Refuerzo sidebar para evitar links HTML sin estilos ─────────────────── */
+.sidebar {
+  background: var(--color-sidebar-bg, #1f1f1f);
+  color: var(--color-sidebar-text, #fff);
+}
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px;
+}
+.sidebar-link,
+.sidebar-nav a {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.82) !important;
+  text-decoration: none !important;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.sidebar-link:visited,
+.sidebar-nav a:visited {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.sidebar-link:hover,
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff !important;
+  transform: translateX(2px);
+}
+.sidebar-link.active,
+.sidebar-nav a.active {
+  background: var(--color-primary, #00ae8e);
+  color: #fff !important;
+  box-shadow: 0 6px 14px rgba(0, 174, 142, 0.18);
+}
+.sidebar-icon {
+  width: 20px;
+  min-width: 20px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1rem;
+}
+.sidebar--collapsed .sidebar-link,
+.sidebar--collapsed .sidebar-nav a {
+  justify-content: center;
+  padding-inline: 8px;
+}
+.sidebar--collapsed .sidebar-link span:not(.sidebar-icon),
+.sidebar--collapsed .sidebar-nav a span:not(.sidebar-icon) {
+  display: none;
+}
 
 /* ── Botón de detalle (chevron) ─────────────────────────────────────────── */
 .btn-det {
