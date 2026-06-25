@@ -7,7 +7,7 @@
  * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
  * - Activa auto-refresh global de filtros mes/año reutilizando #btnActualizar,
  *   por lo que cada pantalla mantiene su overlay "Cargando datos..." actual.
- arivera
+ 
  * - Agrega el acceso al módulo Gerencia en el sidebar para usuarios administradores.
 
  * - Carga la sidebar central por módulos desplegables cuando existe #sidebarNav.
