@@ -44,12 +44,17 @@ jest.mock('../../src/config/db.softland', () => ({
 
 // ── Mock precioHistorico ──────────────────────────────────────────────────────
 jest.mock('../../src/utils/precioHistorico', () => ({
+  getFactorHistorico: jest.fn().mockResolvedValue(1),
   buildPrecioListaRealCASE: jest.fn().mockResolvedValue('t.PrecioVta'),
 }));
 
+const dashboardAjustesRouter = require('../../src/routes/dashboard.ajustes');
+const dashboardPanelRouter = require('../../src/routes/dashboard.panel');
 const dashboardRouter = require('../../src/routes/dashboard');
 const app = express();
 app.use(express.json());
+app.use('/api/dashboard', dashboardAjustesRouter);
+app.use('/api/dashboard', dashboardPanelRouter);
 app.use('/api/dashboard', dashboardRouter);
 
 beforeEach(() => {

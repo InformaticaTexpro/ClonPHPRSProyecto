@@ -136,9 +136,11 @@ app.get('/api/dashboard/detalle/:folio', requireAuth, async (req, res) => {
 });
 
 // Orden importante:
-// 1) dashboardAjustesRoutes corrige prorrateo de ventas compartidas.
-// 2) dashboardPanelRoutes corrige /asignados por fecha del registro.
-// 3) dashboardRoutes conserva el resto de endpoints originales.
+// El orden de montaje define qué router responde cuando hay endpoints repetidos.
+// 1) dashboardAjustesRoutes debe ir antes que dashboardRoutes porque contiene
+//    la lógica ajustada de /resumen, /evolucion y /ventas-mes.
+// 2) dashboardPanelRoutes debe ir antes que dashboardRoutes porque contiene
+//    la lógica vigente de /asignados.
 app.use('/api/dashboard',       dashboardAjustesRoutes);
 app.use('/api/dashboard',       dashboardPanelRoutes);
 app.use('/api/dashboard',       dashboardRoutes);

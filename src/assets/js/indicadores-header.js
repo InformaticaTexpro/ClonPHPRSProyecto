@@ -7,7 +7,7 @@
  * - Fusiona ventas asignadas con ventas del mes solo en el Dashboard principal.
  * - Activa auto-refresh global de filtros mes/año reutilizando #btnActualizar,
  *   por lo que cada pantalla mantiene su overlay "Cargando datos..." actual.
- arivera
+ 
  * - Agrega el acceso al módulo Gerencia en el sidebar para usuarios administradores.
 
  * - Carga la sidebar central por módulos desplegables cuando existe #sidebarNav.
@@ -190,28 +190,28 @@ arivera
   }
 
   async function activarMenuGerenciaAdmin() {
-    if (!debeFusionarVentasAsignadas()) return;
+  if (!debeFusionarVentasAsignadas()) return;
 
-    const usuario = await obtenerUsuarioActual();
-    if (!esAdmin(usuario)) return;
+  const usuario = await obtenerUsuarioActual();
+  if (!esAdmin(usuario)) return;
 
-    let intentos = 0;
-    const timer = setInterval(() => {
-      intentos += 1;
-      if (insertarMenuGerencia() || intentos >= 20) clearInterval(timer);
-    }, 150);
+  let intentos = 0;
+  const timer = setInterval(() => {
+    intentos += 1;
+    if (insertarMenuGerencia() || intentos >= 20) clearInterval(timer);
+  }, 150);
+}
 
-  function cargarSidebarModulos() {
-    if (!document.getElementById('sidebarNav')) return;
-    if (window.__APP_SIDEBAR_LOADED__) return;
+function cargarSidebarModulos() {
+  if (!document.getElementById('sidebarNav')) return;
+  if (window.__APP_SIDEBAR_LOADED__) return;
 
-    window.__APP_SIDEBAR_LOADED__ = true;
-    const script = document.createElement('script');
-    script.src = '/src/assets/js/app-sidebar.js?v=1.0.0';
-    script.defer = true;
-    document.head.appendChild(script);
- main
-  }
+  window.__APP_SIDEBAR_LOADED__ = true;
+  const script = document.createElement('script');
+  script.src = '/src/assets/js/app-sidebar.js?v=1.0.0';
+  script.defer = true;
+  document.head.appendChild(script);
+}
 
   async function cargarIndicadores() {
     const el = document.getElementById('headerIndicadores');
