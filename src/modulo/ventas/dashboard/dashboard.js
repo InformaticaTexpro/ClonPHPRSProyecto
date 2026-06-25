@@ -352,7 +352,7 @@
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
-      return `<tr>
+      return `<tr data-folio="${v.Folio}">
         <td><strong>${escHtml(v.Folio) || '—'}</strong>${badgeComp}</td>
         <td>${escHtml(v.fecha_formato) || '—'}</td>
         <td>${escHtml(v.cliente) || '—'}</td>
@@ -381,26 +381,33 @@
     const venta = ventasMesData.find(v => String(v.Folio) === String(folio));
     setText('modalSubtitulo', venta ? `${venta.cliente||''} • ${venta.fecha_formato||''}` : '');
     setText('modalTotalValor', '—');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem">Cargando...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem">Cargando...</td></tr>';
     overlay.classList.add('modal-overlay--visible');
     overlay.setAttribute('aria-hidden','false');
     document.body.style.overflow = 'hidden';
     try {
       const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
-      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Sin líneas</td></tr>'; return; }
-      const total = data.detalle.reduce((s,l)=>s+(Number(l.valor_historico_linea)||0),0);
+      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
+      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin líneas</td></tr>'; return; }
+      const d0 = data.detalle[0] || {};
+      setText('modalSubtitulo', venta
+        ? `${venta.cliente || ''} • ${venta.fecha_formato || ''} • Cód. Cliente: ${d0.CodAux || '—'} • CanCod: ${d0.CanCod || '—'}`
+        : `Cód. Cliente: ${d0.CodAux || '—'} • CanCod: ${d0.CanCod || '—'}`);
+      const total = data.detalle.reduce((s,l)=>s+(Number(l.neto_total ?? l.TotLinea ?? 0)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
           <td><code>${escHtml(l.CodProd) || '—'}</code></td>
           <td>${escHtml(l.DesProd) || '—'}</td>
           <td style="text-align:center">${l.CantFacturada ?? '—'}</td>
-          <td style="text-align:right">${formatCLP(l.precio_unitario_historico)}</td>
-          <td style="text-align:right"><strong>${formatCLP(l.valor_historico_linea)}</strong></td>
+          <td style="text-align:right">${formatCLP(l.precio_real)}</td>
+          <td style="text-align:right">${formatCLP(l.precio_vta ?? l.PrecioVta)}</td>
+          <td style="text-align:right">${formatCLP(l.neto_real)}</td>
+          <td style="text-align:right"><strong>${formatCLP(l.neto_total ?? l.TotLinea)}</strong></td>
+          <td style="text-align:right">${Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0 ? `${Math.round(Number(l.dcto))}%` : '—'}</td>
         </tr>`).join('');
       setText('modalTotalValor', formatCLP(total));
-    } catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-danger)">&#x26A0;&#xFE0F; Error</td></tr>'; }
+    } catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">&#x26A0;&#xFE0F; Error</td></tr>'; }
   }
 
   function cerrarModal() {

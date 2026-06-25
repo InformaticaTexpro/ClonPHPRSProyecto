@@ -207,20 +207,33 @@ describe('getMontoFolio', () => {
 
 // ── getDetalleFolio ───────────────────────────────────────────────────────────
 describe('getDetalleFolio', () => {
-  test('retorna líneas del folio', async () => {
+  test('retorna líneas del folio con campos de reporte', async () => {
     const filas = [
       {
-        Folio: 1001,
-        CodProd: 'P001',
-        DesProd: 'Producto A',
-        CantFacturada: 10,
-        TotLinea: 100000,
-        pct_descuento: 5,
+        Folio: 376524,
+        CodProd: 'TAFA0001',
+        DesProd: 'FILTRO ABSOLUTO 10x2.5  0.2micras',
+        CantFacturada: 6,
+        TotLinea: 322836,
+        PreUniMB: 59187,
+        PreUniMVta: 53806,
+        PorcDescMov01: 9.0915,
       },
     ];
     mockRequest.query.mockResolvedValueOnce({ recordset: filas });
-    const result = await getDetalleFolio({ folio: 1001 });
-    expect(result).toEqual(filas);
+    const result = await getDetalleFolio({ folio: 376524 });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({
+      Folio: 376524,
+      CodProd: 'TAFA0001',
+      CantFacturada: 6,
+      TotLinea: 322836,
+      precio_vta: 53806,
+      precio_real: 59187,
+      neto_real: 355122,
+      neto_total: 322836,
+    }));
+    expect(result[0].dcto).toBeCloseTo(9.09, 2);
   });
 
   test('retorna array vacío si el folio no tiene líneas', async () => {
