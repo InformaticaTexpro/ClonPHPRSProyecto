@@ -144,7 +144,10 @@
       catch { throw new Error('Respuesta inesperada del servidor.'); }
 
       if (!res.ok || !data.ok) {
-        mostrarError(data.error || 'Credenciales incorrectas.');
+        const mensajeFallback = res.status === 429
+          ? 'Demasiados intentos. Intenta nuevamente en unos minutos.'
+          : 'Credenciales incorrectas o usuario inactivo.';
+        mostrarError(data.error || mensajeFallback);
         setLoading(false);
         return;
       }

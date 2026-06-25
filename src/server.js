@@ -76,9 +76,15 @@ app.use((req, res, next) => {
   next();
 });
 
+const LOGIN_RATE_LIMIT_WINDOW_MS = Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || (15 * 60 * 1000));
+const LOGIN_RATE_LIMIT_MAX = Number(
+  process.env.LOGIN_RATE_LIMIT_MAX
+  || (process.env.NODE_ENV === 'production' ? 10 : 25)
+);
+
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+  max: LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: 'Demasiados intentos. Intenta en 15 minutos.' },
