@@ -11,7 +11,6 @@
  * - Agrega el acceso al módulo Gerencia en el sidebar para usuarios administradores.
 
  * - Carga la sidebar central por módulos desplegables cuando existe #sidebarNav.
- main
  */
 
 (function () {
@@ -147,7 +146,6 @@
     });
   }
 
-arivera
   async function obtenerUsuarioActual() {
     const token = getToken();
     if (!token) return null;
