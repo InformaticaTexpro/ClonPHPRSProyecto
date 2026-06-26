@@ -161,6 +161,14 @@ async function getTotalesFolios(folios, extraSelect = '') {
   return result.recordset;
 }
 
+function calcularPctDescuento(montoCobrado, montoLista) {
+  const cobrado = Number(montoCobrado || 0);
+  const lista = Number(montoLista || 0);
+  if (!Number.isFinite(cobrado) || !Number.isFinite(lista) || lista <= 0) return 0;
+  const pct = (1 - (cobrado / lista)) * 100;
+  return Math.max(0, Math.round(pct * 100) / 100);
+}
+
 router.get('/resumen', async (req, res) => {
   const codigos = getCodigos(req.usuario);
   let mes, anio;
@@ -354,6 +362,10 @@ router.get('/ventas-mes', async (req, res) => {
       TotLineaReal: Math.round(Number(v.TotLineaReal || 0)),
     }));
 
+    ventas.forEach(v => {
+      v.pct_descuento = calcularPctDescuento(v.monto, v.TotLineaReal);
+    });
+
     const totalesCompartidos = await getTotalesFolios(foliosCompartidos);
     const porFolio = new Map(totalesCompartidos.map(r => [Number(r.Folio), r]));
     const participaciones = calcularParticipaciones(compartidos, codigos);
@@ -382,6 +394,7 @@ router.get('/ventas-mes', async (req, res) => {
         cod_vendedor_principal: p.cod_vendedor_principal,
         cod_vendedor_compartido: p.cod_vendedor_compartido,
       });
+      ventas[ventas.length - 1].pct_descuento = calcularPctDescuento(montoAsignado, listaAsignada);
     }
 
     ventas.sort((a, b) => Number(b.Folio) - Number(a.Folio));
