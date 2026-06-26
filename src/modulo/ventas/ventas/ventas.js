@@ -106,7 +106,7 @@
   }
 
   function esCoordinador(usuario) {
-    return (usuario.vendedores || []).some(v => v.tipo === 'C');
+    return (usuario.vendedores || []).some(v => String(v.tipo || '').trim().toUpperCase() === 'C');
   }
 
   // ── Detalle de productos por folio ────────────────────────────────────────
