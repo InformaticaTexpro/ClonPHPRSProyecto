@@ -25,6 +25,18 @@ let cacheTS = 0;
 
 const tlsAgent = new https.Agent({ keepAlive: true });
 
+function respuestaNoDisponible() {
+  return {
+    ok: true,
+    disponible: false,
+    dolar: null,
+    uf: null,
+    fuente: 'Sin datos disponibles',
+    actualizadoEn: null,
+    stale: false,
+  };
+}
+
 // ─── HTTP/HTTPS helper ────────────────────────────────────────────────────────
 function fetchJson(url, reintentos = 3) {
   return new Promise((resolve, reject) => {
@@ -113,7 +125,9 @@ async function fetchMindicador(indicador) {
 // ─── Orquestador ──────────────────────────────────────────────────────────────
 async function obtenerIndicadores() {
   const ahora = Date.now();
-  if (cache && (ahora - cacheTS) < CACHE_TTL_MS) return cache;
+  if (cache && (ahora - cacheTS) < CACHE_TTL_MS) {
+    return { ...cache, disponible: true, stale: false };
+  }
 
   let dolar, uf, fuente;
 
@@ -142,7 +156,7 @@ async function obtenerIndicadores() {
     }
   }
 
-  cache = { ok: true, dolar, uf, fuente, actualizadoEn: new Date().toISOString() };
+  cache = { ok: true, dolar, uf, fuente, actualizadoEn: new Date().toISOString(), disponible: true, stale: false };
   cacheTS = ahora;
   return cache;
 }
@@ -154,7 +168,10 @@ router.get('/', async (_req, res) => {
     res.json(data);
   } catch (err) {
     console.error('[indicadores]', err.message);
-    res.status(502).json({ ok: false, error: 'No se pudo obtener los indicadores económicos.' });
+    if (cache) {
+      return res.json({ ...cache, disponible: true, stale: true });
+    }
+    res.json(respuestaNoDisponible());
   }
 });
 

@@ -223,6 +223,12 @@ async function getDetalleFolio({ folio }) {
       tprod.DesProd,
       gmovi.CantFacturada,
       gmovi.TotLinea,
+      gmovi.PreUniMB,
+      gmovi.PreUniMVta,
+      gmovi.PreUniMOrig,
+      gmovi.PorcDescMov01,
+      gmovi.DescMov01,
+      gmovi.TotalDescMov,
       tprod.PrecioVta,
       ${divisorCASE}                                              AS divisor_historico,
       CASE WHEN cvl.CodCan = 301 THEN 1.10 ELSE 1.0 END          AS factor_canal,
@@ -262,6 +268,12 @@ async function getDetalleFolio({ folio }) {
     DesProd,
     CantFacturada,
     TotLinea,
+    PreUniMB,
+    PreUniMVta,
+    PreUniMOrig,
+    PorcDescMov01,
+    DescMov01,
+    TotalDescMov,
     precio_unitario_cobrado,
     precio_unitario_cobrado_hist,
     PrecioVta,
@@ -282,7 +294,35 @@ async function getDetalleFolio({ folio }) {
   ORDER BY CodProd
   `);
 
-  return result.recordset;
+  return result.recordset.map(row => {
+    const cantFacturada = Number(row.CantFacturada) || 0;
+    const totLinea      = Number(row.TotLinea) || 0;
+    const precioRealUnit = Number(row.PreUniMB);
+    const precioReal     = Number.isFinite(precioRealUnit) && precioRealUnit > 0
+      ? Math.round(precioRealUnit)
+      : null;
+    const precioVtaUnit  = cantFacturada > 0 ? totLinea / cantFacturada : null;
+    const netoReal       = Number.isFinite(precioRealUnit) && precioRealUnit > 0
+      ? Math.round(precioRealUnit * cantFacturada)
+      : null;
+    const netoTotal  = Math.round(totLinea);
+    const dcto       = netoReal && netoReal > 0
+      ? Math.max(0, Math.round(((1 - (netoTotal / netoReal)) * 100) * 100) / 100)
+      : null;
+
+    return {
+      ...row,
+      TotLinea:           netoTotal,
+      PrecioVta:          Number.isFinite(Number(row.PrecioVta)) ? Math.round(Number(row.PrecioVta)) : null,
+      precio_vta:         Number.isFinite(precioVtaUnit) ? Math.round(precioVtaUnit) : null,
+      precio_real:        precioReal,
+      neto_real:          netoReal,
+      neto_total:         netoTotal,
+      dcto,
+      precio_unitario_cobrado:    Number.isFinite(precioVtaUnit) ? Math.round(precioVtaUnit) : null,
+      valor_cobrado_linea:        netoTotal,
+    };
+  });
 }
 
 async function getDescuentosVendedor({ codigos, mes, anio }) {

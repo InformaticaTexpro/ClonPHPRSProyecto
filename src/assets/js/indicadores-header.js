@@ -221,6 +221,11 @@ function cargarSidebarModulos() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) throw new Error(data?.error || 'HTTP ' + res.status);
+      if (data.disponible === false) {
+        el.innerHTML = '<span class="hind-error" title="Indicadores no disponibles temporalmente">USD/UF —</span>';
+        el.title = 'Indicadores no disponibles temporalmente';
+        return;
+      }
 
       const horaActualiz = new Date(data.actualizadoEn || Date.now()).toLocaleTimeString('es-CL', {
         hour: '2-digit', minute: '2-digit',
@@ -237,7 +242,7 @@ function cargarSidebarModulos() {
           <span class="hind-valor hind-valor--uf">$${fmt(data.uf?.valor, 2)}</span>
         </span>
       `;
-      el.title = `Fuente: ${data.fuente || 'indicadores'} | Última actualización: ${horaActualiz}`;
+      el.title = `Fuente: ${data.fuente || 'indicadores'}${data.stale ? ' (caché)' : ''} | Última actualización: ${horaActualiz}`;
     } catch (err) {
       console.warn('[indicadores-header]', err.message);
       el.innerHTML = '<span class="hind-error" title="No se pudo consultar /api/indicadores">USD/UF —</span>';

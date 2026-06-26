@@ -71,6 +71,21 @@ describe('POST /api/auth/login', () => {
     expect(res.body.user.id).toBe(1);
   });
 
+  test('acepta nombre de usuario además de email', async () => {
+    mockDbQuery
+      .mockResolvedValueOnce([[fakeUser]])
+      .mockResolvedValueOnce([[{ cod_vendedor: 'V001', tipo: 'P' }]]);
+    verifyPasswordDjango.mockReturnValueOnce(true);
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ usuario: 'Ana', password: 'correcta123' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.user.nombre).toBe('Ana');
+  });
+
   test('devuelve 401 con contraseña incorrecta', async () => {
     mockDbQuery.mockResolvedValueOnce([[fakeUser]]);
     verifyPasswordDjango.mockReturnValueOnce(false);

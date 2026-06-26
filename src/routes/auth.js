@@ -21,13 +21,25 @@ const { requireAuth }          = require('../middlewares/requireAuth');
 const JWT_SECRET  = process.env.JWT_SECRET;
 const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '8h';
 
+function normalizarLogin(valor) {
+  return String(valor || '').trim().toLowerCase();
+}
+
+function normalizarVendedores(vendedores) {
+  return (vendedores || []).map(v => ({
+    ...v,
+    cod_vendedor: String(v?.cod_vendedor || '').trim(),
+    tipo: String(v?.tipo || '').trim().toUpperCase(),
+  }));
+}
+
 // â”€â”€ POST /api/auth/login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/login', async (req, res) => {
   // Acepta tanto { email } (frontend actual) como { usuario } (retrocompat)
   const { email, usuario, password } = req.body;
-  const emailFinal = (email || usuario || '').trim().toLowerCase();
+  const loginFinal = normalizarLogin(email || usuario);
 
-  if (!emailFinal || !password) {
+  if (!loginFinal || !password) {
     return res.status(400).json({ ok: false, error: 'Email y contraseña requeridos' });
   }
 
@@ -35,9 +47,11 @@ router.post('/login', async (req, res) => {
     const [rows] = await db.pool.query(
       `SELECT u.id, u.email, u.nombre, u.password, u.area, u.is_admin, u.is_active
        FROM usuario u
-       WHERE u.email = ?
+       WHERE LOWER(TRIM(u.email)) = ?
+          OR LOWER(TRIM(u.nombre)) = ?
+          OR LOWER(TRIM(COALESCE(u.codigo, ''))) = ?
        LIMIT 1`,
-      [emailFinal]
+      [loginFinal, loginFinal, loginFinal]
     );
 
     const user = rows[0];
@@ -59,6 +73,7 @@ router.post('/login', async (req, res) => {
       `SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?`,
       [user.id]
     );
+    const vendedoresNormalizados = normalizarVendedores(vendedores);
 
     const payload = {
       id:        user.id,
@@ -67,7 +82,7 @@ router.post('/login', async (req, res) => {
       nombre:    user.nombre,
       area:      user.area,
       is_admin:  user.is_admin,
-      vendedores,
+      vendedores: vendedoresNormalizados,
     };
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
@@ -100,7 +115,8 @@ router.get('/me', requireAuth, async (req, res) => {
       `SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?`,
       [user.id]
     );
-    res.json({ ok: true, user: { ...user, vendedores } });
+    const vendedoresNormalizados = normalizarVendedores(vendedores);
+    res.json({ ok: true, user: { ...user, vendedores: vendedoresNormalizados } });
   } catch (err) {
     console.error('[GET /api/auth/me]', err.message);
     res.status(500).json({ ok: false, error: 'Error interno' });
@@ -157,7 +173,7 @@ router.post('/refresh', async (req, res) => {
       `SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?`,
       [user.id]
     );
-
+    const vendedoresNormalizados = normalizarVendedores(vendedores);
     const nuevoPayload = {
       id:        user.id,
       sub:       user.id,
@@ -165,7 +181,7 @@ router.post('/refresh', async (req, res) => {
       nombre:    user.nombre,
       area:      user.area,
       is_admin:  user.is_admin,
-      vendedores,
+      vendedores: vendedoresNormalizados,
     };
     const nuevoToken = jwt.sign(nuevoPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 
