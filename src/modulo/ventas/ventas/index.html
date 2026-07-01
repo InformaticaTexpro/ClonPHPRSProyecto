@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.7" />
-  <link rel="stylesheet" href="ventas.css?v=1.3.2" />
+  <link rel="stylesheet" href="ventas.css?v=1.3.3" />
 </head>
 <body>
 
@@ -104,13 +104,15 @@
       </div>
 
       <!-- PANEL COORDINADOR -->
-      <section class="tabla-seccion" id="panelCoordinador" style="display:none">
-        <div class="tabla-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">Compartir Folio con Vendedor</h3>
+      <section class="tabla-seccion panel-coordinador" id="panelCoordinador" style="display:none">
+        <div class="tabla-card coord-card panel-coordinador__share-card">
+          <div class="coord-card-header panel-coordinador__header">
+            <div class="coord-card-icon panel-coordinador__share-icon" aria-hidden="true">🤝</div>
+            <h3 class="coord-card-title panel-coordinador__title">Compartir Folio con Vendedor</h3>
+            <p class="coord-card-subtitle panel-coordinador__subtitle">Asigna un porcentaje de participación de un folio a otro vendedor.</p>
           </div>
-          <div class="coord-form">
-            <div class="coord-form-row">
+          <div class="coord-form panel-coordinador__form">
+            <div class="coord-form-row panel-coordinador__form-grid">
               <div class="coord-form-group">
                 <label class="coord-label" for="coordFolio">Folio</label>
                 <select class="filtro-select" id="coordFolio"><option value="">— Selecciona un folio —</option></select>
@@ -119,13 +121,16 @@
                 <label class="coord-label" for="coordVendedor">Vendedor</label>
                 <select class="filtro-select" id="coordVendedor"><option value="">— Selecciona vendedor —</option></select>
               </div>
-              <div class="coord-form-group coord-form-group--sm">
+              <div class="coord-form-group coord-form-group--sm panel-coordinador__field">
                 <label class="coord-label" for="coordPorcentaje">% Participación</label>
-                <input class="filtro-select" type="number" id="coordPorcentaje" min="1" max="100" value="100" />
+                <div class="coord-input-group panel-coordinador__percent-group">
+                  <input class="filtro-select coord-input-group__input" type="number" id="coordPorcentaje" min="1" max="100" value="100" />
+                  <span class="coord-input-group__addon" aria-hidden="true">%</span>
+                </div>
               </div>
-              <div class="coord-form-group coord-form-group--btn">
+              <div class="coord-form-group coord-form-group--btn panel-coordinador__field">
                 <label class="coord-label">&nbsp;</label>
-                <button class="btn-buscar" id="btnCompartir">
+                <button class="btn-buscar panel-coordinador__button" id="btnCompartir">
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
                   Compartir
                 </button>
@@ -133,11 +138,13 @@
             </div>
             <p class="coord-mensaje" id="coordMensaje"></p>
           </div>
-          <div class="tabla-header" style="margin-top:1.5rem">
-            <h3 class="tabla-titulo">Folios Asignados</h3>
+        </div>
+        <div class="tabla-card coord-assigned-card panel-coordinador__assigned-card">
+          <div class="tabla-header coord-assigned-header panel-coordinador__assigned-header">
+            <h3 class="tabla-titulo panel-coordinador__assigned-title">Folios Asignados</h3>
             <span class="tabla-total" id="totalAsignados">0 registros</span>
           </div>
-          <div class="tabla-wrapper">
+          <div class="tabla-wrapper coord-assigned-wrap panel-coordinador__table-wrapper">
             <table class="dash-tabla">
               <thead>
                 <tr>
@@ -158,7 +165,7 @@
 
       <!-- PANEL COMPARTIDOS (vendedor) -->
       <section class="tabla-seccion" id="panelCompartidos" style="display:none">
-        <div class="tabla-card">
+        <div class="tabla-card coord-assigned-card panel-coordinador__assigned-card">
           <div class="tabla-header">
             <h3 class="tabla-titulo">Ventas Compartidas Conmigo</h3>
             <span class="tabla-total" id="totalCompartidos">0 registros</span>

@@ -3,24 +3,22 @@
 /**
  * indicadores.js — Dólar observado y UF
  *
- * Fuente primaria : Banco Central de Chile
- *   Requiere BCCH_USER y BCCH_PASS en .env
- *   NOTA: las credenciales deben ser de la API REST (si3.bcentral.cl),
- *   NO del portal web. Son sistemas separados.
- *   Registro en: https://si3.bcentral.cl/estadisticas/Principal1/inicio/index.htm
- *
- * Fuente fallback : mindicador.cl
- *   Se usa TLS verificado por Node; si la llamada falla, responde el fallback.
- *
- * Caché: 30 minutos.
+ * Fuente única: mindicador.cl
+ * - Mantiene caché por 30 minutos.
+ * - Si mindicador.cl falla y existe caché, devuelve stale:true.
+ * - Si no hay caché, responde disponible:false sin provocar 502.
  */
 
 const express = require('express');
-const https   = require('https');
-const router  = express.Router();
+const https = require('https');
+
+const router = express.Router();
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-let cache   = null;
+const FETCH_TIMEOUT_MS = 7000;
+const FETCH_REINTENTOS = 2;
+
+let cache = null;
 let cacheTS = 0;
 
 const tlsAgent = new https.Agent({ keepAlive: true });
@@ -31,27 +29,26 @@ function respuestaNoDisponible() {
     disponible: false,
     dolar: null,
     uf: null,
-    fuente: 'Sin datos disponibles',
+    fuente: 'mindicador.cl',
     actualizadoEn: null,
     stale: false,
   };
 }
 
-// ─── HTTP/HTTPS helper ────────────────────────────────────────────────────────
-function fetchJson(url, reintentos = 3) {
+function fetchJson(url, reintentos = FETCH_REINTENTOS) {
   return new Promise((resolve, reject) => {
-    const u    = new URL(url);
+    const u = new URL(url);
     const opts = {
-      hostname : u.hostname,
-      port     : u.port || 443,
-      path     : u.pathname + u.search,
-      method   : 'GET',
-      agent    : tlsAgent,
-      headers  : { 'User-Agent': 'RSProyecto/1.0', 'Accept': 'application/json' },
+      hostname: u.hostname,
+      port: u.port || 443,
+      path: u.pathname + u.search,
+      method: 'GET',
+      agent: tlsAgent,
+      headers: { 'User-Agent': 'RSProyecto/1.0', Accept: 'application/json' },
     };
 
     const req = https.request(opts, (res) => {
-      if ([301,302,307,308].includes(res.statusCode) && res.headers.location) {
+      if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
         const next = res.headers.location.startsWith('http')
           ? res.headers.location
@@ -59,22 +56,26 @@ function fetchJson(url, reintentos = 3) {
         fetchJson(next, reintentos).then(resolve).catch(reject);
         return;
       }
+
       const chunks = [];
-      res.on('data', c => chunks.push(c));
+      res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => {
         const raw = Buffer.concat(chunks).toString('utf8').trim();
         if (!raw.startsWith('{') && !raw.startsWith('[')) {
-          return reject(new Error('No-JSON(' + res.statusCode + '): ' + raw.substring(0, 120)));
+          return reject(new Error(`No-JSON(${res.statusCode}): ${raw.substring(0, 120)}`));
         }
-        try   { resolve(JSON.parse(raw)); }
-        catch (e) { reject(new Error('JSON inválido: ' + e.message)); }
+        try {
+          resolve(JSON.parse(raw));
+        } catch (err) {
+          reject(new Error(`JSON inválido: ${err.message}`));
+        }
       });
     });
 
-    req.setTimeout(12000, () => req.destroy(new Error('timeout')));
+    req.setTimeout(FETCH_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
     req.on('error', async (err) => {
       if (reintentos > 1) {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 750));
         fetchJson(url, reintentos - 1).then(resolve).catch(reject);
       } else {
         reject(err);
@@ -84,34 +85,8 @@ function fetchJson(url, reintentos = 3) {
   });
 }
 
-// ─── Banco Central ────────────────────────────────────────────────────────────
-async function fetchBCCH(serie) {
-  const user = (process.env.BCCH_USER || '').trim();
-  const pass = (process.env.BCCH_PASS || '').trim();
-  if (!user || !pass) throw new Error('BCCH_USER/BCCH_PASS no configurados en .env');
-
-  const hoy    = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-  const inicio = new Date(Date.now() - 10 * 86400000)
-                   .toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-
-  const qs  = new URLSearchParams({ function: 'GetSeries', user, pass, timeseries: serie, firstdate: inicio, lastdate: hoy });
-  const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?${qs}`;
-  const data = await fetchJson(url);
-
-  if (data?.Codigo !== 200) {
-    throw new Error(`BCCH error ${data?.Codigo}: ${data?.Descripcion ?? JSON.stringify(data).substring(0,80)}`);
-  }
-
-  const obs = (data?.Series?.Obs ?? []).filter(o => o.value && o.value !== 'NaN');
-  if (!obs.length) throw new Error('BCCH: sin observaciones válidas');
-
-  const ult = obs.at(-1);
-  return { valor: parseFloat(ult.value), fecha: ult.indexDateString };
-}
-
-// ─── mindicador.cl ────────────────────────────────────────────────────────────
 async function fetchMindicador(indicador) {
-  const data  = await fetchJson(`https://mindicador.cl/api/${indicador}`);
+  const data = await fetchJson(`https://mindicador.cl/api/${indicador}`);
   const serie = data?.serie;
   if (!Array.isArray(serie) || !serie.length) throw new Error(`Sin serie: ${indicador}`);
   const ult = serie[0];
@@ -122,46 +97,38 @@ async function fetchMindicador(indicador) {
   };
 }
 
-// ─── Orquestador ──────────────────────────────────────────────────────────────
 async function obtenerIndicadores() {
   const ahora = Date.now();
   if (cache && (ahora - cacheTS) < CACHE_TTL_MS) {
     return { ...cache, disponible: true, stale: false };
   }
 
-  let dolar, uf, fuente;
-
-  // Intento 1: Banco Central
   try {
-    [dolar, uf] = await Promise.all([
-      fetchBCCH('F073.TCO.PRE.Z.D'),
-      fetchBCCH('F073.UF.PRE.Z.D'),
+    const [dolar, uf] = await Promise.all([
+      fetchMindicador('dolar'),
+      fetchMindicador('uf'),
     ]);
-    fuente = 'Banco Central de Chile';
-    console.log(`[indicadores] OK — ${fuente} | Dólar: ${dolar.valor} | UF: ${uf.valor}`);
-  } catch (eBCCH) {
-    console.warn(`[indicadores] BCCH falló: ${eBCCH.message} — usando mindicador.cl`);
 
-    // Intento 2: mindicador.cl
-    try {
-      [dolar, uf] = await Promise.all([
-        fetchMindicador('dolar'),
-        fetchMindicador('uf'),
-      ]);
-      fuente = 'mindicador.cl';
-      console.log(`[indicadores] OK — ${fuente} | Dólar: ${dolar.valor} | UF: ${uf.valor}`);
-    } catch (eMind) {
-      console.error(`[indicadores] Ambas fuentes fallaron | BCCH: ${eBCCH.message} | mindicador: ${eMind.message}`);
-      throw new Error('Sin fuente disponible');
+    cache = {
+      ok: true,
+      dolar,
+      uf,
+      fuente: 'mindicador.cl',
+      actualizadoEn: new Date().toISOString(),
+      disponible: true,
+      stale: false,
+    };
+    cacheTS = ahora;
+    return cache;
+  } catch (err) {
+    console.warn(`[indicadores] mindicador.cl falló: ${err.message}`);
+    if (cache) {
+      return { ...cache, disponible: true, stale: true };
     }
+    return respuestaNoDisponible();
   }
-
-  cache = { ok: true, dolar, uf, fuente, actualizadoEn: new Date().toISOString(), disponible: true, stale: false };
-  cacheTS = ahora;
-  return cache;
 }
 
-// ─── Endpoint ─────────────────────────────────────────────────────────────────
 router.get('/', async (_req, res) => {
   try {
     const data = await obtenerIndicadores();

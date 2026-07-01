@@ -56,6 +56,23 @@
     if (el) el.style[prop] = value;
   }
 
+  function nombreVisibleUsuario(usuario) {
+    return String(usuario?.nombre || usuario?.usuario || usuario?.email || 'Usuario').trim() || 'Usuario';
+  }
+
+  function nombreCortoUsuario(nombre) {
+    const limpio = String(nombre || 'Usuario').trim();
+    if (!limpio) return 'Usuario';
+    return limpio.split(/\s+/)[0] || limpio;
+  }
+
+  function actualizarSaludoUsuario(usuario) {
+    const nombreCompleto = nombreVisibleUsuario(usuario);
+    const nombreCorto = nombreCortoUsuario(nombreCompleto);
+    setText('welcomeTitle', `Hola, ${nombreCorto} 👋`);
+    setText('welcomeSubtitle', nombreCompleto);
+  }
+
   // ── Spinner ───────────────────────────────────────────────────────────────
   let cargaOverlay = null;
 
@@ -480,13 +497,16 @@
       .filter(m => !m.area || m.area.includes(area))
       .map(m => `<a href="${m.url}" class="sidebar-link ${m.url==='index.html'?'active':''}"><span class="sidebar-icon">${m.icon}</span><span>${m.nombre}</span></a>`)
       .join('');
-    setText('userName', usuario.nombre || usuario.usuario || 'Usuario');
-    setText('chipName', usuario.nombre || usuario.usuario || 'Usuario');
+    const nombreCompleto = nombreVisibleUsuario(usuario);
+    const nombreCorto = nombreCortoUsuario(nombreCompleto);
+    setText('userName', nombreCompleto);
+    setText('chipName', nombreCompleto);
     setText('userArea', usuario.area || '');
-    const inicial = (usuario.nombre || usuario.usuario || '?').charAt(0).toUpperCase();
+    const inicial = nombreCorto.charAt(0).toUpperCase();
     setText('userAvatar', inicial);
     setText('chipAvatar', inicial);
     setText('headerDate', new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' }));
+    actualizarSaludoUsuario(usuario);
     document.getElementById('btnLogout')?.addEventListener('click', () => { localStorage.removeItem('token'); window.location.href='../../varios/login/index.html'; });
     document.getElementById('sidebarToggle')?.addEventListener('click', () => {
       document.getElementById('sidebar')?.classList.toggle('sidebar--collapsed');
@@ -558,7 +578,6 @@
   async function iniciarPanelCoordinador() {
     setStyle('panelCoordinador', 'display', 'block');
     setStyle('panelCompartidos', 'display', 'none');
-    await Promise.all([ cargarListaVendedores(), cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
 
     const btnCompartir = document.getElementById('btnCompartir');
     if (btnCompartir) btnCompartir.addEventListener('click', async () => {
@@ -590,6 +609,14 @@
         if (msgEl2) { msgEl2.textContent = `❌ ${err.message}`; msgEl2.style.color = 'var(--color-danger)'; }
       }
     });
+  }
+
+  async function refrescarVista() {
+    const esCoord = esCoordinador(_usuarioActual);
+    await cargarVentas();
+    if (esCoord) {
+      await Promise.all([cargarListaVendedores(), cargarFoliosParaCompartir(), cargarFoliosAsignados()]);
+    }
   }
 
   async function cargarFoliosParaCompartir() {
@@ -807,9 +834,9 @@
       setStyle('panelCoordinador', 'display', 'none');
     }
 
-    await cargarVentas();
+    await refrescarVista();
 
-    document.getElementById('btnActualizar')?.addEventListener('click', cargarVentas);
+    document.getElementById('btnActualizar')?.addEventListener('click', refrescarVista);
     document.getElementById('btnGenerarPDF')?.addEventListener('click', generarPDF);
   });
 
