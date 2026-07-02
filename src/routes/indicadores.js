@@ -3,9 +3,9 @@
 /**
  * indicadores.js — Dólar observado y UF
  *
- * Fuente única: mindicador.cl
+ * Fuente única: findic.cl
  * - Mantiene caché por 30 minutos.
- * - Si mindicador.cl falla y existe caché, devuelve stale:true.
+ * - Si findic.cl falla y existe caché, devuelve stale:true.
  * - Si no hay caché, responde disponible:false sin provocar 502.
  */
 
@@ -15,7 +15,7 @@ const https = require('https');
 const router = express.Router();
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const FETCH_TIMEOUT_MS = 7000;
+const FETCH_TIMEOUT_MS = 5000;
 const FETCH_REINTENTOS = 2;
 
 let cache = null;
@@ -29,7 +29,7 @@ function respuestaNoDisponible() {
     disponible: false,
     dolar: null,
     uf: null,
-    fuente: 'mindicador.cl',
+    fuente: 'findic.cl',
     actualizadoEn: null,
     stale: false,
   };
@@ -85,14 +85,14 @@ function fetchJson(url, reintentos = FETCH_REINTENTOS) {
   });
 }
 
-async function fetchMindicador(indicador) {
-  const data = await fetchJson(`https://mindicador.cl/api/${indicador}`);
+async function fetchFindic(indicador) {
+  const data = await fetchJson(`https://findic.cl/api/${indicador}`);
   const serie = data?.serie;
   if (!Array.isArray(serie) || !serie.length) throw new Error(`Sin serie: ${indicador}`);
   const ult = serie[0];
-  if (ult?.valor == null) throw new Error(`Valor null: ${indicador}`);
+  if (ult?.valor == null || Number.isNaN(Number(ult.valor))) throw new Error(`Valor null: ${indicador}`);
   return {
-    valor: ult.valor,
+    valor: Number(ult.valor),
     fecha: String(ult.fecha ?? '').substring(0, 10),
   };
 }
@@ -105,15 +105,15 @@ async function obtenerIndicadores() {
 
   try {
     const [dolar, uf] = await Promise.all([
-      fetchMindicador('dolar'),
-      fetchMindicador('uf'),
+      fetchFindic('dolar'),
+      fetchFindic('uf'),
     ]);
 
     cache = {
       ok: true,
       dolar,
       uf,
-      fuente: 'mindicador.cl',
+      fuente: 'findic.cl',
       actualizadoEn: new Date().toISOString(),
       disponible: true,
       stale: false,
@@ -121,7 +121,7 @@ async function obtenerIndicadores() {
     cacheTS = ahora;
     return cache;
   } catch (err) {
-    console.warn(`[indicadores] mindicador.cl falló: ${err.message}`);
+    console.warn(`[indicadores] findic.cl falló: ${err.message}`);
     if (cache) {
       return { ...cache, disponible: true, stale: true };
     }
