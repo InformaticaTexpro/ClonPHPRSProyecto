@@ -55,6 +55,69 @@ function normalizarVendedores(vendedores) {
   }));
 }
 
+function normalizarMenus(menus) {
+  return (menus || [])
+    .map(menu => ({
+      id: Number(menu?.id) || menu?.id || null,
+      codigo: String(menu?.codigo || '').trim(),
+      nombre: String(menu?.nombre || '').trim(),
+      url: String(menu?.url || '').trim(),
+      icono: String(menu?.icono || '').trim(),
+      grupo: String(menu?.grupo || 'General').trim() || 'General',
+      orden: Number(menu?.orden ?? 0) || 0,
+    }))
+    .filter(menu => menu.id !== null && menu.url);
+}
+
+async function cargarMenusAsignados(usuarioId) {
+  const [rows] = await db.pool.query(
+    `SELECT DISTINCT
+        m.id,
+        m.codigo,
+        m.nombre,
+        m.url,
+        m.icono,
+        m.grupo,
+        m.orden
+     FROM usuario_menu um
+     INNER JOIN menu m ON m.id = um.menu_id
+     WHERE um.usuario_id = ?
+       AND um.activo = 1
+       AND m.activo = 1
+     ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC`,
+    [usuarioId]
+  );
+
+  return normalizarMenus(rows);
+}
+
+async function cargarCatalogoMenus() {
+  const [rows] = await db.pool.query(
+    `SELECT
+        m.id,
+        m.codigo,
+        m.nombre,
+        m.url,
+        m.icono,
+        m.grupo,
+        m.orden
+     FROM menu m
+     WHERE m.activo = 1
+     ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC`
+  );
+
+  return normalizarMenus(rows);
+}
+
+async function cargarMenusUsuario(usuarioId) {
+  const [menus, allMenus] = await Promise.all([
+    cargarMenusAsignados(usuarioId),
+    cargarCatalogoMenus(),
+  ]);
+
+  return { menus, allMenus };
+}
+
 // â”€â”€ POST /api/auth/login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/login', async (req, res) => {
   // Acepta tanto { email } (frontend actual) como { usuario } (retrocompat)
@@ -128,6 +191,7 @@ router.post('/login', async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
+    const { menus, allMenus } = await cargarMenusUsuario(user.id);
 
     const payload = {
       id:        user.id,
@@ -137,6 +201,7 @@ router.post('/login', async (req, res) => {
       area:      user.area,
       is_admin:  user.is_admin,
       vendedores: vendedoresNormalizados,
+      menus,
     };
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
@@ -145,6 +210,7 @@ router.post('/login', async (req, res) => {
       ok:    true,
       token,
       user:  { ...payload },
+      allMenus,
     });
 
   } catch (err) {
@@ -170,7 +236,8 @@ router.get('/me', requireAuth, async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
-    res.json({ ok: true, user: { ...user, vendedores: vendedoresNormalizados } });
+    const { menus, allMenus } = await cargarMenusUsuario(user.id);
+    res.json({ ok: true, user: { ...user, vendedores: vendedoresNormalizados, menus }, allMenus });
   } catch (err) {
     console.error('[GET /api/auth/me]', err.message);
     res.status(500).json({ ok: false, error: 'Error interno' });
@@ -228,6 +295,7 @@ router.post('/refresh', async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
+    const { menus, allMenus } = await cargarMenusUsuario(user.id);
     const nuevoPayload = {
       id:        user.id,
       sub:       user.id,
@@ -236,10 +304,11 @@ router.post('/refresh', async (req, res) => {
       area:      user.area,
       is_admin:  user.is_admin,
       vendedores: vendedoresNormalizados,
+      menus,
     };
     const nuevoToken = jwt.sign(nuevoPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 
-    res.json({ ok: true, token: nuevoToken });
+    res.json({ ok: true, token: nuevoToken, allMenus });
 
   } catch (err) {
     console.error('[POST /api/auth/refresh]', err.message);
