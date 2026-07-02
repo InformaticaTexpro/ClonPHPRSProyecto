@@ -203,8 +203,6 @@
 function cargarSidebarModulos() {
   if (!document.getElementById('sidebarNav')) return;
   if (window.__APP_SIDEBAR_LOADED__) return;
-
-  window.__APP_SIDEBAR_LOADED__ = true;
   const script = document.createElement('script');
   script.src = '/src/assets/js/app-sidebar.js?v=1.0.0';
   script.defer = true;

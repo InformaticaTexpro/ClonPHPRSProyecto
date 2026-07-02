@@ -204,3 +204,7 @@
 @media (max-width: 640px) {
   .header-indicadores { display: none; }
 }
+
+.sidebar-nav:empty {
+  visibility: hidden;
+}
