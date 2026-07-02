@@ -15,12 +15,16 @@ describe('validarMesAnio — validación de parámetros de fecha', () => {
     expect(result).toEqual({ mes: 3, anio: 2026 });
   });
 
-  test('mes 1 (enero) es válido', () => {
-    expect(() => validarMesAnio('1', '2025')).not.toThrow();
+  test('mes 1 (enero) es válido desde 2026', () => {
+    expect(() => validarMesAnio('1', '2026')).not.toThrow();
   });
 
-  test('mes 12 (diciembre) es válido', () => {
-    expect(() => validarMesAnio('12', '2025')).not.toThrow();
+  test('mes 12 (diciembre) es válido desde 2026', () => {
+    expect(() => validarMesAnio('12', '2026')).not.toThrow();
+  });
+
+  test('año 2025 lanza error por debajo del mínimo operativo', () => {
+    expect(() => validarMesAnio('1', '2025')).toThrow();
   });
 
   test('mes 13 lanza error', () => {

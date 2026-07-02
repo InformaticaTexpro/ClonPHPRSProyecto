@@ -223,7 +223,7 @@
       });
     }
     if (selAnio) {
-      for (let y = _anio; y >= 2023; y--) {
+      for (let y = _anio; y >= 2026; y--) {
         const o = document.createElement('option');
         o.value = y; o.textContent = y;
         if (y === _anio) o.selected = true;
@@ -736,3 +736,4 @@
   else init();
 
 })();
+

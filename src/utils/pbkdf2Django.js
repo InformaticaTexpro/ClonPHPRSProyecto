@@ -45,25 +45,34 @@ function parseDjangoHash(encoded) {
  * @returns {boolean}
  */
 function verifyPasswordDjango(password, encoded) {
-  const parsed = parseDjangoHash(encoded);
-
-  if (parsed.algorithm !== 'pbkdf2_sha256') {
-    throw new Error(`Algoritmo no soportado: ${parsed.algorithm}. Solo se soporta pbkdf2_sha256`);
-  }
-
-  // Django genera 32 bytes (256 bits) con SHA-256
-  const derivedKey      = crypto.pbkdf2Sync(password, parsed.salt, parsed.iterations, 32, 'sha256');
-  const calculatedHash  = derivedKey.toString('base64');
-
-  // Comparación en tiempo constante contra timing attacks
-  const bufA = Buffer.from(calculatedHash);
-  const bufB = Buffer.from(parsed.hash);
-
-  if (bufA.length !== bufB.length) {
+  let parsed;
+  try {
+    parsed = parseDjangoHash(encoded);
+  } catch {
     return false;
   }
 
-  return crypto.timingSafeEqual(bufA, bufB);
+  if (parsed.algorithm !== 'pbkdf2_sha256') {
+    return false;
+  }
+
+  try {
+    // Django genera 32 bytes (256 bits) con SHA-256
+    const derivedKey     = crypto.pbkdf2Sync(password, parsed.salt, parsed.iterations, 32, 'sha256');
+    const calculatedHash = derivedKey.toString('base64');
+
+    // Comparación en tiempo constante contra timing attacks
+    const bufA = Buffer.from(calculatedHash);
+    const bufB = Buffer.from(parsed.hash);
+
+    if (bufA.length !== bufB.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
 }
 /**
  * Genera un hash Django PBKDF2-SHA256 compatible con 600.000 iteraciones.

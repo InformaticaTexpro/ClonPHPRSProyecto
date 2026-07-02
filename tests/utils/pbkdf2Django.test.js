@@ -95,9 +95,14 @@ describe('verifyPasswordDjango', () => {
     expect(verifyPasswordDjango('MiClave', alterado)).toBe(false);
   });
 
-  test('lanza Error si el algoritmo no es pbkdf2_sha256', () => {
+  test('retorna false si el algoritmo no es pbkdf2_sha256', () => {
     const encoded = 'bcrypt$12$saltXYZ$hashXYZ';
-    expect(() => verifyPasswordDjango('pass', encoded)).toThrow();
+    expect(verifyPasswordDjango('pass', encoded)).toBe(false);
+  });
+
+  test('retorna false si el hash es null o vacío', () => {
+    expect(verifyPasswordDjango('pass', null)).toBe(false);
+    expect(verifyPasswordDjango('pass', '')).toBe(false);
   });
 
   test('distingue contraseñas con diferente capitalización', () => {

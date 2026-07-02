@@ -565,8 +565,10 @@
 }
 
 #panelCoordinador .coord-form {
-  max-width: none;
+  max-width: 1160px;
   width: 100%;
+  margin: 0 auto;
+  padding-inline: 28px;
 }
 
 #panelCoordinador .coord-card-header {
@@ -574,5 +576,8 @@
 }
 
 #panelCoordinador .coord-form-row {
+  width: 100%;
+  margin: 0 auto;
+  justify-content: center;
   grid-template-columns: minmax(240px, 1.2fr) minmax(240px, 1.2fr) minmax(220px, 280px) minmax(170px, 190px);
 }
