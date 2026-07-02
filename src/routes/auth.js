@@ -14,7 +14,7 @@ const express                  = require('express');
 const router                   = express.Router();
 const jwt                      = require('jsonwebtoken');
 const db                       = require('../config/db');
-const { verifyPasswordDjango } = require('../utils/pbkdf2Django');
+const { verifyPasswordDjango, parseDjangoHash } = require('../utils/pbkdf2Django');
 const { updateLastLogin }      = require('../models/usuario');
 const { requireAuth }          = require('../middlewares/requireAuth');
 
@@ -23,6 +23,28 @@ const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '8h';
 
 function normalizarLogin(valor) {
   return String(valor || '').trim().toLowerCase();
+}
+
+function logLoginFailure(motivo, detalle = {}) {
+  const logData = {
+    login: detalle.login || '',
+    userId: detalle.userId || null,
+    email: detalle.email || '',
+    passwordState: detalle.passwordState || '',
+  };
+  console.warn(`[POST /api/auth/login] ${motivo}`, logData);
+}
+
+function describirPasswordGuardado(encoded) {
+  if (!encoded || !String(encoded).trim()) return 'password_vacio';
+
+  try {
+    const parsed = parseDjangoHash(encoded);
+    if (parsed.algorithm !== 'pbkdf2_sha256') return 'formato_no_soportado';
+    return 'ok';
+  } catch {
+    return 'formato_no_soportado';
+  }
 }
 
 function normalizarVendedores(vendedores) {
@@ -47,8 +69,8 @@ router.post('/login', async (req, res) => {
     const [rows] = await db.pool.query(
       `SELECT u.id, u.email, u.nombre, u.password, u.area, u.is_admin, u.is_active
        FROM usuario u
-       WHERE LOWER(TRIM(u.email)) = ?
-          OR LOWER(TRIM(u.nombre)) = ?
+       WHERE LOWER(TRIM(COALESCE(u.email, ''))) = ?
+          OR LOWER(TRIM(COALESCE(u.nombre, ''))) = ?
           OR LOWER(TRIM(COALESCE(u.codigo, ''))) = ?
        LIMIT 1`,
       [loginFinal, loginFinal, loginFinal]
@@ -56,12 +78,44 @@ router.post('/login', async (req, res) => {
 
     const user = rows[0];
     if (!user || !user.is_active) {
+      logLoginFailure(user ? 'usuario_inactivo' : 'usuario_no_encontrado', {
+        login: loginFinal,
+        userId: user?.id,
+        email: user?.email,
+      });
+      return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
+    }
+
+    const passwordState = describirPasswordGuardado(user.password);
+    if (passwordState === 'password_vacio') {
+      logLoginFailure('password_vacio', {
+        login: loginFinal,
+        userId: user.id,
+        email: user.email,
+        passwordState,
+      });
+      return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
+    }
+
+    if (passwordState === 'formato_no_soportado') {
+      logLoginFailure('formato_no_soportado', {
+        login: loginFinal,
+        userId: user.id,
+        email: user.email,
+        passwordState,
+      });
       return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
     }
 
     // Las contraseÃ±as estÃ¡n en formato PBKDF2-SHA256 de Django (600.000 iter)
     const match = verifyPasswordDjango(password, user.password);
     if (!match) {
+      logLoginFailure('password_incorrecta', {
+        login: loginFinal,
+        userId: user.id,
+        email: user.email,
+        passwordState,
+      });
       return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
     }
 
