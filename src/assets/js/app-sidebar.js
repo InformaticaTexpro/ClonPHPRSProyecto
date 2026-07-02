@@ -2,158 +2,175 @@
 
 /**
  * app-sidebar.js
- * Sidebar central por módulos desplegables.
- * Visibilidad: todos los módulos son visibles.
- * Acceso: usuario.area + usuario.is_admin.
+ * Sidebar central basado en catálogo completo de menús activos.
+ * - Todos los módulos se muestran.
+ * - El acceso se controla al entrar, no al visualizar.
  */
 (function () {
   window.__APP_SIDEBAR_LOADED__ = true;
-  const AREA_ADMIN = ['admin', 'gerencia'];
+
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
-
-  const NAV_MODULOS = [
-    {
-      nombre: 'Ventas',
-      icon: '📊',
-      areas: ['ventas', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/ventas/dashboard/index.html',
-      items: [
-        { nombre: 'Dashboard', icon: '🏠', url: '/src/modulo/ventas/dashboard/index.html' },
-        { nombre: 'Ventas Asignadas', icon: '🤝', url: '/src/modulo/ventas/ventas/index.html' },
-        { nombre: 'Historial Cliente', icon: '📋', url: '/src/modulo/ventas/historial-cliente/index.html' },
-      ],
-    },
-    {
-      nombre: 'Producción',
-      icon: '⚙️',
-      areas: ['produccion', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/produccion/produccion/index.html',
-      items: [
-        { nombre: 'Producción', icon: '⚙️', url: '/src/modulo/produccion/produccion/index.html' },
-      ],
-    },
-    {
-      nombre: 'Bodega',
-      icon: '🏭',
-      areas: ['bodega', 'produccion', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/bodega/bodega/index.html',
-      items: [
-        { nombre: 'Bodega', icon: '🏭', url: '/src/modulo/bodega/bodega/index.html' },
-      ],
-    },
-    {
-      nombre: 'Servicio Técnico',
-      icon: '🛠️',
-      areas: ['servicio-tecnico', 'servicio', 'serv-tecnico', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/servtecnico/servicio-tecnico/index.html',
-      items: [
-        { nombre: 'Servicio Técnico', icon: '🛠️', url: '/src/modulo/servtecnico/servicio-tecnico/index.html' },
-      ],
-    },
-    {
-      nombre: 'Facturación',
-      icon: '🧾',
-      areas: ['facturacion', 'contabilidad', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/facturacion/facturacion/index.html',
-      items: [
-        { nombre: 'Facturación', icon: '🧾', url: '/src/modulo/facturacion/facturacion/index.html' },
-      ],
-    },
-    {
-      nombre: 'RRHH',
-      icon: '👥',
-      areas: ['rrhh', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/rrhh/rrhh/index.html',
-      items: [
-        { nombre: 'RRHH', icon: '👥', url: '/src/modulo/rrhh/rrhh/index.html' },
-      ],
-    },
-    {
-      nombre: 'Contabilidad',
-      icon: '📜',
-      areas: ['contabilidad', 'gerencia', 'admin'],
-      mainUrl: '/src/modulo/contabilidad/contabilidad/index.html',
-      items: [
-        { nombre: 'Contabilidad', icon: '📜', url: '/src/modulo/contabilidad/contabilidad/index.html' },
-        { nombre: 'Cobranza', icon: '💰', url: '/src/modulo/cobranza/cobranza/index.html' },
-      ],
-    },
-    {
-      nombre: 'Administración',
-      icon: '🔧',
-      areas: ['admin'],
-      mainUrl: '/src/modulo/admin/admin/index.html',
-      items: [
-        { nombre: 'Administración', icon: '🔧', url: '/src/modulo/admin/admin/index.html' },
-      ],
-    },
-    {
-      nombre: 'Gerencia',
-      icon: '📈',
-      areas: ['gerencia', 'admin'],
-      mainUrl: '/src/modulo/gerencia/index.html',
-      items: [
-        { nombre: 'Gerencia', icon: '📈', url: '/src/modulo/gerencia/index.html' },
-      ],
-    },
-  ];
-
   const EXTRA_ITEMS = [
-    { nombre: 'Alertas', icon: '🔔', url: '/src/modulo/varios/alertas/index.html', badge: true },
+    { id: 'extra-alertas', codigo: 'alertas', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', icono: '🔔', grupo: 'General', orden: 1, extra: true },
   ];
 
-  function normalizarArea(area) {
-    return String(area || '')
+  function normalizarTexto(valor) {
+    return String(valor || '')
       .trim()
-      .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '-');
+      .replace(/[\u0300-\u036f]/g, '');
   }
 
-  function esAdmin(usuario) {
-    const area = normalizarArea(usuario?.area);
-    return Boolean(usuario?.is_admin) || AREA_ADMIN.includes(area);
-  }
-
-  function puedeAccederModulo(modulo, usuario) {
-    if (esAdmin(usuario)) return true;
-    const area = normalizarArea(usuario?.area);
-    if (!area) return false;
-    return modulo.areas.map(normalizarArea).includes(area);
+  function normalizarUrl(url) {
+    let valor = String(url || '').trim();
+    if (!valor) return '';
+    if (!valor.startsWith('/')) valor = `/${valor}`;
+    valor = valor.replace(/\/+$/, '');
+    valor = valor.replace(/\/index\.html$/, '/index.html');
+    return valor;
   }
 
   function rutaActual() {
-    return window.location.pathname.replace(/\/index\.html$/, '/index.html');
+    return normalizarUrl(window.location.pathname);
+  }
+
+  function normalizarMenus(menus) {
+    return (menus || [])
+      .map(menu => ({
+        id: menu?.id ?? null,
+        codigo: normalizarTexto(menu?.codigo),
+        nombre: String(menu?.nombre || '').trim(),
+        url: normalizarUrl(menu?.url),
+        icono: String(menu?.icono || '').trim() || '•',
+        grupo: String(menu?.grupo || 'General').trim() || 'General',
+        orden: Number(menu?.orden ?? 0) || 0,
+        extra: Boolean(menu?.extra),
+      }))
+      .filter(menu => menu.id !== null && menu.nombre && menu.url);
+  }
+
+  function construirCatalogo(allMenus) {
+    const catalogo = normalizarMenus(allMenus);
+    const map = new Map(catalogo.map(menu => [menu.url, menu]));
+
+    EXTRA_ITEMS.forEach(item => {
+      const url = normalizarUrl(item.url);
+      if (!map.has(url)) {
+        map.set(url, {
+          id: item.id,
+          codigo: normalizarTexto(item.codigo),
+          nombre: String(item.nombre || '').trim(),
+          url,
+          icono: String(item.icono || '').trim() || '•',
+          grupo: String(item.grupo || 'General').trim() || 'General',
+          orden: Number(item.orden ?? 0) || 0,
+          extra: true,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  function agruparMenus(menus) {
+    const grupos = new Map();
+
+    menus.forEach(menu => {
+      const nombreGrupo = menu.grupo || 'General';
+      if (!grupos.has(nombreGrupo)) {
+        grupos.set(nombreGrupo, {
+          nombre: nombreGrupo,
+          orden: Number.isFinite(menu.orden) ? menu.orden : 0,
+          icono: menu.icono || '📁',
+          items: [],
+        });
+      }
+
+      const grupo = grupos.get(nombreGrupo);
+      grupo.items.push(menu);
+      grupo.orden = Math.min(grupo.orden, Number.isFinite(menu.orden) ? menu.orden : 0);
+      if (!grupo.icono && menu.icono) grupo.icono = menu.icono;
+    });
+
+    return Array.from(grupos.values())
+      .map(grupo => ({
+        ...grupo,
+        items: grupo.items.sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es')),
+      }))
+      .sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  function crearIndicePermisos(permisos) {
+    const permitidos = normalizarMenus(permisos);
+    const ids = new Set();
+    const codigos = new Set();
+    const urls = new Set();
+
+    permitidos.forEach(menu => {
+      if (menu.id !== null && menu.id !== undefined) ids.add(String(menu.id));
+      if (menu.codigo) codigos.add(menu.codigo);
+      if (menu.url) urls.add(menu.url);
+    });
+
+    return { ids, codigos, urls };
+  }
+
+  function tienePermiso(menu, indice) {
+    return indice.ids.has(String(menu.id))
+      || (menu.codigo && indice.codigos.has(menu.codigo))
+      || indice.urls.has(menu.url);
   }
 
   function itemActivo(item) {
     return rutaActual() === item.url;
   }
 
-  function moduloActivo(modulo) {
-    return modulo.items.some(itemActivo);
+  function grupoActivo(grupo) {
+    return grupo.items.some(itemActivo);
   }
 
-  function urlSinAcceso(modulo) {
+  function menuPorRuta(catalogo, pathname) {
+    const path = normalizarUrl(pathname);
+    return catalogo.find(menu => menu.url === path) || null;
+  }
+
+  function urlSinAcceso(menu, fromUrl) {
     const params = new URLSearchParams({
-      modulo: modulo.nombre,
-      from: rutaActual(),
+      modulo: menu?.nombre || 'Módulo restringido',
+      from: normalizarUrl(fromUrl || rutaActual()),
     });
     return `${NO_ACCESS_URL}?${params.toString()}`;
   }
 
-  function moduloPorRuta(pathname) {
-    const path = pathname.replace(/\/index\.html$/, '/index.html');
-    return NAV_MODULOS.find(modulo => modulo.items.some(item => item.url === path));
+  function extraerUsuario(data) {
+    const user = data?.user || data?.usuario || data || null;
+    if (!user) return null;
+    return {
+      ...user,
+      menus: Array.isArray(user.menus) ? user.menus : [],
+    };
   }
 
-  function validarAccesoPaginaActual(usuario) {
-    if (rutaActual() === NO_ACCESS_URL) return;
-    const modulo = moduloPorRuta(rutaActual());
-    if (!modulo) return;
-    if (puedeAccederModulo(modulo, usuario)) return;
-    window.location.href = urlSinAcceso(modulo);
+  function extraerCatalogo(data) {
+    return data?.allMenus
+      || data?.menusDisponibles
+      || data?.user?.allMenus
+      || data?.user?.menusDisponibles
+      || [];
+  }
+
+  function validarAccesoPaginaActual(catalogo, usuario, indicePermisos) {
+    const actual = rutaActual();
+    if (!actual || actual === NO_ACCESS_URL) return;
+
+    const menuActual = menuPorRuta(catalogo, actual);
+    if (!menuActual) return;
+
+    if (menuActual.extra) return;
+
+    if (!tienePermiso(menuActual, indicePermisos)) {
+      window.location.href = urlSinAcceso(menuActual, actual);
+    }
   }
 
   function inyectarEstilos() {
@@ -161,6 +178,19 @@
     const style = document.createElement('style');
     style.id = 'appSidebarStyles';
     style.textContent = `
+      .nav-loading,
+      .nav-empty {
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:14px 12px;
+        margin:8px 0 4px;
+        border-radius:12px;
+        background:rgba(255,255,255,.05);
+        color:rgba(255,255,255,.68);
+        font-size:.82rem;
+        font-weight:600;
+      }
       .nav-module { display:flex; flex-direction:column; gap:2px; }
       .nav-module-btn {
         width:100%; display:flex; align-items:center; gap:10px;
@@ -171,11 +201,9 @@
       }
       .nav-module-btn:hover { background:rgba(255,255,255,.07); color:#fff; }
       .nav-module-btn.is-open { color:#fff; background:rgba(255,255,255,.08); }
-      .nav-module.is-locked .nav-module-btn { color:rgba(255,255,255,.42); }
-      .nav-module.is-locked .nav-module-btn:hover { color:rgba(255,255,255,.72); }
       .nav-module-icon { width:20px; min-width:20px; text-align:center; font-size:1rem; }
       .nav-module-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .nav-module-lock { font-size:.75rem; opacity:.55; }
+      .nav-module-lock { font-size:.75rem; opacity:.72; }
       .nav-module-chevron { font-size:.72rem; opacity:.7; transition:transform .16s; }
       .nav-module-btn.is-open .nav-module-chevron { transform:rotate(90deg); }
       .nav-subitems { display:none; flex-direction:column; gap:2px; margin:2px 0 6px 26px; }
@@ -187,15 +215,15 @@
       }
       .nav-subitem:hover { background:rgba(255,255,255,.07); color:#fff !important; }
       .nav-subitem.active { background:var(--color-primary,#00E2A7); color:#000 !important; font-weight:700; }
-      .nav-subitem.is-locked { color:rgba(255,255,255,.38) !important; }
-      .nav-subitem.is-locked:hover { color:rgba(255,255,255,.68) !important; }
+      .nav-subitem.is-locked { color:rgba(255,255,255,.42) !important; }
+      .nav-subitem.is-locked:hover { color:rgba(255,255,255,.72) !important; }
+      .nav-subitem .nav-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .nav-extra-badge {
         display:inline-flex; align-items:center; justify-content:center;
         min-width:18px; height:18px; margin-left:auto; padding:0 5px;
         border-radius:999px; background:#fff; color:#0f5d52;
         font-size:.68rem; font-weight:700; line-height:1;
       }
-      #sidebarNav:empty { visibility:hidden; }
       .sidebar--collapsed .nav-module-label,
       .sidebar--collapsed .nav-module-chevron,
       .sidebar--collapsed .nav-module-lock,
@@ -205,46 +233,52 @@
     document.head.appendChild(style);
   }
 
-  function renderModulo(modulo, usuario) {
-    const permitido = puedeAccederModulo(modulo, usuario);
-    const abierto = moduloActivo(modulo);
+  function renderGrupo(grupo, indicePermisos) {
+    const abierto = grupoActivo(grupo);
     return `
-      <div class="nav-module ${abierto ? 'is-open' : ''} ${permitido ? '' : 'is-locked'}">
+      <div class="nav-module ${abierto ? 'is-open' : ''}">
         <button class="nav-module-btn ${abierto ? 'is-open' : ''}" type="button" aria-expanded="${abierto ? 'true' : 'false'}">
-          <span class="nav-module-icon">${modulo.icon}</span>
-          <span class="nav-module-label">${modulo.nombre}</span>
-          ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+          <span class="nav-module-icon">${grupo.icono || '📁'}</span>
+          <span class="nav-module-label">${grupo.nombre}</span>
           <span class="nav-module-chevron">▶</span>
         </button>
         <div class="nav-subitems">
-          ${modulo.items.map(item => {
-            const href = permitido ? item.url : urlSinAcceso(modulo);
+          ${grupo.items.map(item => {
+            const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
+            const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
             return `
               <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
-                <span>${item.icon}</span><span class="nav-label">${item.nombre}</span>${permitido ? '' : '<span title="Sin acceso">🔒</span>'}
+                <span>${item.icono}</span>
+                <span class="nav-label">${item.nombre}</span>
+                ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+                ${item.extra ? '<span class="nav-extra-badge" id="navBadgeAlertas" style="display:none">0</span>' : ''}
               </a>
             `;
           }).join('')}
         </div>
-      </div>`;
+      </div>
+    `;
   }
 
-  function renderSidebar(usuario) {
+  function renderSidebar(data) {
     const nav = document.getElementById('sidebarNav');
     if (!nav) return;
 
     inyectarEstilos();
 
+    const usuario = extraerUsuario(data);
+    const catalogo = construirCatalogo(extraerCatalogo(data));
+    const indicePermisos = crearIndicePermisos(usuario?.menus);
+    const grupos = agruparMenus(catalogo);
+
+    if (!grupos.length) {
+      nav.innerHTML = '<div class="nav-empty">Sin menús activos</div>';
+      return;
+    }
+
     nav.innerHTML = `
-      <span class="nav-section-title">MÓDULOS</span>
-      ${NAV_MODULOS.map(modulo => renderModulo(modulo, usuario)).join('')}
-      <span class="nav-section-title">GENERAL</span>
-      ${EXTRA_ITEMS.map(item => `
-        <a class="nav-item ${itemActivo(item) ? 'active' : ''}" href="${item.url}">
-          <span style="font-size:1rem">${item.icon}</span><span class="nav-label">${item.nombre}</span>
-          ${item.badge ? '<span class="nav-extra-badge" id="navBadgeAlertas" style="display:none">0</span>' : ''}
-        </a>
-      `).join('')}
+      <span class="nav-section-title">MENÚ</span>
+      ${grupos.map(grupo => renderGrupo(grupo, indicePermisos)).join('')}
     `;
 
     nav.querySelectorAll('.nav-module-btn').forEach(btn => {
@@ -258,13 +292,18 @@
     });
   }
 
-  async function getUsuarioActual() {
+  async function obtenerContextoSidebar() {
     try {
       const token = localStorage.getItem('token');
       if (!token) return null;
-      const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      return data?.user || null;
+
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) return null;
+      const data = await res.json().catch(() => null);
+      return data || null;
     } catch (err) {
       console.warn('[app-sidebar] No se pudo obtener usuario:', err.message);
       return null;
@@ -272,10 +311,23 @@
   }
 
   async function init() {
-    const usuario = await getUsuarioActual();
-    if (!usuario) return;
-    validarAccesoPaginaActual(usuario);
-    renderSidebar(usuario);
+    const nav = document.getElementById('sidebarNav');
+    if (nav) {
+      inyectarEstilos();
+      nav.innerHTML = '<div class="nav-loading">Cargando menú...</div>';
+    }
+
+    const data = await obtenerContextoSidebar();
+    if (!data?.user) {
+      if (nav) nav.innerHTML = '<div class="nav-empty">Sin sesión activa</div>';
+      return;
+    }
+
+    const usuario = extraerUsuario(data);
+    const catalogo = construirCatalogo(extraerCatalogo(data));
+    const indicePermisos = crearIndicePermisos(usuario?.menus);
+    validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
+    renderSidebar(data);
   }
 
   if (document.readyState === 'loading') {
