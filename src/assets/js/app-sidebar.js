@@ -7,6 +7,7 @@
  * Acceso: usuario.area + usuario.is_admin.
  */
 (function () {
+  window.__APP_SIDEBAR_LOADED__ = true;
   const AREA_ADMIN = ['admin', 'gerencia'];
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
 
@@ -86,10 +87,19 @@
         { nombre: 'Administración', icon: '🔧', url: '/src/modulo/admin/admin/index.html' },
       ],
     },
+    {
+      nombre: 'Gerencia',
+      icon: '📈',
+      areas: ['gerencia', 'admin'],
+      mainUrl: '/src/modulo/gerencia/index.html',
+      items: [
+        { nombre: 'Gerencia', icon: '📈', url: '/src/modulo/gerencia/index.html' },
+      ],
+    },
   ];
 
   const EXTRA_ITEMS = [
-    { nombre: 'Alertas', icon: '🔔', url: '/src/modulo/varios/alertas/index.html' },
+    { nombre: 'Alertas', icon: '🔔', url: '/src/modulo/varios/alertas/index.html', badge: true },
   ];
 
   function normalizarArea(area) {
@@ -179,6 +189,13 @@
       .nav-subitem.active { background:var(--color-primary,#00E2A7); color:#000 !important; font-weight:700; }
       .nav-subitem.is-locked { color:rgba(255,255,255,.38) !important; }
       .nav-subitem.is-locked:hover { color:rgba(255,255,255,.68) !important; }
+      .nav-extra-badge {
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:18px; height:18px; margin-left:auto; padding:0 5px;
+        border-radius:999px; background:#fff; color:#0f5d52;
+        font-size:.68rem; font-weight:700; line-height:1;
+      }
+      #sidebarNav:empty { visibility:hidden; }
       .sidebar--collapsed .nav-module-label,
       .sidebar--collapsed .nav-module-chevron,
       .sidebar--collapsed .nav-module-lock,
@@ -225,6 +242,7 @@
       ${EXTRA_ITEMS.map(item => `
         <a class="nav-item ${itemActivo(item) ? 'active' : ''}" href="${item.url}">
           <span style="font-size:1rem">${item.icon}</span><span class="nav-label">${item.nombre}</span>
+          ${item.badge ? '<span class="nav-extra-badge" id="navBadgeAlertas" style="display:none">0</span>' : ''}
         </a>
       `).join('')}
     `;
