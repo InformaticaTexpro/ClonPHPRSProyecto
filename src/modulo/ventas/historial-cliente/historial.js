@@ -137,7 +137,7 @@
       if (usuario.is_admin) return true;
       return m.area.includes(usuario.area);
     });
-    if (nav) {
+    if (!window.__APP_SIDEBAR_LOADED__ && nav) {
       nav.innerHTML = `<span class="nav-section-title">NAVEGACI\u00d3N</span>
         ${visibles.map(m => `
           <a class="nav-item${m.activo ? ' active' : ''}" href="${m.url}">

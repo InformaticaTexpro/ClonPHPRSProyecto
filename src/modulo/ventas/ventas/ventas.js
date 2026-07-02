@@ -493,7 +493,7 @@
     const nav = document.getElementById('sidebarNav');
     if (!nav) return;
     const area = (usuario.area || '').toLowerCase();
-    nav.innerHTML = MODULOS
+    if (!window.__APP_SIDEBAR_LOADED__) nav.innerHTML = MODULOS
       .filter(m => !m.area || m.area.includes(area))
       .map(m => `<a href="${m.url}" class="sidebar-link ${m.url==='index.html'?'active':''}"><span class="sidebar-icon">${m.icon}</span><span>${m.nombre}</span></a>`)
       .join('');
