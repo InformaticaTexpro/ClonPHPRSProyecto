@@ -12,9 +12,11 @@ const rtrim = (str) => (str ? str.trimEnd() : '');
  * Lanza Error si los valores provistos son inválidos o potencialmente maliciosos.
  *
  * @param {string|undefined} mes  - Mes como string (1-12). Opcional.
- * @param {string|undefined} anio - Año como string (2000-2100). Opcional.
+ * @param {string|undefined} anio - Año como string (2026-2100). Opcional.
  * @returns {{ mes: number, anio: number }}
  */
+const ANIO_MINIMO_OPERATIVO = 2026;
+
 const validarMesAnio = (mes, anio) => {
   const ahora = new Date();
 
@@ -27,7 +29,7 @@ const validarMesAnio = (mes, anio) => {
     throw new Error(`Mes inválido: "${mes}". Debe ser un número entero entre 1 y 12.`);
   }
   if (!/^\d+$/.test(aStr)) {
-    throw new Error(`Año inválido: "${anio}". Debe ser un número entero entre 2000 y 2100.`);
+    throw new Error(`Año inválido: "${anio}". Debe ser un número entero entre ${ANIO_MINIMO_OPERATIVO} y 2100.`);
   }
 
   const m = parseInt(mStr, 10);
@@ -36,11 +38,11 @@ const validarMesAnio = (mes, anio) => {
   if (m < 1 || m > 12) {
     throw new Error(`Mes inválido: ${mStr}. Debe estar entre 1 y 12`);
   }
-  if (a < 2000 || a > 2100) {
-    throw new Error(`Año inválido: ${aStr}. Debe estar entre 2000 y 2100`);
+  if (a < ANIO_MINIMO_OPERATIVO || a > 2100) {
+    throw new Error(`Año inválido: ${aStr}. Debe estar entre ${ANIO_MINIMO_OPERATIVO} y 2100`);
   }
 
   return { mes: m, anio: a };
 };
 
-module.exports = { rtrim, validarMesAnio };
+module.exports = { rtrim, validarMesAnio, ANIO_MINIMO_OPERATIVO };

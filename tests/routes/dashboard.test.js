@@ -83,6 +83,11 @@ describe('GET /api/dashboard/resumen — devuelve KPIs correctos', () => {
     expect(res.status).toBe(400);
   });
 
+  test('retorna 400 con año anterior a 2026', async () => {
+    const res = await request(app).get('/api/dashboard/resumen?mes=6&anio=2025');
+    expect(res.status).toBe(400);
+  });
+
   test('sin vendedores retorna KPIs en cero', async () => {
     // Respuesta Softland sin filas
     mockSoftlandRequest.query.mockResolvedValueOnce({ recordset: [] });
@@ -111,6 +116,11 @@ describe('GET /api/dashboard/evolucion — evolución mensual', () => {
 
   test('año inválido retorna error', async () => {
     const res = await request(app).get('/api/dashboard/evolucion?anio=1990');
+    expect(res.status).toBe(400);
+  });
+
+  test('año 2025 retorna error por debajo del mínimo operativo', async () => {
+    const res = await request(app).get('/api/dashboard/evolucion?anio=2025');
     expect(res.status).toBe(400);
   });
 });

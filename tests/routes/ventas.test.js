@@ -123,6 +123,11 @@ describe('GET /api/ventas — filtra por mes y año correctamente', () => {
     expect(res.status).toBe(400);
   });
 
+  test('año 2025 retorna 400 por mínimo operativo 2026', async () => {
+    const res = await request(app).get('/api/ventas?mes=1&anio=2025');
+    expect(res.status).toBe(400);
+  });
+
   test('sin parámetros usa defaults (mes y año actuales)', async () => {
     getVentas.mockResolvedValueOnce([]);
     const res = await request(app).get('/api/ventas');

@@ -528,7 +528,7 @@
     }
     const selAnio = document.getElementById('filtroAnio');
     if (selAnio) {
-      for (let y = hoy.getFullYear(); y >= 2022; y--) {
+      for (let y = hoy.getFullYear(); y >= 2026; y--) {
         const o = document.createElement('option');
         o.value = y; o.textContent = y;
         if (y === hoy.getFullYear()) o.selected = true;
@@ -841,3 +841,4 @@
   });
 
 })();
+
