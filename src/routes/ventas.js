@@ -63,6 +63,17 @@ function buildInParams(request, valores, prefijo = 'cod') {
   }).join(',');
 }
 
+function buildCarteraExistsClause(codigosIn, aliasCliente = 'c') {
+  return `
+    EXISTS (
+      SELECT 1
+      FROM [PRODIN].[softland].[cwtauxven] av
+      WHERE av.CodAux = ${aliasCliente}.CodAux
+        AND av.VenCod IN (${codigosIn})
+    )
+  `;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Rutas existentes (sin cambios)
 // ────────────────────────────────────────────────────────────────────────────
@@ -293,12 +304,15 @@ router.get('/clientes', requireAuth, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (!q || q.length < 2) return res.json({ ok: true, clientes: [] });
+    const codigos = getCodigos(req);
+    if (!codigos.length) return res.json({ ok: true, clientes: [] });
 
     const qSafe = q.replace(/[%_[\]]/g, c => `[${c}]`);
     const pool = await getSoftlandPool();
     const request = pool.request()
       .input('q1', sql.NVarChar, `%${qSafe}%`)
       .input('q2', sql.NVarChar, `%${qSafe}%`);
+    const codigosIn = buildInParams(request, codigos);
 
     const result = await request.query(`
         SELECT TOP 40
@@ -312,6 +326,7 @@ router.get('/clientes', requireAuth, async (req, res) => {
           RTRIM(c.NomAux) LIKE @q1
           OR c.CodAux     LIKE @q2
         )
+        AND ${buildCarteraExistsClause(codigosIn)}
         ORDER BY RTRIM(c.NomAux)
       `);
     res.json({ ok: true, clientes: result.recordset });
@@ -326,10 +341,14 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
   try {
     const { codAux } = req.query;
     if (!codAux) return res.status(400).json({ ok: false, error: 'Parámetro codAux requerido' });
+    const codigos = getCodigos(req);
+    if (!codigos.length) return res.status(403).json({ ok: false, error: 'Sin permiso para este cliente' });
 
     const pool   = await getSoftlandPool();
-    const result = await pool.request()
-      .input('codAux', sql.VarChar(20), codAux)
+    const request = pool.request()
+      .input('codAux', sql.VarChar(20), codAux);
+    const codigosIn = buildInParams(request, codigos);
+    const result = await request
       .query(`
         SELECT TOP 1
           RTRIM(c.CodAux)           AS rut,
@@ -343,6 +362,7 @@ router.get('/cliente-info', requireAuth, async (req, res) => {
         LEFT JOIN [PRODIN].[softland].[cwtciud] ciud
           ON RTRIM(c.CiuAux) = RTRIM(ciud.CiuCod)
         WHERE c.CodAux = @codAux
+          AND ${buildCarteraExistsClause(codigosIn)}
       `);
 
     if (!result.recordset.length) {
@@ -371,12 +391,15 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
     if (desde > hasta) {
       return res.status(400).json({ ok: false, error: 'La fecha desde no puede ser mayor a hasta' });
     }
+    const codigos = getCodigos(req);
+    if (!codigos.length) return res.json({ ok: true, historial: [] });
 
     const pool = await getSoftlandPool();
     const request = pool.request()
       .input('codAux', sql.VarChar(20), codAux)
       .input('desde',  sql.Date, desde)
       .input('hasta',  sql.Date, hasta);
+    const codigosIn = buildInParams(request, codigos);
 
     const result = await request.query(`
       SELECT
@@ -405,6 +428,7 @@ router.get('/historial-cliente', requireAuth, async (req, res) => {
       WHERE h.Tipo IN ('F', 'N', 'D')
         AND h.Estado <> 'A'
         AND h.CodAux = @codAux
+        AND ${buildCarteraExistsClause(codigosIn, 'h')}
         AND h.Fecha >= @desde
         AND h.Fecha <= @hasta
       ORDER BY h.Fecha DESC, m.CodProd
