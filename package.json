@@ -16,6 +16,8 @@
     "test:softland": "jest src/config/db.softland.test.js --runInBand --forceExit",
     "test:integration": "npm run test:mysql && npm run test:softland",
     "test:unit": "jest tests/ --passWithNoTests",
+    "users:password-status": "node scripts/list-users-password-status.js",
+    "users:migrate-plaintext-passwords": "node scripts/migrate-plaintext-passwords.js",
     "build": "node -e \"console.log('Build OK')\""
   },
   "dependencies": {
