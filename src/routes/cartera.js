@@ -35,6 +35,7 @@ const sql                 = require('mssql');
 const { requireAuth }     = require('../middlewares/requireAuth');
 const db                  = require('../config/db');
 const { getSoftlandPool } = require('../config/db.softland');
+const { validarMesAnio }  = require('../utils/stringHelpers');
 
 router.use(requireAuth);
 
@@ -54,11 +55,35 @@ async function getCodigosVendedor(usuarioId) {
   return rows.map(r => r.cod_vendedor).filter(Boolean);
 }
 
+function buildPeriodoFiltro(mes, anio) {
+  const mesNum = Number(mes);
+  const anioNum = Number(anio);
+  const desde = new Date(Date.UTC(anioNum, mesNum - 1, 1));
+  const hasta = new Date(Date.UTC(anioNum, mesNum, 0));
+  return {
+    mes: mesNum,
+    anio: anioNum,
+    desde: desde.toISOString().slice(0, 10),
+    hasta: hasta.toISOString().slice(0, 10),
+  };
+}
+
 // ── GET /api/cartera ──────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const usuario = req.usuario;
 
   try {
+    const hoy = new Date();
+    let mes, anio;
+    try {
+      ({ mes, anio } = validarMesAnio(
+        req.query.mes ?? (hoy.getMonth() + 1),
+        req.query.anio ?? hoy.getFullYear()
+      ));
+    } catch (err) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    const { desde, hasta } = buildPeriodoFiltro(mes, anio);
     const codigos = await getCodigosVendedor(usuario.sub);
     if (!codigos.length) {
       return res.json({
@@ -72,21 +97,21 @@ router.get('/', async (req, res) => {
 
     const pool      = await getSoftlandPool();
     const request   = pool.request();
+    request.input('desde', sql.Date, desde);
+    request.input('hasta', sql.Date, hasta);
     const inClause  = bindMssqlIn(request, codigos);
 
     // ── CONSULTA ÚNICA: detalle completo de cada cliente con flags de segmento ──
     //
     // Lógica EsRecuperado (3 condiciones):
-    //   C1 — Tiene al menos una compra en el mes actual (año/mes de GETDATE).
-    //   C2 — En la ventana [FechaMinMesActual - 90 días, FechaMinMesActual - 1 día]
+    //   C1 — Tiene compra dentro del período filtrado.
+    //   C2 — En la ventana [FechaMinPeriodo - 90 días, FechaMinPeriodo - 1 día]
     //        NO existe ninguna compra (silencio de 90 días).
-    //        FechaMinMesActual = MIN(Fecha) del cliente en el mes actual,
-    //        para manejar correctamente múltiples compras en el mismo mes.
-    //   C3 — Existe al menos una compra ANTERIOR a (FechaMinMesActual - 90 días),
+    //   C3 — Existe al menos una compra ANTERIOR a (FechaMinPeriodo - 90 días),
     //        confirmando que el cliente tiene historial previo (no es nuevo).
     const resDetalle = await request.query(`
       WITH Clientes AS (
-          SELECT CodAux
+          SELECT DISTINCT CodAux
           FROM [PRODIN].[softland].[cwtauxven]
           WHERE VenCod IN (${inClause})
       ),
@@ -100,18 +125,19 @@ router.get('/', async (req, res) => {
              AND g.CodVendedor IN (${inClause})
              AND g.Tipo IN ('F','N','D')
              AND g.Estado <> 'A'
+             AND g.Fecha <= @hasta
       ),
       ResumenCompras AS (
           SELECT
               CodAux,
-              -- Última compra global
+              -- Última compra hasta el período filtrado
               MAX(Fecha)  AS FechaUltimaCompra,
-              -- Primera compra global (para detectar cliente nuevo)
+              -- Primera compra histórica hasta el período filtrado
               MIN(Fecha)  AS FechaPrimeraCompra,
-              -- Primera compra dentro del mes actual (referencia para C1, C2, C3)
+              -- Primera compra dentro del período filtrado (referencia para C1, C2, C3)
               MIN(CASE
-                  WHEN YEAR(Fecha)  = YEAR(GETDATE())
-                   AND MONTH(Fecha) = MONTH(GETDATE())
+                  WHEN Fecha >= @desde
+                   AND Fecha <= @hasta
                   THEN Fecha
               END) AS FechaMinMesActual
           FROM Compras
@@ -127,27 +153,28 @@ router.get('/', async (req, res) => {
           r.FechaPrimeraCompra,
           r.FechaMinMesActual,
 
-          -- EsActivo: última compra dentro de los últimos 90 días
+          -- EsActivo: última compra dentro de los últimos 90 días respecto al corte filtrado
           CASE
-              WHEN r.FechaUltimaCompra >= DATEADD(DAY, -90, GETDATE()) THEN 1
+              WHEN r.FechaUltimaCompra >= DATEADD(DAY, -90, @hasta) THEN 1
               ELSE 0
           END AS EsActivo,
 
           -- EsInactivo: sin compras en los últimos 90 días (o sin compras)
           CASE
-              WHEN r.FechaUltimaCompra < DATEADD(DAY, -90, GETDATE())
+              WHEN r.FechaUltimaCompra < DATEADD(DAY, -90, @hasta)
                    OR r.FechaUltimaCompra IS NULL THEN 1
               ELSE 0
           END AS EsInactivo,
 
-          -- EsNuevo: primera compra histórica está en el mes actual
+          -- EsNuevo: primera compra histórica está en el período filtrado
           CASE
-              WHEN r.FechaPrimeraCompra >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) THEN 1
+              WHEN r.FechaPrimeraCompra >= @desde
+               AND r.FechaPrimeraCompra <= @hasta THEN 1
               ELSE 0
           END AS EsNuevo,
 
           -- EsRecuperado: las 3 condiciones
-          --   C1: tiene compra en el mes actual (FechaMinMesActual IS NOT NULL)
+          --   C1: tiene compra en el período filtrado (FechaMinMesActual IS NOT NULL)
           --   C2: NO tiene compras en los 90 días previos a FechaMinMesActual
           --       es decir, ninguna compra en [FechaMinMesActual-90d, FechaMinMesActual-1d]
           --   C3: SÍ tiene al menos una compra anterior a (FechaMinMesActual - 90 días)
@@ -161,6 +188,7 @@ router.get('/', async (req, res) => {
                      AND x.CodVendedor IN (${inClause})
                      AND x.Tipo        IN ('F','N','D')
                      AND x.Estado      <> 'A'
+                     AND x.Fecha       <= @hasta
                      AND x.Fecha       >= DATEADD(DAY, -90, r.FechaMinMesActual)
                      AND x.Fecha        < r.FechaMinMesActual
                )
@@ -171,16 +199,17 @@ router.get('/', async (req, res) => {
                      AND y.CodVendedor IN (${inClause})
                      AND y.Tipo        IN ('F','N','D')
                      AND y.Estado      <> 'A'
+                     AND y.Fecha       <= @hasta
                      AND y.Fecha        < DATEADD(DAY, -90, r.FechaMinMesActual)
                )
               THEN 1
               ELSE 0
           END AS EsRecuperado,
 
-          -- EsActivoMesActual: última compra dentro del mes actual
+          -- EsActivoMesActual: última compra dentro del período filtrado
           CASE
-              WHEN r.FechaUltimaCompra >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-               AND r.FechaUltimaCompra <  DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) THEN 1
+              WHEN r.FechaUltimaCompra >= @desde
+               AND r.FechaUltimaCompra <= @hasta THEN 1
               ELSE 0
           END AS EsActivoMesActual
 

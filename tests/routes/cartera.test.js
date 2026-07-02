@@ -51,7 +51,7 @@ app.use('/api/cartera', carteraRouter);
 // ── Tests principales ────────────────────────────────────────────────
 describe('GET /api/cartera', () => {
   test('devuelve ok:true con KPIs y arrays de segmentos', async () => {
-    const res = await request(app).get('/api/cartera');
+    const res = await request(app).get('/api/cartera?mes=6&anio=2026');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body).toHaveProperty('TotalClientes');
@@ -62,7 +62,7 @@ describe('GET /api/cartera', () => {
   });
 
   test('response incluye arrays: total, activos, inactivos, nuevos, recuperados', async () => {
-    const res = await request(app).get('/api/cartera');
+    const res = await request(app).get('/api/cartera?mes=6&anio=2026');
     expect(Array.isArray(res.body.total)).toBe(true);
     expect(Array.isArray(res.body.activos)).toBe(true);
     expect(Array.isArray(res.body.inactivos)).toBe(true);
@@ -72,7 +72,7 @@ describe('GET /api/cartera', () => {
   });
 
   test('parametriza codigos de vendedor en consulta Softland', async () => {
-    await request(app).get('/api/cartera');
+    await request(app).get('/api/cartera?mes=6&anio=2026');
     const sqlQuery = mockSoftlandRequest.query.mock.calls.at(-1)[0];
 
     expect(mockSoftlandRequest.input).toHaveBeenCalledWith('cod0', expect.anything(), 'V001');
@@ -80,8 +80,21 @@ describe('GET /api/cartera', () => {
     expect(sqlQuery).not.toContain("IN ('V001')");
   });
 
+  test('usa mes y anio filtrados para la base de cálculo de cartera', async () => {
+    await request(app).get('/api/cartera?mes=6&anio=2026');
+    const sqlQuery = mockSoftlandRequest.query.mock.calls.at(-1)[0];
+
+    expect(mockSoftlandRequest.input).toHaveBeenCalledWith('desde', expect.anything(), '2026-06-01');
+    expect(mockSoftlandRequest.input).toHaveBeenCalledWith('hasta', expect.anything(), '2026-06-30');
+    expect(sqlQuery).toContain('@desde');
+    expect(sqlQuery).toContain('@hasta');
+    expect(sqlQuery).not.toMatch(/GETDATE\(\)/i);
+    expect(sqlQuery).toMatch(/FechaPrimeraCompra\s*>=\s*@desde/i);
+    expect(sqlQuery).toMatch(/DATEADD\(DAY,\s*-90,\s*@hasta\)/i);
+  });
+
   test('KPIs son números', async () => {
-    const res = await request(app).get('/api/cartera');
+    const res = await request(app).get('/api/cartera?mes=6&anio=2026');
     expect(typeof res.body.TotalClientes).toBe('number');
     expect(typeof res.body.ClientesActivos).toBe('number');
   });
