@@ -101,6 +101,12 @@
 
   function getModuloPrincipal(user) {
     const area = normalizarArea(user?.area);
+    if (area === 'admin' || area === 'administracion') {
+      return DASHBOARD_URL;
+    }
+    if (!MODULOS_PRINCIPALES[area] && user?.is_admin) {
+      return DASHBOARD_URL;
+    }
     return MODULOS_PRINCIPALES[area] || DASHBOARD_URL;
   }
 
@@ -153,6 +159,10 @@
       }
 
       // ── Guardar sesión ──────────────────────────────────────────
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('usuario');
+      sessionStorage.removeItem('texpro_user');
       if (data.token) localStorage.setItem('token', data.token);
       guardarUsuario(data.user);
 
