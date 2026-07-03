@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro — Administración</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="admin.css?v=1.0.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <h1 class="header-title">Administración</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">?</div>
+          <span class="chip-name" id="chipName">...</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="admin-hero">
+        <div class="admin-hero__copy">
+          <span class="admin-kicker">Sistema / Administración</span>
+          <h2>Administración</h2>
+          <p>Gestión preliminar de usuarios, módulos, permisos por menú y asignación usuario ↔ vendedor.</p>
+        </div>
+        <div class="admin-hero__status">
+          <span class="admin-status-pill">Vista preliminar</span>
+          <span class="admin-status-note">Cambios no guardados en servidor</span>
+        </div>
+      </section>
+
+      <section class="admin-kpis-grid" id="adminKpis"></section>
+
+      <nav class="admin-tabs" id="adminTabs" aria-label="Secciones de administración">
+        <button class="admin-tab is-active" data-tab="usuarios" type="button">Usuarios</button>
+        <button class="admin-tab" data-tab="permisos" type="button">Permisos por usuario</button>
+        <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
+        <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
+        <button class="admin-tab" data-tab="asignaciones" type="button">Asignación vendedores</button>
+        <button class="admin-tab" data-tab="auditoria" type="button">Auditoría</button>
+      </nav>
+
+      <section class="admin-panels">
+        <section class="admin-panel is-active" data-panel="usuarios">
+          <div class="panel-card">
+            <div class="panel-card__header">
+              <div>
+                <h3>Usuarios</h3>
+                <p>Vista mock de gestión completa de usuarios y estado.</p>
+              </div>
+              <button class="btn-primary" id="btnNuevoUsuario" type="button">Nuevo usuario</button>
+            </div>
+            <div class="toolbar-grid">
+              <input class="input-control" id="userSearch" type="search" placeholder="Buscar por nombre, email o código" />
+              <select class="input-control" id="userAreaFilter"></select>
+              <select class="input-control" id="userStatusFilter">
+                <option value="">Todos los estados</option>
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+              <select class="input-control" id="userAdminFilter">
+                <option value="">Admin y no admin</option>
+                <option value="admin">Solo admin</option>
+                <option value="no-admin">Solo no admin</option>
+              </select>
+            </div>
+            <div class="table-scroll">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Código vendedor</th>
+                    <th>Área</th>
+                    <th>Estado</th>
+                    <th>Admin</th>
+                    <th>Menús asignados</th>
+                    <th>Última actualización</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="permisos" hidden>
+          <div class="panel-card panel-card--split">
+            <div class="panel-card__header">
+              <div>
+                <h3>Permisos por usuario</h3>
+                <p>Selecciona un usuario y ajusta sus menús permitidos.</p>
+              </div>
+            </div>
+            <div class="permission-topbar">
+              <select class="input-control" id="permUserSelect"></select>
+              <div class="permission-summary">
+                <span class="summary-chip">Permitidos: <strong id="permAllowedCount">0</strong></span>
+                <span class="summary-chip">Bloqueados: <strong id="permBlockedCount">0</strong></span>
+              </div>
+            </div>
+            <div class="permission-actions">
+              <button class="btn-secondary" id="permSelectAll" type="button">Seleccionar todos</button>
+              <button class="btn-secondary" id="permClearAll" type="button">Quitar todos</button>
+              <button class="btn-secondary" id="permRestoreArea" type="button">Restaurar sugeridos por área</button>
+              <button class="btn-primary" id="permSave" type="button">Guardar cambios</button>
+            </div>
+            <div class="permission-grid" id="permGroups"></div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="menus" hidden>
+          <div class="panel-card panel-card--split">
+            <div class="panel-card__header">
+              <div>
+                <h3>Menús y módulos</h3>
+                <p>Catálogo visual editable para preparar el sidebar corporativo.</p>
+              </div>
+              <button class="btn-primary" id="btnNuevoMenu" type="button">Nuevo menú</button>
+            </div>
+            <div class="menus-layout">
+              <div class="table-scroll">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Código</th>
+                      <th>Nombre</th>
+                      <th>Grupo</th>
+                      <th>URL</th>
+                      <th>Icono</th>
+                      <th>Orden</th>
+                      <th>Activo</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="menusTbody"></tbody>
+                </table>
+              </div>
+              <aside class="preview-card">
+                <div class="preview-card__header">
+                  <h4>Previsualización sidebar</h4>
+                  <span class="preview-card__tag">Mock</span>
+                </div>
+                <div id="menusPreview" class="sidebar-preview"></div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="areas" hidden>
+          <div class="panel-card">
+            <div class="panel-card__header">
+              <div>
+                <h3>Áreas</h3>
+                <p>Relación de áreas con permisos sugeridos solo a nivel visual.</p>
+              </div>
+            </div>
+            <div class="areas-grid" id="areasGrid"></div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="asignaciones" hidden>
+          <div class="panel-card panel-card--split">
+            <div class="panel-card__header">
+              <div>
+                <h3>Asignación vendedores</h3>
+                <p>Vista preliminar de relaciones usuario ↔ vendedor.</p>
+              </div>
+            </div>
+            <div class="assignment-form" id="assignmentForm">
+              <select class="input-control" id="assignUserSelect"></select>
+              <input class="input-control" id="assignVendorCode" type="text" placeholder="Código vendedor" />
+              <select class="input-control" id="assignVendorType">
+                <option value="principal">Principal</option>
+                <option value="compartido">Compartido</option>
+                <option value="supervisor">Supervisor</option>
+              </select>
+              <select class="input-control" id="assignStatus">
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+              <button class="btn-primary" id="btnAddAssignment" type="button">Agregar relación</button>
+            </div>
+            <div class="table-scroll">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Código vendedor</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="assignmentsTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="auditoria" hidden>
+          <div class="panel-card">
+            <div class="panel-card__header">
+              <div>
+                <h3>Auditoría / cambios recientes</h3>
+                <p>Vista preliminar con datos de ejemplo.</p>
+              </div>
+            </div>
+            <div id="auditTimeline" class="audit-timeline"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="drawerOverlay" aria-hidden="true">
+    <div class="drawer">
+      <div class="drawer__header">
+        <div>
+          <span class="drawer__kicker">Vista preliminar</span>
+          <h3 id="drawerTitle">Nuevo usuario</h3>
+          <p id="drawerSubtitle">Datos mock sin persistencia en servidor.</p>
+        </div>
+        <button class="drawer__close" id="drawerClose" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="drawer__body" id="drawerBody"></div>
+      <div class="drawer__footer">
+        <button class="btn-secondary" id="drawerSecondary" type="button">Cancelar</button>
+        <button class="btn-secondary" id="drawerDanger" type="button">Desactivar usuario</button>
+        <button class="btn-danger" id="drawerDelete" type="button">Eliminar usuario</button>
+        <button class="btn-primary" id="drawerPrimary" type="button">Guardar borrador visual</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="admin.js?v=1.0.0"></script>
+</body>
+</html>
