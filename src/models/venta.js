@@ -89,8 +89,8 @@ async function getResumenPorVendedor({ codigos, mes, anio }) {
      AND gsaen.NroInt  = gmovi.NroInt
     INNER JOIN [PRODIN].[softland].[cwtvend] cwtvend
       ON cwtvend.VenCod = gsaen.CodVendedor
-    INNER JOIN [PRODIN].[softland].[iw_tprod] tprod
-      ON tprod.CodProd = gmovi.CodProd
+    LEFT JOIN [PRODIN].[softland].[iw_tprod] tprod
+      ON LTRIM(RTRIM(tprod.CodProd)) = LTRIM(RTRIM(gmovi.CodProd))
     LEFT JOIN [PRODIN].[softland].[cwtcvcl] cvl
       ON cvl.CodAux = gsaen.CodAux
     WHERE gsaen.Tipo         IN ('F','N','D')
@@ -229,7 +229,7 @@ async function getDetalleFolio({ folio }) {
       gmovi.PorcDescMov01,
       gmovi.DescMov01,
       gmovi.TotalDescMov,
-      tprod.PrecioVta,
+      tprod.PrecioVta                                           AS precio_real_oficial,
       ${divisorCASE}                                              AS divisor_historico,
       CASE WHEN cvl.CodCan = 301 THEN 1.10 ELSE 1.0 END          AS factor_canal,
       (${precioListaRealCASE})                                    AS precio_lista_real
@@ -274,9 +274,9 @@ async function getDetalleFolio({ folio }) {
     PorcDescMov01,
     DescMov01,
     TotalDescMov,
+    precio_real_oficial,
     precio_unitario_cobrado,
     precio_unitario_cobrado_hist,
-    PrecioVta,
     precio_lista_real,
     precio_lista_real                                                       AS precio_historico_base,
     precio_historico_ajustado,
@@ -297,30 +297,40 @@ async function getDetalleFolio({ folio }) {
   return result.recordset.map(row => {
     const cantFacturada = Number(row.CantFacturada) || 0;
     const totLinea      = Number(row.TotLinea) || 0;
-    const precioRealUnit = Number(row.PreUniMB);
-    const precioReal     = Number.isFinite(precioRealUnit) && precioRealUnit > 0
+    const precioRealUnit = Number(row.precio_real_oficial ?? row.PrecioVta ?? row.PreUniMB);
+    const precioReal     = Number.isFinite(precioRealUnit)
       ? Math.round(precioRealUnit)
       : null;
-    const precioVtaUnit  = cantFacturada > 0 ? totLinea / cantFacturada : null;
-    const netoReal       = Number.isFinite(precioRealUnit) && precioRealUnit > 0
+    const precioVtaUnit  = cantFacturada !== 0 ? totLinea / cantFacturada : null;
+    const precioVta      = Number.isFinite(precioVtaUnit)
+      ? Math.round(precioVtaUnit)
+      : null;
+    const netoReal       = Number.isFinite(precioRealUnit)
       ? Math.round(precioRealUnit * cantFacturada)
       : null;
-    const netoTotal  = Math.round(totLinea);
-    const dcto       = netoReal && netoReal > 0
-      ? Math.max(0, Math.round(((1 - (netoTotal / netoReal)) * 100) * 100) / 100)
+    const netoTotal      = Math.round(totLinea);
+    const dctoPct        = netoReal && netoReal !== 0
+      ? ((netoReal - netoTotal) / netoReal) * 100
+      : null;
+    const dcto           = Number.isFinite(dctoPct)
+      ? Math.round(dctoPct)
       : null;
 
     return {
       ...row,
-      TotLinea:           netoTotal,
-      PrecioVta:          Number.isFinite(Number(row.PrecioVta)) ? Math.round(Number(row.PrecioVta)) : null,
-      precio_vta:         Number.isFinite(precioVtaUnit) ? Math.round(precioVtaUnit) : null,
-      precio_real:        precioReal,
-      neto_real:          netoReal,
-      neto_total:         netoTotal,
+      TotLinea:                 netoTotal,
+      precio_real:              precioReal,
+      precio_vta:               precioVta,
+      neto_real:                netoReal,
+      neto_total:               netoTotal,
       dcto,
-      precio_unitario_cobrado:    Number.isFinite(precioVtaUnit) ? Math.round(precioVtaUnit) : null,
-      valor_cobrado_linea:        netoTotal,
+      PrecioReal:               precioReal,
+      PrecioVta:                precioVta,
+      NetoReal:                 netoReal,
+      NetoTotal:                netoTotal,
+      Dcto:                     dcto,
+      precio_unitario_cobrado:  precioVta,
+      valor_cobrado_linea:      netoTotal,
     };
   });
 }

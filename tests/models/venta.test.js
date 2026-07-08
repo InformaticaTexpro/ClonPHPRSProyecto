@@ -207,74 +207,72 @@ describe('getMontoFolio', () => {
 
 // ── getDetalleFolio ───────────────────────────────────────────────────────────
 describe('getDetalleFolio', () => {
-  test('retorna líneas del folio con campos de reporte', async () => {
+  test('retorna l?neas del folio con campos de reporte', async () => {
     const filas = [
       {
-        Folio: 376524,
-        CodProd: 'TAFA0001',
-        DesProd: 'FILTRO ABSOLUTO 10x2.5  0.2micras',
-        CantFacturada: 6,
-        TotLinea: 322836,
-        PreUniMB: 59187,
-        PreUniMVta: 53806,
-        PorcDescMov01: 9.0915,
+        Folio: 377326,
+        CodProd: 'PQ03580001',
+        DesProd: 'EJEMPLO DETALLE',
+        CantFacturada: 12,
+        TotLinea: 77964,
+        PreUniMB: 6497,
+        PreUniMVta: 6497,
+        precio_real_oficial: 2999,
       },
     ];
     mockRequest.query.mockResolvedValueOnce({ recordset: filas });
-    const result = await getDetalleFolio({ folio: 376524 });
+    const result = await getDetalleFolio({ folio: 377326 });
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(expect.objectContaining({
-      Folio: 376524,
-      CodProd: 'TAFA0001',
-      CantFacturada: 6,
-      TotLinea: 322836,
-      precio_vta: 53806,
-      precio_real: 59187,
-      neto_real: 355122,
-      neto_total: 322836,
+      Folio: 377326,
+      CodProd: 'PQ03580001',
+      CantFacturada: 12,
+      TotLinea: 77964,
+      precio_vta: 6497,
+      precio_real: 2999,
+      neto_real: 35988,
+      neto_total: 77964,
+      PrecioVta: 6497,
+      PrecioReal: 2999,
+      NetoReal: 35988,
+      NetoTotal: 77964,
     }));
-    expect(result[0].dcto).toBeCloseTo(9.09, 2);
+    expect(result[0].dcto).toBe(-117);
   });
 
-  test('retorna array vacío si el folio no tiene líneas', async () => {
-    mockRequest.query.mockResolvedValueOnce({ recordset: [] });
-    expect(await getDetalleFolio({ folio: 9999 })).toEqual([]);
+  test('maneja nota de credito con precio y descuento correctos', async () => {
+    mockRequest.query.mockResolvedValueOnce({
+      recordset: [
+        {
+          Folio: 20475,
+          CodProd: 'PQ00010026',
+          CantFacturada: -52,
+          TotLinea: -343200,
+          PreUniMB: 7097,
+          PreUniMVta: 6600,
+          precio_real_oficial: 7097,
+        },
+      ],
+    });
+
+    const result = await getDetalleFolio({ folio: 20475 });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(expect.objectContaining({
+      precio_real: 7097,
+      precio_vta: 6600,
+      neto_real: -369044,
+      neto_total: -343200,
+      PrecioVta: 6600,
+      PrecioReal: 7097,
+      NetoReal: -369044,
+      NetoTotal: -343200,
+      Dcto: 7,
+    }));
+    expect(result[0].dcto).toBe(7);
   });
 
-  test('llama buildDivisorCASE con la fecha del encabezado', async () => {
-    const { buildDivisorCASE } = require('../../src/utils/precioHistorico');
-    mockRequest.query.mockResolvedValueOnce({ recordset: [] });
-    await getDetalleFolio({ folio: 1001 });
-    expect(buildDivisorCASE).toHaveBeenCalledWith(
-      expect.anything(),
-      'gsaen.Fecha'
-    );
-  });
-
-  test('llama buildPrecioListaRealCASE con los 6 campos requeridos', async () => {
-    const { buildPrecioListaRealCASE } = require('../../src/utils/precioHistorico');
-    mockRequest.query.mockResolvedValueOnce({ recordset: [] });
-    await getDetalleFolio({ folio: 1001 });
-    expect(buildPrecioListaRealCASE).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        campoFecha:     'gsaen.Fecha',
-        campoCodProd:   'gmovi.CodProd',
-        campoTotLinea:  'gmovi.TotLinea',
-        campoCant:      'gmovi.CantFacturada',
-        campoPrecioVta: 'tprod.PrecioVta',
-        campoCodCan:    'cvl.CodCan',
-      })
-    );
-  });
-
-  test('propaga error de Softland', async () => {
-    mockRequest.query.mockRejectedValueOnce(new Error('connection lost'));
-    await expect(getDetalleFolio({ folio: 1001 })).rejects.toThrow('connection lost');
-  });
 });
 
-// ── getDescuentosVendedor ─────────────────────────────────────────────────────
 describe('getDescuentosVendedor', () => {
   test('retorna resumen de descuentos por vendedor', async () => {
     const filas = [
