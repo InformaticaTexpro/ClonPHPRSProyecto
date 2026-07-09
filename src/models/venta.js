@@ -237,8 +237,8 @@ async function getDetalleFolio({ folio }) {
     INNER JOIN [PRODIN].[softland].[iw_gsaen] gsaen
       ON gsaen.NroInt = gmovi.NroInt
      AND gsaen.Tipo   = gmovi.Tipo
-    INNER JOIN [PRODIN].[softland].[iw_tprod] tprod
-      ON tprod.CodProd = gmovi.CodProd
+    LEFT JOIN [PRODIN].[softland].[iw_tprod] tprod
+      ON LTRIM(RTRIM(tprod.CodProd)) = LTRIM(RTRIM(gmovi.CodProd))
     INNER JOIN [PRODIN].[softland].[cwtauxi] cwtauxi
       ON cwtauxi.CodAux = gsaen.CodAux
     LEFT JOIN [PRODIN].[softland].[cwtcvcl] cvl
@@ -298,14 +298,14 @@ async function getDetalleFolio({ folio }) {
     const cantFacturada = Number(row.CantFacturada) || 0;
     const totLinea      = Number(row.TotLinea) || 0;
     const precioRealUnit = Number(row.precio_real_oficial ?? row.PrecioVta ?? row.PreUniMB);
-    const precioReal     = Number.isFinite(precioRealUnit)
+    const precioReal     = Number.isFinite(precioRealUnit) && precioRealUnit > 0
       ? Math.round(precioRealUnit)
       : null;
     const precioVtaUnit  = cantFacturada !== 0 ? totLinea / cantFacturada : null;
     const precioVta      = Number.isFinite(precioVtaUnit)
       ? Math.round(precioVtaUnit)
       : null;
-    const netoReal       = Number.isFinite(precioRealUnit)
+    const netoReal       = Number.isFinite(precioRealUnit) && precioRealUnit !== 0
       ? Math.round(precioRealUnit * cantFacturada)
       : null;
     const netoTotal      = Math.round(totLinea);

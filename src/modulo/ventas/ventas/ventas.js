@@ -139,7 +139,7 @@
     trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-loading"><span class="detalle-spinner"></span> Cargando detalle del folio ${folio}…</div></td>`;
     try {
       if (!_detalleCache[folio]) {
-        const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+        const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Error al cargar detalle');
         _detalleCache[folio] = data;
@@ -180,13 +180,16 @@
 
     const filas = (data.detalle || []).map(p => {
       const cant     = Number(p.CantFacturada) || 0;
-      const precReal = Number(p.precio_unitario_cobrado) || 0;
-      const precVta  = Number(p.precio_lista_real)       || 0;
-      const totReal  = Number(p.TotLinea)                || 0;
-      const totVta   = Number(p.valor_historico_linea)   || 0;
-      const desc = precVta > 0
-        ? Math.round((1 - Math.abs(precReal) / Math.abs(precVta)) * 10000) / 100
-        : 0;
+      const precReal = Number(p.precio_real ?? p.PrecioReal ?? p.precio_real_oficial) || 0;
+      const precVta  = Number(p.precio_vta ?? p.PrecioVta ?? p.precio_unitario_cobrado) || 0;
+      const totReal  = Number(p.neto_real ?? p.NetoReal ?? p.valor_historico_linea) || 0;
+      const totVta   = Number(p.neto_total ?? p.NetoTotal ?? p.valor_cobrado_linea ?? p.TotLinea) || 0;
+      const descBase = Number(p.dcto ?? p.Dcto);
+      const desc = Number.isFinite(descBase)
+        ? descBase
+        : (precReal !== 0
+          ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+          : 0);
       const descStr  = desc !== 0 ? `${desc}%` : '—';
       const negativo = totReal < 0;
 
@@ -265,10 +268,70 @@
     return data;
   }
 
+  function modoFiltroPDF() {
+    return document.getElementById('filtroPdf')?.value || 'todos';
+  }
+
+  function codigoVendedorDocumento(venta) {
+    return String(venta?.CodVendedor ?? venta?.cod_vendedor_principal ?? '').trim();
+  }
+
+  function codigoVendedorFiltroPDF() {
+    return String(document.getElementById('pdfCodVendedor')?.value || '').trim();
+  }
+
+  function sincronizarFiltroPDFUI() {
+    const grupo = document.getElementById('grupoPdfCodigo');
+    const input = document.getElementById('pdfCodVendedor');
+    const esEspecifico = modoFiltroPDF() === 'especifico';
+    if (grupo) grupo.style.display = esEspecifico ? 'flex' : 'none';
+    if (input) {
+      input.disabled = !esEspecifico;
+      if (!esEspecifico) input.value = '';
+    }
+  }
+
+  function actualizarListaCodigosPDF() {
+    const lista = document.getElementById('listaCodigosPdf');
+    if (!lista) return;
+    const codigos = new Set();
+    (Array.isArray(todosVendedores) ? todosVendedores : []).forEach(v => {
+      const cod = String(v?.cod ?? '').trim();
+      if (cod) codigos.add(cod);
+    });
+    (_ultimasVentas || []).forEach(v => {
+      const cod = codigoVendedorDocumento(v);
+      if (cod) codigos.add(cod);
+    });
+    lista.innerHTML = [...codigos].sort().map(c => `<option value="${c}"></option>`).join('');
+  }
+
+  function filtrarVentasParaPDF(ventas) {
+    const modo = modoFiltroPDF();
+    if (modo === 'compartidos') return [];
+    if (modo !== 'especifico') return ventas.slice();
+    const cod = codigoVendedorFiltroPDF();
+    if (!cod) return [];
+    return ventas.filter(v => codigoVendedorDocumento(v) === cod);
+  }
+
   async function generarPDF() {
     const btnPdf = document.getElementById('btnGenerarPDF');
     try {
       if (btnPdf) { btnPdf.disabled = true; btnPdf.textContent = 'Generando...'; }
+
+      const modoPDF   = modoFiltroPDF();
+      const codigoPDF = codigoVendedorFiltroPDF();
+      if (modoPDF === 'especifico' && !codigoPDF) {
+        alert('Selecciona un código vendedor para generar el PDF.');
+        return;
+      }
+
+      const ventasParaPDF      = filtrarVentasParaPDF(_ultimasVentas);
+      const compartidosParaPDF  = modoPDF === 'compartidos'
+        ? _ultimosCompartidos.slice()
+        : (modoPDF === 'todos' ? _ultimosCompartidos.slice() : []);
+      const asignadosParaPDF    = modoPDF === 'todos' ? _ultimosAsignados.slice() : [];
 
       const jsPDF    = await cargarLibreriaPDF();
       const doc      = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
@@ -290,12 +353,48 @@
       addPageHeader();
       let y = 24;
 
-      if (_ultimasVentas.length) {
+      if (modoPDF === 'compartidos') {
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+        doc.text(`Ventas Compartidas Conmigo — ${mesLabel}`, 14, y);
+        y += 5;
+
+        if (compartidosParaPDF.length) {
+          const filasCompartidos = compartidosParaPDF.map(c => [
+            String(c.folio || '—'),
+            c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
+            c.cliente || '—',
+            c.coordinador || c.cod_vendedor_principal || '—',
+            `${c.porcentaje}%`,
+            formatCLP(c.monto_asignado),
+          ]);
+
+          doc.autoTable({
+            startY: y,
+            head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
+            body: filasCompartidos,
+            styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 248, 252] },
+            columnStyles: {
+              0: { cellWidth: 18 },
+              1: { cellWidth: 24 },
+              2: { cellWidth: 86 },
+              3: { cellWidth: 56 },
+              4: { cellWidth: 18, halign: 'right' },
+              5: { cellWidth: 36, halign: 'right' },
+            },
+            margin: { left: 14, right: 14 },
+          });
+        } else {
+          doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+          doc.text('Sin folios compartidos para el período seleccionado.', 14, y);
+        }
+      } else if (ventasParaPDF.length) {
         doc.setFontSize(11); doc.setFont('helvetica', 'bold');
         doc.text(`Detalle de Folios — ${mesLabel}`, 14, y);
         y += 5;
 
-        for (const venta of _ultimasVentas) {
+        for (const venta of ventasParaPDF) {
           let detalleData = null;
           try {
             detalleData = await fetchDetalleFolio(venta.Folio);
@@ -331,13 +430,16 @@
 
           const filasProductos = lineas.map(p => {
             const cant     = Number(p.CantFacturada) || 0;
-            const precReal = Number(p.precio_unitario_cobrado) || 0;
-            const precVta  = Number(p.precio_lista_real)       || 0;
-            const totReal  = Number(p.TotLinea)                || 0;
-            const totVta   = Number(p.valor_historico_linea)   || 0;
-            const desc     = precVta > 0
-              ? Math.round((1 - Math.abs(precReal) / Math.abs(precVta)) * 10000) / 100
-              : 0;
+            const precReal = Number(p.precio_real ?? p.PrecioReal ?? p.precio_real_oficial) || 0;
+            const precVta  = Number(p.precio_vta ?? p.PrecioVta ?? p.precio_unitario_cobrado) || 0;
+            const totReal  = Number(p.neto_real ?? p.NetoReal ?? p.valor_historico_linea) || 0;
+            const totVta   = Number(p.neto_total ?? p.NetoTotal ?? p.valor_cobrado_linea ?? p.TotLinea) || 0;
+            const descBase = Number(p.dcto ?? p.Dcto);
+            const desc     = Number.isFinite(descBase) ? descBase : (
+              precReal !== 0
+                ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+                : 0
+            );
             return [
               p.CodProd || '—',
               p.DesProd || p.descripcion || '—',
@@ -391,12 +493,12 @@
       }
 
       const panelComp = document.getElementById('panelCompartidos');
-      if (panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
+      if (modoPDF === 'todos' && panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
         if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
 
-        const filasC = _ultimosCompartidos.map(c => [
+        const filasC = compartidosParaPDF.map(c => [
           String(c.folio || '—'),
           c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
           c.cliente || '—',
@@ -426,12 +528,12 @@
       }
 
       const panelAsig = document.getElementById('panelCoordinador');
-      if (panelAsig && panelAsig.style.display !== 'none' && _ultimosAsignados.length) {
+      if (modoPDF === 'todos' && panelAsig && panelAsig.style.display !== 'none' && asignadosParaPDF.length) {
         if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
 
-        const filasA = _ultimosAsignados.map(c => [
+        const filasA = asignadosParaPDF.map(c => [
           String(c.folio || '—'),
           c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
           c.cliente || '—',
@@ -568,6 +670,7 @@
       const data = await res.json();
       if (!data.ok || !data.vendedores?.length) return;
       todosVendedores = data.vendedores;
+      actualizarListaCodigosPDF();
       const sel = document.getElementById('coordVendedor');
       if (!sel) return;
       sel.innerHTML = '<option value="">— Selecciona vendedor —</option>' +
@@ -754,6 +857,7 @@
 
       _ultimasVentas      = dataV.ventas      || [];
       _ultimosCompartidos = dataC.compartidos || [];
+      actualizarListaCodigosPDF();
 
       const tbodyV = document.getElementById('tbodyVentas');
       setText('totalVentas', `${_ultimasVentas.length} registros`);
@@ -826,6 +930,7 @@
 
     cargarSidebar(_usuarioActual);
     initSelectores();
+    sincronizarFiltroPDFUI();
 
     if (esCoordinador(_usuarioActual)) {
       await iniciarPanelCoordinador();
@@ -836,6 +941,7 @@
 
     await refrescarVista();
 
+    document.getElementById('filtroPdf')?.addEventListener('change', sincronizarFiltroPDFUI);
     document.getElementById('btnActualizar')?.addEventListener('click', refrescarVista);
     document.getElementById('btnGenerarPDF')?.addEventListener('click', generarPDF);
   });
