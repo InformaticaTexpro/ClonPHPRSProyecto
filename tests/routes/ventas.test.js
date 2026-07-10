@@ -174,6 +174,33 @@ describe('GET /api/ventas — valida códigos de vendedor', () => {
   });
 });
 
+describe('GET /api/ventas/detalle/:folio â€” entrega detalle normalizado', () => {
+  test('retorna detalle calculado por el modelo', async () => {
+    const detalle = [
+      {
+        Folio: 377326,
+        CodProd: 'PQ03580001',
+        CantFacturada: 12,
+        TotLinea: 77964,
+        precio_real: 2999,
+        precio_vta: 6497,
+        neto_real: 35988,
+        neto_total: 77964,
+        dcto: -117,
+      },
+    ];
+    const { getDetalleFolio } = require('../../src/models/venta');
+    getDetalleFolio.mockResolvedValueOnce(detalle);
+
+    const res = await request(app).get('/api/ventas/detalle/377326');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.detalle).toEqual(detalle);
+    expect(getDetalleFolio).toHaveBeenCalledWith({ folio: '377326' });
+  });
+});
+
 describe('GET /api/ventas clientes e historial', () => {
   test('autocomplete filtra clientes por cartera del usuario', async () => {
     mockSoftlandRequest.query.mockResolvedValueOnce({
