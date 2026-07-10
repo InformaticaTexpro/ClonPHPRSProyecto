@@ -179,6 +179,8 @@ describe('GET /api/ventas/detalle/:folio â€” entrega detalle normalizado', 
     const detalle = [
       {
         Folio: 377326,
+        tipo_folio: 'F',
+        Tipo: 'F',
         CodProd: 'PQ03580001',
         CantFacturada: 12,
         TotLinea: 77964,
@@ -197,6 +199,7 @@ describe('GET /api/ventas/detalle/:folio â€” entrega detalle normalizado', 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.detalle).toEqual(detalle);
+    expect(res.body.tipo_folio).toBe('F');
     expect(getDetalleFolio).toHaveBeenCalledWith({ folio: '377326' });
   });
 });

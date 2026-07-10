@@ -152,6 +152,7 @@ async function getVentas({ codigos, mes, anio }) {
   const result = await request.query(`
     SELECT
       gsaen.Folio,
+      gsaen.Tipo,
       CONVERT(VARCHAR(10), gsaen.Fecha, 103) AS fecha_formato,
       gsaen.SubTotal                         AS monto,
       gsaen.CodVendedor,
@@ -166,7 +167,10 @@ async function getVentas({ codigos, mes, anio }) {
       AND YEAR(gsaen.Fecha)  =   @anio
       AND gsaen.Tipo         IN ('F','N','D')
       AND gsaen.Estado       <>  'A'
-    ORDER BY gsaen.Fecha DESC
+    ORDER BY
+      CASE gsaen.Tipo WHEN 'F' THEN 1 WHEN 'N' THEN 2 WHEN 'D' THEN 3 ELSE 9 END,
+      gsaen.Folio ASC,
+      gsaen.Fecha ASC
   `);
 
   return result.recordset;
@@ -193,11 +197,14 @@ async function getMontoFolio({ folio, anio }) {
   return result.recordset[0] ?? null;
 }
 
-async function getDetalleFolio({ folio }) {
+async function getDetalleFolio({ folio, anio = null }) {
   const pool    = await getSoftlandPool();
   const request = pool.request();
 
   request.input('folio', sql.Int, Number(folio));
+  if (anio != null && anio !== '') {
+    request.input('anio', sql.Int, Number(anio));
+  }
 
   const divisorCASE         = await buildDivisorCASE(db, 'gsaen.Fecha');
   const precioListaRealCASE = await buildPrecioListaRealCASE(db, {
@@ -214,6 +221,7 @@ async function getDetalleFolio({ folio }) {
     SELECT
       gsaen.Folio,
       gsaen.Fecha,
+      gsaen.Tipo                                               AS tipo_folio,
       gsaen.CodVendedor,
       gsaen.CanCod,
       RTRIM(gsaen.CodAux)                                         AS CodAux,
@@ -246,6 +254,7 @@ async function getDetalleFolio({ folio }) {
     WHERE gsaen.Tipo   IN ('F','N','D')
       AND gsaen.Estado <>  'A'
       AND gsaen.Folio  =   @folio
+      ${anio != null && anio !== '' ? 'AND YEAR(gsaen.Fecha) = @anio' : ''}
   ),
   calc AS (
     SELECT *,
@@ -318,6 +327,9 @@ async function getDetalleFolio({ folio }) {
 
     return {
       ...row,
+      tipo_folio:               row.tipo_folio ?? row.Tipo ?? row.tipo ?? '',
+      Tipo:                     row.tipo_folio ?? row.Tipo ?? row.tipo ?? '',
+      tipo:                     row.tipo_folio ?? row.Tipo ?? row.tipo ?? '',
       TotLinea:                 netoTotal,
       precio_real:              precioReal,
       precio_vta:               precioVta,

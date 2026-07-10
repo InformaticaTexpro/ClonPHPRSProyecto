@@ -148,3 +148,40 @@ describe('POST /api/dashboard/compartir — asigna porcentaje a folio', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('GET /api/dashboard/compartidos — incluye tipo de folio para el receptor', () => {
+  test('retorna tipo_folio resuelto desde Softland', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      {
+        id: 1,
+        folio: 377326,
+        fecha: '2026-05-14',
+        cliente: 'MINERA ABC',
+        monto_neto: 77964,
+        monto_asignado: 38982,
+        porcentaje: 50,
+        cod_vendedor_principal: '454',
+        cod_vendedor_compartido: '629',
+        nombre_vendedor_compartido: 'Claudia Rincones',
+        monto: 38982,
+        coordinador: 'Ana',
+        mes: 5,
+        anio: 2026,
+      },
+    ]]);
+    mockSoftlandRequest.query.mockResolvedValueOnce({
+      recordset: [{ tipo_folio: 'F' }],
+    });
+
+    const res = await request(app).get('/api/dashboard/compartidos?mes=5&anio=2026');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.compartidos).toHaveLength(1);
+    expect(res.body.compartidos[0].tipo_folio).toBe('F');
+
+    const sql = mockQuery.mock.calls[0][0];
+    expect(sql).toContain('fc.mes');
+    expect(sql).toContain('fc.anio');
+  });
+});
