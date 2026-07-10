@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * ventas.js — Ventas Asignadas Texpro
@@ -23,6 +23,7 @@
   let _ultimosAsignados   = [];
 
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const PDF_Y_CONTENIDO = 30;
 
   function formatCLP(v) {
     if (v == null || v === '') return '—';
@@ -66,6 +67,51 @@
     return limpio.split(/\s+/)[0] || limpio;
   }
 
+
+  function normalizarTipoFolio(valor) {
+    const tipo = String(valor || '').trim().toUpperCase();
+    return ['F', 'N', 'D'].includes(tipo) ? tipo : '';
+  }
+
+  function resolverTipoFolio(...valores) {
+    for (const valor of valores) {
+      const tipo = normalizarTipoFolio(valor);
+      if (tipo) return tipo;
+    }
+    return '';
+  }
+
+  function claveFechaRegistro(registro) {
+    const valor = String(registro?.Fecha ?? registro?.fecha ?? registro?.fecha_formato ?? registro?.FechaDocumento ?? '').trim();
+    if (!valor) return Number.MAX_SAFE_INTEGER;
+
+    const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/;
+
+    const m1 = valor.match(ddmmyyyy);
+    if (m1) return Number(String(m1[3]) + String(m1[2]) + String(m1[1]));
+
+    const m2 = valor.match(iso);
+    if (m2) return Number(String(m2[1]) + String(m2[2]) + String(m2[3]));
+
+    const ts = Date.parse(valor);
+    return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+  }
+
+  function compararRegistrosPDF(a, b) {
+    const folioA = Number(a?.folio ?? a?.Folio ?? 0) || 0;
+    const folioB = Number(b?.folio ?? b?.Folio ?? 0) || 0;
+    if (folioA !== folioB) return folioA - folioB;
+    const fechaA = claveFechaRegistro(a);
+    const fechaB = claveFechaRegistro(b);
+    if (fechaA !== fechaB) return fechaA - fechaB;
+    return 0;
+  }
+
+  function ordenarRegistrosPDF(lista) {
+    return Array.isArray(lista) ? lista.slice().sort(compararRegistrosPDF) : [];
+  }
+
   function actualizarSaludoUsuario(usuario) {
     const nombreCompleto = nombreVisibleUsuario(usuario);
     const nombreCorto = nombreCortoUsuario(nombreCompleto);
@@ -73,7 +119,7 @@
     setText('welcomeSubtitle', nombreCompleto);
   }
 
-  // ── Spinner ───────────────────────────────────────────────────────────────
+  // -- Spinner ---------------------------------------------------------------
   let cargaOverlay = null;
 
   function crearSpinner() {
@@ -126,7 +172,7 @@
     return (usuario.vendedores || []).some(v => String(v.tipo || '').trim().toUpperCase() === 'C');
   }
 
-  // ── Detalle de productos por folio ────────────────────────────────────────
+  // -- Detalle de productos por folio ----------------------------------------
   const _detalleCache = {};
 
   async function toggleDetalle(folio, trExpand, colspan) {
@@ -136,7 +182,7 @@
       return;
     }
     trExpand.classList.add('detalle-open');
-    trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-loading"><span class="detalle-spinner"></span> Cargando detalle del folio ${folio}…</div></td>`;
+    trExpand.innerHTML = `<td colspan="${colspan}"><div class="detalle-loading"><span class="detalle-spinner"></span> Cargando detalle del folio ${folio}...</div></td>`;
     try {
       if (!_detalleCache[folio]) {
         const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -190,7 +236,7 @@
         : (precReal !== 0
           ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
           : 0);
-      const descStr  = desc !== 0 ? `${desc}%` : '—';
+      const descStr  = Number.isFinite(desc) ? `${desc}%` : '—';
       const negativo = totReal < 0;
 
       const codProd  = p.CodProd  || '—';
@@ -235,7 +281,7 @@
     return `<div class="det-contenedor">${bloque1}${bloque2}</div>`;
   }
 
-  // ── PDF ───────────────────────────────────────────────────────────────────
+  // -- PDF -------------------------------------------------------------------
   async function cargarLibreriaPDF() {
     if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
     await new Promise((res, rej) => {
@@ -253,19 +299,314 @@
     return window.jspdf.jsPDF;
   }
 
+  const PDF_MARGEN = 14;
+
+  function anchoPaginaPDF(doc) {
+    return doc.internal.pageSize.getWidth();
+  }
+
+  function altoPaginaPDF(doc) {
+    return doc.internal.pageSize.getHeight();
+  }
+
+  function anchoContenidoPDF(doc) {
+    return anchoPaginaPDF(doc) - (PDF_MARGEN * 2);
+  }
+
   function getMesFiltro() {
     const mes  = document.getElementById('filtroMes')?.value  || (new Date().getMonth() + 1);
     const anio = document.getElementById('filtroAnio')?.value || new Date().getFullYear();
     return `${MESES_NOMBRE[Number(mes) - 1]} ${anio}`;
   }
 
-  async function fetchDetalleFolio(folio) {
-    if (_detalleCache[folio]) return _detalleCache[folio];
-    const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+  function normalizarRespuestaDetalleFolio(data) {
+    const detalle = Array.isArray(data?.detalle) ? data.detalle : [];
+    const primera = detalle[0] || {};
+    const tipoFolio = resolverTipoFolio(
+      data?.tipo_folio,
+      data?.Tipo,
+      data?.tipo,
+      primera.tipo_folio,
+      primera.Tipo,
+      primera.tipo
+    );
+    return {
+      ...(data || {}),
+      detalle,
+      tipo_folio: tipoFolio,
+      Tipo: tipoFolio,
+      tipo: tipoFolio,
+    };
+  }
+
+  async function fetchDetalleFolio(folio, { force = false, anio = null } = {}) {
+    if (!force && _detalleCache[folio]) return _detalleCache[folio];
+    const qs = new URLSearchParams();
+    if (anio != null && anio !== '') qs.set('anio', anio);
+    const url = qs.toString() ? `${API}/detalle/${folio}?${qs.toString()}` : `${API}/detalle/${folio}`;
+    const res  = await fetch(url, { headers:{ Authorization:`Bearer ${token()}` } });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || `Error detalle folio ${folio}`);
-    _detalleCache[folio] = data;
-    return data;
+    const normalizado = normalizarRespuestaDetalleFolio(data);
+    _detalleCache[folio] = normalizado;
+    return normalizado;
+  }
+
+  function resumenDetalleFolio(lineas) {
+    const resumen = (Array.isArray(lineas) ? lineas : []).reduce((acc, p) => {
+      acc.cant += Number(p?.CantFacturada) || 0;
+      acc.totalReal += Number(p?.neto_real ?? p?.NetoReal ?? 0) || 0;
+      acc.totalVenta += Number(p?.neto_total ?? p?.NetoTotal ?? p?.TotLinea ?? 0) || 0;
+      return acc;
+    }, { cant: 0, totalReal: 0, totalVenta: 0, dcto: null });
+
+    const base = Math.abs(resumen.totalReal);
+    resumen.cant = Math.round(resumen.cant);
+    resumen.totalReal = Math.round(resumen.totalReal);
+    resumen.totalVenta = Math.round(resumen.totalVenta);
+    resumen.dcto = base > 0
+      ? Math.round((((Math.abs(resumen.totalReal) - Math.abs(resumen.totalVenta)) / base) * 100) * 100) / 100
+      : null;
+    return resumen;
+  }
+
+  async function obtenerDetalleFolioCompartido(folio, { force = false, anio = null } = {}) {
+    const data = await fetchDetalleFolio(folio, { force, anio });
+    const detalle = Array.isArray(data.detalle) ? data.detalle : [];
+    const primera = detalle[0] || {};
+    const tipoFolio = resolverTipoFolio(data.tipo_folio, data.Tipo, data.tipo, primera.tipo_folio, primera.Tipo, primera.tipo);
+    return {
+      detalle,
+      primera,
+      tipoFolio,
+      resumen: resumenDetalleFolio(detalle),
+    };
+  }
+
+  function renderCabeceraFolioCompartido(doc, y, share, detalleInfo) {
+    const primera = detalleInfo?.primera || {};
+    const cliente = primera.Cliente || share.cliente || '—';
+    const codAux  = primera.CodAux || '—';
+    const tipo    = resolverTipoFolio(
+      share.tipo_folio,
+      detalleInfo?.tipoFolio,
+      primera.tipo_folio,
+      primera.Tipo,
+      primera.tipo
+    );
+    const vendedorOrigen = share.coordinador || share.cod_vendedor_principal || '—';
+    const vendedorAsignado = share.nombre_vendedor_compartido || share.cod_vendedor_compartido || '—';
+    const clienteLineas = doc.splitTextToSize(`Cliente: ${cliente}`, anchoContenidoPDF(doc) - 22);
+    const altoCliente = Math.max(4, clienteLineas.length * 4);
+    const altoBloque = 23 + altoCliente + 10;
+
+    if (y > altoPaginaPDF(doc) - 55) {
+      doc.addPage();
+      y = PDF_Y_CONTENIDO;
+    }
+
+    doc.setFillColor(240, 248, 246);
+    doc.rect(PDF_MARGEN, y, anchoContenidoPDF(doc), altoBloque, 'F');
+    doc.setFontSize(8.4);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 100, 80);
+    doc.text(`Folio: ${share.folio}`, 16, y + 5.2);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Fecha: ${share.fecha ? new Date(share.fecha).toLocaleDateString('es-CL') : '—'}`, 72, y + 5.2);
+    doc.text(`Tipo: ${tipo || '—'}`, 132, y + 5.2);
+    doc.text(`Cód. Cliente: ${codAux}`, 16, y + 10.8);
+    doc.text(`Vendedor asignado: ${vendedorAsignado}`, 102, y + 10.8);
+    doc.text(clienteLineas, 16, y + 15.8);
+    const yFila3 = y + 15.8 + altoCliente + 1;
+    doc.text(`Vendedor origen: ${vendedorOrigen}`, 16, yFila3);
+    doc.text(`% Participación: ${Number(share.porcentaje || 0).toFixed(2)}%`, 100, yFila3);
+    doc.text(`Monto asignado: ${formatCLP(share.monto_asignado)}`, anchoPaginaPDF(doc) - PDF_MARGEN, yFila3, { align: 'right' });
+    return y + altoBloque + 2;
+  }
+
+  function renderTablaDetalleCompartido(doc, y, detalle) {
+    const filasProductos = (Array.isArray(detalle) ? detalle : []).map(p => {
+      const cant     = Number(p.CantFacturada) || 0;
+      const precReal = Number(p.precio_real ?? p.PrecioReal ?? p.precio_real_oficial) || 0;
+      const precVta  = Number(p.precio_vta ?? p.PrecioVta ?? p.precio_unitario_cobrado) || 0;
+      const totReal  = Number(p.neto_real ?? p.NetoReal ?? p.valor_historico_linea) || 0;
+      const totVta   = Number(p.neto_total ?? p.NetoTotal ?? p.valor_cobrado_linea ?? p.TotLinea) || 0;
+      const descBase = Number(p.dcto ?? p.Dcto);
+      const desc     = Number.isFinite(descBase) ? descBase : (
+        precReal !== 0
+          ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+          : 0
+      );
+      return [
+        p.CodProd || '—',
+        p.DesProd || p.descripcion || '—',
+        String(cant),
+        formatCLP(precReal),
+        formatCLP(precVta),
+        formatCLP(totReal),
+        formatCLP(totVta),
+        Number.isFinite(desc) ? `${desc}%` : '—',
+      ];
+    });
+
+    if (!filasProductos.length) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 120, 120);
+      doc.text('Detalle Softland no disponible para este folio', 16, y + 4);
+      doc.setTextColor(0, 0, 0);
+      return y + 8;
+    }
+
+    doc.autoTable({
+      startY: y,
+      head: [['Código', 'Descripción', 'Cant.', 'Precio Real', 'Precio Vta', 'Neto Real', 'Neto Total', 'Descuento']],
+      body: filasProductos,
+      theme: 'grid',
+      styles: {
+        fontSize: 6.95,
+        cellPadding: { top: 1.2, right: 1.7, bottom: 1.2, left: 1.7 },
+        overflow: 'linebreak',
+        valign: 'middle',
+        lineColor: [224, 232, 229],
+        lineWidth: 0.12,
+      },
+      headStyles: {
+        fillColor: [0, 140, 115],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 6.95,
+        valign: 'middle',
+        lineColor: [0, 120, 98],
+        lineWidth: 0.12,
+      },
+      alternateRowStyles: { fillColor: [250, 253, 252] },
+      columnStyles: {
+        0: { cellWidth: 16, halign: 'left' },
+        1: { cellWidth: 58, halign: 'left' },
+        2: { cellWidth: 10, halign: 'center' },
+        3: { cellWidth: 18, halign: 'right' },
+        4: { cellWidth: 18, halign: 'right' },
+        5: { cellWidth: 22, halign: 'right' },
+        6: { cellWidth: 22, halign: 'right' },
+        7: { cellWidth: 18, halign: 'right' },
+      },
+      margin: { left: PDF_MARGEN, right: PDF_MARGEN },
+      didParseCell(data) {
+        if (data.column.index === 5 && data.section === 'body') {
+          const raw = detalle[data.row.index];
+          if (raw && Number(raw.TotLinea) < 0) {
+            data.cell.styles.textColor = [180, 30, 30];
+          } else if (raw && Number(raw.TotLinea) > 0) {
+            data.cell.styles.textColor = [0, 130, 80];
+          }
+        }
+      },
+    });
+
+    return doc.lastAutoTable.finalY + 3;
+  }
+
+  function renderResumenFolioCompartido(doc, y, resumen, titulo = 'Subtotal folio') {
+    if (y > altoPaginaPDF(doc) - 45) {
+      doc.addPage();
+      y = PDF_Y_CONTENIDO;
+    }
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 100, 80);
+    doc.text(titulo, 16, y + 4);
+
+    doc.autoTable({
+      startY: y + 5,
+      head: [['Cant.', 'Total Real', 'Total Venta', 'Dcto']],
+      body: [[
+        String(resumen.cant ?? 0),
+        formatCLP(resumen.totalReal ?? 0),
+        formatCLP(resumen.totalVenta ?? 0),
+        resumen.dcto == null ? '?' : `${resumen.dcto}%`,
+      ]],
+      theme: 'grid',
+      styles: {
+        fontSize: 6.95,
+        cellPadding: { top: 1.2, right: 1.7, bottom: 1.2, left: 1.7 },
+        overflow: 'linebreak',
+        valign: 'middle',
+        lineColor: [224, 232, 229],
+        lineWidth: 0.12,
+      },
+      headStyles: {
+        fillColor: [226, 244, 240],
+        textColor: [0, 95, 75],
+        fontStyle: 'bold',
+        fontSize: 6.95,
+        valign: 'middle',
+        lineColor: [200, 225, 219],
+        lineWidth: 0.12,
+      },
+      alternateRowStyles: { fillColor: [250, 253, 252] },
+      columnStyles: {
+        0: { cellWidth: 18, halign: 'center' },
+        1: { cellWidth: 54, halign: 'right' },
+        2: { cellWidth: 54, halign: 'right' },
+        3: { cellWidth: 56, halign: 'right' },
+      },
+      margin: { left: PDF_MARGEN, right: PDF_MARGEN },
+      pageBreak: 'avoid',
+      rowPageBreak: 'avoid',
+    });
+
+    return doc.lastAutoTable.finalY + 4;
+  }
+
+  function renderAsignacionFolioCompartido(doc, y, share) {
+    if (y > altoPaginaPDF(doc) - 45) {
+      doc.addPage();
+      y = PDF_Y_CONTENIDO;
+    }
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(80, 40, 140);
+    doc.text('Asignación folio', 16, y + 4);
+
+    doc.autoTable({
+      startY: y + 5,
+      head: [['% Participación', 'Monto asignado']],
+      body: [[
+        `${Number(share.porcentaje || 0).toFixed(2)}%`,
+        formatCLP(share.monto_asignado),
+      ]],
+      theme: 'grid',
+      styles: {
+        fontSize: 6.95,
+        cellPadding: { top: 1.2, right: 1.7, bottom: 1.2, left: 1.7 },
+        overflow: 'linebreak',
+        valign: 'middle',
+        lineColor: [224, 232, 229],
+        lineWidth: 0.12,
+      },
+      headStyles: {
+        fillColor: [248, 246, 252],
+        textColor: [70, 35, 120],
+        fontStyle: 'bold',
+        fontSize: 6.95,
+        valign: 'middle',
+        lineColor: [223, 218, 232],
+        lineWidth: 0.12,
+      },
+      columnStyles: {
+        0: { cellWidth: 90, halign: 'right' },
+        1: { cellWidth: 92, halign: 'right' },
+      },
+      margin: { left: PDF_MARGEN, right: PDF_MARGEN },
+      pageBreak: 'avoid',
+      rowPageBreak: 'avoid',
+    });
+
+    return doc.lastAutoTable.finalY + 4;
   }
 
   function modoFiltroPDF() {
@@ -278,6 +619,73 @@
 
   function codigoVendedorFiltroPDF() {
     return String(document.getElementById('pdfCodVendedor')?.value || '').trim();
+  }
+
+  function nombreVendedorPorCodigoPDF(codigo) {
+    const cod = String(codigo || '').trim();
+    if (!cod) return '';
+    const encontrado = (Array.isArray(todosVendedores) ? todosVendedores : []).find(v => String(v?.cod ?? '').trim() === cod);
+    return String(encontrado?.nombre || encontrado?.usuario || '').trim();
+  }
+
+  function tituloPDFReporte(modo, codigo, nombreVendedor = '') {
+    switch (modo) {
+      case 'compartidos':
+        return 'TEXPRO — Reporte de Ventas Asignadas';
+      case 'especifico':
+        return nombreVendedor
+          ? `TEXPRO — Reporte Vendedor ${codigo || '—'} — ${nombreVendedor}`
+          : `TEXPRO — Reporte Vendedor ${codigo || '—'}`;
+      default:
+        return 'TEXPRO — Reporte Vendedores';
+    }
+  }
+
+  function subtituloPDFReporte(modo, codigo, mesLabel) {
+    switch (modo) {
+      case 'compartidos':
+        return `Ventas Compartidas — ${mesLabel}`;
+      case 'especifico':
+        return `Detalle de Folios — ${mesLabel}`;
+      default:
+        return `Todos mis códigos — ${mesLabel}`;
+    }
+  }
+
+  function nombreArchivoPDFReporte(modo, codigo, mesLabel) {
+    const baseMes = String(mesLabel || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const baseCodigo = String(codigo || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'especifico';
+
+    if (modo === 'compartidos') return `reporte_ventas_compartidos_${baseMes}.pdf`;
+    if (modo === 'especifico') return `reporte_ventas_vendedor_${baseCodigo}_${baseMes}.pdf`;
+    return `reporte_ventas_todos_los_codigos_${baseMes}.pdf`;
+  }
+
+  function agruparVentasPorCodigoPDF(ventas) {
+    const grupos = new Map();
+    (Array.isArray(ventas) ? ventas : []).forEach(venta => {
+      const codigo = codigoVendedorDocumento(venta) || '—';
+      if (!grupos.has(codigo)) grupos.set(codigo, []);
+      grupos.get(codigo).push(venta);
+    });
+
+    return [...grupos.entries()]
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'es', { numeric: true }))
+      .map(([codigo, items]) => ({
+        codigo,
+        nombre: nombreVendedorPorCodigoPDF(codigo),
+        ventas: ordenarRegistrosPDF(items),
+      }));
   }
 
   function sincronizarFiltroPDFUI() {
@@ -294,25 +702,51 @@
   function actualizarListaCodigosPDF() {
     const lista = document.getElementById('listaCodigosPdf');
     if (!lista) return;
-    const codigos = new Set();
-    (Array.isArray(todosVendedores) ? todosVendedores : []).forEach(v => {
-      const cod = String(v?.cod ?? '').trim();
-      if (cod) codigos.add(cod);
-    });
-    (_ultimasVentas || []).forEach(v => {
-      const cod = codigoVendedorDocumento(v);
-      if (cod) codigos.add(cod);
-    });
+    const codigos = new Set(codigosUsuarioPDF());
     lista.innerHTML = [...codigos].sort().map(c => `<option value="${c}"></option>`).join('');
   }
 
   function filtrarVentasParaPDF(ventas) {
     const modo = modoFiltroPDF();
     if (modo === 'compartidos') return [];
-    if (modo !== 'especifico') return ventas.slice();
+    const permitidos = new Set(codigosUsuarioPDF());
+    if (modo !== 'especifico') return ventas.filter(v => permitidos.has(codigoVendedorDocumento(v)));
     const cod = codigoVendedorFiltroPDF();
-    if (!cod) return [];
+    if (!cod || !permitidos.has(cod)) return [];
     return ventas.filter(v => codigoVendedorDocumento(v) === cod);
+  }
+
+  function codigosUsuarioPDF() {
+    return (Array.isArray(_usuarioActual?.vendedores) ? _usuarioActual.vendedores : [])
+      .map(v => String(v?.cod_vendedor ?? '').trim())
+      .filter(Boolean);
+  }
+
+  function esCodigoPermitidoPDF(codigo) {
+    const cod = String(codigo || '').trim();
+    return cod ? codigosUsuarioPDF().includes(cod) : false;
+  }
+
+  function combinarCompartidosPDF() {
+    const vistos = new Set();
+    const resultado = [];
+    const agregar = (item, vistaCompartido) => {
+      if (!item) return;
+      const key = [
+        item.id ?? '',
+        item.folio ?? '',
+        item.cod_vendedor_principal ?? '',
+        item.cod_vendedor_compartido ?? '',
+        item.fecha ?? '',
+      ].join('|');
+      if (vistos.has(key)) return;
+      vistos.add(key);
+      resultado.push({ ...item, vistaCompartido });
+    };
+
+    (_ultimosCompartidos || []).forEach(item => agregar(item, 'receptor'));
+    (_ultimosAsignados || []).forEach(item => agregar(item, 'origen'));
+    return ordenarRegistrosPDF(resultado);
   }
 
   async function generarPDF() {
@@ -326,165 +760,271 @@
         alert('Selecciona un código vendedor para generar el PDF.');
         return;
       }
+      if (modoPDF === 'especifico' && !esCodigoPermitidoPDF(codigoPDF)) {
+        alert('El código vendedor no pertenece a tu usuario.');
+        return;
+      }
 
-      const ventasParaPDF      = filtrarVentasParaPDF(_ultimasVentas);
+      const ventasParaPDF      = ordenarRegistrosPDF(filtrarVentasParaPDF(_ultimasVentas));
       const compartidosParaPDF  = modoPDF === 'compartidos'
-        ? _ultimosCompartidos.slice()
-        : (modoPDF === 'todos' ? _ultimosCompartidos.slice() : []);
-      const asignadosParaPDF    = modoPDF === 'todos' ? _ultimosAsignados.slice() : [];
+        ? combinarCompartidosPDF()
+        : (modoPDF === 'todos' ? ordenarRegistrosPDF(_ultimosCompartidos.slice()) : []);
+      const asignadosParaPDF    = ordenarRegistrosPDF(modoPDF === 'todos' ? _ultimosAsignados.slice() : []);
+      const filtrosPDF          = getParams();
 
       const jsPDF    = await cargarLibreriaPDF();
-      const doc      = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+      const doc      = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
       const mesLabel = getMesFiltro();
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const nombreVendedorPDF = nombreVendedorPorCodigoPDF(codigoPDF);
+      const tituloPDF = tituloPDFReporte(modoPDF, codigoPDF, nombreVendedorPDF);
+      const subtituloPDF = subtituloPDFReporte(modoPDF, codigoPDF, mesLabel);
 
       function addPageHeader() {
         doc.setFillColor(0, 174, 142);
-        doc.rect(0, 0, 297, 18, 'F');
+        doc.rect(0, 0, anchoPaginaPDF(doc), 24, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-        doc.text('TEXPRO — Reporte de Ventas Asignadas', 14, 11);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(`Vendedor: ${nombre}   |   Período: ${mesLabel}   |   Emitido: ${hoy}`, 14, 16);
+        doc.text(tituloPDF, 14, 11);
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+        doc.text(`Vendedor: ${nombre}`, 14, 16);
+        doc.text(`Período: ${mesLabel}   |   Emitido: ${hoy}`, 14, 20);
         doc.setTextColor(0, 0, 0);
       }
 
       addPageHeader();
-      let y = 24;
+      let y = PDF_Y_CONTENIDO;
 
       if (modoPDF === 'compartidos') {
         doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text(`Ventas Compartidas Conmigo — ${mesLabel}`, 14, y);
+        doc.text(subtituloPDF, 14, y);
         y += 5;
 
         if (compartidosParaPDF.length) {
-          const filasCompartidos = compartidosParaPDF.map(c => [
-            String(c.folio || '—'),
-            c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—',
-            c.cliente || '—',
-            c.coordinador || c.cod_vendedor_principal || '—',
-            `${c.porcentaje}%`,
-            formatCLP(c.monto_asignado),
-          ]);
+          const compartidosConDetalle = await Promise.all(compartidosParaPDF.map(async c => {
+            let detalleInfo = null;
+            try {
+              detalleInfo = await obtenerDetalleFolioCompartido(c.folio, { force: true, anio: filtrosPDF.anio });
+            } catch (e) {
+              console.warn(`[PDF] No se pudo cargar detalle compartido ${c.folio}:`, e);
+            }
+            return { ...c, detalleInfo };
+          }));
 
-          doc.autoTable({
-            startY: y,
-            head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
-            body: filasCompartidos,
-            styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
-            headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [245, 248, 252] },
-            columnStyles: {
-              0: { cellWidth: 18 },
-              1: { cellWidth: 24 },
-              2: { cellWidth: 86 },
-              3: { cellWidth: 56 },
-              4: { cellWidth: 18, halign: 'right' },
-              5: { cellWidth: 36, halign: 'right' },
-            },
-            margin: { left: 14, right: 14 },
-          });
+          compartidosConDetalle.sort(compararRegistrosPDF);
+
+          const totalAsignadoGeneral = compartidosConDetalle.reduce(
+            (acc, item) => acc + Number(item.monto_asignado || 0),
+            0
+          );
+
+          for (const share of compartidosConDetalle) {
+            const detalleInfo = share.detalleInfo || {
+              detalle: [],
+              primera: {},
+              resumen: { cant: 0, totalReal: 0, totalVenta: 0, dcto: null },
+            };
+
+            if (y > altoPaginaPDF(doc) - 55) {
+              doc.addPage();
+              addPageHeader();
+              y = PDF_Y_CONTENIDO;
+            }
+
+            y = renderCabeceraFolioCompartido(doc, y, share, detalleInfo);
+            y = renderTablaDetalleCompartido(doc, y, detalleInfo.detalle);
+            y = renderResumenFolioCompartido(doc, y, detalleInfo.resumen, 'Subtotal folio');
+            y = renderAsignacionFolioCompartido(doc, y, share);
+            y += 2;
+          }
+
+          if (y > altoPaginaPDF(doc) - 45) {
+            doc.addPage();
+            addPageHeader();
+            y = PDF_Y_CONTENIDO;
+          }
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(0, 100, 80);
+          doc.text(`Total compartido asignado: ${formatCLP(totalAsignadoGeneral)}`, 14, y);
         } else {
           doc.setFontSize(9); doc.setFont('helvetica', 'normal');
           doc.text('Sin folios compartidos para el período seleccionado.', 14, y);
         }
       } else if (ventasParaPDF.length) {
         doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text(`Detalle de Folios — ${mesLabel}`, 14, y);
+        doc.text(subtituloPDF, 14, y);
         y += 5;
 
-        for (const venta of ventasParaPDF) {
-          let detalleData = null;
-          try {
-            detalleData = await fetchDetalleFolio(venta.Folio);
-          } catch (e) {
-            console.warn(`[PDF] No se pudo cargar detalle del folio ${venta.Folio}:`, e);
+        const gruposVentas = modoPDF === 'todos'
+          ? agruparVentasPorCodigoPDF(ventasParaPDF)
+          : [{ codigo: codigoPDF || '—', nombre: nombreVendedorPDF || nombre, ventas: ventasParaPDF }];
+
+        for (const grupo of gruposVentas) {
+          if (modoPDF === 'todos') {
+            if (y > altoPaginaPDF(doc) - 18) {
+              doc.addPage();
+              addPageHeader();
+              y = PDF_Y_CONTENIDO;
+            }
+
+            doc.setFillColor(236, 244, 241);
+            doc.rect(PDF_MARGEN, y, anchoContenidoPDF(doc), 8.5, 'F');
+            doc.setFontSize(8.8);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 100, 80);
+            doc.text(`Código vendedor: ${grupo.codigo}`, 16, y + 5.2);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(40, 40, 40);
+            doc.text(`Vendedor: ${grupo.nombre || 'Sin nombre'}`, 78, y + 5.2);
+            y += 11;
           }
 
-          const d0       = detalleData?.detalle?.[0] || {};
-          const lineas   = detalleData?.detalle || [];
-          const cliente  = d0.Cliente || venta.cliente || '—';
-          const fecha    = d0.Fecha   || venta.fecha_formato || '—';
-          const codAux   = d0.CodAux  || '—';
-          const canCod   = d0.CanCod  || '—';
+          let resumenGrupo = { cant: 0, totalReal: 0, totalVenta: 0, dcto: null };
 
-          if (y > 175) {
-            doc.addPage();
-            addPageHeader();
-            y = 24;
-          }
+          for (const venta of grupo.ventas) {
+            let detalleData = null;
+            try {
+              detalleData = await fetchDetalleFolio(venta.Folio, { force: true, anio: filtrosPDF.anio });
+            } catch (e) {
+              console.warn(`[PDF] No se pudo cargar detalle del folio ${venta.Folio}:`, e);
+            }
 
-          doc.setFillColor(240, 248, 246);
-          doc.rect(14, y, 269, 8, 'F');
-          doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
-          doc.setTextColor(0, 100, 80);
-          doc.text(`Folio: ${venta.Folio}`, 16, y + 5.5);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(40, 40, 40);
-          doc.text(`Fecha: ${fecha}`, 48, y + 5.5);
-          doc.text(`Cód. Cliente: ${codAux}`, 80, y + 5.5);
-          doc.text(`Cliente: ${cliente}`, 120, y + 5.5);
-          doc.text(`CanCod: ${canCod}`, 240, y + 5.5);
-          y += 10;
-
-          const filasProductos = lineas.map(p => {
-            const cant     = Number(p.CantFacturada) || 0;
-            const precReal = Number(p.precio_real ?? p.PrecioReal ?? p.precio_real_oficial) || 0;
-            const precVta  = Number(p.precio_vta ?? p.PrecioVta ?? p.precio_unitario_cobrado) || 0;
-            const totReal  = Number(p.neto_real ?? p.NetoReal ?? p.valor_historico_linea) || 0;
-            const totVta   = Number(p.neto_total ?? p.NetoTotal ?? p.valor_cobrado_linea ?? p.TotLinea) || 0;
-            const descBase = Number(p.dcto ?? p.Dcto);
-            const desc     = Number.isFinite(descBase) ? descBase : (
-              precReal !== 0
-                ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
-                : 0
+            const d0       = detalleData?.detalle?.[0] || {};
+            const lineas   = detalleData?.detalle || [];
+            const cliente  = d0.Cliente || venta.cliente || '?';
+            const fecha    = d0.Fecha   || venta.fecha_formato || '?';
+            const tipo     = resolverTipoFolio(
+              detalleData?.tipo_folio,
+              detalleData?.Tipo,
+              detalleData?.tipo,
+              d0.tipo_folio,
+              d0.Tipo,
+              d0.tipo,
+              venta.tipo_folio,
+              venta.Tipo,
+              venta.tipo
             );
-            return [
-              p.CodProd || '—',
-              p.DesProd || p.descripcion || '—',
-              String(cant),
-              formatCLP(precReal),
-              formatCLP(precVta),
-              formatCLP(totReal),
-              formatCLP(totVta),
-              desc !== 0 ? `${desc}%` : '—',
-            ];
-          });
+            const codAux   = d0.CodAux  || '?';
+            const canCod   = d0.CanCod  || '?';
+            if (y > altoPaginaPDF(doc) - 60) {
+              doc.addPage();
+              addPageHeader();
+              y = PDF_Y_CONTENIDO;
+            }
 
-          doc.autoTable({
-            startY: y,
-            head: [['Código', 'Descripción', 'Cant.', 'Precio Real', 'Precio Venta', 'Total Real', 'Total Venta', 'Descuento']],
-            body: filasProductos.length
-              ? filasProductos
-              : [['Sin productos', '', '', '', '', '', '', '']],
-            styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
-            headStyles: { fillColor: [0, 140, 115], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
-            alternateRowStyles: { fillColor: [248, 252, 251] },
-            columnStyles: {
-              0: { cellWidth: 28 },
-              1: { cellWidth: 88 },
-              2: { cellWidth: 14, halign: 'right' },
-              3: { cellWidth: 30, halign: 'right' },
-              4: { cellWidth: 30, halign: 'right' },
-              5: { cellWidth: 30, halign: 'right' },
-              6: { cellWidth: 30, halign: 'right' },
-              7: { cellWidth: 19, halign: 'right' },
-            },
-            margin: { left: 14, right: 14 },
-            didParseCell(data) {
-              if (data.column.index === 5 && data.section === 'body') {
-                const raw = lineas[data.row.index];
-                if (raw && Number(raw.TotLinea) < 0) {
-                  data.cell.styles.textColor = [180, 30, 30];
-                } else if (raw && Number(raw.TotLinea) > 0) {
-                  data.cell.styles.textColor = [0, 130, 80];
+            const clienteLineasFolio = doc.splitTextToSize(`Cliente: ${cliente}`, anchoContenidoPDF(doc) - 22);
+            const altoClienteFolio = Math.max(4, clienteLineasFolio.length * 4);
+            const altoBloqueFolio = 23 + altoClienteFolio + 10;
+
+            doc.setFillColor(240, 248, 246);
+            doc.rect(PDF_MARGEN, y, anchoContenidoPDF(doc), altoBloqueFolio, 'F');
+            doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 100, 80);
+            doc.text(`Folio: ${venta.Folio}`, 16, y + 5.2);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(40, 40, 40);
+            doc.text(`Fecha: ${fecha}`, 72, y + 5.2);
+            doc.text(`Tipo folio: ${tipo}`, 16, y + 10.8);
+            doc.text(`Cód. Cliente: ${codAux}`, 80, y + 10.8);
+            doc.text(`CanCod: ${canCod}`, 152, y + 10.8);
+            doc.text(clienteLineasFolio, 16, y + 15.8);
+            y += 15.8 + altoClienteFolio + 1;
+
+            const filasProductos = lineas.map(p => {
+              const cant     = Number(p.CantFacturada) || 0;
+              const precReal = Number(p.precio_real ?? p.PrecioReal ?? p.precio_real_oficial) || 0;
+              const precVta  = Number(p.precio_vta ?? p.PrecioVta ?? p.precio_unitario_cobrado) || 0;
+              const totReal  = Number(p.neto_real ?? p.NetoReal ?? p.valor_historico_linea) || 0;
+              const totVta   = Number(p.neto_total ?? p.NetoTotal ?? p.valor_cobrado_linea ?? p.TotLinea) || 0;
+              const descBase = Number(p.dcto ?? p.Dcto);
+              const desc     = Number.isFinite(descBase) ? descBase : (
+                precReal !== 0
+                  ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+                  : 0
+              );
+              return [
+                p.CodProd || '—',
+                p.DesProd || p.descripcion || '—',
+                String(cant),
+                formatCLP(precReal),
+                formatCLP(precVta),
+                formatCLP(totReal),
+                formatCLP(totVta),
+                Number.isFinite(desc) ? `${desc}%` : '—',
+              ];
+            });
+
+            doc.autoTable({
+              startY: y,
+              head: [['Código', 'Descripción', 'Cant.', 'Precio Real', 'Precio Venta', 'Total Real', 'Total Venta', 'Descuento']],
+              body: filasProductos.length
+                ? filasProductos
+                : [['Sin productos', '', '', '', '', '', '', '']],
+              theme: 'grid',
+              styles: {
+                fontSize: 6.95,
+                cellPadding: { top: 1.2, right: 1.7, bottom: 1.2, left: 1.7 },
+                overflow: 'linebreak',
+                valign: 'middle',
+                lineColor: [224, 232, 229],
+                lineWidth: 0.12,
+              },
+              headStyles: {
+                fillColor: [0, 140, 115],
+                textColor: 255,
+                fontStyle: 'bold',
+                fontSize: 6.95,
+                valign: 'middle',
+                lineColor: [0, 120, 98],
+                lineWidth: 0.12,
+              },
+              alternateRowStyles: { fillColor: [250, 253, 252] },
+              columnStyles: {
+                0: { cellWidth: 16, halign: 'left' },
+                1: { cellWidth: 58, halign: 'left' },
+                2: { cellWidth: 10, halign: 'center' },
+                3: { cellWidth: 18, halign: 'right' },
+                4: { cellWidth: 14, halign: 'right' },
+                5: { cellWidth: 22, halign: 'right' },
+                6: { cellWidth: 22, halign: 'right' },
+                7: { cellWidth: 18, halign: 'right' },
+              },
+              margin: { left: PDF_MARGEN, right: PDF_MARGEN },
+              didParseCell(data) {
+                if (data.column.index === 5 && data.section === 'body') {
+                  const raw = lineas[data.row.index];
+                  if (raw && Number(raw.TotLinea) < 0) {
+                    data.cell.styles.textColor = [180, 30, 30];
+                  } else if (raw && Number(raw.TotLinea) > 0) {
+                    data.cell.styles.textColor = [0, 130, 80];
+                  }
                 }
-              }
-            },
-          });
+              },
+            });
 
-          y = doc.lastAutoTable.finalY + 6;
+            const resumenFolio = resumenDetalleFolio(lineas);
+            resumenGrupo.cant += Number(resumenFolio.cant || 0);
+            resumenGrupo.totalReal += Number(resumenFolio.totalReal || 0);
+            resumenGrupo.totalVenta += Number(resumenFolio.totalVenta || 0);
+
+            y = renderResumenFolioCompartido(doc, doc.lastAutoTable.finalY + 2, resumenFolio, 'Subtotal folio') + 2;
+          }
+
+          if (modoPDF === 'todos' && grupo.ventas.length) {
+            const baseGrupo = Math.abs(resumenGrupo.totalReal) || Math.abs(resumenGrupo.totalVenta) || 0;
+            const resumenCodigo = {
+              cant: resumenGrupo.cant,
+              totalReal: resumenGrupo.totalReal,
+              totalVenta: resumenGrupo.totalVenta,
+              dcto: baseGrupo
+                ? Math.round((((Math.abs(resumenGrupo.totalReal) - Math.abs(resumenGrupo.totalVenta)) / baseGrupo) * 100) * 100) / 100
+                : null,
+            };
+            y = renderResumenFolioCompartido(doc, y, resumenCodigo, `Total código ${grupo.codigo}`) + 2;
+          }
         }
       } else {
         doc.setFontSize(9); doc.setFont('helvetica', 'normal');
@@ -494,7 +1034,7 @@
 
       const panelComp = document.getElementById('panelCompartidos');
       if (modoPDF === 'todos' && panelComp && panelComp.style.display !== 'none' && _ultimosCompartidos.length) {
-        if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
+        if (y > altoPaginaPDF(doc) - 55) { doc.addPage(); addPageHeader(); y = PDF_Y_CONTENIDO; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Ventas Compartidas Conmigo', 14, y); y += 3;
 
@@ -511,25 +1051,25 @@
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Origen', '% Part.', 'Monto Asignado']],
           body: filasC,
-          styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
+          styles: { fontSize: 7.4, cellPadding: 2.2, overflow: 'linebreak' },
           headStyles: { fillColor: [0, 120, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [245, 248, 252] },
           columnStyles: {
             0: { cellWidth: 18 },
             1: { cellWidth: 24 },
-            2: { cellWidth: 86 },
-            3: { cellWidth: 56 },
-            4: { cellWidth: 18, halign: 'right' },
-            5: { cellWidth: 36, halign: 'right' },
+            2: { cellWidth: 60 },
+            3: { cellWidth: 46 },
+            4: { cellWidth: 14, halign: 'right' },
+            5: { cellWidth: 20, halign: 'right' },
           },
-          margin: { left: 14, right: 14 },
+          margin: { left: PDF_MARGEN, right: PDF_MARGEN },
         });
         y = doc.lastAutoTable.finalY + 10;
       }
 
       const panelAsig = document.getElementById('panelCoordinador');
       if (modoPDF === 'todos' && panelAsig && panelAsig.style.display !== 'none' && asignadosParaPDF.length) {
-        if (y > 170) { doc.addPage(); addPageHeader(); y = 24; }
+        if (y > altoPaginaPDF(doc) - 55) { doc.addPage(); addPageHeader(); y = PDF_Y_CONTENIDO; }
         doc.setFontSize(10); doc.setFont('helvetica', 'bold');
         doc.text('Folios Asignados a Vendedores', 14, y); y += 3;
 
@@ -546,31 +1086,32 @@
           startY: y,
           head: [['Folio', 'Fecha', 'Cliente', 'Vendedor Asignado', '% Part.', 'Monto Asignado']],
           body: filasA,
-          styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
+          styles: { fontSize: 7.4, cellPadding: 2.2, overflow: 'linebreak' },
           headStyles: { fillColor: [100, 60, 180], textColor: 255, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [248, 246, 252] },
           columnStyles: {
             0: { cellWidth: 18 },
             1: { cellWidth: 24 },
-            2: { cellWidth: 86 },
-            3: { cellWidth: 56 },
+            2: { cellWidth: 60 },
+            3: { cellWidth: 46 },
             4: { cellWidth: 18, halign: 'right' },
-            5: { cellWidth: 36, halign: 'right' },
+            5: { cellWidth: 20, halign: 'right' },
           },
-          margin: { left: 14, right: 14 },
+          margin: { left: PDF_MARGEN, right: PDF_MARGEN },
         });
       }
 
       const totalPags = doc.internal.getNumberOfPages();
+      const footerY = altoPaginaPDF(doc) - 12;
       for (let i = 1; i <= totalPags; i++) {
         doc.setPage(i);
         doc.setFontSize(7); doc.setTextColor(160, 160, 160);
-        doc.text(`TEXPRO — Documento interno. Página ${i} de ${totalPags}`, 14, 205);
-        doc.text(hoy, 260, 205);
+        doc.text(`TEXPRO — Documento interno. Página ${i} de ${totalPags}`, PDF_MARGEN, footerY);
+        doc.text(hoy, anchoPaginaPDF(doc) - PDF_MARGEN, footerY, { align: 'right' });
         doc.setTextColor(0, 0, 0);
       }
 
-      doc.save(`Reporte_Ventas_${mesLabel.replace(' ', '_')}.pdf`);
+      doc.save(nombreArchivoPDFReporte(modoPDF, codigoPDF, mesLabel));
     } catch (err) {
       console.error('[generarPDF]', err);
       alert('Error al generar el PDF. Intenta nuevamente.');
@@ -732,7 +1273,7 @@
         sel.innerHTML = '<option value="">— Sin folios disponibles —</option>'; return;
       }
       sel.innerHTML = '<option value="">— Selecciona un folio —</option>' +
-        data.folios.map(f => `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'?'} — ${formatCLP(f.monto)}</option>`).join('');
+        data.folios.map(f => `<option value="${f.Folio}">${f.Folio} — ${f.cliente||'—'} — ${formatCLP(f.monto)}</option>`).join('');
     } catch(err) { console.error('[cargarFoliosParaCompartir]', err); }
   }
 
@@ -786,7 +1327,7 @@
       const res  = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
-      _ultimosAsignados = data.asignados || [];
+      _ultimosAsignados   = data.asignados || [];
       setText('totalAsignados', `${_ultimosAsignados.length} registros`);
       if (!tbody) return;
       if (!_ultimosAsignados.length) {
@@ -807,7 +1348,7 @@
         btn.addEventListener('click', async () => {
           const id    = btn.dataset.id;
           const folio = btn.dataset.folio;
-          if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
+          if (!confirm(`Â¿Eliminar asignación del folio ${folio}?`)) return;
           try {
             const r = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
             const d = await r.json();
@@ -855,7 +1396,7 @@
       ]);
       const [dataV, dataC] = await Promise.all([resV.json(), resC.json()]);
 
-      _ultimasVentas      = dataV.ventas      || [];
+      _ultimasVentas      = dataV.ventas || [];
       _ultimosCompartidos = dataC.compartidos || [];
       actualizarListaCodigosPDF();
 
@@ -947,4 +1488,3 @@
   });
 
 })();
-
