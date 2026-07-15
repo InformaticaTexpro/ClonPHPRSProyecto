@@ -111,6 +111,9 @@ function initSidebar() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('texpro_user');
+    Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i))
+      .filter(key => key && key.startsWith('alertasPendientesMostradas:'))
+      .forEach(key => sessionStorage.removeItem(key));
     location.href = '../login/index.html';
   });
 
@@ -191,6 +194,9 @@ function renderAlertas() {
       if (accion === 'editar')     abrirEditar(id);
       if (accion === 'completar')  accionAlerta(id, 'completar');
       if (accion === 'desactivar') accionAlerta(id, 'desactivar');
+      if (accion === 'activar')    accionAlerta(id, 'activar');
+      if (accion === 'archivar')   accionAlerta(id, 'archivar');
+      if (accion === 'desarchivar') accionAlerta(id, 'desarchivar');
       if (accion === 'eliminar')   eliminarAlerta(id);
     });
   });
@@ -198,8 +204,9 @@ function renderAlertas() {
 
 function filtrarAlertas(lista, filtro) {
   switch (filtro) {
-    case 'activas':     return lista.filter(a => a.activa && !a.completada);
-    case 'proximas':    return lista.filter(a => a.activa && !a.completada && a.dias_restantes <= 7);
+    case 'activas':     return lista.filter(a => a.activa && !a.completada && !a.archivada);
+    case 'archivadas':  return lista.filter(a => a.archivada);
+    case 'proximas':    return lista.filter(a => a.activa && !a.completada && !a.archivada && a.dias_restantes <= 7);
     case 'completadas': return lista.filter(a => a.completada);
     case 'grupales':    return lista.filter(a => a.tipo === 'grupal');
     case 'propias':     return lista.filter(a => a.id_creador === USUARIO.id);
@@ -234,6 +241,8 @@ const FREC_LABEL = {
 function cardHTML(a) {
   const u         = urgencia(a.dias_restantes, !!a.completada);
   const esMio     = a.id_creador === USUARIO.id;
+  const puedeGestionar = esMio || USUARIO.is_admin === true || USUARIO.is_admin === 1 || USUARIO.is_admin === '1';
+  const archivada = Number(a.archivada) === 1;
   const fecha     = new Date(a.fecha_vence).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
   const frecLabel = FREC_LABEL[a.frecuencia_recordatorio] || '';
 
@@ -242,17 +251,25 @@ function cardHTML(a) {
     : `<span class="alerta-origen-badge alerta-origen-badge--asignada">📌 Asignada por ${escHtml(a.nombre_creador)}</span>`;
 
   const botonesAccion = a.completada
-    ? `<button class="btn-accion btn-accion--eliminar" data-accion="eliminar" data-id="${a.id}">🗑 Eliminar</button>`
+    ? `<span class="alerta-estado-chip alerta-estado-chip--completada">✅ Completada</span>
+       ${puedeGestionar ? `<button class="btn-accion btn-accion--eliminar" data-accion="eliminar" data-id="${a.id}">🗑 Eliminar</button>` : ''}`
+    : archivada
+    ? `<span class="alerta-estado-chip alerta-estado-chip--archivada">📦 Archivada</span>
+       ${puedeGestionar ? `<button class="btn-accion btn-accion--desarchivar" data-accion="desarchivar" data-id="${a.id}">↩ Desarchivar</button>` : ''}
+       ${puedeGestionar ? `<button class="btn-accion btn-accion--eliminar" data-accion="eliminar" data-id="${a.id}">🗑 Eliminar</button>` : ''}`
     : `
-      ${esMio ? `<button class="btn-accion btn-accion--completar"  data-accion="completar"  data-id="${a.id}">✅ Completar</button>` : ''}
-      ${esMio ? `<button class="btn-accion btn-accion--editar"     data-accion="editar"     data-id="${a.id}">✏️ Editar</button>`    : ''}
-      ${a.activa && esMio ? `<button class="btn-accion btn-accion--desactivar" data-accion="desactivar" data-id="${a.id}">🔕 Desactivar</button>` : ''}
-      ${esMio ? `<button class="btn-accion btn-accion--eliminar"   data-accion="eliminar"   data-id="${a.id}">🗑 Eliminar</button>`  : ''}
+      ${puedeGestionar ? `<button class="btn-accion btn-accion--archivar"   data-accion="archivar"   data-id="${a.id}">📦 Archivar</button>` : ''}
+      ${puedeGestionar ? `<button class="btn-accion btn-accion--completar"  data-accion="completar"  data-id="${a.id}">✅ Completar</button>` : ''}
+      ${puedeGestionar ? `<button class="btn-accion btn-accion--editar"     data-accion="editar"     data-id="${a.id}">✏️ Editar</button>`    : ''}
+      ${puedeGestionar && a.activa ? `<button class="btn-accion btn-accion--desactivar" data-accion="desactivar" data-id="${a.id}">🔕 Desactivar</button>` : ''}
+      ${puedeGestionar && !a.activa && !a.completada ? `<button class="btn-accion btn-accion--activar" data-accion="activar" data-id="${a.id}">▶ Activar</button>` : ''}
+      ${puedeGestionar ? `<button class="btn-accion btn-accion--eliminar"   data-accion="eliminar"   data-id="${a.id}">🗑 Eliminar</button>`  : ''}
     `;
 
   return `
     <div class="alerta-card alerta-card--${u}
       ${a.completada               ? 'alerta-card--completada'  : ''}
+      ${archivada                  ? 'alerta-card--archivada'   : ''}
       ${!a.activa && !a.completada ? 'alerta-card--desactivada' : ''}">
       <div class="alerta-card-body">
         <div class="alerta-card-top">
@@ -404,8 +421,11 @@ async function guardarAlerta(e) {
 
 async function accionAlerta(id, accion) {
   const msgs = {
+    archivar:   '¿Archivar esta alerta para ocultarla de la campana?',
     completar:  '¿Marcar esta alerta como completada?',
     desactivar: '¿Desactivar esta alerta? Se ocultará pero no se eliminará.',
+    activar:    '¿Activar esta alerta nuevamente?',
+    desarchivar:'¿Desarchivar esta alerta para volver a mostrarla en la campana?',
   };
   if (!confirm(msgs[accion] || '¿Confirmar?')) return;
   try {

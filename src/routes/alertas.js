@@ -77,6 +77,8 @@ router.get('/', async (req, res) => {
         a.id_creador, a.activa, a.completada, a.created_at,
         COALESCE(u.nombre, '') AS nombre_creador,
         COALESCE(ad.silenciada, 0) AS silenciada,
+        COALESCE(ad.archivada, 0) AS archivada,
+        COALESCE(ad.fecha_archivada, NULL) AS fecha_archivada,
         COALESCE(ad.descartada_hoy, NULL) AS descartada_hoy,
         (
           SELECT GROUP_CONCAT(du.nombre ORDER BY du.nombre SEPARATOR ', ')
@@ -105,6 +107,8 @@ router.get('/', async (req, res) => {
       ...r,
       fecha_vence:       toDateStr(r.fecha_vence),
       dias_restantes:    diasRestantes(r.fecha_vence),
+      archivada:         Number(r.archivada || 0),
+      fecha_archivada:   toDateStr(r.fecha_archivada),
       destinatarios_ids: r.destinatarios_ids
         ? r.destinatarios_ids.split(',').map(Number)
         : [],
@@ -127,7 +131,12 @@ router.get('/contador', async (req, res) => {
       LEFT JOIN alerta_destinatarios ad ON ad.id_alerta = a.id AND ad.id_usuario = ?
       WHERE
         a.activa = 1 AND a.completada = 0
-        AND DATEDIFF(a.fecha_vence, CURDATE()) BETWEEN 0 AND 7
+        AND a.fecha_vence >= CURDATE()
+        AND COALESCE(ad.archivada, 0) = 0
+        AND (
+          DATEDIFF(a.fecha_vence, CURDATE()) <= 7
+          OR a.frecuencia_recordatorio = 'siempre'
+        )
         AND COALESCE(ad.silenciada, 0) = 0
         AND (
           a.id_creador = ?
@@ -151,7 +160,12 @@ router.get('/badge', async (req, res) => {
       LEFT JOIN alerta_destinatarios ad ON ad.id_alerta = a.id AND ad.id_usuario = ?
       WHERE
         a.activa = 1 AND a.completada = 0
-        AND DATEDIFF(a.fecha_vence, CURDATE()) BETWEEN 0 AND 7
+        AND a.fecha_vence >= CURDATE()
+        AND COALESCE(ad.archivada, 0) = 0
+        AND (
+          DATEDIFF(a.fecha_vence, CURDATE()) <= 7
+          OR a.frecuencia_recordatorio = 'siempre'
+        )
         AND COALESCE(ad.silenciada, 0) = 0
         AND (
           a.id_creador = ?
@@ -184,7 +198,11 @@ router.get('/pendientes', async (req, res) => {
       WHERE
         a.activa = 1 AND a.completada = 0
         AND a.fecha_vence >= CURDATE()
-        AND DATEDIFF(a.fecha_vence, CURDATE()) <= 7
+        AND COALESCE(ad.archivada, 0) = 0
+        AND (
+          DATEDIFF(a.fecha_vence, CURDATE()) <= 7
+          OR a.frecuencia_recordatorio = 'siempre'
+        )
         AND COALESCE(ad.silenciada, 0) = 0
         AND (ad.descartada_hoy IS NULL OR ad.descartada_hoy != ?)
         AND (
@@ -247,7 +265,10 @@ router.post('/', async (req, res) => {
       [titulo, descripcion || null, tipo, fecha_vence, frecuencia_recordatorio, uid]
     );
     const idAlerta = ins.insertId;
-    const destSet  = new Set([uid, ...destinatarios.map(Number)]);
+    const destinatariosValidos = destinatarios
+      .map(Number)
+      .filter(n => Number.isInteger(n) && n > 0);
+    const destSet  = new Set([uid, ...destinatariosValidos]);
     for (const did of destSet) {
       await conn.query(
         `INSERT IGNORE INTO alerta_destinatarios (id_alerta, id_usuario) VALUES (?, ?)`,
@@ -289,7 +310,10 @@ router.put('/:id', async (req, res) => {
       [titulo, descripcion || null, tipo, fecha_vence, frecuencia_recordatorio, id]
     );
     await conn.query(`DELETE FROM alerta_destinatarios WHERE id_alerta = ?`, [id]);
-    const destSet = new Set([uid, ...destinatarios.map(Number)]);
+    const destinatariosValidos = destinatarios
+      .map(Number)
+      .filter(n => Number.isInteger(n) && n > 0);
+    const destSet = new Set([uid, ...destinatariosValidos]);
     for (const did of destSet) {
       await conn.query(
         `INSERT IGNORE INTO alerta_destinatarios (id_alerta, id_usuario) VALUES (?, ?)`,
@@ -338,6 +362,98 @@ router.patch('/:id/desactivar', async (req, res) => {
   } catch (e) {
     console.error('[alertas desactivar]', e);
     res.status(500).json({ ok: false, error: 'Error al desactivar alerta' });
+  }
+});
+
+// ── PATCH /:id/activar ────────────────────────────────────────────────────────
+router.patch('/:id/activar', async (req, res) => {
+  const uid = req.usuario.sub;
+  const id  = Number(req.params.id);
+  try {
+    const [[a]] = await db.query(`SELECT id_creador, completada FROM alertas WHERE id=?`, [id]);
+    if (!a) return res.status(404).json({ ok: false, error: 'No encontrada' });
+    if (a.id_creador !== uid && !req.usuario.is_admin)
+      return res.status(403).json({ ok: false, error: 'Sin permisos' });
+    if (Number(a.completada) === 1) {
+      return res.status(400).json({ ok: false, error: 'No se puede activar una alerta completada' });
+    }
+    await db.query(`UPDATE alertas SET activa=1 WHERE id=?`, [id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[alertas activar]', e);
+    res.status(500).json({ ok: false, error: 'Error al activar alerta' });
+  }
+});
+
+// ── PATCH /:id/archivar ──────────────────────────────────────────────────────
+router.patch('/:id/archivar', async (req, res) => {
+  const uid = req.usuario.sub;
+  const id  = Number(req.params.id);
+  try {
+    const [[a]] = await db.query(`
+      SELECT
+        a.id,
+        a.id_creador,
+        EXISTS(
+          SELECT 1
+          FROM alerta_destinatarios adx
+          WHERE adx.id_alerta = a.id
+            AND adx.id_usuario = ?
+        ) AS es_destinatario
+      FROM alertas a
+      WHERE a.id = ?
+    `, [uid, id]);
+    if (!a) return res.status(404).json({ ok: false, error: 'No encontrada' });
+    if (a.id_creador !== uid && Number(a.es_destinatario) !== 1) {
+      return res.status(403).json({ ok: false, error: 'Sin permisos' });
+    }
+    await db.query(`
+      INSERT INTO alerta_destinatarios (id_alerta, id_usuario, archivada, fecha_archivada)
+      VALUES (?, ?, 1, NOW())
+      ON DUPLICATE KEY UPDATE
+        archivada = 1,
+        fecha_archivada = NOW()
+    `, [id, uid]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[alertas archivar]', e);
+    res.status(500).json({ ok: false, error: 'Error al archivar alerta' });
+  }
+});
+
+// ── PATCH /:id/desarchivar ───────────────────────────────────────────────────
+router.patch('/:id/desarchivar', async (req, res) => {
+  const uid = req.usuario.sub;
+  const id  = Number(req.params.id);
+  try {
+    const [[a]] = await db.query(`
+      SELECT
+        a.id,
+        a.id_creador,
+        EXISTS(
+          SELECT 1
+          FROM alerta_destinatarios adx
+          WHERE adx.id_alerta = a.id
+            AND adx.id_usuario = ?
+        ) AS es_destinatario
+      FROM alertas a
+      WHERE a.id = ?
+    `, [uid, id]);
+    if (!a) return res.status(404).json({ ok: false, error: 'No encontrada' });
+    if (a.id_creador !== uid && Number(a.es_destinatario) !== 1) {
+      return res.status(403).json({ ok: false, error: 'Sin permisos' });
+    }
+    await db.query(`
+      INSERT INTO alerta_destinatarios (id_alerta, id_usuario, archivada, fecha_archivada)
+      VALUES (?, ?, 0, NULL)
+      ON DUPLICATE KEY UPDATE
+        archivada = 0,
+        fecha_archivada = NULL
+    `, [id, uid]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[alertas desarchivar]', e);
+    res.status(500).json({ ok: false, error: 'Error al desarchivar alerta' });
   }
 });
 

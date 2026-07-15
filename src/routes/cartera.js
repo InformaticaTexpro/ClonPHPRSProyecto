@@ -17,12 +17,13 @@
  *
  * 2026-06-10: refactor — reemplaza 5 queries por una sola consulta de detalle;
  *             KPIs y segmentos calculados en Node.js sobre el array resultante.
- * 2026-06-11: fix — EsRecuperado: reemplaza lógica de 180d/FechaPenultima por
- *             las 3 condiciones correctas:
- *               1. Tiene movimiento en el mes actual.
- *               2. La primera compra del mes actual - 90 días: sin movimientos
- *                  en ese rango (ventana "silenciosa").
- *               3. Tiene al menos un movimiento anterior a ese corte de 90 días
+ * 2026-07-13: fix — EsRecuperado: cambia la ventana silenciosa de 90 a 180 días
+ *             manteniendo la referencia en la primera compra del período
+ *             filtrado (FechaMinMesActual):
+ *               1. Tiene movimiento en el período filtrado.
+ *               2. En los 180 días previos a la primera compra del período
+ *                  no existen movimientos (ventana silenciosa).
+ *               3. Existe al menos un movimiento anterior al corte de 180 días
  *                  (historial previo que confirma que no es cliente nuevo).
  *             Para casos con varias compras en el mismo mes se usa
  *             FechaMinMesActual (MIN de fecha en el mes actual) como referencia,
@@ -105,9 +106,9 @@ router.get('/', async (req, res) => {
     //
     // Lógica EsRecuperado (3 condiciones):
     //   C1 — Tiene compra dentro del período filtrado.
-    //   C2 — En la ventana [FechaMinPeriodo - 90 días, FechaMinPeriodo - 1 día]
-    //        NO existe ninguna compra (silencio de 90 días).
-    //   C3 — Existe al menos una compra ANTERIOR a (FechaMinPeriodo - 90 días),
+    //   C2 — En la ventana [FechaMinPeriodo - 180 días, FechaMinPeriodo - 1 día]
+    //        NO existe ninguna compra (silencio de 180 días exactos).
+    //   C3 — Existe al menos una compra ANTERIOR a (FechaMinPeriodo - 180 días),
     //        confirmando que el cliente tiene historial previo (no es nuevo).
     const resDetalle = await request.query(`
       WITH Clientes AS (
@@ -175,9 +176,9 @@ router.get('/', async (req, res) => {
 
           -- EsRecuperado: las 3 condiciones
           --   C1: tiene compra en el período filtrado (FechaMinMesActual IS NOT NULL)
-          --   C2: NO tiene compras en los 90 días previos a FechaMinMesActual
-          --       es decir, ninguna compra en [FechaMinMesActual-90d, FechaMinMesActual-1d]
-          --   C3: SÍ tiene al menos una compra anterior a (FechaMinMesActual - 90 días)
+          --   C2: NO tiene compras en los 180 días previos a FechaMinMesActual
+          --       es decir, ninguna compra en [FechaMinMesActual-180d, FechaMinMesActual-1d]
+          --   C3: SÍ tiene al menos una compra anterior a (FechaMinMesActual - 180 días)
           --       (confirma que existe historial: no es cliente nuevo)
           CASE
               WHEN r.FechaMinMesActual IS NOT NULL
@@ -189,7 +190,7 @@ router.get('/', async (req, res) => {
                      AND x.Tipo        IN ('F','N','D')
                      AND x.Estado      <> 'A'
                      AND x.Fecha       <= @hasta
-                     AND x.Fecha       >= DATEADD(DAY, -90, r.FechaMinMesActual)
+                     AND x.Fecha       >= DATEADD(DAY, -180, r.FechaMinMesActual)
                      AND x.Fecha        < r.FechaMinMesActual
                )
                AND EXISTS (
@@ -200,7 +201,7 @@ router.get('/', async (req, res) => {
                      AND y.Tipo        IN ('F','N','D')
                      AND y.Estado      <> 'A'
                      AND y.Fecha       <= @hasta
-                     AND y.Fecha        < DATEADD(DAY, -90, r.FechaMinMesActual)
+                     AND y.Fecha        < DATEADD(DAY, -180, r.FechaMinMesActual)
                )
               THEN 1
               ELSE 0

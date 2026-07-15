@@ -10,6 +10,8 @@
 
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // ── Mock requireAuth ──────────────────────────────────────────────────────────
 jest.mock('../../src/middlewares/requireAuth', () => ({
@@ -146,6 +148,21 @@ describe('POST /api/dashboard/compartir — asigna porcentaje a folio', () => {
       .post('/api/dashboard/compartir')
       .send({ folio: 1001, cod_vendedor_compartido: 'V002', porcentaje: 150 });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('dashboard.js — formateo de descuentos en el modal de detalle', () => {
+  test('usa un helper seguro que permite descuentos negativos', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/modulo/ventas/dashboard/dashboard.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('function formatPctDescuento(valor)');
+    expect(source).toContain("if (valor === null || valor === undefined || valor === '') return '—';");
+    expect(source).toContain('return `${Math.round(n)}%`;');
+    expect(source).toContain('formatPctDescuento(l.dcto ?? l.Dcto)');
+    expect(source).not.toContain('Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0');
   });
 });
 

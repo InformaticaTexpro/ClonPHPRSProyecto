@@ -231,6 +231,9 @@
     clearTimeout(idleTimer);
     localStorage.removeItem('token');
     sessionStorage.removeItem('texpro_user');
+    Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i))
+      .filter(key => key && key.startsWith('alertasPendientesMostradas:'))
+      .forEach(key => sessionStorage.removeItem(key));
     window.location.href = LOGIN_URL;
   }
 
