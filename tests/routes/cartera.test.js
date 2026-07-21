@@ -8,6 +8,7 @@
 
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
 
 // ── Mock requireAuth ─────────────────────────────────────────────────
 jest.mock('../../src/middlewares/requireAuth', () => ({
@@ -90,7 +91,8 @@ describe('GET /api/cartera', () => {
     expect(sqlQuery).toContain('@hasta');
     expect(sqlQuery).not.toMatch(/GETDATE\(\)/i);
     expect(sqlQuery).toMatch(/FechaPrimeraCompra\s*>=\s*@desde/i);
-    expect(sqlQuery).toMatch(/DATEADD\(DAY,\s*-90,\s*@hasta\)/i);
+    expect(sqlQuery).toMatch(/DATEADD\(DAY,\s*-180,\s*r\.FechaMinMesActual\)/i);
+    expect(sqlQuery).not.toMatch(/DATEADD\(DAY,\s*-90,\s*r\.FechaMinMesActual\)/i);
   });
 
   test('KPIs son números', async () => {
@@ -114,6 +116,16 @@ describe('GET /api/cartera', () => {
     const res = await request(app).get('/api/cartera');
     expect(res.status).toBe(500);
     expect(res.body.ok).toBe(false);
+  });
+
+  test('leyenda visible de recuperados referencia 180 días', () => {
+    const html = fs.readFileSync(
+      require('path').join(__dirname, '../../src/modulo/ventas/dashboard/index.html'),
+      'utf8'
+    );
+
+    expect(html).toContain('Volvieron a comprar tras 180 días sin compras');
+    expect(html).not.toContain('Volvieron a comprar tras inactividad');
   });
 });
 

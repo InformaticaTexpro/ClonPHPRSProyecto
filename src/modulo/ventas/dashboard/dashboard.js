@@ -57,6 +57,13 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
   }
 
+  function formatPctDescuento(valor) {
+    if (valor === null || valor === undefined || valor === '') return '—';
+    const n = Number(valor);
+    if (!Number.isFinite(n)) return '—';
+    return `${Math.round(n)}%`;
+  }
+
   if (window.Chart && window.ChartDataLabels) {
     window.Chart.register(window.ChartDataLabels);
   }
@@ -273,7 +280,7 @@
       tbody.innerHTML = data.vendedores.map(v => {
         const totalVentasCobrado = Number(v.totalVentasCobrado || 0);
         const ventaRealLista     = Number(v.ventaRealLista     || 0);
-        const pctDescuento       = Math.round(Number(v.pctDescuento || 0));
+        const pctDescuento       = formatPctDescuento(v.pctDescuento);
         return `
         <tr>
           <td><strong>${escHtml(v.codVendedor)}</strong></td>
@@ -281,7 +288,7 @@
           <td>${v.totalFolios}</td>
           <td style="text-align:right">${formatCLP(totalVentasCobrado)}</td>
           <td style="text-align:right">${formatCLP(ventaRealLista)}</td>
-          <td style="text-align:right">${pctDescuento > 0 ? pctDescuento + '%' : '—'}</td>
+          <td style="text-align:right">${pctDescuento}</td>
         </tr>`;
       }).join('');
       const tfoot = document.getElementById('tfootVendedores');
@@ -342,7 +349,7 @@
     if (!lista.length) { tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin registros</td></tr>'; return; }
     tbody.innerHTML = lista.map(v => {
       const pctDescRedondeado = v.pct_descuento > 0 ? Math.round(Number(v.pct_descuento)) : 0;
-      const pctDesc      = pctDescRedondeado > 0 ? `${pctDescRedondeado}%` : '—';
+      const pctDesc      = formatPctDescuento(v.pct_descuento ?? v.pctDescuento ?? v.dcto ?? v.Dcto ?? (pctDescRedondeado || null));
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
       const badgeComp    = v.es_compartido
@@ -400,7 +407,7 @@
           <td style="text-align:right">${formatCLP(l.precio_vta ?? l.PrecioVta)}</td>
           <td style="text-align:right">${formatCLP(l.neto_real)}</td>
           <td style="text-align:right"><strong>${formatCLP(l.neto_total ?? l.TotLinea)}</strong></td>
-          <td style="text-align:right">${Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0 ? `${Math.round(Number(l.dcto))}%` : '—'}</td>
+          <td style="text-align:right">${formatPctDescuento(l.dcto ?? l.Dcto)}</td>
         </tr>`).join('');
       setText('modalTotalValor', formatCLP(total));
     } catch(err) { console.error('[abrirDetalle]',err); tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">&#x26A0;&#xFE0F; Error</td></tr>'; }

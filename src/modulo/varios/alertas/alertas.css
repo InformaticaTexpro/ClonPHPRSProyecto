@@ -64,6 +64,7 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .alerta-card:hover { box-shadow:0 6px 24px rgba(0,0,0,.10); transform:translateY(-2px); }
 .alerta-card--completada { opacity:.6; }
 .alerta-card--desactivada { opacity:.5; }
+.alerta-card--archivada { opacity:.78; border-top:4px solid #7C3AED; }
 .alerta-card--critica { border-top:4px solid #DC2626; }
 .alerta-card--urgente { border-top:4px solid #F5A623; }
 .alerta-card--normal { border-top:4px solid #00C896; }
@@ -94,13 +95,22 @@ html, body { height: 100%; font-family: var(--font-secondary,'Open Sans',sans-se
 .alerta-card-acciones { display:flex; gap:6px; flex-wrap:wrap; padding:10px 18px 14px; border-top:1px solid var(--color-gray-light,#E8EAF0); background:rgba(244,246,250,.5); }
 .btn-accion { flex:1; min-width:80px; padding:6px 10px; border-radius:8px; border:1px solid var(--color-gray-mid,#C7CBD6); background:#fff; cursor:pointer; font-size:.75rem; font-weight:600; display:flex; align-items:center; justify-content:center; gap:5px; transition:all .15s; color:var(--color-gray-dark,#6B7280); }
 .btn-accion:hover { background:var(--color-gray-light,#F4F6FA); }
+.btn-accion--archivar { color:#01696f; border-color:#00E2A7; }
+.btn-accion--archivar:hover { background:rgba(0,226,167,.12); }
 .btn-accion--completar { color:#00875a; border-color:#00C896; }
 .btn-accion--completar:hover { background:rgba(0,200,150,.1); }
+.btn-accion--activar { color:#00875a; border-color:#00C896; }
+.btn-accion--activar:hover { background:rgba(0,200,150,.1); }
+.btn-accion--desarchivar { color:#7C3AED; border-color:#7C3AED; }
+.btn-accion--desarchivar:hover { background:rgba(124,58,237,.1); }
 .btn-accion--editar { color:#F5A623; border-color:#F5A623; }
 .btn-accion--editar:hover { background:rgba(245,166,35,.1); }
 .btn-accion--eliminar { color:#DC2626; border-color:#DC2626; }
 .btn-accion--eliminar:hover { background:rgba(220,38,38,.08); }
 .btn-accion--desactivar { color:#6B7280; }
+.alerta-estado-chip { display:inline-flex; align-items:center; gap:5px; padding:6px 10px; border-radius:999px; font-size:.72rem; font-weight:700; }
+.alerta-estado-chip--completada { background:rgba(0,200,150,.1); color:#00875a; border:1px solid rgba(0,200,150,.22); }
+.alerta-estado-chip--archivada { background:rgba(124,58,237,.1); color:#7C3AED; border:1px solid rgba(124,58,237,.18); }
 
 .alerta-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.48); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
 .alerta-modal-overlay--visible { opacity:1; pointer-events:all; }

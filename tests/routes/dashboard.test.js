@@ -10,6 +10,8 @@
 
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // ── Mock requireAuth ──────────────────────────────────────────────────────────
 jest.mock('../../src/middlewares/requireAuth', () => ({
@@ -146,5 +148,57 @@ describe('POST /api/dashboard/compartir — asigna porcentaje a folio', () => {
       .post('/api/dashboard/compartir')
       .send({ folio: 1001, cod_vendedor_compartido: 'V002', porcentaje: 150 });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('dashboard.js — formateo de descuentos en el modal de detalle', () => {
+  test('usa un helper seguro que permite descuentos negativos', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/modulo/ventas/dashboard/dashboard.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('function formatPctDescuento(valor)');
+    expect(source).toContain("if (valor === null || valor === undefined || valor === '') return '—';");
+    expect(source).toContain('return `${Math.round(n)}%`;');
+    expect(source).toContain('formatPctDescuento(l.dcto ?? l.Dcto)');
+    expect(source).not.toContain('Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0');
+  });
+});
+
+describe('GET /api/dashboard/compartidos — incluye tipo de folio para el receptor', () => {
+  test('retorna tipo_folio resuelto desde Softland', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      {
+        id: 1,
+        folio: 377326,
+        fecha: '2026-05-14',
+        cliente: 'MINERA ABC',
+        monto_neto: 77964,
+        monto_asignado: 38982,
+        porcentaje: 50,
+        cod_vendedor_principal: '454',
+        cod_vendedor_compartido: '629',
+        nombre_vendedor_compartido: 'Claudia Rincones',
+        monto: 38982,
+        coordinador: 'Ana',
+        mes: 5,
+        anio: 2026,
+      },
+    ]]);
+    mockSoftlandRequest.query.mockResolvedValueOnce({
+      recordset: [{ tipo_folio: 'F' }],
+    });
+
+    const res = await request(app).get('/api/dashboard/compartidos?mes=5&anio=2026');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.compartidos).toHaveLength(1);
+    expect(res.body.compartidos[0].tipo_folio).toBe('F');
+
+    const sql = mockQuery.mock.calls[0][0];
+    expect(sql).toContain('fc.mes');
+    expect(sql).toContain('fc.anio');
   });
 });

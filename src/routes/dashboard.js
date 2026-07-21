@@ -78,6 +78,7 @@
 
 const express             = require('express');
 const router              = express.Router();
+const sql                 = require('mssql');
 const { requireAuth }     = require('../middlewares/requireAuth');
 const db                  = require('../config/db');
 const { getSoftlandPool } = require('../config/db.softland');
@@ -629,7 +630,7 @@ router.get('/compartidos', async (req, res) => {
   try {
     const ph = codigos.map(() => '?').join(',');
     const [rows] = await db.pool.query(`
-      SELECT fc.id, fc.folio, fc.fecha, fc.cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje,
+      SELECT fc.id, fc.folio, fc.fecha, fc.mes, fc.anio, fc.cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje,
         fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
         fc.monto_asignado AS monto, COALESCE(u.nombre, fc.cod_vendedor_principal) AS coordinador
       FROM factura_compartida fc
@@ -638,7 +639,38 @@ router.get('/compartidos', async (req, res) => {
       WHERE fc.cod_vendedor_compartido IN (${ph}) AND fc.mes = ? AND fc.anio = ? AND fc.rol = 'compartido'
       ORDER BY fc.fecha DESC
     `, [...codigos, mes, anio]);
-    res.json({ ok: true, compartidos: rows });
+    const pool = await getSoftlandPool();
+    const compartidosConTipo = await Promise.all((rows || []).map(async (row) => {
+      try {
+        const mesRow = Number(row.mes || (row.fecha ? new Date(row.fecha).getMonth() + 1 : 0));
+        const anioRow = Number(row.anio || (row.fecha ? new Date(row.fecha).getFullYear() : 0));
+        if (!mesRow || !anioRow) return { ...row, tipo_folio: '' };
+        const request = pool.request();
+        request.input('folio', sql.Int, Number(row.folio));
+        request.input('mes', sql.Int, mesRow);
+        request.input('anio', sql.Int, anioRow);
+        request.input('codVendedor', sql.VarChar(20), String(row.cod_vendedor_principal || ''));
+        const result = await request.query(`
+          SELECT TOP 1 h.Tipo AS tipo_folio
+          FROM [PRODIN].[softland].[iw_gsaen] h
+          WHERE h.Folio = @folio
+            AND MONTH(h.Fecha) = @mes
+            AND YEAR(h.Fecha) = @anio
+            AND h.CodVendedor = @codVendedor
+            AND h.Tipo IN ('F','N','D')
+            AND h.Estado <> 'A'
+          ORDER BY h.Fecha DESC, h.NroInt DESC
+        `);
+        const tipoFolio = String(result.recordset[0]?.tipo_folio || '').trim().toUpperCase();
+        return {
+          ...row,
+          tipo_folio: ['F', 'N', 'D'].includes(tipoFolio) ? tipoFolio : '',
+        };
+      } catch {
+        return { ...row, tipo_folio: '' };
+      }
+    }));
+    res.json({ ok: true, compartidos: compartidosConTipo });
   } catch (err) {
     console.error('[GET /dashboard/compartidos]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener compartidos' });

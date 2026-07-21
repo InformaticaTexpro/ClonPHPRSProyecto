@@ -165,12 +165,13 @@ describe('getClientesPorVendedor', () => {
 describe('getVentas', () => {
   test('retorna lista de folios con formato esperado', async () => {
     const filas = [
-      { Folio: 1001, fecha_formato: '15/06/2026', monto: 500000, CodVendedor: 'V001' },
+      { Folio: 1001, tipo_folio: 'F', fecha_formato: '15/06/2026', monto: 500000, CodVendedor: 'V001' },
     ];
     mockRequest.query.mockResolvedValueOnce({ recordset: filas });
     const result = await getVentas(BASE);
     expect(result).toEqual(filas);
     expect(result[0].Folio).toBe(1001);
+    expect(mockRequest.query.mock.calls.at(-1)[0]).toMatch(/CASE gsaen\.Tipo WHEN 'F' THEN 1 WHEN 'N' THEN 2 WHEN 'D' THEN 3 ELSE 9 END/);
   });
 
   test('retorna array vacío si no hay ventas', async () => {
@@ -211,6 +212,8 @@ describe('getDetalleFolio', () => {
     const filas = [
       {
         Folio: 377326,
+        tipo_folio: 'F',
+        Tipo: 'F',
         CodProd: 'PQ03580001',
         DesProd: 'EJEMPLO DETALLE',
         CantFacturada: 12,
@@ -225,6 +228,7 @@ describe('getDetalleFolio', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(expect.objectContaining({
       Folio: 377326,
+      Tipo: 'F',
       CodProd: 'PQ03580001',
       CantFacturada: 12,
       TotLinea: 77964,
@@ -243,8 +247,10 @@ describe('getDetalleFolio', () => {
   test('maneja nota de credito con precio y descuento correctos', async () => {
     mockRequest.query.mockResolvedValueOnce({
       recordset: [
-        {
-          Folio: 20475,
+      {
+        Folio: 20475,
+          tipo_folio: 'N',
+          Tipo: 'N',
           CodProd: 'PQ00010026',
           CantFacturada: -52,
           TotLinea: -343200,
@@ -258,6 +264,7 @@ describe('getDetalleFolio', () => {
     const result = await getDetalleFolio({ folio: 20475 });
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(expect.objectContaining({
+      Tipo: 'N',
       precio_real: 7097,
       precio_vta: 6600,
       neto_real: -369044,

@@ -48,7 +48,7 @@ async function requireAuth(req, res, next) {
 
 function requireAdmin(req, res, next) {
   if (!req.usuario?.is_admin) {
-    return res.status(403).json({ ok: false, error: 'Acceso restringido a administradores.' });
+    return res.status(403).json({ ok: false, error: 'Solo administradores' });
   }
   next();
 }

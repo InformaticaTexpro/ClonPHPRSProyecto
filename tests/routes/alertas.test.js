@@ -6,6 +6,8 @@
 
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // ── Helper de fecha LOCAL (igual que debeRecordar en producción) ──────────────
 // new Date('YYYY-MM-DD') se parsea como UTC medianoche, lo que puede dar
@@ -70,12 +72,15 @@ describe('Helper diasRestantes — a través de GET /api/alertas', () => {
       { id: 1, titulo: 'T', descripcion: null, tipo: 'personal',
         fecha_vence: localDateStr(3),
         frecuencia_recordatorio: 'diaria', id_creador: 1, activa: 1, completada: 0,
-        created_at: new Date(), nombre_creador: 'Ana', silenciada: 0,
+        created_at: new Date(), nombre_creador: 'Ana', silenciada: 0, archivada: 1,
         descartada_hoy: null, destinatarios_nombres: null, destinatarios_ids: null },
     ]]);
     const res = await request(app).get('/api/alertas');
     expect(res.status).toBe(200);
     expect(res.body.data[0].dias_restantes).toBeGreaterThan(0);
+    expect(res.body.data[0].archivada).toBe(1);
+    const sql = mockPoolQuery.mock.calls[0][0];
+    expect(sql).toMatch(/COALESCE\(ad\.archivada,\s*0\)\s+AS\s+archivada/i);
   });
 
   test('fecha pasada retorna días negativos', async () => {
@@ -131,6 +136,11 @@ describe('GET /api/alertas/contador', () => {
     const res = await request(app).get('/api/alertas/contador');
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(3);
+    const sql = mockPoolQuery.mock.calls[0][0];
+    expect(sql).toMatch(/a\.fecha_vence\s*>=\s*CURDATE\(\)/i);
+    expect(sql).toMatch(/COALESCE\(ad\.archivada,\s*0\)\s*=\s*0/i);
+    expect(sql).toMatch(/DATEDIFF\(a\.fecha_vence,\s*CURDATE\(\)\)\s*<=\s*7/i);
+    expect(sql).toMatch(/a\.frecuencia_recordatorio\s*=\s*'siempre'/i);
   });
 
   test('error retorna 500', async () => {
@@ -149,6 +159,10 @@ describe('GET /api/alertas/badge', () => {
     const res = await request(app).get('/api/alertas/badge');
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(5);
+    const sql = mockPoolQuery.mock.calls[0][0];
+    expect(sql).toMatch(/a\.fecha_vence\s*>=\s*CURDATE\(\)/i);
+    expect(sql).toMatch(/COALESCE\(ad\.archivada,\s*0\)\s*=\s*0/i);
+    expect(sql).toMatch(/a\.frecuencia_recordatorio\s*=\s*'siempre'/i);
   });
 
   test('error retorna 500', async () => {
@@ -184,6 +198,19 @@ describe('GET /api/alertas/pendientes — cubre debeRecordar', () => {
     mockPoolQuery.mockResolvedValueOnce([[makeAlerta({ frecuencia_recordatorio: 'siempre', ultimo_recordatorio: hoy })]]);
     const res = await request(app).get('/api/alertas/pendientes');
     expect(res.body.data).toHaveLength(1);
+  });
+
+  test('frecuencia siempre — vencimiento mayor a 7 días sigue incluida', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[makeAlerta({
+      frecuencia_recordatorio: 'siempre',
+      fecha_vence: localDateStr(20),
+      ultimo_recordatorio: null,
+    })]]);
+    const res = await request(app).get('/api/alertas/pendientes');
+    expect(res.body.data).toHaveLength(1);
+    const sql = mockPoolQuery.mock.calls[0][0];
+    expect(sql).toMatch(/COALESCE\(ad\.archivada,\s*0\)\s*=\s*0/i);
+    expect(sql).toMatch(/DATEDIFF\(a\.fecha_vence,\s*CURDATE\(\)\)\s*<=\s*7\s*OR\s*a\.frecuencia_recordatorio\s*=\s*'siempre'/i);
   });
 
   test('frecuencia diaria — sin último rec → incluida', async () => {
@@ -329,6 +356,25 @@ describe('POST /api/alertas', () => {
     expect(res.body.id).toBe(10);
   });
 
+  test('destinatarios inválidos se filtran y no rompen el inserto', async () => {
+    mockConnQuery
+      .mockResolvedValueOnce([{ insertId: 11 }])
+      .mockResolvedValueOnce([{}])
+      .mockResolvedValueOnce([{}]);
+    const res = await request(app).post('/api/alertas').send({
+      titulo: 'T',
+      tipo: 'grupal',
+      fecha_vence: '2026-08-01',
+      destinatarios: ['2', '', 'abc', null],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(11);
+    const inserts = mockConnQuery.mock.calls
+      .filter(call => String(call[0]).includes('INSERT IGNORE INTO alerta_destinatarios'));
+    expect(inserts).toHaveLength(2);
+    expect(inserts.map(call => call[1][1]).sort()).toEqual([1, 2]);
+  });
+
   test('error en INSERT hace rollback y retorna 500', async () => {
     mockConnQuery.mockRejectedValueOnce(new Error('insert fail'));
     const res = await request(app).post('/api/alertas').send(PAYLOAD_OK);
@@ -440,6 +486,116 @@ describe('PATCH /api/alertas/:id/desactivar', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATCH /:id/descartar
 // ═══════════════════════════════════════════════════════════════════════════════
+// ?? PATCH /:id/activar ????????????????????????????????????????????????????????
+describe('PATCH /api/alertas/:id/activar', () => {
+  test('due?o puede activar alerta desactivada', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 1, completada: 0 }]]).mockResolvedValueOnce([{}]);
+    const res = await request(app).patch('/api/alertas/1/activar');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockPoolQuery.mock.calls[1][0]).toMatch(/UPDATE alertas SET activa=1 WHERE id=\?/i);
+  });
+
+  test('admin puede activar alerta desactivada', async () => {
+    const prev = USUARIO.is_admin;
+    USUARIO.is_admin = 1;
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 99, completada: 0 }]]).mockResolvedValueOnce([{}]);
+    const res = await request(app).patch('/api/alertas/1/activar');
+    USUARIO.is_admin = prev;
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('otro usuario sin admin retorna 403', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 99, completada: 0 }]]);
+    const res = await request(app).patch('/api/alertas/1/activar');
+    expect(res.status).toBe(403);
+  });
+
+  test('alerta inexistente retorna 404', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[]]);
+    const res = await request(app).patch('/api/alertas/999/activar');
+    expect(res.status).toBe(404);
+  });
+
+  test('alerta completada retorna 400', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 1, completada: 1 }]]);
+    const res = await request(app).patch('/api/alertas/1/activar');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no se puede activar una alerta completada/i);
+  });
+
+  test('error retorna 500', async () => {
+    mockPoolQuery.mockRejectedValueOnce(new Error('db'));
+    const res = await request(app).patch('/api/alertas/1/activar');
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('PATCH /api/alertas/:id/archivar', () => {
+  test('creador puede archivar alerta', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 1, es_destinatario: 1 }]]).mockResolvedValueOnce([{}]);
+    const res = await request(app).patch('/api/alertas/1/archivar');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockPoolQuery.mock.calls[1][0]).toMatch(/archivada\s*=\s*1/i);
+    expect(mockPoolQuery.mock.calls[1][0]).toMatch(/fecha_archivada\s*=\s*NOW\(\)/i);
+  });
+
+  test('destinatario puede archivar alerta', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 99, es_destinatario: 1 }]]).mockResolvedValueOnce([{}]);
+    const res = await request(app).patch('/api/alertas/1/archivar');
+    expect(res.status).toBe(200);
+  });
+
+  test('usuario sin relación retorna 403', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 99, es_destinatario: 0 }]]);
+    const res = await request(app).patch('/api/alertas/1/archivar');
+    expect(res.status).toBe(403);
+  });
+
+  test('alerta inexistente retorna 404', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[]]);
+    const res = await request(app).patch('/api/alertas/999/archivar');
+    expect(res.status).toBe(404);
+  });
+
+  test('error retorna 500', async () => {
+    mockPoolQuery.mockRejectedValueOnce(new Error('db'));
+    const res = await request(app).patch('/api/alertas/1/archivar');
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('PATCH /api/alertas/:id/desarchivar', () => {
+  test('creador puede desarchivar alerta', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 1, es_destinatario: 1 }]]).mockResolvedValueOnce([{}]);
+    const res = await request(app).patch('/api/alertas/1/desarchivar');
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockPoolQuery.mock.calls[1][0]).toMatch(/archivada\s*=\s*0/i);
+    expect(mockPoolQuery.mock.calls[1][0]).toMatch(/fecha_archivada\s*=\s*NULL/i);
+  });
+
+  test('alerta inexistente retorna 404', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[]]);
+    const res = await request(app).patch('/api/alertas/999/desarchivar');
+    expect(res.status).toBe(404);
+  });
+
+  test('usuario sin relación retorna 403', async () => {
+    mockPoolQuery.mockResolvedValueOnce([[{ id_creador: 99, es_destinatario: 0 }]]);
+    const res = await request(app).patch('/api/alertas/1/desarchivar');
+    expect(res.status).toBe(403);
+  });
+
+  test('error retorna 500', async () => {
+    mockPoolQuery.mockRejectedValueOnce(new Error('db'));
+    const res = await request(app).patch('/api/alertas/1/desarchivar');
+    expect(res.status).toBe(500);
+  });
+});
+
 describe('PATCH /api/alertas/:id/descartar', () => {
   test('guarda fecha de hoy como descartada_hoy y ultimo_recordatorio', async () => {
     mockPoolQuery.mockResolvedValueOnce([{}]);
@@ -502,5 +658,39 @@ describe('DELETE /api/alertas/:id', () => {
     mockPoolQuery.mockRejectedValueOnce(new Error('db'));
     const res = await request(app).delete('/api/alertas/1');
     expect(res.status).toBe(500);
+  });
+});
+
+describe('alertas.js — archivar visible', () => {
+  test('expone acciones y filtro para archivadas', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/modulo/varios/alertas/alertas.js'),
+      'utf8'
+    );
+
+    expect(
+      fs.readFileSync(
+        path.join(__dirname, '../../src/modulo/varios/alertas/index.html'),
+        'utf8'
+      )
+    ).toContain('data-filtro="archivadas"');
+    expect(source).toContain('btn-accion--archivar');
+    expect(source).toContain('btn-accion--desarchivar');
+    expect(source).toContain('data-accion="archivar"');
+    expect(source).toContain('data-accion="desarchivar"');
+    expect(source).toContain('archivar:');
+    expect(source).toContain('desarchivar:');
+    expect(source).toContain('alerta-card--archivada');
+  });
+
+  test('la campana global expone archivar', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/assets/js/indicadores-header.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('archivarAlertaPendienteGlobal');
+    expect(source).toContain('data-accion="archivar"');
+    expect(source).toContain('texpro-alerta-btn--primary');
   });
 });

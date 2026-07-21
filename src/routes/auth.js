@@ -79,16 +79,54 @@ async function cargarMenusAsignados(usuarioId) {
         m.icono,
         m.grupo,
         m.orden
-     FROM usuario_menu um
-     INNER JOIN menu m ON m.id = um.menu_id
-     WHERE um.usuario_id = ?
-       AND um.activo = 1
-       AND m.activo = 1
+     FROM menu m
+     INNER JOIN (
+       SELECT um.menu_id
+       FROM usuario_menu um
+       WHERE um.usuario_id = ?
+         AND um.activo = 1
+       UNION
+       SELECT pm.menu_id
+       FROM usuario_perfil up
+       INNER JOIN perfil p ON p.id = up.perfil_id
+       INNER JOIN perfil_menu pm ON pm.perfil_id = p.id
+       WHERE up.usuario_id = ?
+         AND up.activo = 1
+         AND p.activo = 1
+         AND pm.activo = 1
+     ) accesos ON accesos.menu_id = m.id
+     WHERE m.activo = 1
      ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC`,
-    [usuarioId]
+    [usuarioId, usuarioId]
   );
 
   return normalizarMenus(rows);
+}
+
+async function cargarPerfilesAsignados(usuarioId) {
+  const [rows] = await db.pool.query(
+    `SELECT DISTINCT
+        p.id,
+        p.codigo,
+        p.nombre,
+        p.descripcion,
+        p.activo
+     FROM usuario_perfil up
+     INNER JOIN perfil p ON p.id = up.perfil_id
+     WHERE up.usuario_id = ?
+       AND up.activo = 1
+       AND p.activo = 1
+     ORDER BY p.nombre ASC`,
+    [usuarioId]
+  );
+
+  return (rows || []).map(perfil => ({
+    id: Number(perfil?.id) || perfil?.id || null,
+    codigo: String(perfil?.codigo || '').trim(),
+    nombre: String(perfil?.nombre || '').trim(),
+    descripcion: String(perfil?.descripcion || '').trim(),
+    activo: Boolean(Number(perfil?.activo)),
+  })).filter(perfil => perfil.id !== null);
 }
 
 async function cargarCatalogoMenus() {
@@ -110,12 +148,13 @@ async function cargarCatalogoMenus() {
 }
 
 async function cargarMenusUsuario(usuarioId) {
-  const [menus, allMenus] = await Promise.all([
+  const [menus, perfiles, allMenus] = await Promise.all([
     cargarMenusAsignados(usuarioId),
+    cargarPerfilesAsignados(usuarioId),
     cargarCatalogoMenus(),
   ]);
 
-  return { menus, allMenus };
+  return { menus, perfiles, allMenus };
 }
 
 // â”€â”€ POST /api/auth/login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -191,7 +230,7 @@ router.post('/login', async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
-    const { menus, allMenus } = await cargarMenusUsuario(user.id);
+    const { menus, perfiles, allMenus } = await cargarMenusUsuario(user.id);
 
     const payload = {
       id:        user.id,
@@ -201,6 +240,7 @@ router.post('/login', async (req, res) => {
       area:      user.area,
       is_admin:  user.is_admin,
       vendedores: vendedoresNormalizados,
+      perfiles,
       menus,
     };
 
@@ -236,8 +276,8 @@ router.get('/me', requireAuth, async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
-    const { menus, allMenus } = await cargarMenusUsuario(user.id);
-    res.json({ ok: true, user: { ...user, vendedores: vendedoresNormalizados, menus }, allMenus });
+    const { menus, perfiles, allMenus } = await cargarMenusUsuario(user.id);
+    res.json({ ok: true, user: { ...user, vendedores: vendedoresNormalizados, perfiles, menus }, allMenus });
   } catch (err) {
     console.error('[GET /api/auth/me]', err.message);
     res.status(500).json({ ok: false, error: 'Error interno' });
@@ -295,7 +335,7 @@ router.post('/refresh', async (req, res) => {
       [user.id]
     );
     const vendedoresNormalizados = normalizarVendedores(vendedores);
-    const { menus, allMenus } = await cargarMenusUsuario(user.id);
+    const { menus, perfiles, allMenus } = await cargarMenusUsuario(user.id);
     const nuevoPayload = {
       id:        user.id,
       sub:       user.id,
@@ -304,6 +344,7 @@ router.post('/refresh', async (req, res) => {
       area:      user.area,
       is_admin:  user.is_admin,
       vendedores: vendedoresNormalizados,
+      perfiles,
       menus,
     };
     const nuevoToken = jwt.sign(nuevoPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES });

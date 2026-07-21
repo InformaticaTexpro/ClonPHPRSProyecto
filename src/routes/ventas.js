@@ -461,8 +461,17 @@ router.get('/folio/:folio', requireAuth, async (req, res) => {
 router.get('/detalle/:folio', requireAuth, async (req, res) => {
   try {
     const folio   = req.params.folio;
-    const detalle = await getDetalleFolio({ folio });
-    res.json({ ok: true, detalle });
+    const anio    = req.query.anio;
+    const detalle = await getDetalleFolio({ folio, anio });
+    const primera = Array.isArray(detalle) ? detalle[0] || {} : {};
+    const tipoFolio = String(primera.tipo_folio ?? primera.Tipo ?? primera.tipo ?? '').trim().toUpperCase();
+    res.json({
+      ok: true,
+      detalle,
+      tipo_folio: ['F', 'N', 'D'].includes(tipoFolio) ? tipoFolio : '',
+      Tipo: ['F', 'N', 'D'].includes(tipoFolio) ? tipoFolio : '',
+      tipo: ['F', 'N', 'D'].includes(tipoFolio) ? tipoFolio : '',
+    });
   } catch (err) {
     console.error('[GET /api/ventas/detalle]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener detalle del folio' });

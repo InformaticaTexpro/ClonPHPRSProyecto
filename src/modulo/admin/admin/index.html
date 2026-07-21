@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texpro — Administración</title>
+  <title>Texpro - Administración</title>
   <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -42,10 +42,14 @@
         <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
-        <h1 class="header-title">Administración</h1>
+        <div class="header-copy">
+          <h1 class="header-title">Panel de Administración</h1>
+          <p class="header-subtitle">Gestión centralizada de usuarios, menús, perfiles y accesos heredados.</p>
+        </div>
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
+        <button class="btn-secondary header-refresh" id="btnRefreshData" type="button">Actualizar datos</button>
         <div class="header-user-chip">
           <div class="chip-avatar" id="chipAvatar">?</div>
           <span class="chip-name" id="chipName">...</span>
@@ -58,19 +62,23 @@
         <div class="admin-hero__copy">
           <span class="admin-kicker">Sistema / Administración</span>
           <h2>Administración</h2>
-          <p>Gestión preliminar de usuarios, módulos, permisos por menú y asignación usuario ↔ vendedor.</p>
+          <p>Gestión real de usuarios, módulos, permisos por menú y asignación usuario ↔ vendedor.</p>
         </div>
         <div class="admin-hero__status">
-          <span class="admin-status-pill">Vista preliminar</span>
-          <span class="admin-status-note">Cambios no guardados en servidor</span>
+          <span class="admin-status-pill">Datos reales</span>
+          <span class="admin-status-note" id="adminStatusNote">Cargando información del sistema...</span>
         </div>
       </section>
+
+      <div class="admin-message" id="adminMessage" role="status" aria-live="polite" hidden></div>
 
       <section class="admin-kpis-grid" id="adminKpis"></section>
 
       <nav class="admin-tabs" id="adminTabs" aria-label="Secciones de administración">
-        <button class="admin-tab is-active" data-tab="usuarios" type="button">Usuarios</button>
+        <button class="admin-tab is-active" data-tab="resumen" type="button">Resumen</button>
+        <button class="admin-tab" data-tab="usuarios" type="button">Usuarios</button>
         <button class="admin-tab" data-tab="permisos" type="button">Permisos por usuario</button>
+        <button class="admin-tab" data-tab="perfiles" type="button">Perfiles</button>
         <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
         <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
         <button class="admin-tab" data-tab="asignaciones" type="button">Asignación vendedores</button>
@@ -78,12 +86,50 @@
       </nav>
 
       <section class="admin-panels">
+        <section class="admin-panel is-active" data-panel="resumen">
+          <div class="panel-card panel-card--split admin-summary-card">
+            <div class="panel-card__header">
+              <div>
+                <h3>Resumen general</h3>
+                <p>Vista ejecutiva del estado actual del módulo y accesos más importantes.</p>
+              </div>
+              <div class="admin-summary-updated">
+                <span class="summary-chip">Última carga: <strong id="adminLastUpdated">—</strong></span>
+              </div>
+            </div>
+            <div id="adminSummaryGrid" class="admin-summary-grid"></div>
+            <div class="admin-summary-actions">
+              <button class="btn-primary" type="button" data-quick-action="create-user">Nuevo usuario</button>
+              <button class="btn-secondary" type="button" data-quick-action="create-profile">Nuevo perfil</button>
+              <button class="btn-secondary" type="button" data-quick-action="create-menu">Nuevo menú</button>
+              <button class="btn-secondary" type="button" data-quick-action="create-area">Nueva área</button>
+              <button class="btn-secondary" type="button" data-quick-action="area-access">Ir a áreas</button>
+            </div>
+            <div class="admin-summary-panels">
+              <article class="summary-panel" id="adminWarnings">
+                <div class="summary-panel__header">
+                  <h4>Alertas de configuración</h4>
+                  <span class="summary-panel__tag">Automático</span>
+                </div>
+                <div class="summary-panel__body" id="adminWarningsList"></div>
+              </article>
+              <article class="summary-panel" id="adminLatestChanges">
+                <div class="summary-panel__header">
+                  <h4>Cambios recientes</h4>
+                  <span class="summary-panel__tag">Auditoría</span>
+                </div>
+                <div class="summary-panel__body" id="adminLatestChangesList"></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section class="admin-panel is-active" data-panel="usuarios">
           <div class="panel-card">
             <div class="panel-card__header">
               <div>
                 <h3>Usuarios</h3>
-                <p>Vista mock de gestión completa de usuarios y estado.</p>
+                <p>Listado real de usuarios, estado, menús y vendedores asociados.</p>
               </div>
               <button class="btn-primary" id="btnNuevoUsuario" type="button">Nuevo usuario</button>
             </div>
@@ -105,11 +151,11 @@
               <table class="admin-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Nombre</th>
                     <th>Email</th>
-                    <th>Código vendedor</th>
+                    <th>Código</th>
                     <th>Área</th>
+                    <th>Perfil principal</th>
                     <th>Estado</th>
                     <th>Admin</th>
                     <th>Menús asignados</th>
@@ -128,8 +174,11 @@
             <div class="panel-card__header">
               <div>
                 <h3>Permisos por usuario</h3>
-                <p>Selecciona un usuario y ajusta sus menús permitidos.</p>
+                <p>Selecciona un usuario y ajusta sus menús directos. Los perfiles se gestionan aparte.</p>
               </div>
+            </div>
+            <div class="form-section-note admin-explainer">
+              Los accesos heredados vienen desde los perfiles asignados al usuario. Los accesos directos son excepciones individuales. Usa excepciones solo cuando un usuario necesite algo distinto a su perfil.
             </div>
             <div class="permission-topbar">
               <select class="input-control" id="permUserSelect"></select>
@@ -141,10 +190,83 @@
             <div class="permission-actions">
               <button class="btn-secondary" id="permSelectAll" type="button">Seleccionar todos</button>
               <button class="btn-secondary" id="permClearAll" type="button">Quitar todos</button>
-              <button class="btn-secondary" id="permRestoreArea" type="button">Restaurar sugeridos por área</button>
+              <select class="input-control" id="permAreaSelect"></select>
+              <button class="btn-secondary" id="permRestoreArea" type="button">Aplicar sugeridos por área</button>
               <button class="btn-primary" id="permSave" type="button">Guardar cambios</button>
             </div>
+            <div class="inline-help">Busca por nombre, correo o área. Marca solo accesos especiales; no repitas menús que ya vienen desde el perfil.</div>
             <div class="permission-grid" id="permGroups"></div>
+          </div>
+        </section>
+
+        <section class="admin-panel" data-panel="perfiles" hidden>
+          <div class="panel-card panel-card--split">
+            <div class="panel-card__header">
+              <div>
+                <h3>Perfiles</h3>
+                <p>Gestiona perfiles base por área, asigna menús a perfiles y perfiles a usuarios.</p>
+              </div>
+              <button class="btn-primary" id="btnNuevoPerfil" type="button">Nuevo perfil</button>
+            </div>
+            <div class="form-section-note admin-explainer">
+              Los menús incluidos se heredan en todos los usuarios con este perfil. Si un perfil queda vacío, se puede guardar, pero los usuarios no recibirán accesos desde él.
+            </div>
+            <div class="table-scroll">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Área</th>
+                    <th>Base</th>
+                    <th>Activo</th>
+                    <th>Menús</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="profilesTbody"></tbody>
+              </table>
+            </div>
+            <div class="profile-assignment-grid">
+              <article class="profile-assignment-card">
+                <div class="profile-assignment-card__header">
+                  <div>
+                    <h4>Menús del perfil</h4>
+                    <p>Los menús se heredan a todos los usuarios asociados al perfil.</p>
+                  </div>
+                  <div class="permission-summary">
+                    <span class="summary-chip">Asignados: <strong id="profileMenuAllowedCount">0</strong></span>
+                    <span class="summary-chip">Bloqueados: <strong id="profileMenuBlockedCount">0</strong></span>
+                  </div>
+                </div>
+                <div class="permission-actions">
+                  <button class="btn-secondary" id="profileMenuSelectAll" type="button">Seleccionar todos</button>
+                  <button class="btn-secondary" id="profileMenuClearAll" type="button">Quitar todos</button>
+                  <button class="btn-primary" id="profileMenuSave" type="button">Guardar cambios</button>
+                </div>
+                <div class="inline-help" id="profileMenuNote">Selecciona los módulos que heredarán todos los usuarios con este perfil.</div>
+                <div class="permission-grid" id="profileMenuGroups"></div>
+              </article>
+              <article class="profile-assignment-card">
+                <div class="profile-assignment-card__header">
+                  <div>
+                    <h4>Perfiles por usuario</h4>
+                    <p>Asigna perfiles manuales sin quitar el perfil base automático por área.</p>
+                  </div>
+                  <div class="permission-summary">
+                    <span class="summary-chip">Asignados: <strong id="profileUserAssignedCount">0</strong></span>
+                  </div>
+                </div>
+                <div class="permission-topbar">
+                  <select class="input-control" id="profileUserSelect"></select>
+                </div>
+                <div class="inline-help">Selecciona uno o más perfiles para entregar accesos base. El perfil del área se mantiene como base automática.</div>
+                <div class="permission-actions">
+                  <button class="btn-primary" id="profileUserSave" type="button">Guardar perfiles</button>
+                </div>
+                <div class="permission-list profile-user-list" id="profileUserGroups"></div>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -153,25 +275,27 @@
             <div class="panel-card__header">
               <div>
                 <h3>Menús y módulos</h3>
-                <p>Catálogo visual editable para preparar el sidebar corporativo.</p>
+                <p>Catálogo real editable para preparar el sidebar corporativo.</p>
               </div>
               <button class="btn-primary" id="btnNuevoMenu" type="button">Nuevo menú</button>
+            </div>
+            <div class="form-section-note admin-explainer">
+              Define nombres visibles, códigos limpios, URL válidas y grupos coherentes para que el sidebar se mantenga ordenado y sin datos basura.
             </div>
             <div class="menus-layout">
               <div class="table-scroll">
                 <table class="admin-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Código</th>
-                      <th>Nombre</th>
-                      <th>Grupo</th>
-                      <th>URL</th>
-                      <th>Icono</th>
-                      <th>Orden</th>
-                      <th>Activo</th>
-                      <th>Acciones</th>
-                    </tr>
+                <thead>
+                  <tr>
+                    <th>Icono</th>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th>Grupo</th>
+                    <th>URL</th>
+                    <th>Orden</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                  </tr>
                   </thead>
                   <tbody id="menusTbody"></tbody>
                 </table>
@@ -179,7 +303,7 @@
               <aside class="preview-card">
                 <div class="preview-card__header">
                   <h4>Previsualización sidebar</h4>
-                  <span class="preview-card__tag">Mock</span>
+                  <span class="preview-card__tag">Real</span>
                 </div>
                 <div id="menusPreview" class="sidebar-preview"></div>
               </aside>
@@ -192,10 +316,43 @@
             <div class="panel-card__header">
               <div>
                 <h3>Áreas</h3>
-                <p>Relación de áreas con permisos sugeridos solo a nivel visual.</p>
+                <p>Catálogo maestro de áreas con perfil base, estado y acceso rápido por usuario.</p>
               </div>
+              <button class="btn-primary" id="btnNuevaArea" type="button">Crear área</button>
             </div>
-            <div class="areas-grid" id="areasGrid"></div>
+            <div class="form-section-note admin-explainer">
+              Revisa los usuarios afectados antes de aplicar sugeridos. Esta acción agrega accesos, pero no elimina permisos directos ni perfiles.
+            </div>
+            <div class="table-scroll">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th>Perfil base</th>
+                    <th>Usuarios</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="areasTbody"></tbody>
+              </table>
+            </div>
+            <article class="panel-card panel-card--split area-assign-card">
+              <div class="panel-card__header">
+                <div>
+                  <h3>Aplicar perfil a usuarios del área</h3>
+                  <p>Selecciona un área y un perfil para asignarlo sin quitar perfiles existentes.</p>
+                </div>
+              </div>
+              <div class="toolbar-grid">
+                <select class="input-control" id="areaApplySelect"></select>
+                <select class="input-control" id="areaApplyProfileSelect"></select>
+                <button class="btn-primary" id="areaApplyButton" type="button">Aplicar perfil al área</button>
+              </div>
+              <div class="inline-help" id="areaApplyBaseHint">El área define el perfil base sugerido para el usuario.</div>
+              <div class="area-preview-grid" id="areaApplyPreview"></div>
+            </article>
           </div>
         </section>
 
@@ -204,21 +361,29 @@
             <div class="panel-card__header">
               <div>
                 <h3>Asignación vendedores</h3>
-                <p>Vista preliminar de relaciones usuario ↔ vendedor.</p>
+                <p>Relaciones reales entre usuario local y códigos de vendedor.</p>
               </div>
             </div>
+            <div class="form-section-note admin-explainer">
+              El código vendedor debe ser comercial y único por usuario. Usa principal, compartido o supervisor según el tipo de acceso de consulta.
+            </div>
             <div class="assignment-form" id="assignmentForm">
-              <select class="input-control" id="assignUserSelect"></select>
-              <input class="input-control" id="assignVendorCode" type="text" placeholder="Código vendedor" />
-              <select class="input-control" id="assignVendorType">
-                <option value="principal">Principal</option>
-                <option value="compartido">Compartido</option>
-                <option value="supervisor">Supervisor</option>
-              </select>
-              <select class="input-control" id="assignStatus">
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
+              <div class="field-group">
+                <select class="input-control" id="assignUserSelect"></select>
+                <small class="field-help">Usuario al que se asociará el código vendedor.</small>
+              </div>
+              <div class="field-group">
+                <input class="input-control" id="assignVendorCode" type="text" placeholder="Código vendedor" />
+                <small class="field-help">Código comercial usado para consultar ventas. Ejemplo: 454, 496, 629.</small>
+              </div>
+              <div class="field-group">
+                <select class="input-control" id="assignVendorType">
+                <option value="P">Principal</option>
+                <option value="C">Compartido</option>
+                <option value="S">Supervisor</option>
+                </select>
+                <small class="field-help">Principal: ventas propias. Compartido: acceso a ventas compartidas. Supervisor: visualización ampliada si aplica.</small>
+              </div>
               <button class="btn-primary" id="btnAddAssignment" type="button">Agregar relación</button>
             </div>
             <div class="table-scroll">
@@ -228,7 +393,6 @@
                     <th>Usuario</th>
                     <th>Código vendedor</th>
                     <th>Tipo</th>
-                    <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -243,7 +407,7 @@
             <div class="panel-card__header">
               <div>
                 <h3>Auditoría / cambios recientes</h3>
-                <p>Vista preliminar con datos de ejemplo.</p>
+                <p id="auditSubtitle">Auditoría real pendiente de implementar.</p>
               </div>
             </div>
             <div id="auditTimeline" class="audit-timeline"></div>
@@ -257,18 +421,18 @@
     <div class="drawer">
       <div class="drawer__header">
         <div>
-          <span class="drawer__kicker">Vista preliminar</span>
+          <span class="drawer__kicker">Administración</span>
           <h3 id="drawerTitle">Nuevo usuario</h3>
-          <p id="drawerSubtitle">Datos mock sin persistencia en servidor.</p>
+          <p id="drawerSubtitle">Formulario conectado a la API real.</p>
         </div>
-        <button class="drawer__close" id="drawerClose" type="button" aria-label="Cerrar">✕</button>
+        <button class="drawer__close" id="drawerClose" type="button" aria-label="Cerrar">✖</button>
       </div>
       <div class="drawer__body" id="drawerBody"></div>
       <div class="drawer__footer">
         <button class="btn-secondary" id="drawerSecondary" type="button">Cancelar</button>
         <button class="btn-secondary" id="drawerDanger" type="button">Desactivar usuario</button>
         <button class="btn-danger" id="drawerDelete" type="button">Eliminar usuario</button>
-        <button class="btn-primary" id="drawerPrimary" type="button">Guardar borrador visual</button>
+        <button class="btn-primary" id="drawerPrimary" type="button">Guardar cambios</button>
       </div>
     </div>
   </div>
@@ -279,3 +443,6 @@
   <script src="admin.js?v=1.0.0"></script>
 </body>
 </html>
+
+
+
