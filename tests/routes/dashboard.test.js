@@ -125,6 +125,58 @@ describe('GET /api/dashboard/evolucion — evolución mensual', () => {
     const res = await request(app).get('/api/dashboard/evolucion?anio=2025');
     expect(res.status).toBe(400);
   });
+
+  test('usa meta mensual si existe y prorratea la anual en los demás meses', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      {
+        id: 1,
+        usuario_id: 1,
+        fecha: '2026-01-01',
+        tipo_periodo: 'anual',
+        meta: 40613761,
+        activo: 1,
+      },
+      {
+        id: 2,
+        usuario_id: 1,
+        fecha: '2026-03-01',
+        tipo_periodo: 'mensual',
+        meta: 650000,
+        activo: 1,
+      },
+    ]]);
+    mockSoftlandRequest.query.mockResolvedValueOnce({
+      recordset: [
+        { mes: 1, ventas: 1000 },
+        { mes: 3, ventas: 3000 },
+      ],
+    });
+
+    const res = await request(app).get('/api/dashboard/evolucion?anio=2026');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.evolucion).toHaveLength(12);
+    expect(res.body.evolucion[0].meta).toBe(3384480);
+    expect(res.body.evolucion[0].meta_mes).toBe(3384480);
+    expect(res.body.evolucion[2].meta).toBe(650000);
+    expect(res.body.evolucion[2].meta_mes).toBe(650000);
+    expect(res.body.evolucion[0].prorrateada).toBe(true);
+    expect(res.body.evolucion[2].tipo_meta).toBe('mensual');
+  });
+});
+
+describe('GET /api/dashboard/vendedores — ventas por vendedor', () => {
+  test('retorna lista vacía cuando el mes no tiene ventas y no arrastra datos anteriores', async () => {
+    mockSoftlandRequest.query.mockResolvedValueOnce({ recordset: [] });
+
+    const res = await request(app).get('/api/dashboard/vendedores?mes=9&anio=2026');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(Array.isArray(res.body.vendedores)).toBe(true);
+    expect(res.body.vendedores).toHaveLength(0);
+  });
 });
 
 // ── POST /api/dashboard/compartir — asigna porcentaje a folio ────────────────
@@ -163,6 +215,21 @@ describe('dashboard.js — formateo de descuentos en el modal de detalle', () =>
     expect(source).toContain('return `${Math.round(n)}%`;');
     expect(source).toContain('formatPctDescuento(l.dcto ?? l.Dcto)');
     expect(source).not.toContain('Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0');
+  });
+});
+
+describe('dashboard.js — limpieza de Ventas por Vendedor', () => {
+  test('resetea tbody y footer antes de pintar nuevos datos', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/modulo/ventas/dashboard/dashboard.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('function renderVendedoresFooter(totalVentas = 0, ventaRealLista = 0, descuento = null)');
+    expect(source).toContain('function renderVendedoresVacios()');
+    expect(source).toContain('renderVendedoresVacios();');
+    expect(source).toContain("if (!data.ok || !Array.isArray(data.vendedores) || !data.vendedores.length)");
+    expect(source).toContain('renderVendedoresFooter(sumVentas, sumLista, descuento);');
   });
 });
 

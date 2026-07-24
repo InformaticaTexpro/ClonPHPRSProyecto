@@ -6,6 +6,7 @@
  */
 
 const {
+  resolverRutaPrincipalUsuario,
   resolverRutaInicialUsuario,
   FALLBACK_URL,
 } = require('../../src/modulo/varios/login/login-routes');
@@ -63,7 +64,7 @@ describe('resolverRutaInicialUsuario', () => {
     expect(resolverRutaInicialUsuario(user)).toBe('/src/modulo/ventas/dashboard/index.html');
   });
 
-  test('si no existe ruta base permitida, usa el primer menu asignado', () => {
+  test('si no existe ruta base permitida, usa el primer menu util', () => {
     const user = {
       area: 'Operaciones',
       menus: [
@@ -78,5 +79,42 @@ describe('resolverRutaInicialUsuario', () => {
   test('devuelve fallback cuando no hay menus', () => {
     expect(resolverRutaInicialUsuario({ area: 'Ventas', menus: [] })).toBe(FALLBACK_URL);
     expect(resolverRutaInicialUsuario(null)).toBe(FALLBACK_URL);
+  });
+});
+
+describe('resolverRutaPrincipalUsuario', () => {
+  test('ventas usa el dashboard como modulo principal', () => {
+    const user = {
+      area: 'Ventas',
+      menus: [
+        { id: 1, codigo: 'ventas_dashboard', url: '/src/modulo/ventas/dashboard/index.html', orden: 1 },
+        { id: 2, codigo: 'ventas_asignadas', url: '/src/modulo/ventas/ventas/index.html', orden: 2 },
+      ],
+    };
+
+    expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/ventas/dashboard/index.html');
+  });
+
+  test('admin acepta administracion o admin como area principal', () => {
+    const user = {
+      area: 'Administración',
+      menus: [
+        { id: 11, codigo: 'admin', url: '/src/modulo/admin/admin/index.html', orden: 2 },
+        { id: 12, codigo: 'alertas', grupo: 'general', url: '/src/modulo/varios/alertas/index.html', orden: 1 },
+      ],
+    };
+
+    expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/admin/admin/index.html');
+  });
+
+  test('si solo existe alertas, devuelve alertas como ultimo recurso', () => {
+    const user = {
+      area: 'Operaciones',
+      menus: [
+        { id: 50, codigo: 'alertas', grupo: 'general', url: '/src/modulo/varios/alertas/index.html', orden: 1 },
+      ],
+    };
+
+    expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/varios/alertas/index.html');
   });
 });

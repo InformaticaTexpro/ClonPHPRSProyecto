@@ -38,6 +38,7 @@ const {
   getDescuentosVendedor,
 } = require('../models/venta');
 const { validarMesAnio } = require('../utils/stringHelpers');
+const { obtenerMetaVendedor } = require('../models/vendedorMeta');
 const {
   existeConfirmacion,
   crearConfirmacion,
@@ -103,12 +104,8 @@ router.get('/kpis', requireAuth, async (req, res) => {
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
     const usuarioId = getUsuarioId(req);
-    const [metaRows] = await db.query(
-      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
-      [usuarioId, anio]
-    );
-    const metaAnual = metaRows.length ? Number(metaRows[0].meta) : 0;
-    const metaMes   = metaAnual > 0 ? Math.round(metaAnual / 12) : 0;
+    const metaInfo = await obtenerMetaVendedor(db, usuarioId, anio, mes);
+    const metaMes = Number(metaInfo.meta_mes || 0);
 
     if (!codigos.length) return res.json({ ok: true, totalVentas: 0, metaMes, totalDescuento: 0 });
 
@@ -174,13 +171,15 @@ router.get('/meta', requireAuth, async (req, res) => {
     try { ({ anio } = validarMesAnio(req.query.mes ?? '1', req.query.anio)); }
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
     const usuarioId = getUsuarioId(req);
-    const [rows] = await db.query(
-      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
-      [usuarioId, anio]
-    );
-    const metaAnual = rows.length ? Number(rows[0].meta) : 0;
-    const metaMes   = metaAnual > 0 ? Math.round(metaAnual / 12) : 0;
-    res.json({ ok: true, metaAnual, metaMes });
+    const metaInfo = await obtenerMetaVendedor(db, usuarioId, anio, 1);
+    res.json({
+      ok: true,
+      metaAnual: Number(metaInfo.meta_original || 0),
+      metaMes: Number(metaInfo.meta_mes || 0),
+      tipo_periodo: metaInfo.tipo_periodo,
+      fecha: metaInfo.fecha,
+      prorrateada: Boolean(metaInfo.prorrateada),
+    });
   } catch (err) {
     console.error('[GET /api/ventas/meta]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener meta' });
@@ -249,13 +248,8 @@ router.get('/evolucion', requireAuth, async (req, res) => {
     catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
     const codigos   = getCodigos(req);
     const usuarioId = getUsuarioId(req);
-
-    const [metaRows] = await db.query(
-      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
-      [usuarioId, anio]
-    );
-    const metaAnual = metaRows.length ? Number(metaRows[0].meta) : 0;
-    const metaMes   = metaAnual > 0 ? Math.round(metaAnual / 12) : 0;
+    const metaInfo = await obtenerMetaVendedor(db, usuarioId, anio, 1);
+    const metaMes = Number(metaInfo.meta_mes || 0);
 
     if (!codigos.length) {
       return res.json({ ok: true, evolucion: Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, ventas: 0, meta: metaMes })) });

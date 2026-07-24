@@ -64,6 +64,28 @@
     return `${Math.round(n)}%`;
   }
 
+  function renderVendedoresFooter(totalVentas = 0, ventaRealLista = 0, descuento = null) {
+    const tfoot = document.getElementById('tfootVendedores');
+    if (!tfoot) return;
+    const descuentoHtml = descuento === null || descuento === undefined || descuento === ''
+      ? 'â€”'
+      : formatPctDescuento(descuento);
+    tfoot.innerHTML = `<tr>
+      <td colspan="3"><strong>Total</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(totalVentas)}</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(ventaRealLista)}</strong></td>
+      <td style="text-align:right"><strong>${descuentoHtml}</strong></td>
+    </tr>`;
+  }
+
+  function renderVendedoresVacios() {
+    const tbody = document.getElementById('tbodyVendedores');
+    if (tbody) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin datos</td></tr>';
+    }
+    renderVendedoresFooter(0, 0, null);
+  }
+
   if (window.Chart && window.ChartDataLabels) {
     window.Chart.register(window.ChartDataLabels);
   }
@@ -239,7 +261,13 @@
       if (!data.ok) throw new Error(data.error);
       const labels = data.evolucion.map(e => MESES_LABEL[e.mes - 1]);
       const ventas = data.evolucion.map(e => e.ventas);
-      const meta   = data.evolucion.map(e => e.meta);
+      const meta   = data.evolucion.map(e => Number(e.meta_mes ?? e.meta ?? 0));
+      const metaOrigen = data.evolucion.map(e => {
+        if (e.prorrateada) return 'Meta anual prorrateada';
+        if (e.tipo_meta === 'mensual') return 'Meta mensual específica';
+        if (e.tipo_meta === 'anual') return 'Meta anual prorrateada';
+        return 'Meta';
+      });
       const canvas = document.getElementById('graficoEvolucion');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -256,7 +284,17 @@
           plugins:{
             datalabels:{ display:false },
             legend:{ position:'top', labels:{ font:{ family:'Montserrat', size:12 }, usePointStyle:true } },
-            tooltip:{ callbacks:{ label:ctx2 => ` ${ctx2.dataset.label}: ${new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(ctx2.parsed.y)}` } }
+            tooltip:{
+              callbacks:{
+                label:ctx2 => {
+                  const monto = new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(ctx2.parsed.y);
+                  if (ctx2.dataset.label === 'Meta') {
+                    return ` ${ctx2.dataset.label}: ${monto} (${metaOrigen[ctx2.dataIndex]})`;
+                  }
+                  return ` ${ctx2.dataset.label}: ${monto}`;
+                }
+              }
+            }
           },
           scales:{
             y:{ beginAtZero:true, ticks:{ font:{family:'Open Sans',size:11}, callback: v => new Intl.NumberFormat('es-CL',{notation:'compact',compactDisplay:'short'}).format(v) }, grid:{color:'rgba(0,0,0,0.05)'} },
@@ -270,12 +308,14 @@
   // ── Tabla vendedores ──────────────────────────────────────────────────────────────────────
   async function cargarVendedores() {
     try {
+      renderVendedoresVacios();
       const res  = await fetch(`${API}/vendedores?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       const tbody = document.getElementById('tbodyVendedores');
       if (!tbody) return;
-      if (!data.ok || !data.vendedores.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin datos</td></tr>'; return;
+      if (!data.ok || !Array.isArray(data.vendedores) || !data.vendedores.length) {
+        renderVendedoresVacios();
+        return;
       }
       tbody.innerHTML = data.vendedores.map(v => {
         const totalVentasCobrado = Number(v.totalVentasCobrado || 0);
@@ -291,17 +331,12 @@
           <td style="text-align:right">${pctDescuento}</td>
         </tr>`;
       }).join('');
-      const tfoot = document.getElementById('tfootVendedores');
-      if (tfoot) {
-        const sumVentas = data.vendedores.reduce((s, v) => s + Number(v.totalVentasCobrado || 0), 0);
-        const sumLista  = data.vendedores.reduce((s, v) => s + Number(v.ventaRealLista     || 0), 0);
-        tfoot.innerHTML = `<tr>
-          <td colspan="3"><strong>Total</strong></td>
-          <td style="text-align:right"><strong>${formatCLP(sumVentas)}</strong></td>
-          <td style="text-align:right"><strong>${formatCLP(sumLista)}</strong></td>
-          <td></td>
-        </tr>`;
-      }
+      const sumVentas = data.vendedores.reduce((s, v) => s + Number(v.totalVentasCobrado || 0), 0);
+      const sumLista  = data.vendedores.reduce((s, v) => s + Number(v.ventaRealLista     || 0), 0);
+      const descuento = sumLista > 0
+        ? Math.round((1 - sumVentas / sumLista) * 10000) / 100
+        : null;
+      renderVendedoresFooter(sumVentas, sumLista, descuento);
     } catch (err) { console.error('[cargarVendedores]', err); }
   }
 

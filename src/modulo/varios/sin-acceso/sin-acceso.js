@@ -2,6 +2,7 @@
 
 (function () {
   const LOGIN_PATH = '/src/modulo/varios/login/index.html';
+  const loginRouter = window.TEXPRO_LOGIN_ROUTER || {};
   const NO_AUTH = {
     nombre: 'No autenticado',
     area: 'No disponible',
@@ -53,7 +54,8 @@
     return String(valor || '')
       .trim()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 
   function normalizarUrl(url) {
@@ -83,19 +85,13 @@
     };
   }
 
-  function getUsuarioGuardado() {
-    return normalizarUsuario(parseJSONSafe(sessionStorage.getItem('texpro_user')))
-      || normalizarUsuario(parseJSONSafe(localStorage.getItem('user')))
-      || normalizarUsuario(parseJSONSafe(localStorage.getItem('usuario')))
-      || normalizarUsuario(decodificarJwt(localStorage.getItem('token')));
-  }
-
   function ordenarMenus(menus) {
     return (menus || [])
       .filter(menu => menu && (menu.url || menu.nombre))
       .map(menu => ({
         id: menu.id ?? null,
         codigo: normalizarTexto(menu.codigo),
+        grupo: normalizarTexto(menu.grupo),
         nombre: String(menu.nombre || '').trim(),
         url: normalizarUrl(menu.url),
         orden: Number(menu.orden ?? 0) || 0,
@@ -121,10 +117,52 @@
     return from || 'Módulo no identificado';
   }
 
-  function obtenerPrimerMenuPermitido(usuario) {
+  function resolverRutaPrincipalUsuarioLocal(usuario) {
     const menus = ordenarMenus(usuario?.menus);
-    return menus[0] || null;
+    if (!menus.length) return null;
+
+    const area = normalizarTexto(usuario?.area);
+    const rutas = {
+      ventas: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      venta: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      vendedores: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      comercial: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      gerencia: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      produccion: ['/src/modulo/produccion/produccion/index.html', 'produccion'],
+      bodega: ['/src/modulo/bodega/bodega/index.html', 'bodega'],
+      facturacion: ['/src/modulo/facturacion/facturacion/index.html', 'facturacion'],
+      rrhh: ['/src/modulo/rrhh/rrhh/index.html', 'rrhh'],
+      'recursos-humanos': ['/src/modulo/rrhh/rrhh/index.html', 'rrhh'],
+      contabilidad: ['/src/modulo/contabilidad/contabilidad/index.html', 'contabilidad'],
+      cobranza: ['/src/modulo/contabilidad/contabilidad/index.html', 'cobranza'],
+      'servicio-tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
+      servicio: ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
+      'serv-tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
+      'servicio tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
+      administracion: ['/src/modulo/admin/admin/index.html', 'administracion'],
+      admin: ['/src/modulo/admin/admin/index.html', 'administracion'],
+    };
+
+    const rutaConfig = rutas[area];
+    if (rutaConfig) {
+      const [rutaEsperada, codigoEsperado] = rutaConfig;
+      const menuPreferido = menus.find(menu => menu.url === rutaEsperada && (!codigoEsperado || menu.codigo === codigoEsperado));
+      if (menuPreferido) return menuPreferido.url;
+    }
+
+    const menusUtiles = menus
+      .filter(menu => menu.codigo !== 'alertas' && menu.grupo !== 'general')
+      .sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
+
+    if (menusUtiles.length) return menusUtiles[0].url;
+
+    const alerta = menus.find(menu => menu.codigo === 'alertas' || menu.grupo === 'general');
+    return alerta?.url || null;
   }
+
+  const resolverRutaPrincipalUsuario = typeof loginRouter.resolverRutaPrincipalUsuario === 'function'
+    ? loginRouter.resolverRutaPrincipalUsuario
+    : resolverRutaPrincipalUsuarioLocal;
 
   function resolverDatosUsuario(usuario, autenticado) {
     if (!autenticado) {
@@ -138,13 +176,16 @@
 
     const nombre = usuario?.nombre || usuario?.email || usuario?.usuario || 'Usuario';
     const area = usuario?.area || 'Sin área asignada';
-    const principal = obtenerPrimerMenuPermitido(usuario) || null;
+    const principalUrl = resolverRutaPrincipalUsuario(usuario);
+    const principal = principalUrl
+      ? ordenarMenus(usuario?.menus).find(menu => menu.url === normalizarUrl(principalUrl)) || null
+      : null;
 
     return {
       nombre,
       area,
       principal,
-      href: principal ? appUrl(principal.url) : appUrl(LOGIN_PATH),
+      href: principal ? appUrl(principal.url) : null,
     };
   }
 
@@ -156,10 +197,24 @@
     setText('usuarioNombre', datos.nombre);
     setText('usuarioArea', datos.area);
     setText('moduloSolicitado', moduloSolicitado);
-    setText('moduloPrincipal', datos.principal?.nombre || 'Sin módulo asignado');
+    setText('moduloPrincipal', datos.principal?.nombre || 'Sin módulo principal asignado');
 
     const btnVolver = document.getElementById('btnVolverModulo');
-    if (btnVolver) btnVolver.href = datos.href;
+    if (btnVolver) {
+      if (datos.href) {
+        btnVolver.href = datos.href;
+        btnVolver.removeAttribute('aria-disabled');
+        btnVolver.style.pointerEvents = '';
+        btnVolver.style.opacity = '';
+        btnVolver.style.cursor = '';
+      } else {
+        btnVolver.removeAttribute('href');
+        btnVolver.setAttribute('aria-disabled', 'true');
+        btnVolver.style.pointerEvents = 'none';
+        btnVolver.style.opacity = '.65';
+        btnVolver.style.cursor = 'not-allowed';
+      }
+    }
   }
 
   async function obtenerContexto() {
@@ -228,6 +283,13 @@
     }
 
     obtenerContexto();
+  }
+
+  function getUsuarioGuardado() {
+    return normalizarUsuario(parseJSONSafe(sessionStorage.getItem('texpro_user')))
+      || normalizarUsuario(parseJSONSafe(localStorage.getItem('user')))
+      || normalizarUsuario(parseJSONSafe(localStorage.getItem('usuario')))
+      || normalizarUsuario(decodificarJwt(localStorage.getItem('token')));
   }
 
   if (document.readyState === 'loading') {

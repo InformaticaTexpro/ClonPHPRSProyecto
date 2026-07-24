@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { requireAuth } = require('../middlewares/requireAuth');
 const { hashPasswordDjango } = require('../utils/pbkdf2Django');
+const vendedorMetaModel = require('../models/vendedorMeta');
 
 const router = express.Router();
 
@@ -2326,6 +2327,158 @@ router.post('/accesos/asignar-por-area', async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] POST /accesos/asignar-por-area:', error);
     res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar accesos por área' });
+  }
+});
+
+router.get('/vendedor-metas', async (req, res) => {
+  try {
+    const usuarioId = asNumber(req.query.usuario_id, null);
+    const anio = asNumber(req.query.anio, null);
+    const tipoPeriodo = normalizeKey(req.query.tipo_periodo || req.query.tipo || '');
+    const activo = asNumber(req.query.activo, null);
+
+    const metas = await withConnection(conn => vendedorMetaModel.listarMetasVendedor(conn, {
+      usuarioId,
+      anio,
+      tipoPeriodo,
+      activo,
+    }));
+
+    res.json({ ok: true, data: metas });
+  } catch (error) {
+    console.error('[ADMIN] GET /vendedor-metas:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener metas de vendedores' });
+  }
+});
+
+router.get('/vendedor-metas/:id', async (req, res) => {
+  try {
+    const metaId = requireId(req.params.id, 'Meta');
+    const meta = await withConnection(conn => vendedorMetaModel.obtenerMetaPorId(conn, { id: metaId }));
+    if (!meta) {
+      return res.status(404).json({ ok: false, error: 'Meta no encontrada' });
+    }
+    res.json({ ok: true, data: meta });
+  } catch (error) {
+    console.error('[ADMIN] GET /vendedor-metas/:id:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener meta' });
+  }
+});
+
+router.post('/vendedor-metas', async (req, res) => {
+  try {
+    const usuarioId = requireId(req.body.usuario_id, 'Usuario');
+    const anio = requireId(req.body.anio, 'Año');
+    const tipoPeriodo = vendedorMetaModel.normalizeTipoPeriodo(req.body.tipo_periodo);
+    const mes = asNumber(req.body.mes, null);
+    const meta = asNumber(req.body.meta, null);
+    const activo = asBoolean(req.body.activo, true);
+    const observacion = normalizeText(req.body.observacion);
+
+    if (!tipoPeriodo) {
+      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo válido.' });
+    }
+    if (meta === null || !Number.isFinite(meta) || meta < 0) {
+      return res.status(400).json({ ok: false, error: 'La meta debe ser un número válido.' });
+    }
+
+    const metaGuardada = await withTransaction(async conn => {
+      const usuario = await loadUser(conn, usuarioId);
+      if (!usuario) {
+        throw adminError('USUARIO_NO_EXISTE', 'El usuario seleccionado no existe.', 404);
+      }
+
+      return vendedorMetaModel.guardarMetaVendedor(conn, {
+        usuario_id: usuarioId,
+        anio,
+        mes,
+        tipo_periodo: tipoPeriodo,
+        meta,
+        activo,
+        observacion,
+      });
+    });
+
+    res.status(201).json({ ok: true, data: metaGuardada });
+  } catch (error) {
+    console.error('[ADMIN] POST /vendedor-metas:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al crear meta de vendedor' });
+  }
+});
+
+router.put('/vendedor-metas/:id', async (req, res) => {
+  try {
+    const metaId = requireId(req.params.id, 'Meta');
+    const usuarioId = requireId(req.body.usuario_id, 'Usuario');
+    const anio = requireId(req.body.anio, 'Año');
+    const tipoPeriodo = vendedorMetaModel.normalizeTipoPeriodo(req.body.tipo_periodo);
+    const mes = asNumber(req.body.mes, null);
+    const meta = asNumber(req.body.meta, null);
+    const activo = asBoolean(req.body.activo, true);
+    const observacion = normalizeText(req.body.observacion);
+
+    if (!tipoPeriodo) {
+      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo válido.' });
+    }
+    if (meta === null || !Number.isFinite(meta) || meta < 0) {
+      return res.status(400).json({ ok: false, error: 'La meta debe ser un número válido.' });
+    }
+
+    const metaActualizada = await withTransaction(async conn => {
+      const usuario = await loadUser(conn, usuarioId);
+      if (!usuario) {
+        throw adminError('USUARIO_NO_EXISTE', 'El usuario seleccionado no existe.', 404);
+      }
+
+      const actual = await vendedorMetaModel.obtenerMetaPorId(conn, { id: metaId });
+      if (!actual) {
+        throw adminError('META_NO_EXISTE', 'La meta seleccionada no existe.', 404);
+      }
+
+      return vendedorMetaModel.guardarMetaVendedor(conn, {
+        id: metaId,
+        usuario_id: usuarioId,
+        anio,
+        mes,
+        tipo_periodo: tipoPeriodo,
+        meta,
+        activo,
+        observacion,
+      });
+    });
+
+    res.json({ ok: true, data: metaActualizada });
+  } catch (error) {
+    console.error('[ADMIN] PUT /vendedor-metas/:id:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar meta de vendedor' });
+  }
+});
+
+router.patch('/vendedor-metas/:id/activar', async (req, res) => {
+  try {
+    const metaId = requireId(req.params.id, 'Meta');
+    const meta = await withTransaction(async conn => vendedorMetaModel.actualizarEstadoMetaVendedor(conn, { id: metaId, activo: true }));
+    if (!meta) {
+      return res.status(404).json({ ok: false, error: 'Meta no encontrada' });
+    }
+    res.json({ ok: true, data: meta });
+  } catch (error) {
+    console.error('[ADMIN] PATCH /vendedor-metas/:id/activar:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al activar meta de vendedor' });
+  }
+});
+
+router.patch('/vendedor-metas/:id/desactivar', async (req, res) => {
+  try {
+    const metaId = requireId(req.params.id, 'Meta');
+    const meta = await withTransaction(async conn => vendedorMetaModel.actualizarEstadoMetaVendedor(conn, { id: metaId, activo: false }));
+    if (!meta) {
+      return res.status(404).json({ ok: false, error: 'Meta no encontrada' });
+    }
+    res.json({ ok: true, data: meta });
+  } catch (error) {
+    console.error('[ADMIN] PATCH /vendedor-metas/:id/desactivar:', error);
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al desactivar meta de vendedor' });
   }
 });
 

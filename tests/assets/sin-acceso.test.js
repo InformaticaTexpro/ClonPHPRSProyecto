@@ -82,16 +82,48 @@ describe('sin-acceso', () => {
     expect(document.getElementById('btnVolverModulo').getAttribute('href')).toContain('/src/modulo/ventas/dashboard/index.html');
   });
 
-  test('si falla auth muestra no autenticado y lleva al login', async () => {
+  test('si solo existe alertas, la redireccion usa alertas como ultimo recurso', async () => {
     await ejecutarScript({
-      reject: true,
-      ruta: '/src/modulo/varios/sin-acceso/index.html?from=/src/modulo/facturacion/facturacion/index.html',
+      token: 'token-demo',
+      response: {
+        ok: true,
+        user: {
+          id: 23,
+          nombre: 'NORELBYS OLIVEROS',
+          email: 'norelby@texpro.cl',
+          area: 'Operaciones',
+          menus: [
+            { id: 9, codigo: 'alertas', grupo: 'general', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', orden: 1 },
+          ],
+        },
+        allMenus: [
+          { id: 9, codigo: 'alertas', grupo: 'general', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', orden: 1 },
+        ],
+      },
     });
 
-    expect(document.getElementById('usuarioNombre').textContent).toBe('No autenticado');
-    expect(document.getElementById('usuarioArea').textContent).toBe('No disponible');
-    expect(document.getElementById('moduloSolicitado').textContent).toContain('/src/modulo/facturacion/facturacion/index.html');
-    expect(document.getElementById('moduloPrincipal').textContent).toBe('Sin módulo asignado');
-    expect(document.getElementById('btnVolverModulo').getAttribute('href')).toContain('/src/modulo/varios/login/index.html');
+    expect(document.getElementById('moduloPrincipal').textContent).toBe('Alertas');
+    expect(document.getElementById('btnVolverModulo').getAttribute('href')).toContain('/src/modulo/varios/alertas/index.html');
+  });
+
+  test('si no hay menus, mantiene la pantalla sin redireccion util', async () => {
+    await ejecutarScript({
+      token: 'token-demo',
+      response: {
+        ok: true,
+        user: {
+          id: 99,
+          nombre: 'USUARIO SIN MENUS',
+          email: 'sinmenus@texpro.cl',
+          area: 'Operaciones',
+          menus: [],
+        },
+        allMenus: [],
+      },
+    });
+
+    expect(document.getElementById('moduloPrincipal').textContent).toBe('Sin módulo principal asignado');
+    expect(document.getElementById('btnVolverModulo').hasAttribute('href')).toBe(false);
+    expect(document.getElementById('btnVolverModulo').getAttribute('aria-disabled')).toBe('true');
   });
 });

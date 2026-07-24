@@ -30,9 +30,46 @@
   const resolverRutaInicialUsuario = typeof loginRouter.resolverRutaInicialUsuario === 'function'
     ? loginRouter.resolverRutaInicialUsuario
     : function (user) {
-      return (Array.isArray(user?.menus) && user.menus[0] && user.menus[0].url)
-        ? user.menus[0].url
-        : '/src/sin-acceso.html';
+      const menus = Array.isArray(user?.menus) ? user.menus : [];
+      const normalizar = (valor) => String(valor || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      const area = normalizar(user?.area);
+      const rutas = {
+        ventas: '/src/modulo/ventas/dashboard/index.html',
+        venta: '/src/modulo/ventas/dashboard/index.html',
+        vendedores: '/src/modulo/ventas/dashboard/index.html',
+        comercial: '/src/modulo/ventas/dashboard/index.html',
+        gerencia: '/src/modulo/ventas/dashboard/index.html',
+        produccion: '/src/modulo/produccion/produccion/index.html',
+        bodega: '/src/modulo/bodega/bodega/index.html',
+        facturacion: '/src/modulo/facturacion/facturacion/index.html',
+        rrhh: '/src/modulo/rrhh/rrhh/index.html',
+        'recursos_humanos': '/src/modulo/rrhh/rrhh/index.html',
+        contabilidad: '/src/modulo/contabilidad/contabilidad/index.html',
+        cobranza: '/src/modulo/contabilidad/contabilidad/index.html',
+        servicio_tecnico: '/src/modulo/servtecnico/servicio-tecnico/index.html',
+        servicio: '/src/modulo/servtecnico/servicio-tecnico/index.html',
+        'serv_tecnico': '/src/modulo/servtecnico/servicio-tecnico/index.html',
+        administracion: '/src/modulo/admin/admin/index.html',
+        admin: '/src/modulo/admin/admin/index.html',
+      };
+      const rutaPreferida = rutas[area];
+      if (rutaPreferida && menus.some(menu => String(menu?.url || '') === rutaPreferida)) {
+        return rutaPreferida;
+      }
+
+      const menusUtiles = menus
+        .filter(menu => normalizar(menu?.codigo) !== 'alertas' && normalizar(menu?.grupo) !== 'general' && String(menu?.url || '').trim())
+        .sort((a, b) => (Number(a?.orden ?? 0) - Number(b?.orden ?? 0)) || String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es'));
+      if (menusUtiles.length) return menusUtiles[0].url;
+
+      const alerta = menus.find(menu => normalizar(menu?.codigo) === 'alertas' || normalizar(menu?.grupo) === 'general');
+      return alerta?.url || '/src/sin-acceso.html';
     };
 
   // ── Referencias DOM ───────────────────────────────────────

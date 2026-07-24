@@ -21,6 +21,7 @@ const { getSoftlandPool } = require('../config/db.softland');
 const { requireAuth } = require('../middlewares/requireAuth');
 const { validarMesAnio } = require('../utils/stringHelpers');
 const { getFactorHistorico } = require('../utils/precioHistorico');
+const { obtenerMetaVendedor, obtenerMetasMensualesVendedor } = require('../models/vendedorMeta');
 
 router.use(requireAuth);
 
@@ -176,14 +177,21 @@ router.get('/resumen', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
   try {
-    const [metaRows] = await db.pool.query(
-      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
-      [req.usuario.sub, anio]
-    );
-    const metaMes = metaRows.length ? Number(metaRows[0].meta) : 0;
+    const metaInfo = await obtenerMetaVendedor(db, req.usuario.sub, anio, mes);
+    const metaMes = Number(metaInfo.meta_mes || 0);
 
     if (!codigos.length) {
-      return res.json({ ok: true, totalVentas: 0, meta: metaMes, progreso: 0, pctDescuentoGlobal: 0 });
+      return res.json({
+        ok: true,
+        totalVentas: 0,
+        meta: metaMes,
+        meta_original: Number(metaInfo.meta_original || 0),
+        tipo_periodo: metaInfo.tipo_periodo,
+        fecha: metaInfo.fecha,
+        prorrateada: Boolean(metaInfo.prorrateada),
+        progreso: 0,
+        pctDescuentoGlobal: 0,
+      });
     }
 
     const compartidos = await getCompartidosPeriodo(codigos, mes, anio);
@@ -234,7 +242,17 @@ router.get('/resumen', async (req, res) => {
       : 0;
     const progreso = metaMes > 0 ? Math.min(Math.round((totalVentas / metaMes) * 100), 999) : 0;
 
-    res.json({ ok: true, totalVentas: Math.round(totalVentas), meta: metaMes, progreso, pctDescuentoGlobal });
+    res.json({
+      ok: true,
+      totalVentas: Math.round(totalVentas),
+      meta: metaMes,
+      meta_original: Number(metaInfo.meta_original || 0),
+      tipo_periodo: metaInfo.tipo_periodo,
+      fecha: metaInfo.fecha,
+      prorrateada: Boolean(metaInfo.prorrateada),
+      progreso,
+      pctDescuentoGlobal,
+    });
   } catch (err) {
     console.error('[GET /api/dashboard/resumen ajuste]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener resumen ajustado' });
@@ -249,14 +267,22 @@ router.get('/evolucion', async (req, res) => {
   catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
 
   try {
-    const [metaRows] = await db.pool.query(
-      `SELECT meta FROM vendedor_meta WHERE usuario_id = ? AND YEAR(fecha) = ? LIMIT 1`,
-      [req.usuario.sub, anio]
-    );
-    const metaMes = metaRows.length ? Number(metaRows[0].meta) : 0;
+    const metasAnio = await obtenerMetasMensualesVendedor(db, { usuarioId: req.usuario.sub, anio });
 
     if (!codigos.length) {
-      return res.json({ ok: true, evolucion: Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, ventas: 0, meta: metaMes })) });
+      return res.json({
+        ok: true,
+        evolucion: metasAnio.map(item => ({
+          mes: item.mes,
+          nombre_mes: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][item.mes - 1],
+          ventas: 0,
+          meta: item.meta_mes,
+          meta_mes: item.meta_mes,
+          meta_original: item.meta_original,
+          tipo_meta: item.tipo_periodo,
+          prorrateada: item.prorrateada,
+        })),
+      });
     }
 
     const compartidos = await getCompartidosAnio(codigos, anio);
@@ -293,10 +319,15 @@ router.get('/evolucion', async (req, res) => {
 
     res.json({
       ok: true,
-      evolucion: Array.from({ length: 12 }, (_, i) => ({
-        mes: i + 1,
-        ventas: Math.round(ventasPorMes[i + 1] || 0),
-        meta: metaMes,
+      evolucion: metasAnio.map(item => ({
+        mes: item.mes,
+        nombre_mes: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][item.mes - 1],
+        ventas: Math.round(ventasPorMes[item.mes] || 0),
+        meta: item.meta_mes,
+        meta_mes: item.meta_mes,
+        meta_original: item.meta_original,
+        tipo_meta: item.tipo_periodo,
+        prorrateada: item.prorrateada,
       })),
     });
   } catch (err) {

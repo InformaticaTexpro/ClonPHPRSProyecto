@@ -82,6 +82,7 @@
         <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
         <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
         <button class="admin-tab" data-tab="asignaciones" type="button">Asignación vendedores</button>
+        <button class="admin-tab" data-tab="metas" type="button">Metas vendedores</button>
         <button class="admin-tab" data-tab="auditoria" type="button">Auditoría</button>
       </nav>
 
@@ -402,6 +403,82 @@
           </div>
         </section>
 
+        <section class="admin-panel" data-panel="metas" hidden>
+          <div class="panel-card panel-card--split">
+            <div class="panel-card__header">
+              <div>
+                <h3>Metas vendedores</h3>
+                <p>Gestiona metas mensuales y anuales por usuario sin afectar los accesos ni los perfiles.</p>
+              </div>
+              <button class="btn-primary" id="btnNuevaMetaVendedor" type="button">Nueva meta</button>
+            </div>
+            <div class="form-section-note admin-explainer">
+              Usa meta mensual para un mes específico y meta anual cuando el valor deba aplicarse de forma general al año seleccionado.
+            </div>
+            <div class="toolbar-grid">
+              <select class="input-control" id="metaFiltroUsuario">
+                <option value="">Todos los usuarios</option>
+              </select>
+              <select class="input-control" id="metaFiltroTipo">
+                <option value="">Todos los tipos</option>
+                <option value="mensual">Mensual</option>
+                <option value="anual">Anual</option>
+              </select>
+              <select class="input-control" id="metaFiltroEstado">
+                <option value="">Todos los estados</option>
+                <option value="1">Activas</option>
+                <option value="0">Inactivas</option>
+              </select>
+            </div>
+            <div class="panel-card" style="margin-top:16px;">
+              <div class="panel-card__header">
+                <div>
+                  <h4 id="metaFormTitle">Nueva meta de vendedor</h4>
+                  <p id="metaFormSubtitle">Selecciona un usuario, el tipo de periodo y el valor a aplicar.</p>
+                </div>
+              </div>
+              <input type="hidden" id="metaEditId" value="" />
+              <div class="toolbar-grid">
+                <select class="input-control" id="metaUsuarioId"></select>
+                <select class="input-control" id="metaTipoPeriodo">
+                  <option value="mensual">Meta mensual</option>
+                  <option value="anual">Meta anual</option>
+                </select>
+                <input class="input-control" id="metaAnio" type="number" min="2026" max="2099" step="1" />
+                <select class="input-control" id="metaMes"></select>
+                <input class="input-control" id="metaMonto" type="number" min="0" step="1" placeholder="Monto de la meta" />
+                <select class="input-control" id="metaActivo">
+                  <option value="1">Activa</option>
+                  <option value="0">Inactiva</option>
+                </select>
+              </div>
+              <textarea class="input-control" id="metaObservacion" rows="3" placeholder="Observación opcional"></textarea>
+              <div class="form-section-note" id="metaPreview">La meta anual se usa como valor general del año. La meta mensual se aplica solo al mes seleccionado.</div>
+              <div class="permission-actions">
+                <button class="btn-secondary" id="metaLimpiar" type="button">Limpiar</button>
+                <button class="btn-primary" id="metaGuardar" type="button">Guardar meta</button>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Área</th>
+                    <th>Periodo</th>
+                    <th>Fecha</th>
+                    <th>Meta</th>
+                    <th>Estado</th>
+                    <th>Observación</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="metasTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <section class="admin-panel" data-panel="auditoria" hidden>
           <div class="panel-card">
             <div class="panel-card__header">
@@ -441,6 +518,7 @@
 
   <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
   <script src="admin.js?v=1.0.0"></script>
+  <script src="vendedor-metas.js?v=1.0.0"></script>
 </body>
 </html>
 
