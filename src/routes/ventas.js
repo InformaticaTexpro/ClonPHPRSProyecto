@@ -610,7 +610,7 @@ router.post('/confirmar', requireAuth, async (req, res) => {
       [usuarioId, anio]
     );
     const metaAnual = metaRows.length ? Number(metaRows[0].meta) : 0;
-    const meta      = metaAnual > 0 ? Math.round(metaAnual / 12) : 0;
+    const meta      = metaAnual > 0 ? metaAnual : 0;
 
     // 5. Generar PDF
     const { rutaPdf, nombreArchivo } = await generarPdfConfirmacion({

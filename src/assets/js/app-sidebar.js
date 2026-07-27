@@ -46,7 +46,7 @@
         orden: Number(menu?.orden ?? 0) || 0,
         extra: Boolean(menu?.extra),
       }))
-      .filter(menu => menu.id !== null && menu.nombre && menu.url);
+      .filter(menu => menu.id !== null && menu.nombre && menu.url && menu.codigo !== 'mensajeria');
   }
 
   function construirCatalogo(allMenus) {
@@ -178,6 +178,286 @@
     const style = document.createElement('style');
     style.id = 'appSidebarStyles';
     style.textContent = `
+      .sidebar {
+        position: fixed !important;
+        inset: 0 auto 0 0 !important;
+        width: var(--sidebar-width, 240px) !important;
+        height: 100vh !important;
+        background: linear-gradient(180deg, var(--color-corporate-gray, #3A3A3A) 0%, var(--color-black, #1A1A1A) 100%) !important;
+        color: var(--color-white, #fff) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        z-index: var(--z-sticky, 200) !important;
+        overflow: hidden !important;
+        box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.16)) !important;
+        transition: width var(--transition-normal, 250ms ease), transform var(--transition-normal, 250ms ease) !important;
+      }
+      .sidebar--collapsed {
+        width: var(--sidebar-width-collapsed, 64px) !important;
+      }
+      .main-wrapper {
+        margin-left: var(--sidebar-width, 240px) !important;
+        transition: margin-left var(--transition-normal, 250ms ease) !important;
+      }
+      .main-wrapper--expanded {
+        margin-left: var(--sidebar-width-collapsed, 64px) !important;
+      }
+      .sidebar-header {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 20px 16px 16px !important;
+        border-bottom: 1px solid rgba(255, 255, 255, .08) !important;
+        flex-shrink: 0 !important;
+      }
+      .sidebar-logo {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 8px !important;
+        object-fit: contain !important;
+        flex-shrink: 0 !important;
+      }
+      .sidebar-brand {
+        font-family: var(--font-primary, 'Montserrat', sans-serif) !important;
+        font-weight: 700 !important;
+        font-size: .98rem !important;
+        color: var(--color-white, #fff) !important;
+        letter-spacing: .08em !important;
+      }
+      .sidebar-toggle {
+        margin-left: auto !important;
+        width: 30px !important;
+        height: 30px !important;
+        display: grid !important;
+        place-items: center !important;
+        border: none !important;
+        border-radius: 9999px !important;
+        background: rgba(255, 255, 255, .08) !important;
+        color: rgba(255, 255, 255, .82) !important;
+        cursor: pointer !important;
+        padding: 0 !important;
+        transition: background var(--transition-fast, 150ms ease), color var(--transition-fast, 150ms ease), transform var(--transition-fast, 150ms ease) !important;
+      }
+      .sidebar-toggle:hover {
+        background: rgba(0, 226, 167, .16) !important;
+        color: #fff !important;
+        transform: translateY(-1px) !important;
+      }
+      .sidebar-nav {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        padding: 12px 8px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      .nav-section-title {
+        display: block !important;
+        font-family: var(--font-primary, 'Montserrat', sans-serif) !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        letter-spacing: .1em !important;
+        text-transform: uppercase !important;
+        color: rgba(255, 255, 255, .35) !important;
+        padding: 8px 8px 4px !important;
+      }
+      .nav-item,
+      .nav-module-btn,
+      .sidebar-nav a {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        min-height: 40px !important;
+        padding: 9px 10px !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, .78) !important;
+        text-decoration: none !important;
+        font-family: var(--font-secondary, 'Open Sans', sans-serif) !important;
+        font-size: .86rem !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        transition: background var(--transition-fast, 150ms ease), color var(--transition-fast, 150ms ease), transform var(--transition-fast, 150ms ease) !important;
+      }
+      .nav-item:hover,
+      .nav-module-btn:hover,
+      .sidebar-nav a:hover {
+        background: rgba(255, 255, 255, .07) !important;
+        color: #fff !important;
+      }
+      .nav-item.active,
+      .nav-module-btn.is-open,
+      .sidebar-nav a.active {
+        background: rgba(0, 226, 167, .18) !important;
+        color: #071d1a !important;
+        font-weight: 700 !important;
+      }
+      .nav-module-btn.is-open .nav-module-chevron {
+        transform: rotate(90deg) !important;
+      }
+      .nav-module {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      .nav-module-icon {
+        width: 20px !important;
+        min-width: 20px !important;
+        text-align: center !important;
+        font-size: 1rem !important;
+      }
+      .nav-module-label {
+        flex: 1 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      .nav-module-lock {
+        font-size: .75rem !important;
+        opacity: .72 !important;
+      }
+      .nav-module-chevron {
+        font-size: .72rem !important;
+        opacity: .7 !important;
+        transition: transform .16s !important;
+      }
+      .nav-subitems {
+        display: none !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        margin: 2px 0 6px 26px !important;
+      }
+      .nav-module.is-open .nav-subitems {
+        display: flex !important;
+      }
+      .nav-subitem {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        min-height: 32px !important;
+        padding: 7px 9px !important;
+        border-radius: 7px !important;
+        text-decoration: none !important;
+        color: rgba(255, 255, 255, .68) !important;
+        font-size: .8rem !important;
+        font-weight: 500 !important;
+      }
+      .nav-subitem:hover {
+        background: rgba(255, 255, 255, .07) !important;
+        color: #fff !important;
+      }
+      .nav-subitem.active {
+        background: var(--color-primary, #00E2A7) !important;
+        color: #06211d !important;
+        font-weight: 700 !important;
+      }
+      .nav-subitem.is-locked {
+        color: rgba(255, 255, 255, .42) !important;
+      }
+      .nav-subitem.is-locked:hover {
+        color: rgba(255, 255, 255, .72) !important;
+      }
+      .nav-subitem .nav-label {
+        flex: 1 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      .nav-extra-badge {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 18px !important;
+        height: 18px !important;
+        margin-left: auto !important;
+        padding: 0 5px !important;
+        border-radius: 999px !important;
+        background: #fff !important;
+        color: #0f5d52 !important;
+        font-size: .68rem !important;
+        font-weight: 700 !important;
+        line-height: 1 !important;
+      }
+      .sidebar-footer {
+        flex-shrink: 0 !important;
+        padding: 12px 8px 14px !important;
+        border-top: 1px solid rgba(255, 255, 255, .08) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+      .sidebar-user {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 6px 8px !important;
+      }
+      .user-avatar {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 50% !important;
+        background: var(--color-primary, #00E2A7) !important;
+        color: #06211d !important;
+        font-weight: 700 !important;
+        font-size: .85rem !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+      }
+      .user-info {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1px !important;
+        overflow: hidden !important;
+      }
+      .user-name {
+        font-size: .8rem !important;
+        font-weight: 600 !important;
+        color: #fff !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      .user-area {
+        font-size: .72rem !important;
+        color: rgba(255, 255, 255, .45) !important;
+      }
+      .btn-logout {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        padding: 8px 10px !important;
+        border: none !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, .52) !important;
+        font-size: .82rem !important;
+        cursor: pointer !important;
+        transition: background var(--transition-fast, 150ms ease), color var(--transition-fast, 150ms ease) !important;
+      }
+      .btn-logout:hover {
+        background: rgba(220, 38, 38, .16) !important;
+        color: #fff !important;
+      }
+      .sidebar--collapsed .sidebar-brand,
+      .sidebar--collapsed .nav-label,
+      .sidebar--collapsed .user-info,
+      .sidebar--collapsed .btn-logout-text,
+      .sidebar--collapsed .nav-section-title,
+      .sidebar--collapsed .nav-module-label,
+      .sidebar--collapsed .nav-module-chevron,
+      .sidebar--collapsed .nav-module-lock,
+      .sidebar--collapsed .nav-subitems {
+        display: none !important;
+      }
+      .sidebar--collapsed .nav-module-btn,
+      .sidebar--collapsed .nav-item,
+      .sidebar--collapsed .sidebar-nav a {
+        justify-content: center !important;
+        padding-inline: 8px !important;
+      }
       .nav-loading,
       .nav-empty {
         display:flex;
@@ -292,6 +572,584 @@
     });
   }
 
+  function crearWidgetMensajeriaGlobal(data) {
+    if (normalizarUrl(window.location.pathname) === '/src/modulo/varios/mensajeria/index.html') return;
+    if (document.getElementById('texproChatWidget')) return;
+
+    const user = extraerUsuario(data);
+    if (!user) return;
+
+    const styleId = 'texproChatWidgetStyles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .texpro-chat-widget {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 2600;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 10px;
+        }
+        .texpro-chat-launcher {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border: 0;
+          border-radius: 999px;
+          padding: 12px 14px;
+          background: linear-gradient(135deg, #00e2a7, #13b8ff);
+          color: #032e2c;
+          font: inherit;
+          font-weight: 800;
+          box-shadow: 0 16px 32px rgba(0, 0, 0, .18);
+          cursor: pointer;
+        }
+        .texpro-chat-launcher strong {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, .92);
+          color: #0e5d57;
+          font-size: .72rem;
+          font-weight: 800;
+        }
+        .texpro-chat-panel {
+          width: min(420px, calc(100vw - 24px));
+          height: min(560px, calc(100vh - 90px));
+          background: #fff;
+          border-radius: 24px;
+          box-shadow: 0 28px 70px rgba(10, 24, 38, .28);
+          overflow: hidden;
+          display: none;
+          flex-direction: column;
+          border: 1px solid rgba(19, 35, 61, .10);
+        }
+        .texpro-chat-widget.is-open .texpro-chat-panel { display: flex; }
+        .texpro-chat-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 14px 16px;
+          background: linear-gradient(180deg, rgba(0, 226, 167, .10), rgba(0, 226, 167, 0));
+          border-bottom: 1px solid rgba(19, 35, 61, .08);
+        }
+        .texpro-chat-head h3 { margin: 0; font-family: var(--font-display, 'Montserrat', sans-serif); font-size: 1rem; }
+        .texpro-chat-head p { margin: 4px 0 0; font-size: .8rem; color: var(--color-text-muted, #5d6675); }
+        .texpro-chat-head-actions { display:flex; gap:8px; align-items:center; }
+        .texpro-chat-head-actions button {
+          border:0; border-radius:12px; padding:8px 10px; background:rgba(0,0,0,.05); cursor:pointer; font:inherit;
+        }
+        .texpro-chat-tabs {
+          display: inline-flex;
+          gap: 6px;
+          padding: 10px 12px 0;
+        }
+        .texpro-chat-tab {
+          border: 0;
+          background: rgba(0, 0, 0, .04);
+          color: var(--color-text-muted, #5d6675);
+          border-radius: 999px;
+          padding: 8px 12px;
+          font: inherit;
+          font-size: .8rem;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .texpro-chat-tab.is-active { background: rgba(0, 226, 167, .14); color: var(--color-primary, #01696f); }
+        .texpro-chat-search {
+          display:flex; align-items:center; gap:8px;
+          margin:10px 12px 0; padding:10px 12px; border-radius:14px; border:1px solid rgba(19,35,61,.08);
+          background:#f8fbff;
+        }
+        .texpro-chat-search input { width:100%; border:0; outline:0; background:transparent; font:inherit; }
+        .texpro-chat-body { min-height:0; flex:1; display:grid; grid-template-columns: 170px minmax(0, 1fr); }
+        .texpro-chat-list { min-height:0; overflow:auto; border-right:1px solid rgba(19,35,61,.08); background:rgba(248,251,255,.88); padding:8px; }
+        .texpro-chat-list-item {
+          width:100%; display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
+          padding:10px 10px; border:0; border-radius:14px; background:transparent; text-align:left; cursor:pointer;
+        }
+        .texpro-chat-list-item:hover, .texpro-chat-list-item.is-active { background:#fff; box-shadow:0 8px 18px rgba(20,35,58,.06); }
+        .texpro-chat-avatar {
+          width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-size:.76rem; font-weight:800;
+          color:#04312a; background:linear-gradient(135deg, rgba(8,211,168,.22), rgba(31,122,255,.10));
+        }
+        .texpro-chat-list-name { display:block; font-size:.84rem; font-weight:800; line-height:1.2; }
+        .texpro-chat-list-sub { display:block; margin-top:2px; font-size:.72rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-thread { min-height:0; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(244,247,251,.98)); }
+        .texpro-chat-thread-empty { min-height:100%; display:grid; place-items:center; text-align:center; padding:24px; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-thread-head {
+          padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+          border-bottom:1px solid rgba(19,35,61,.08);
+        }
+        .texpro-chat-thread-head h4 { margin:0; font-size:.92rem; }
+        .texpro-chat-thread-head p { margin:2px 0 0; font-size:.76rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-thread-actions { display:flex; gap:6px; }
+        .texpro-chat-thread-actions button {
+          border:0; border-radius:10px; padding:7px 9px; background:rgba(0,0,0,.05); cursor:pointer; font:inherit; font-size:.78rem;
+        }
+        .texpro-chat-messages { min-height:0; overflow:auto; padding:12px; display:grid; gap:10px; }
+        .texpro-chat-message {
+          max-width:86%; padding:10px 11px; border-radius:16px; background:#fff; border:1px solid rgba(19,35,61,.08);
+          box-shadow:0 10px 20px rgba(20,35,58,.05);
+        }
+        .texpro-chat-message.is-self { margin-left:auto; background:linear-gradient(180deg, rgba(0,226,167,.14), rgba(0,226,167,.08)); border-color:rgba(0,226,167,.18); }
+        .texpro-chat-message strong { display:block; margin-bottom:4px; font-size:.78rem; }
+        .texpro-chat-message p { margin:0; white-space:pre-wrap; line-height:1.38; font-size:.84rem; }
+        .texpro-chat-message small { display:block; margin-top:4px; font-size:.7rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-composer { padding:12px; border-top:1px solid rgba(19,35,61,.08); background:rgba(255,255,255,.96); }
+        .texpro-chat-composer textarea {
+          width:100%; min-height:72px; resize:vertical; padding:10px 11px; border-radius:14px; border:1px solid rgba(19,35,61,.10);
+          outline:0; font:inherit; background:#fff;
+        }
+        .texpro-chat-composer-actions {
+          display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;
+        }
+        .texpro-chat-hint { font-size:.76rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-composer-actions button {
+          border:0; border-radius:12px; padding:9px 12px; background:linear-gradient(135deg, #00e2a7, #13b8ff); color:#032e2c;
+          font:inherit; font-weight:800; cursor:pointer;
+        }
+        .texpro-chat-empty { padding:18px 12px; text-align:center; color:var(--color-text-muted, #5d6675); }
+        @media (max-width: 640px) {
+          .texpro-chat-widget { right:10px; bottom:10px; left:10px; align-items:stretch; }
+          .texpro-chat-panel { width:100%; height:min(70vh, 620px); }
+          .texpro-chat-body { grid-template-columns:1fr; }
+          .texpro-chat-list { max-height:160px; border-right:0; border-bottom:1px solid rgba(19,35,61,.08); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    const wrap = document.createElement('div');
+    wrap.id = 'texproChatWidget';
+    wrap.className = 'texpro-chat-widget';
+    wrap.innerHTML = `
+      <button type="button" class="texpro-chat-launcher" data-chat-toggle aria-expanded="false">
+        <span aria-hidden="true">💬</span>
+        <span>Chat</span>
+        <strong data-chat-badge style="display:none">0</strong>
+      </button>
+      <section class="texpro-chat-panel" data-chat-panel aria-hidden="true">
+        <div class="texpro-chat-head">
+          <div>
+            <h3>Chat interno</h3>
+            <p>Mensajes rápidos con tu equipo</p>
+          </div>
+          <div class="texpro-chat-head-actions">
+            <button type="button" data-chat-open-full title="Abrir vista completa">↗</button>
+            <button type="button" data-chat-close aria-label="Cerrar">×</button>
+          </div>
+        </div>
+        <div class="texpro-chat-tabs" role="tablist" aria-label="Chat interno">
+          <button type="button" class="texpro-chat-tab is-active" data-panel="usuarios" aria-selected="true">Usuarios</button>
+          <button type="button" class="texpro-chat-tab" data-panel="chats" aria-selected="false">Chats</button>
+        </div>
+        <label class="texpro-chat-search">
+          <span>⌕</span>
+          <input type="search" data-chat-search placeholder="Buscar persona o chat" />
+        </label>
+        <div class="texpro-chat-body">
+          <aside class="texpro-chat-list" data-chat-list>
+            <div class="texpro-chat-empty">Cargando...</div>
+          </aside>
+          <section class="texpro-chat-thread" data-chat-thread>
+            <div class="texpro-chat-thread-empty">
+              <div>
+                <h4>Selecciona un usuario</h4>
+                <p>Elige una persona de la lista para abrir o retomar un chat.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(wrap);
+
+    const chatState = {
+      user,
+      conversaciones: [],
+      directorio: { usuarios: [], areas: [] },
+      conversacionActivaId: null,
+      mensajesActivos: [],
+      panelActivo: 'usuarios',
+      search: '',
+      opened: false,
+      loading: false,
+    };
+
+    const refs = {
+      wrap,
+      toggle: wrap.querySelector('[data-chat-toggle]'),
+      badge: wrap.querySelector('[data-chat-badge]'),
+      panel: wrap.querySelector('[data-chat-panel]'),
+      close: wrap.querySelector('[data-chat-close]'),
+      full: wrap.querySelector('[data-chat-open-full]'),
+      tabs: wrap.querySelectorAll('.texpro-chat-tab'),
+      search: wrap.querySelector('[data-chat-search]'),
+      list: wrap.querySelector('[data-chat-list]'),
+      thread: wrap.querySelector('[data-chat-thread]'),
+    };
+
+    function chatApi(path, options = {}) {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      };
+      const token = localStorage.getItem('token');
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      return fetch(`/api/mensajeria${path}`, {
+        ...options,
+        headers,
+      }).then(async res => {
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || payload?.ok === false) {
+          throw new Error(payload?.error || `Error HTTP ${res.status}`);
+        }
+        return payload;
+      });
+    }
+
+    function chatInitials(name) {
+      return String(name || '?')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0].toUpperCase())
+        .join('') || '?';
+    }
+
+    function chatFormatDateTime(value) {
+      if (!value) return '';
+      try {
+        return new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+      } catch {
+        return String(value);
+      }
+    }
+
+    function chatEscape(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function chatNormalize(value) {
+      return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function setBadge(total) {
+      if (total > 0) {
+        refs.badge.textContent = total > 99 ? '99+' : String(total);
+        refs.badge.style.display = 'inline-flex';
+      } else {
+        refs.badge.style.display = 'none';
+      }
+    }
+
+    function conversationTitle(conversation) {
+      if (conversation?.titulo) return conversation.titulo;
+      const other = (conversation?.participantes || []).find(part => Number(part.usuario_id) !== Number(chatState.user?.id));
+      return other?.usuario?.nombre || 'Conversación directa';
+    }
+
+    function conversationSubtitle(conversation) {
+      const participantes = (conversation?.participantes || []).map(part => part.usuario?.nombre).filter(Boolean);
+      return participantes.filter(name => name !== chatState.user?.nombre).join(' · ') || 'Mensaje directo';
+    }
+
+    function conversationSnippet(conversation) {
+      if (!conversation?.ultimo_mensaje) return 'Sin mensajes todavía';
+      const prefix = Number(conversation.ultimo_mensaje.remitente_id) === Number(chatState.user?.id) ? 'Tú: ' : '';
+      return `${prefix}${conversation.ultimo_mensaje.cuerpo}`;
+    }
+
+    function directConversationForUser(userId) {
+      return chatState.conversaciones.find(conversation => {
+        if (conversation.tipo !== 'directa') return false;
+        const participants = conversation.participantes || [];
+        const hasSelf = participants.some(part => Number(part.usuario_id) === Number(chatState.user?.id));
+        const hasTarget = participants.some(part => Number(part.usuario_id) === Number(userId));
+        return hasSelf && hasTarget;
+      }) || null;
+    }
+
+    function openWidget(open = true) {
+      chatState.opened = open;
+      wrap.classList.toggle('is-open', open);
+      refs.panel.hidden = !open;
+      refs.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      refs.panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      if (open) loadData();
+    }
+
+    function renderTabs() {
+      refs.tabs.forEach(button => {
+        const active = button.dataset.panel === chatState.panelActivo;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+
+    function renderList() {
+      const term = chatNormalize(chatState.search);
+
+      if (chatState.panelActivo === 'usuarios') {
+        const usuarios = chatState.directorio.usuarios.filter(usuario => {
+          if (!term) return true;
+          return [usuario.nombre, usuario.email, usuario.area].map(chatNormalize).join(' ').includes(term);
+        });
+
+        refs.list.innerHTML = usuarios.length ? usuarios.map(usuario => {
+          const active = Number(directConversationForUser(usuario.id)?.id) === Number(chatState.conversacionActivaId);
+          return `
+            <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''}" data-user-id="${usuario.id}">
+              <div class="texpro-chat-avatar">${chatInitials(usuario.nombre)}</div>
+              <div>
+                <span class="texpro-chat-list-name">${chatEscape(usuario.nombre)}</span>
+                <span class="texpro-chat-list-sub">${chatEscape(usuario.area || 'Sin área')}</span>
+              </div>
+            </button>
+          `;
+        }).join('') : '<div class="texpro-chat-empty">No hay usuarios para mostrar.</div>';
+
+        refs.list.querySelectorAll('[data-user-id]').forEach(button => {
+          button.addEventListener('click', () => {
+            const usuario = chatState.directorio.usuarios.find(item => Number(item.id) === Number(button.dataset.userId));
+            if (usuario) openOrCreateDirectChat(usuario);
+          });
+        });
+        return;
+      }
+
+      const conversaciones = chatState.conversaciones.filter(conversation => {
+        if (!term) return true;
+        return [conversationTitle(conversation), conversationSubtitle(conversation), conversationSnippet(conversation)]
+          .map(chatNormalize)
+          .join(' ')
+          .includes(term);
+      });
+
+      refs.list.innerHTML = conversaciones.length ? conversaciones.map(conversation => {
+        const active = Number(conversation.id) === Number(chatState.conversacionActivaId);
+        return `
+          <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''}" data-conversation-id="${conversation.id}">
+            <div class="texpro-chat-avatar">${chatInitials(conversationTitle(conversation))}</div>
+            <div>
+              <span class="texpro-chat-list-name">${chatEscape(conversationTitle(conversation))}</span>
+              <span class="texpro-chat-list-sub">${chatEscape(conversationSubtitle(conversation))}</span>
+            </div>
+          </button>
+        `;
+      }).join('') : '<div class="texpro-chat-empty">No hay chats para mostrar.</div>';
+
+      refs.list.querySelectorAll('[data-conversation-id]').forEach(button => {
+        button.addEventListener('click', () => openConversation(button.dataset.conversationId));
+      });
+    }
+
+    function renderThread() {
+      if (!chatState.conversacionActivaId) {
+        refs.thread.innerHTML = `
+          <div class="texpro-chat-thread-empty">
+            <div>
+              <h4>No hay chat abierto</h4>
+              <p>Selecciona un usuario o un chat reciente.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const conversation = chatState.conversaciones.find(item => Number(item.id) === Number(chatState.conversacionActivaId));
+      if (!conversation) return;
+
+      const archivada = Boolean(conversation.archivada);
+      const silenciada = Boolean(conversation.silenciada);
+
+      refs.thread.innerHTML = `
+        <div class="texpro-chat-thread-head">
+          <div>
+            <h4>${chatEscape(conversationTitle(conversation))}</h4>
+            <p>${chatEscape(conversationSubtitle(conversation))}</p>
+          </div>
+          <div class="texpro-chat-thread-actions">
+            <button type="button" data-chat-flag="silenciar">${silenciada ? 'Activar' : 'Silenciar'}</button>
+            <button type="button" data-chat-flag="archivar">${archivada ? 'Desarchivar' : 'Archivar'}</button>
+          </div>
+        </div>
+        <div class="texpro-chat-messages">
+          ${chatState.mensajesActivos.length ? chatState.mensajesActivos.map(message => {
+            const self = Number(message.remitente_id) === Number(chatState.user?.id);
+            return `
+              <article class="texpro-chat-message ${self ? 'is-self' : ''}">
+                <strong>${self ? 'Tú' : chatEscape(message.remitente_nombre || 'Usuario')}</strong>
+                <p>${chatEscape(message.cuerpo)}</p>
+                <small>${chatEscape(chatFormatDateTime(message.created_at))}</small>
+              </article>
+            `;
+          }).join('') : '<div class="texpro-chat-empty">Aún no hay mensajes.</div>'}
+        </div>
+        <form class="texpro-chat-composer" data-chat-composer>
+          <textarea data-chat-input rows="3" placeholder="Escribe un mensaje..."></textarea>
+          <div class="texpro-chat-composer-actions">
+            <span class="texpro-chat-hint">${archivada ? 'El chat está archivado, pero puedes responder.' : 'Listo para responder.'}</span>
+            <button type="submit">Enviar</button>
+          </div>
+        </form>
+      `;
+
+      refs.thread.querySelector('[data-chat-composer]')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const input = refs.thread.querySelector('[data-chat-input]');
+        const body = String(input?.value || '').trim();
+        if (!body) return;
+        try {
+          await chatApi(`/conversaciones/${chatState.conversacionActivaId}/mensajes`, {
+            method: 'POST',
+            body: JSON.stringify({ cuerpo: body }),
+          });
+          if (input) input.value = '';
+          await loadConversationMessages(chatState.conversacionActivaId);
+          await loadConversations();
+        } catch (error) {
+          alert(error.message);
+        }
+      });
+
+      refs.thread.querySelector('[data-chat-flag="silenciar"]')?.addEventListener('click', async () => {
+        try {
+          await chatApi(`/conversaciones/${chatState.conversacionActivaId}/silenciar`, {
+            method: 'PATCH',
+            body: JSON.stringify({ silenciada: !silenciada }),
+          });
+          await loadConversationMessages(chatState.conversacionActivaId);
+          await loadConversations();
+        } catch (error) {
+          alert(error.message);
+        }
+      });
+
+      refs.thread.querySelector('[data-chat-flag="archivar"]')?.addEventListener('click', async () => {
+        try {
+          await chatApi(`/conversaciones/${chatState.conversacionActivaId}/archivar`, {
+            method: 'PATCH',
+            body: JSON.stringify({ archivada: !archivada }),
+          });
+          await loadConversationMessages(chatState.conversacionActivaId);
+          await loadConversations();
+        } catch (error) {
+          alert(error.message);
+        }
+      });
+    }
+
+    async function loadUnread() {
+      try {
+        const data = await chatApi('/no-leidos');
+        setBadge(Number(data?.data?.total || 0));
+      } catch {
+        setBadge(0);
+      }
+    }
+
+    async function loadDirectory() {
+      const data = await chatApi('/directorio');
+      chatState.directorio = data?.data || { usuarios: [], areas: [] };
+    }
+
+    async function loadConversations() {
+      const data = await chatApi('/conversaciones');
+      chatState.conversaciones = Array.isArray(data?.data) ? data.data : [];
+      renderList();
+      renderThread();
+    }
+
+    async function loadConversationMessages(conversationId) {
+      if (!conversationId) return;
+      const data = await chatApi(`/conversaciones/${conversationId}/mensajes`);
+      chatState.conversacionActivaId = Number(conversationId);
+      chatState.mensajesActivos = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+      renderList();
+      renderThread();
+      await chatApi(`/conversaciones/${conversationId}/leido`, { method: 'PATCH' }).catch(() => {});
+      await loadUnread();
+    }
+
+    async function openConversation(conversationId) {
+      openWidget(true);
+      chatState.panelActivo = 'chats';
+      renderTabs();
+      await loadConversationMessages(conversationId);
+    }
+
+    async function openOrCreateDirectChat(usuario) {
+      try {
+        const response = await chatApi('/conversaciones', {
+          method: 'POST',
+          body: JSON.stringify({ tipo: 'directa', usuario_id: usuario.id }),
+        });
+        const conversationId = response?.data?.id;
+        if (!conversationId) throw new Error('No se pudo abrir el chat.');
+        openWidget(true);
+        chatState.panelActivo = 'chats';
+        renderTabs();
+        await loadConversations();
+        await loadConversationMessages(conversationId);
+      } catch (error) {
+        alert(error.message);
+      }
+    }
+
+    async function loadData() {
+      if (chatState.loading) return;
+      chatState.loading = true;
+      try {
+        await loadDirectory();
+        await loadConversations();
+        await loadUnread();
+        renderTabs();
+      } catch (error) {
+        refs.list.innerHTML = `<div class="texpro-chat-empty">${chatEscape(error.message || 'No se pudo cargar el chat')}</div>`;
+      } finally {
+        chatState.loading = false;
+      }
+    }
+
+    refs.toggle.addEventListener('click', () => openWidget(!chatState.opened));
+    refs.close.addEventListener('click', () => openWidget(false));
+    refs.full.addEventListener('click', () => {
+      window.location.href = '/src/modulo/varios/mensajeria/index.html';
+    });
+    refs.search.addEventListener('input', event => {
+      chatState.search = event.target.value || '';
+      renderList();
+    });
+    refs.tabs.forEach(button => {
+      button.addEventListener('click', () => {
+        chatState.panelActivo = button.dataset.panel;
+        renderTabs();
+        renderList();
+      });
+    });
+
+    openWidget(false);
+    loadData();
+    setInterval(loadUnread, 60000);
+  }
+
   async function obtenerContextoSidebar() {
     try {
       const token = localStorage.getItem('token');
@@ -328,6 +1186,7 @@
     const indicePermisos = crearIndicePermisos(usuario?.menus);
     validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
     renderSidebar(data);
+    crearWidgetMensajeriaGlobal(data);
   }
 
   if (document.readyState === 'loading') {

@@ -157,11 +157,11 @@ describe('GET /api/dashboard/evolucion — evolución mensual', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.evolucion).toHaveLength(12);
-    expect(res.body.evolucion[0].meta).toBe(3384480);
-    expect(res.body.evolucion[0].meta_mes).toBe(3384480);
+    expect(res.body.evolucion[0].meta).toBe(40613761);
+    expect(res.body.evolucion[0].meta_mes).toBe(40613761);
     expect(res.body.evolucion[2].meta).toBe(650000);
     expect(res.body.evolucion[2].meta_mes).toBe(650000);
-    expect(res.body.evolucion[0].prorrateada).toBe(true);
+    expect(res.body.evolucion[0].prorrateada).toBe(false);
     expect(res.body.evolucion[2].tipo_meta).toBe('mensual');
   });
 });

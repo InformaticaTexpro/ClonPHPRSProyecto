@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Mensajería interna</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=1.0.0" />
+  <link rel="stylesheet" href="mensajeria.css?v=1.0.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <div>
+          <p class="eyebrow">Comunicación interna</p>
+          <h1 class="header-title">Mensajería</h1>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="header-stat">
+          <span class="header-stat__label">No leídos</span>
+          <strong class="header-stat__value" id="unreadHeaderCount">0</strong>
+        </div>
+        <button class="btn-secondary" id="btnRefresh">
+          <span class="btn-icon">↻</span>
+          Actualizar
+        </button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="workspace-shell">
+        <aside class="panel panel--left">
+          <div class="panel-header">
+            <div>
+              <h2>Usuarios</h2>
+              <p>Haz clic en un usuario para abrir un chat directo.</p>
+            </div>
+            <span class="pill" id="conversationCount">0</span>
+          </div>
+
+          <div class="panel-tabs" role="tablist" aria-label="Panel de mensajería">
+            <button type="button" class="panel-tab is-active" data-panel="usuarios" aria-selected="true">Usuarios</button>
+            <button type="button" class="panel-tab" data-panel="chats" aria-selected="false">Chats</button>
+          </div>
+
+          <label class="search-box">
+            <span>⌕</span>
+            <input type="search" id="conversationSearch" placeholder="Buscar usuario o chat" />
+          </label>
+
+          <div class="conversation-list" id="conversationList">
+            <div class="loading-state">Cargando usuarios...</div>
+          </div>
+        </aside>
+
+        <section class="panel panel--right">
+          <div class="thread-header" id="threadHeader">
+            <div>
+              <h2 id="threadTitle">Selecciona un usuario</h2>
+              <p id="threadSubtitle">Aquí verás el historial del chat directo.</p>
+            </div>
+            <div class="thread-actions">
+              <button class="btn-ghost" id="btnToggleSilencio" disabled>Silenciar</button>
+              <button class="btn-ghost" id="btnToggleArchivo" disabled>Archivar</button>
+            </div>
+          </div>
+
+          <div class="messages-feed" id="messagesFeed">
+            <div class="empty-thread">
+              <h3>No hay un chat abierto todavía</h3>
+              <p>Elige un usuario de la lista para iniciar o retomar una conversación.</p>
+            </div>
+          </div>
+
+          <form class="composer" id="composerForm">
+            <textarea id="messageInput" rows="3" placeholder="Escribe un mensaje..." disabled></textarea>
+            <div class="composer-actions">
+              <span class="composer-hint" id="composerHint">Selecciona un usuario para responder.</span>
+              <button class="btn-primary" type="submit" id="btnSendMessage" disabled>Enviar</button>
+            </div>
+          </form>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="mensajeria.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=1.0.0"></script>
+</body>
+</html>

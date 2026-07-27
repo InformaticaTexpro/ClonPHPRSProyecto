@@ -1,0 +1,554 @@
+'use strict';
+
+(function () {
+  const API_BASE = '/api/mensajeria';
+  const state = {
+    user: null,
+    conversaciones: [],
+    directorio: { usuarios: [], areas: [] },
+    conversacionActivaId: null,
+    mensajesActivos: [],
+    search: '',
+    panelActivo: 'usuarios',
+    cargandoMensajes: false,
+  };
+
+  const el = {};
+
+  function qs(id) {
+    return document.getElementById(id);
+  }
+
+  function getToken() {
+    return localStorage.getItem('token');
+  }
+
+  async function api(path, options = {}) {
+    const token = getToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    };
+
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || data?.ok === false) {
+      const error = new Error(data?.error || `Error HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+
+    return data;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function normalizeText(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '';
+    try {
+      return new Intl.DateTimeFormat('es-CL', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(value));
+    } catch {
+      return String(value);
+    }
+  }
+
+  function initials(name) {
+    return String(name || '?')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0].toUpperCase())
+      .join('') || '?';
+  }
+
+  function setHeaderUser(user) {
+    const nombre = user?.nombre || 'Usuario';
+    el.userName.textContent = nombre;
+    el.userArea.textContent = user?.area ? `Área ${user.area}` : '';
+    el.userAvatar.textContent = initials(nombre);
+  }
+
+  function conversationTitle(conversation) {
+    if (conversation?.titulo) return conversation.titulo;
+    if (conversation?.tipo === 'area') return `Área ${conversation.area_codigo || ''}`.trim();
+    if (conversation?.tipo === 'grupo') return 'Grupo interno';
+
+    const other = (conversation?.participantes || [])
+      .find(part => Number(part.usuario_id) !== Number(state.user?.id));
+    return other?.usuario?.nombre || 'Conversación directa';
+  }
+
+  function conversationSubtitle(conversation) {
+    const participantes = (conversation?.participantes || [])
+      .map(part => part.usuario?.nombre)
+      .filter(Boolean);
+
+    if (conversation?.tipo === 'area') {
+      return `Área: ${conversation.area_codigo || 'general'} · ${participantes.length} participantes`;
+    }
+
+    if (conversation?.tipo === 'grupo') {
+      return `${participantes.length} participantes`;
+    }
+
+    return participantes.filter(name => name !== state.user?.nombre).join(' · ') || 'Mensaje directo';
+  }
+
+  function conversationSnippet(conversation) {
+    if (!conversation?.ultimo_mensaje) return 'Sin mensajes todavía';
+    const prefix = Number(conversation.ultimo_mensaje.remitente_id) === Number(state.user?.id) ? 'Tú: ' : '';
+    return `${prefix}${conversation.ultimo_mensaje.cuerpo}`;
+  }
+
+  function conversationAvatar(conversation) {
+    return initials(conversationTitle(conversation));
+  }
+
+  function getDirectConversationForUser(userId) {
+    return state.conversaciones.find(conversation => {
+      if (conversation.tipo !== 'directa') return false;
+      const participants = conversation.participantes || [];
+      const hasSelf = participants.some(part => Number(part.usuario_id) === Number(state.user?.id));
+      const hasTarget = participants.some(part => Number(part.usuario_id) === Number(userId));
+      return hasSelf && hasTarget;
+    }) || null;
+  }
+
+  function updateCounter(total) {
+    if (!el.conversationCount) return;
+    el.conversationCount.textContent = String(total);
+  }
+
+  function renderPanelTabs() {
+    document.querySelectorAll('.panel-tab').forEach(button => {
+      const active = button.dataset.panel === state.panelActivo;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+
+  function renderConversationList() {
+    const term = normalizeText(state.search);
+
+    if (state.panelActivo === 'usuarios') {
+      const usuarios = state.directorio.usuarios.filter(user => {
+        if (!term) return true;
+        const haystack = [
+          user.nombre,
+          user.email,
+          user.area,
+        ].map(normalizeText).join(' ');
+        return haystack.includes(term);
+      });
+
+      updateCounter(usuarios.length);
+
+      if (!usuarios.length) {
+        el.conversationList.innerHTML = `
+          <div class="empty-state">
+            <div>
+              <h3>No hay usuarios para mostrar</h3>
+              <p>Prueba con otro filtro.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      el.conversationList.innerHTML = usuarios.map(user => {
+        const directConversation = getDirectConversationForUser(user.id);
+        const active = Number(directConversation?.id) === Number(state.conversacionActivaId);
+        return `
+          <button type="button" class="conversation-item user-item ${active ? 'active' : ''}" data-user-id="${user.id}">
+            <div class="conversation-avatar">${escapeHtml(initials(user.nombre))}</div>
+            <div>
+              <div class="conversation-meta">
+                <strong class="conversation-name">${escapeHtml(user.nombre)}</strong>
+                <span>${escapeHtml(user.email || '')}</span>
+              </div>
+              <div class="conversation-subtitle">${escapeHtml(user.area || 'Sin área')}</div>
+              <div class="conversation-snippet">${directConversation ? 'Chat abierto o disponible' : 'Abrir chat directo'}</div>
+            </div>
+            <div class="conversation-badges">
+              ${directConversation?.no_leidos ? `<span class="badge badge--unread">${directConversation.no_leidos}</span>` : ''}
+              ${active ? '<span class="badge badge--muted">Activo</span>' : ''}
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      el.conversationList.querySelectorAll('[data-user-id]').forEach(button => {
+        button.addEventListener('click', () => {
+          const userId = Number(button.dataset.userId);
+          const user = state.directorio.usuarios.find(item => Number(item.id) === userId);
+          if (user) {
+            openOrCreateDirectChat(user);
+          }
+        });
+      });
+      return;
+    }
+
+    const conversaciones = state.conversaciones.filter(conversation => {
+      if (!term) return true;
+      const haystack = [
+        conversationTitle(conversation),
+        conversationSubtitle(conversation),
+        conversationSnippet(conversation),
+      ].map(normalizeText).join(' ');
+      return haystack.includes(term);
+    });
+
+    updateCounter(conversaciones.length);
+
+    if (!conversaciones.length) {
+      el.conversationList.innerHTML = `
+        <div class="empty-state">
+          <div>
+            <h3>No hay chats para mostrar</h3>
+            <p>Vuelve a revisar más tarde o abre un chat desde la pestaña de usuarios.</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    el.conversationList.innerHTML = conversaciones.map(conversation => {
+      const active = Number(conversation.id) === Number(state.conversacionActivaId);
+      const unread = Number(conversation.no_leidos || 0);
+      return `
+        <button type="button" class="conversation-item ${active ? 'active' : ''}" data-conversation-id="${conversation.id}">
+          <div class="conversation-avatar">${escapeHtml(conversationAvatar(conversation))}</div>
+          <div>
+            <div class="conversation-meta">
+              <strong class="conversation-name">${escapeHtml(conversationTitle(conversation))}</strong>
+              <span>${escapeHtml(formatDateTime(conversation.ultimo_mensaje?.created_at || conversation.updated_at || conversation.created_at))}</span>
+            </div>
+            <div class="conversation-subtitle">${escapeHtml(conversationSubtitle(conversation))}</div>
+            <div class="conversation-snippet">${escapeHtml(conversationSnippet(conversation))}</div>
+          </div>
+          <div class="conversation-badges">
+            ${unread ? `<span class="badge badge--unread">${unread}</span>` : ''}
+            ${conversation.silenciada ? '<span class="badge badge--muted">Silenciada</span>' : ''}
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    el.conversationList.querySelectorAll('[data-conversation-id]').forEach(button => {
+      button.addEventListener('click', () => openConversation(button.dataset.conversationId));
+    });
+  }
+
+  function renderMessages() {
+    if (!state.conversacionActivaId) {
+      el.messagesFeed.innerHTML = `
+        <div class="empty-thread">
+          <h3>No hay un chat abierto todavía</h3>
+          <p>Elige un usuario de la lista para iniciar o retomar una conversación.</p>
+        </div>
+      `;
+      el.threadTitle.textContent = 'Selecciona un usuario';
+      el.threadSubtitle.textContent = 'Aquí verás el historial del chat directo.';
+      el.messageInput.disabled = true;
+      el.btnSendMessage.disabled = true;
+      el.btnToggleArchivo.disabled = true;
+      el.btnToggleSilencio.disabled = true;
+      el.composerHint.textContent = 'Selecciona un usuario para responder.';
+      return;
+    }
+
+    const conversation = state.conversaciones.find(item => Number(item.id) === Number(state.conversacionActivaId));
+    if (!conversation) return;
+
+    el.threadTitle.textContent = conversationTitle(conversation);
+    el.threadSubtitle.textContent = conversationSubtitle(conversation);
+    el.messageInput.disabled = false;
+    el.btnSendMessage.disabled = false;
+    el.btnToggleArchivo.disabled = false;
+    el.btnToggleSilencio.disabled = false;
+    el.btnToggleArchivo.textContent = conversation.archivada ? 'Desarchivar' : 'Archivar';
+    el.btnToggleSilencio.textContent = conversation.silenciada ? 'Activar sonido' : 'Silenciar';
+    el.composerHint.textContent = conversation.archivada
+      ? 'El chat está archivado para ti, pero puedes responder para volver a activarlo.'
+      : 'Escribe un mensaje y presiona Enviar.';
+
+    if (!state.mensajesActivos.length) {
+      el.messagesFeed.innerHTML = `
+        <div class="empty-thread">
+          <div>
+            <h3>Aún no hay mensajes</h3>
+            <p>Envía el primer mensaje para iniciar este chat.</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    el.messagesFeed.innerHTML = state.mensajesActivos.map(message => {
+      const self = Number(message.remitente_id) === Number(state.user?.id);
+      return `
+        <article class="message ${self ? 'self' : ''}">
+          <div class="message-card">
+            <div class="message-header">
+              <strong>${self ? 'Tú' : escapeHtml(message.remitente_nombre || 'Usuario')}</strong>
+              <span>${escapeHtml(formatDateTime(message.created_at))}</span>
+            </div>
+            <p class="message-body">${escapeHtml(message.cuerpo)}</p>
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    el.messagesFeed.scrollTop = el.messagesFeed.scrollHeight;
+  }
+
+  async function loadHeaderBadge() {
+    try {
+      const data = await api('/no-leidos');
+      const total = Number(data?.data?.total || 0);
+      el.unreadHeaderCount.textContent = String(total);
+    } catch {
+      el.unreadHeaderCount.textContent = '0';
+    }
+  }
+
+  async function loadConversations() {
+    const data = await api('/conversaciones');
+    state.conversaciones = Array.isArray(data?.data) ? data.data : [];
+
+    if (state.conversacionActivaId) {
+      const stillExists = state.conversaciones.some(item => Number(item.id) === Number(state.conversacionActivaId));
+      if (!stillExists) {
+        state.conversacionActivaId = null;
+        state.mensajesActivos = [];
+      }
+    }
+
+    renderConversationList();
+    renderMessages();
+    await loadHeaderBadge();
+  }
+
+  async function loadDirectory() {
+    const data = await api('/directorio');
+    state.directorio = data?.data || { usuarios: [], areas: [] };
+    renderConversationList();
+  }
+
+  async function loadMessages(conversationId, { silent = false } = {}) {
+    if (!conversationId) return;
+    if (state.cargandoMensajes && silent) return;
+    state.cargandoMensajes = true;
+
+    try {
+      const data = await api(`/conversaciones/${conversationId}/mensajes`);
+      state.conversacionActivaId = Number(conversationId);
+      state.mensajesActivos = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+
+      const updatedConversation = data?.data?.conversacion;
+      if (updatedConversation) {
+        const index = state.conversaciones.findIndex(item => Number(item.id) === Number(conversationId));
+        if (index >= 0) {
+          state.conversaciones[index] = {
+            ...state.conversaciones[index],
+            ...updatedConversation,
+            participantes: updatedConversation.participantes || state.conversaciones[index].participantes || [],
+          };
+        }
+      }
+
+      renderConversationList();
+      renderMessages();
+      await api(`/conversaciones/${conversationId}/leido`, { method: 'PATCH' });
+      await loadHeaderBadge();
+    } catch (error) {
+      if (!silent) {
+        alert(error.message);
+      }
+    } finally {
+      state.cargandoMensajes = false;
+    }
+  }
+
+  async function openConversation(conversationId) {
+    await loadMessages(conversationId);
+  }
+
+  async function openOrCreateDirectChat(user) {
+    try {
+      const response = await api('/conversaciones', {
+        method: 'POST',
+        body: JSON.stringify({ tipo: 'directa', usuario_id: user.id }),
+      });
+      const conversationId = response?.data?.id;
+      if (!conversationId) {
+        throw new Error('No se pudo abrir el chat.');
+      }
+
+      await loadConversations();
+      await openConversation(conversationId);
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  function activatePanel(panel) {
+    state.panelActivo = panel;
+    renderPanelTabs();
+    renderConversationList();
+  }
+
+  async function sendMessage(event) {
+    event.preventDefault();
+    const conversationId = state.conversacionActivaId;
+    if (!conversationId) return;
+
+    const body = el.messageInput.value.trim();
+    if (!body) return;
+
+    try {
+      await api(`/conversaciones/${conversationId}/mensajes`, {
+        method: 'POST',
+        body: JSON.stringify({ cuerpo: body }),
+      });
+      el.messageInput.value = '';
+      await loadMessages(conversationId, { silent: true });
+      await loadConversations();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function toggleFlag(flag) {
+    const conversationId = state.conversacionActivaId;
+    if (!conversationId) return;
+
+    const conversation = state.conversaciones.find(item => Number(item.id) === Number(conversationId));
+    if (!conversation) return;
+
+    const payload = flag === 'archivada'
+      ? { archivada: !conversation.archivada }
+      : { silenciada: !conversation.silenciada };
+
+    try {
+      await api(`/conversaciones/${conversationId}/${flag === 'archivada' ? 'archivar' : 'silenciar'}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      await loadConversations();
+      await loadMessages(conversationId, { silent: true });
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  function loadSession() {
+    try {
+      const raw = sessionStorage.getItem('texpro_user') || localStorage.getItem('user') || localStorage.getItem('usuario');
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function bindEvents() {
+    el.conversationSearch.addEventListener('input', event => {
+      state.search = event.target.value || '';
+      renderConversationList();
+    });
+
+    document.querySelectorAll('.panel-tab').forEach(button => {
+      button.addEventListener('click', () => activatePanel(button.dataset.panel));
+    });
+
+    el.btnRefresh.addEventListener('click', async () => {
+      await loadDirectory();
+      await loadConversations();
+      if (state.conversacionActivaId) {
+        await loadMessages(state.conversacionActivaId, { silent: true });
+      }
+    });
+
+    el.composerForm.addEventListener('submit', sendMessage);
+    el.btnToggleSilencio.addEventListener('click', () => toggleFlag('silenciada'));
+    el.btnToggleArchivo.addEventListener('click', () => toggleFlag('archivada'));
+
+    el.btnLogout.addEventListener('click', () => {
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('texpro_user');
+      window.location.href = '/src/modulo/login/index.html';
+    });
+  }
+
+  async function init() {
+    el.sidebar = qs('sidebar');
+    el.mainWrapper = qs('mainWrapper');
+    el.headerMenuBtn = qs('headerMenuBtn');
+    el.sidebarToggle = qs('sidebarToggle');
+    el.btnLogout = qs('btnLogout');
+    el.userName = qs('userName');
+    el.userArea = qs('userArea');
+    el.userAvatar = qs('userAvatar');
+    el.unreadHeaderCount = qs('unreadHeaderCount');
+    el.btnRefresh = qs('btnRefresh');
+    el.conversationSearch = qs('conversationSearch');
+    el.conversationCount = qs('conversationCount');
+    el.conversationList = qs('conversationList');
+    el.threadTitle = qs('threadTitle');
+    el.threadSubtitle = qs('threadSubtitle');
+    el.btnToggleSilencio = qs('btnToggleSilencio');
+    el.btnToggleArchivo = qs('btnToggleArchivo');
+    el.messagesFeed = qs('messagesFeed');
+    el.composerForm = qs('composerForm');
+    el.messageInput = qs('messageInput');
+    el.btnSendMessage = qs('btnSendMessage');
+    el.composerHint = qs('composerHint');
+
+    state.user = loadSession();
+    setHeaderUser(state.user);
+    bindEvents();
+    renderPanelTabs();
+
+    await loadDirectory();
+    await loadConversations();
+    await loadHeaderBadge();
+
+    if (state.user?.id) {
+      document.title = 'Texpro - Mensajería interna';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

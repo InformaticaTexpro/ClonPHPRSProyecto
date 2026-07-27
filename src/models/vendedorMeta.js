@@ -249,8 +249,8 @@ async function obtenerMetaVendedor(...args) {
   if (selected.tipo_periodo === 'anual') {
     return {
       ...selected,
-      meta_mes: Math.round(selected.meta_original / 12),
-      prorrateada: true,
+      meta_mes: selected.meta_original,
+      prorrateada: false,
     };
   }
 
@@ -342,9 +342,9 @@ async function obtenerMetasMensualesVendedor(...args) {
       return {
         mes,
         meta_original: metaOriginal,
-        meta_mes: Math.round(metaOriginal / 12),
+        meta_mes: metaOriginal,
         tipo_periodo: 'anual',
-        prorrateada: true,
+        prorrateada: false,
         fecha: formatFecha(metaAnual.fecha),
       };
     }

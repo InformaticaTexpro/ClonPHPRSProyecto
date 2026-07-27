@@ -161,7 +161,7 @@
 
     if (preview) {
       preview.textContent = tipo === 'anual'
-        ? 'La meta anual se usa como valor general del año. La meta mensual se aplica solo al mes seleccionado.'
+        ? 'La meta anual aplica al año completo seleccionado. La meta mensual se aplica solo al mes seleccionado.'
         : 'La meta mensual se aplica solo al mes seleccionado. Las metas anuales quedan como referencia general.';
     }
 

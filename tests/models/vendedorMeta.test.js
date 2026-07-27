@@ -45,7 +45,7 @@ describe('models/vendedorMeta', () => {
     expect(meta.prorrateada).toBe(false);
   });
 
-  test('usa la meta anual prorrateada cuando no existe mensual exacta del mes', async () => {
+  test('usa la meta anual completa cuando no existe mensual exacta del mes', async () => {
     mockQuery.mockImplementationOnce((_sql, params) => {
       if (String(params[1]) === '2026-03-01') {
         return Promise.resolve([[
@@ -66,8 +66,8 @@ describe('models/vendedorMeta', () => {
 
     expect(meta.tipo_periodo).toBe('anual');
     expect(meta.meta_original).toBe(40613761);
-    expect(meta.meta_mes).toBe(3384480);
-    expect(meta.prorrateada).toBe(true);
+    expect(meta.meta_mes).toBe(40613761);
+    expect(meta.prorrateada).toBe(false);
   });
 
   test('no usa una meta mensual de otro mes como fallback', async () => {
@@ -89,8 +89,8 @@ describe('models/vendedorMeta', () => {
       [1, '2026-07-01', 2026]
     );
     expect(meta.tipo_periodo).toBe('anual');
-    expect(meta.meta_mes).toBe(3384480);
-    expect(meta.prorrateada).toBe(true);
+    expect(meta.meta_mes).toBe(40613761);
+    expect(meta.prorrateada).toBe(false);
   });
 
   test('guardarMetaVendedor inserta una meta anual con fecha de enero', async () => {
@@ -122,11 +122,11 @@ describe('models/vendedorMeta', () => {
     );
     expect(meta.fecha).toBe('2026-01-01');
     expect(meta.meta_original).toBe(500000);
-    expect(meta.meta_mes).toBe(41667);
-    expect(meta.prorrateada).toBe(true);
+    expect(meta.meta_mes).toBe(500000);
+    expect(meta.prorrateada).toBe(false);
   });
 
-  test('obtenerMetasMensualesVendedor devuelve 12 meses y prorratea la meta anual', async () => {
+  test('obtenerMetasMensualesVendedor devuelve 12 meses y usa la meta anual completa', async () => {
     mockQuery.mockResolvedValueOnce([[
       {
         id: 40,
@@ -142,10 +142,10 @@ describe('models/vendedorMeta', () => {
 
     expect(metas).toHaveLength(12);
     expect(metas[0].meta_original).toBe(40613761);
-    expect(metas[0].meta_mes).toBe(3384480);
+    expect(metas[0].meta_mes).toBe(40613761);
     expect(metas[0].tipo_periodo).toBe('anual');
-    expect(metas[0].prorrateada).toBe(true);
-    expect(metas[6].meta_mes).toBe(3384480);
+    expect(metas[0].prorrateada).toBe(false);
+    expect(metas[6].meta_mes).toBe(40613761);
   });
 
   test('obtenerMetasMensualesVendedor respeta metas mensuales distintas por mes', async () => {

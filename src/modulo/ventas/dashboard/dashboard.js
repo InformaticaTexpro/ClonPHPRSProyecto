@@ -263,9 +263,9 @@
       const ventas = data.evolucion.map(e => e.ventas);
       const meta   = data.evolucion.map(e => Number(e.meta_mes ?? e.meta ?? 0));
       const metaOrigen = data.evolucion.map(e => {
-        if (e.prorrateada) return 'Meta anual prorrateada';
+        if (e.prorrateada) return 'Meta anual';
         if (e.tipo_meta === 'mensual') return 'Meta mensual específica';
-        if (e.tipo_meta === 'anual') return 'Meta anual prorrateada';
+        if (e.tipo_meta === 'anual') return 'Meta anual';
         return 'Meta';
       });
       const canvas = document.getElementById('graficoEvolucion');

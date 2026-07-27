@@ -23,6 +23,8 @@
   const ALERTAS_BELL_BADGE_ID = 'texproAlertasCampanaBadge';
   const ALERTAS_BELL_PANEL_ID = 'texproAlertasCampanaPanel';
   const ALERTAS_BELL_LIST_ID = 'texproAlertasCampanaList';
+  const MENSAJERIA_BELL_ID = 'texproMensajeriaBtn';
+  const MENSAJERIA_BELL_BADGE_ID = 'texproMensajeriaBadge';
 
   function debeFusionarVentasAsignadas() {
     return window.location.pathname.includes('/src/modulo/ventas/dashboard/');
@@ -660,6 +662,31 @@
     renderResumenCampanaGlobal(alertas);
   }
 
+  async function cargarResumenMensajeriaGlobal() {
+    const badge = document.getElementById(MENSAJERIA_BELL_BADGE_ID);
+    if (!badge) return 0;
+
+    try {
+      const res = await originalFetch('/api/mensajeria/no-leidos', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json().catch(() => null);
+      const total = Number(data?.data?.total || 0);
+      if (total > 0) {
+        badge.textContent = total > 99 ? '99+' : String(total);
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.textContent = '0';
+        badge.style.display = 'none';
+      }
+      return total;
+    } catch {
+      badge.textContent = '0';
+      badge.style.display = 'none';
+      return 0;
+    }
+  }
+
   function crearCampanaAlertasGlobal() {
     if (document.getElementById(ALERTAS_BELL_ID)) return;
     const headerRight = document.querySelector('.main-header .header-right');
@@ -721,6 +748,32 @@
     document.addEventListener('click', event => {
       if (!wrap.contains(event.target)) cerrarCampanaAlertasGlobal();
     }, true);
+  }
+
+  function crearAccesoMensajeriaGlobal() {
+    if (document.getElementById(MENSAJERIA_BELL_ID)) return;
+    const headerRight = document.querySelector('.main-header .header-right');
+    if (!headerRight) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'texpro-alertas-campana-wrap';
+    wrap.innerHTML = `
+      <button type="button" class="texpro-alertas-campana-btn" id="${MENSAJERIA_BELL_ID}" aria-label="Mensajería" aria-haspopup="false" title="Mensajería interna">
+        <span aria-hidden="true">💬</span>
+        <span class="texpro-alertas-campana-badge" id="${MENSAJERIA_BELL_BADGE_ID}" style="display:none">0</span>
+      </button>
+    `;
+
+    const notifWrapper = headerRight.querySelector('.notif-wrapper');
+    headerRight.insertBefore(wrap, notifWrapper || headerRight.firstChild);
+
+    const btn = wrap.querySelector(`#${MENSAJERIA_BELL_ID}`);
+    btn?.addEventListener('click', () => {
+      window.location.href = '/src/modulo/varios/mensajeria/index.html';
+    });
+
+    cargarResumenMensajeriaGlobal();
+    setInterval(cargarResumenMensajeriaGlobal, 60 * 1000);
   }
 
   async function verificarAlertasPendientesAlIngreso() {
@@ -928,6 +981,7 @@ function cargarSidebarModulos() {
     activarAutoRefreshFiltros();
     activarMenuGerenciaAdmin();
     crearCampanaAlertasGlobal();
+    crearAccesoMensajeriaGlobal();
     cargarBadgeAlertasGlobal();
     verificarAlertasPendientesAlIngreso();
     setInterval(cargarIndicadores, REFRESH_MS);
