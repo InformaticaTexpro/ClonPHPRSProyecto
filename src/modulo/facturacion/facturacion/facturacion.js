@@ -161,7 +161,6 @@
     { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                          area:['rrhh','gerencia'] },
     { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',          area:['contabilidad','gerencia'] },
     { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                        area:['admin'] },
-    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',                    area: null },
   ];
 
   // ── Sidebar ────────────────────────────────────────────────────────────────────────

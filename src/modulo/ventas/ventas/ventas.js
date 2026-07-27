@@ -1246,7 +1246,7 @@
         const coordVend = document.getElementById('coordVendedor');
         const coordPct  = document.getElementById('coordPorcentaje');
         if (coordVend) coordVend.value = '';
-        if (coordPct)  coordPct.value  = '100';
+        if (coordPct)  coordPct.value  = '50';
         await Promise.all([ cargarFoliosParaCompartir(), cargarFoliosAsignados() ]);
       } catch(err) {
         const msgEl2 = document.getElementById('coordMensaje');
@@ -1348,7 +1348,7 @@
         btn.addEventListener('click', async () => {
           const id    = btn.dataset.id;
           const folio = btn.dataset.folio;
-          if (!confirm(`Â¿Eliminar asignación del folio ${folio}?`)) return;
+          if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
           try {
             const r = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
             const d = await r.json();

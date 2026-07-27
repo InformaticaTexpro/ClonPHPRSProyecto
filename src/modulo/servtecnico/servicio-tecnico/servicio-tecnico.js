@@ -122,7 +122,6 @@
     { nombre:'RRHH',           icon:'👥', url:'../rrhh/index.html',         area:['rrhh','gerencia'] },
     { nombre:'Contabilidad',   icon:'📜', url:'../contabilidad/index.html', area:['contabilidad','gerencia'] },
     { nombre:'Administración', icon:'🔧', url:'../admin/index.html',        area:['admin'] },
-    { nombre:'Alertas',        icon:'🔔', url:'../alertas/index.html',      area: null },
   ];
 
   function cargarSidebar(usuario) {

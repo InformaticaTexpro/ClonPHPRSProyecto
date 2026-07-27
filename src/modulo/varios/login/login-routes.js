@@ -112,8 +112,7 @@
       return menusUtiles[0].url;
     }
 
-    const menuAlertas = menus.find(menu => normalizarCodigo(menu.codigo) === 'alertas' || normalizarCodigo(menu.nombre) === 'alertas');
-    return menuAlertas?.url || null;
+    return null;
   }
 
   function resolverRutaInicialUsuario(user) {

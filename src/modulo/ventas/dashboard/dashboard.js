@@ -58,9 +58,9 @@
   }
 
   function formatPctDescuento(valor) {
-    if (valor === null || valor === undefined || valor === '') return '—';
+    if (valor === null || valor === undefined || valor === '') return '-';
     const n = Number(valor);
-    if (!Number.isFinite(n)) return '—';
+    if (!Number.isFinite(n)) return '-';
     return `${Math.round(n)}%`;
   }
 
@@ -68,7 +68,7 @@
     const tfoot = document.getElementById('tfootVendedores');
     if (!tfoot) return;
     const descuentoHtml = descuento === null || descuento === undefined || descuento === ''
-      ? 'â€”'
+      ? '-'
       : formatPctDescuento(descuento);
     tfoot.innerHTML = `<tr>
       <td colspan="3"><strong>Total</strong></td>
@@ -154,7 +154,6 @@
     { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
     { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
     { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                      area:['admin'] },
-    { nombre:'Alertas',        icon:'🔔', url:'../../varios/alertas/index.html',                   area: null },
   ];
 
   function cargarSidebar(usuario) {

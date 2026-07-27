@@ -16,6 +16,10 @@
 
   const REFRESH_MS = 5 * 60 * 1000;
   const originalFetch = window.fetch.bind(window);
+  const FEATURE_FLAGS = {
+    alertas: false,
+    mensajeria: false,
+  };
   const ALERTAS_OVERLAY_ID = 'texproAlertasPendientesOverlay';
   const ALERTAS_STYLE_ID   = 'texproAlertasPendientesStyles';
   const ALERTAS_SESSION_PREFIX = 'alertasPendientesMostradas:';
@@ -464,6 +468,7 @@
   }
 
   function renderAlertasPendientesModal(alertas) {
+    if (!FEATURE_FLAGS.alertas) return;
     if (!alertas || !alertas.length) return;
     crearEstilosAlertasPendientes();
 
@@ -543,6 +548,7 @@
   }
 
   async function fetchAlertasPendientesGlobal() {
+    if (!FEATURE_FLAGS.alertas) return null;
     const token = getToken();
     if (!token) return null;
     try {
@@ -559,6 +565,7 @@
   }
 
   async function cargarBadgeAlertasGlobal() {
+    if (!FEATURE_FLAGS.alertas) return 0;
     const token = getToken();
     if (!token) return 0;
     try {
@@ -583,6 +590,7 @@
   }
 
   function renderResumenCampanaGlobal(alertas) {
+    if (!FEATURE_FLAGS.alertas) return;
     crearEstilosAlertasPendientes();
     const panel = document.getElementById(ALERTAS_BELL_PANEL_ID);
     if (!panel) return;
@@ -639,6 +647,7 @@
   }
 
   async function cargarResumenCampanaGlobal() {
+    if (!FEATURE_FLAGS.alertas) return 0;
     const panel = document.getElementById(ALERTAS_BELL_PANEL_ID);
     const btn = document.getElementById(ALERTAS_BELL_ID);
     if (!panel || !btn) return;
@@ -663,6 +672,7 @@
   }
 
   async function cargarResumenMensajeriaGlobal() {
+    if (!FEATURE_FLAGS.mensajeria) return 0;
     const badge = document.getElementById(MENSAJERIA_BELL_BADGE_ID);
     if (!badge) return 0;
 
@@ -688,6 +698,7 @@
   }
 
   function crearCampanaAlertasGlobal() {
+    if (!FEATURE_FLAGS.alertas) return;
     if (document.getElementById(ALERTAS_BELL_ID)) return;
     const headerRight = document.querySelector('.main-header .header-right');
     if (!headerRight) return;
@@ -751,6 +762,7 @@
   }
 
   function crearAccesoMensajeriaGlobal() {
+    if (!FEATURE_FLAGS.mensajeria) return;
     if (document.getElementById(MENSAJERIA_BELL_ID)) return;
     const headerRight = document.querySelector('.main-header .header-right');
     if (!headerRight) return;
@@ -777,6 +789,7 @@
   }
 
   async function verificarAlertasPendientesAlIngreso() {
+    if (!FEATURE_FLAGS.alertas) return;
     const key = getAlertasSessionKey();
     if (sessionStorage.getItem(key) === '1') return;
     const alertas = await fetchAlertasPendientesGlobal();

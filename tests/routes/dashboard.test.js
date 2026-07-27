@@ -179,6 +179,29 @@ describe('GET /api/dashboard/vendedores — ventas por vendedor', () => {
   });
 });
 
+describe('GET /api/dashboard/vendedores-todos — lista completa para compartir', () => {
+  test('deduplica por usuario y conserva un código representativo', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      { usuario_id: 1, nombre: 'ADRIANA PERRET', cod_vendedor: '03' },
+      { usuario_id: 1, nombre: 'ADRIANA PERRET', cod_vendedor: '5003' },
+      { usuario_id: 2, nombre: 'ALICIA RUZ', cod_vendedor: '202' },
+      { usuario_id: 2, nombre: 'ALICIA RUZ', cod_vendedor: '5202' },
+      { usuario_id: 3, nombre: 'ANDREA PONCE', cod_vendedor: '358' },
+    ]]);
+
+    const res = await request(app).get('/api/dashboard/vendedores-todos');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.vendedores).toHaveLength(3);
+    expect(res.body.vendedores).toEqual([
+      { cod: '03', nombre: 'ADRIANA PERRET' },
+      { cod: '202', nombre: 'ALICIA RUZ' },
+      { cod: '358', nombre: 'ANDREA PONCE' },
+    ]);
+  });
+});
+
 // ── POST /api/dashboard/compartir — asigna porcentaje a folio ────────────────
 describe('POST /api/dashboard/compartir — asigna porcentaje a folio', () => {
   test('retorna 400 si falta vendedor compartido', async () => {
@@ -211,7 +234,7 @@ describe('dashboard.js — formateo de descuentos en el modal de detalle', () =>
     );
 
     expect(source).toContain('function formatPctDescuento(valor)');
-    expect(source).toContain("if (valor === null || valor === undefined || valor === '') return '—';");
+    expect(source).toContain("if (valor === null || valor === undefined || valor === '') return '-';");
     expect(source).toContain('return `${Math.round(n)}%`;');
     expect(source).toContain('formatPctDescuento(l.dcto ?? l.Dcto)');
     expect(source).not.toContain('Number.isFinite(Number(l.dcto)) && Number(l.dcto) > 0');

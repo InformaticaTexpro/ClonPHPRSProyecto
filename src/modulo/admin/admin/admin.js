@@ -1372,17 +1372,36 @@
             ${fieldHelp('Si está inactivo, el usuario no podrá iniciar sesión.', 'adminUserIsActive')}
           </div>
         </div>
-        <div class="drawer-note">
-          ${isEditing
-            ? 'La contraseña no se modifica desde esta vista. Usa el endpoint dedicado si necesitas actualizarla.'
-            : 'Si no indicas contraseña, el usuario se creará inactivo hasta definir una contraseña segura.'}
-        </div>
-        ${isEditing ? '' : `
-          <div class="drawer-field field-group" data-field-wrap="adminUserPassword">
-            <label for="adminUserPassword">Contraseña</label>
-            <input class="input-control" id="adminUserPassword" type="password" placeholder="Opcional, pero recomendado" ${readOnly ? 'disabled' : ''} />
-            ${fieldHelp('No usar contraseñas genéricas en producción. Debe cumplir la política definida.', 'adminUserPassword')}
-          </div>
+        ${isEditing ? `
+          <section class="drawer-section drawer-section--accent">
+            <div class="drawer-section__header">
+              <div>
+                <h4>Restablecimiento excepcional</h4>
+                <p>Usa este bloque solo si necesitas cambiar la clave del usuario.</p>
+              </div>
+              <span class="drawer-section__tag">Caso excepcional</span>
+            </div>
+            <div class="drawer-field field-group" data-field-wrap="adminUserPassword">
+              <label for="adminUserPassword">Nueva contraseña</label>
+              <input class="input-control" id="adminUserPassword" type="password" placeholder="Déjala vacía si no cambias la clave" ${readOnly ? 'disabled' : ''} />
+              ${fieldHelp('Si guardas una nueva clave, se actualizará el hash de acceso del usuario.', 'adminUserPassword')}
+            </div>
+          </section>
+        ` : `
+          <section class="drawer-section drawer-section--accent">
+            <div class="drawer-section__header">
+              <div>
+                <h4>Seguridad de acceso</h4>
+                <p>Define la clave inicial antes de activar el usuario.</p>
+              </div>
+              <span class="drawer-section__tag">Alta</span>
+            </div>
+            <div class="drawer-field field-group" data-field-wrap="adminUserPassword">
+              <label for="adminUserPassword">Contraseña</label>
+              <input class="input-control" id="adminUserPassword" type="password" placeholder="Opcional, pero recomendado" ${readOnly ? 'disabled' : ''} />
+              ${fieldHelp('No usar contraseñas genéricas en producción. Debe cumplir la política definida.', 'adminUserPassword')}
+            </div>
+          </section>
         `}
       </form>
     `;
@@ -1598,7 +1617,9 @@
       } else if (state.drawer.type === 'area') {
         subtitle.textContent = 'Gestiona el catálogo maestro de áreas y su perfil base sugerido.';
       } else {
-        subtitle.textContent = 'Gestiona usuarios reales del sistema sin depender de datos mock.';
+        subtitle.textContent = state.drawer.mode === 'edit'
+          ? 'Edita datos del usuario y, si corresponde, restablece su contraseña desde este mismo panel.'
+          : 'Gestiona usuarios reales del sistema sin depender de datos mock.';
       }
     }
 
@@ -1813,8 +1834,14 @@
         }
         await apiFetch(`/usuarios/${state.drawer.id}`, { method: 'PUT', body: JSON.stringify(payload) });
         await syncUserPrincipalProfile(state.drawer.id, primaryProfileCode, current?.perfiles || []);
+        if (password) {
+          await apiFetch(`/usuarios/${state.drawer.id}/password`, {
+            method: 'PATCH',
+            body: JSON.stringify({ password }),
+          });
+        }
         pushAudit('Usuario actualizado', `Se actualizaron los datos de ${nombre}.`);
-        toast('Usuarios', 'Usuario actualizado correctamente.', 'success');
+        toast('Usuarios', password ? 'Usuario actualizado y contraseña restablecida correctamente.' : 'Usuario actualizado correctamente.', 'success');
       }
 
       closeDrawer();

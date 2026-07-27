@@ -64,12 +64,11 @@
       }
 
       const menusUtiles = menus
-        .filter(menu => normalizar(menu?.codigo) !== 'alertas' && normalizar(menu?.grupo) !== 'general' && String(menu?.url || '').trim())
-        .sort((a, b) => (Number(a?.orden ?? 0) - Number(b?.orden ?? 0)) || String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es'));
+      .filter(menu => normalizar(menu?.codigo) !== 'alertas' && normalizar(menu?.codigo) !== 'mensajeria' && normalizar(menu?.grupo) !== 'general' && String(menu?.url || '').trim())
+      .sort((a, b) => (Number(a?.orden ?? 0) - Number(b?.orden ?? 0)) || String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es'));
       if (menusUtiles.length) return menusUtiles[0].url;
 
-      const alerta = menus.find(menu => normalizar(menu?.codigo) === 'alertas' || normalizar(menu?.grupo) === 'general');
-      return alerta?.url || '/src/sin-acceso.html';
+      return '/src/sin-acceso.html';
     };
 
   // ── Referencias DOM ───────────────────────────────────────

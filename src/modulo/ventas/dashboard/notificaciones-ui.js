@@ -12,6 +12,7 @@
 (function () {
 
   /* ── Helpers ──────────────────────────────────────────────────── */
+  const ENABLE_ALERTAS = false;
   const API_NOTIF  = '/api/notificaciones';
   const API_ALERTA = '/api/alertas';
   const token = () => localStorage.getItem('token') || sessionStorage.getItem('token') || '';
@@ -120,7 +121,7 @@
     }
 
     /* — Sección Alertas próximas — */
-    if (alertasPend.length) {
+    if (ENABLE_ALERTAS && alertasPend.length) {
       html += `<li class="notif-seccion-header notif-seccion-header--alerta">⚠️ Alertas próximas</li>`;
       html += alertasPend.map(a => {
         const u     = urgenciaAlerta(a.dias_restantes);
@@ -182,7 +183,7 @@
   /* ── Badge total (notif no leídas + alertas pendientes) ─────────────── */
   function actualizarBadge() {
     const noLeidas = notificaciones.filter(x => !x.leida).length;
-    const total    = noLeidas + alertasPend.length;
+    const total    = noLeidas + (ENABLE_ALERTAS ? alertasPend.length : 0);
     if (total > 0) {
       badge.textContent  = total > 99 ? '99+' : total;
       badge.style.display = 'block';
@@ -261,6 +262,11 @@
 
   /* ── Fetch alertas pendientes ───────────────────────────────────────────── */
   function fetchAlertas() {
+    if (!ENABLE_ALERTAS) {
+      alertasPend = [];
+      actualizarBadge();
+      return Promise.resolve([]);
+    }
     fetch(`${API_ALERTA}/pendientes`, { headers: hdrs() })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -274,8 +280,11 @@
 
   /* ── Polling cada 30 s ─────────────────────────────────────────────────── */
   fetchNotificaciones();
-  fetchAlertas();
-  setInterval(() => { fetchNotificaciones(); fetchAlertas(); }, 30_000);
+  if (ENABLE_ALERTAS) fetchAlertas();
+  setInterval(() => {
+    fetchNotificaciones();
+    if (ENABLE_ALERTAS) fetchAlertas();
+  }, 30_000);
 
   /* ── Estilos inline para los nuevos elementos de alerta ───────────────── */
   const style = document.createElement('style');

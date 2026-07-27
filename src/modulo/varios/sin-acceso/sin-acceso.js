@@ -151,13 +151,12 @@
     }
 
     const menusUtiles = menus
-      .filter(menu => menu.codigo !== 'alertas' && menu.grupo !== 'general')
+      .filter(menu => menu.codigo !== 'alertas' && menu.codigo !== 'mensajeria' && menu.grupo !== 'general')
       .sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es'));
 
     if (menusUtiles.length) return menusUtiles[0].url;
 
-    const alerta = menus.find(menu => menu.codigo === 'alertas' || menu.grupo === 'general');
-    return alerta?.url || null;
+    return null;
   }
 
   const resolverRutaPrincipalUsuario = typeof loginRouter.resolverRutaPrincipalUsuario === 'function'

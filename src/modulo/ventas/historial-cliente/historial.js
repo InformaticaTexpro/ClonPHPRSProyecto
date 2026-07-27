@@ -101,7 +101,6 @@
     { nombre: 'RRHH',                 icon: '\uD83D\uDC65', url: '../../rrhh/rrhh/index.html',                      area: ['rrhh', 'gerencia'] },
     { nombre: 'Contabilidad',         icon: '\uD83D\uDCDC', url: '../../contabilidad/contabilidad/index.html',      area: ['contabilidad', 'gerencia'] },
     { nombre: 'Administraci\u00f3n',  icon: '\uD83D\uDD27', url: '../../admin/admin/index.html',                   area: ['admin'] },
-    { nombre: 'Alertas',              icon: '\uD83D\uDD14', url: '../../varios/alertas/index.html',                 area: null },
   ];
 
   async function verificarSesion() {

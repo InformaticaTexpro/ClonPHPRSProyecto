@@ -8,11 +8,15 @@
  */
 (function () {
   window.__APP_SIDEBAR_LOADED__ = true;
+  const FEATURE_FLAGS = {
+    alertas: false,
+    mensajeria: false,
+  };
 
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
-  const EXTRA_ITEMS = [
-    { id: 'extra-alertas', codigo: 'alertas', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', icono: '🔔', grupo: 'General', orden: 1, extra: true },
-  ];
+  const EXTRA_ITEMS = FEATURE_FLAGS.alertas
+    ? [{ id: 'extra-alertas', codigo: 'alertas', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', icono: '🔔', grupo: 'General', orden: 1, extra: true }]
+    : [];
 
   function normalizarTexto(valor) {
     return String(valor || '')
@@ -46,7 +50,9 @@
         orden: Number(menu?.orden ?? 0) || 0,
         extra: Boolean(menu?.extra),
       }))
-      .filter(menu => menu.id !== null && menu.nombre && menu.url && menu.codigo !== 'mensajeria');
+      .filter(menu => menu.id !== null && menu.nombre && menu.url)
+      .filter(menu => (FEATURE_FLAGS.mensajeria ? true : menu.codigo !== 'mensajeria'))
+      .filter(menu => (FEATURE_FLAGS.alertas ? true : menu.codigo !== 'alertas'));
   }
 
   function construirCatalogo(allMenus) {
@@ -573,6 +579,7 @@
   }
 
   function crearWidgetMensajeriaGlobal(data) {
+    if (!FEATURE_FLAGS.mensajeria) return;
     if (normalizarUrl(window.location.pathname) === '/src/modulo/varios/mensajeria/index.html') return;
     if (document.getElementById('texproChatWidget')) return;
 

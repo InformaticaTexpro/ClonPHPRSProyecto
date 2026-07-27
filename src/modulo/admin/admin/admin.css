@@ -283,6 +283,9 @@ body {
 .main-content {
   flex: 1;
   padding: 24px var(--space-6, 24px) 32px;
+  max-width: 1600px;
+  width: 100%;
+  align-self: center;
 }
 
 .admin-hero {
@@ -430,6 +433,15 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 18px;
+  padding: 10px;
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .78);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+  position: sticky;
+  top: 76px;
+  z-index: 40;
 }
 
 .admin-tab {
@@ -441,6 +453,7 @@ body {
   padding: .7rem 1rem;
   cursor: pointer;
   transition: all .15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
 }
 
 .admin-tab:hover {
@@ -467,8 +480,8 @@ body {
 .panel-card {
   background: #fff;
   border: 1px solid var(--color-gray-light, #E8EAF0);
-  border-radius: 18px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
   padding: 18px;
 }
 
@@ -1177,6 +1190,53 @@ body {
   line-height: 1.5;
 }
 
+.drawer-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, .06);
+  background: #FBFCFE;
+}
+
+.drawer-section--accent {
+  background: linear-gradient(180deg, rgba(0, 226, 167, .08), rgba(255, 255, 255, .96));
+  border-color: rgba(0, 226, 167, .16);
+}
+
+.drawer-section__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.drawer-section__header h4 {
+  margin: 0 0 4px;
+  font-size: .95rem;
+  font-family: var(--font-primary, 'Montserrat', sans-serif);
+}
+
+.drawer-section__header p {
+  margin: 0;
+  font-size: .82rem;
+  color: var(--color-gray-dark, #6B7280);
+}
+
+.drawer-section__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: .3rem .6rem;
+  border-radius: 999px;
+  background: rgba(0, 226, 167, .14);
+  color: #045f49;
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .form-section-note,
 .admin-explainer {
   padding: 10px 12px;
@@ -1204,6 +1264,7 @@ body {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(248, 250, 252, .65), #fff);
 }
 
 .toast-stack {
@@ -1442,6 +1503,10 @@ body {
   .admin-status-note {
     text-align: left;
   }
+
+  .admin-tabs {
+    top: 116px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1506,8 +1571,16 @@ body {
     padding: 18px;
   }
 
+  .admin-hero__status {
+    width: 100%;
+  }
+
   .panel-card {
     padding: 16px;
+  }
+
+  .admin-tabs {
+    padding: 8px;
   }
 
   .drawer__header,

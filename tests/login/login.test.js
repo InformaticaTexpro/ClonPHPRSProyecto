@@ -107,7 +107,7 @@ describe('resolverRutaPrincipalUsuario', () => {
     expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/admin/admin/index.html');
   });
 
-  test('si solo existe alertas, devuelve alertas como ultimo recurso', () => {
+  test('si solo existe alertas, no la usa como ruta principal', () => {
     const user = {
       area: 'Operaciones',
       menus: [
@@ -115,6 +115,6 @@ describe('resolverRutaPrincipalUsuario', () => {
       ],
     };
 
-    expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/varios/alertas/index.html');
+    expect(resolverRutaPrincipalUsuario(user)).toBeNull();
   });
 });

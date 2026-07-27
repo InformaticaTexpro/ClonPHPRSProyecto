@@ -82,7 +82,7 @@ describe('sin-acceso', () => {
     expect(document.getElementById('btnVolverModulo').getAttribute('href')).toContain('/src/modulo/ventas/dashboard/index.html');
   });
 
-  test('si solo existe alertas, la redireccion usa alertas como ultimo recurso', async () => {
+  test('si solo existe alertas, no la usa como modulo principal', async () => {
     await ejecutarScript({
       token: 'token-demo',
       response: {
@@ -102,8 +102,9 @@ describe('sin-acceso', () => {
       },
     });
 
-    expect(document.getElementById('moduloPrincipal').textContent).toBe('Alertas');
-    expect(document.getElementById('btnVolverModulo').getAttribute('href')).toContain('/src/modulo/varios/alertas/index.html');
+    expect(document.getElementById('moduloPrincipal').textContent).toBe('Sin módulo principal asignado');
+    expect(document.getElementById('btnVolverModulo').hasAttribute('href')).toBe(false);
+    expect(document.getElementById('btnVolverModulo').getAttribute('aria-disabled')).toBe('true');
   });
 
   test('si no hay menus, mantiene la pantalla sin redireccion util', async () => {

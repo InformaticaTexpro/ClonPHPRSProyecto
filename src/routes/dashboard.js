@@ -109,6 +109,19 @@ function mssqlIn(arr) {
   return arr.map(v => `'${v}'`).join(',');
 }
 
+function elegirCodigoVendedorRepresentativo(rows) {
+  return rows.reduce((mejor, row) => {
+    const cod = String(row.cod_vendedor || '').trim();
+    if (!cod) return mejor;
+    if (!mejor) return cod;
+
+    const codMejor = String(mejor).trim();
+    if (cod.length < codMejor.length) return cod;
+    if (cod.length > codMejor.length) return mejor;
+    return cod.localeCompare(codMejor, 'es', { numeric: true, sensitivity: 'base' }) < 0 ? cod : mejor;
+  }, '');
+}
+
 /**
  * Extrae mes (1-12) y anio (YYYY) de una fecha proveniente de SQL Server
  * sin usar el constructor Date, evitando desfases por zona horaria del servidor.
@@ -354,11 +367,41 @@ router.get('/vendedores', async (req, res) => {
 router.get('/vendedores-todos', async (req, res) => {
   try {
     const [rows] = await db.pool.query(`
-      SELECT u.codigo AS cod, u.nombre AS nombre FROM usuario u
-      INNER JOIN usuario_vendedor uv ON uv.usuario_id = u.id AND uv.cod_vendedor = u.codigo
-      WHERE uv.tipo <> 'C' AND u.is_active = 1 ORDER BY u.nombre
+      SELECT u.id AS usuario_id, u.nombre, uv.cod_vendedor
+      FROM usuario u
+      INNER JOIN usuario_vendedor uv ON uv.usuario_id = u.id
+      WHERE uv.tipo <> 'C' AND u.is_active = 1
+      ORDER BY u.nombre ASC, LENGTH(TRIM(uv.cod_vendedor)) ASC, TRIM(uv.cod_vendedor) ASC
     `);
-    res.json({ ok: true, vendedores: rows });
+
+    const vendedores = [];
+    const vistos = new Map();
+
+    for (const row of rows) {
+      const usuarioId = Number(row.usuario_id);
+      const cod = String(row.cod_vendedor || '').trim();
+      if (!usuarioId || !cod) continue;
+
+      const actual = vistos.get(usuarioId);
+      if (!actual) {
+        const vendedor = {
+          cod,
+          nombre: String(row.nombre || '').trim(),
+        };
+        vistos.set(usuarioId, vendedor);
+        vendedores.push(vendedor);
+        continue;
+      }
+
+      const codElegido = elegirCodigoVendedorRepresentativo([
+        { cod_vendedor: actual.cod },
+        { cod_vendedor: cod },
+      ]);
+      actual.cod = codElegido;
+    }
+
+    vendedores.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    res.json({ ok: true, vendedores });
   } catch (err) {
     console.error('[GET /api/dashboard/vendedores-todos]', err.message);
     res.status(500).json({ ok: false, error: 'Error al obtener vendedores' });
