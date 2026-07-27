@@ -78,6 +78,21 @@ body {
   filter: drop-shadow(0 4px 24px rgba(0,0,0,0.18));
 }
 
+.brand-wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.brand-kicker {
+  font-size: 0.78rem;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.86);
+}
+
 .brand-fallback {
   flex-direction: column;
   align-items: center;
