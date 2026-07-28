@@ -30,6 +30,15 @@
   const MENSAJERIA_BELL_ID = 'texproMensajeriaBtn';
   const MENSAJERIA_BELL_BADGE_ID = 'texproMensajeriaBadge';
 
+  function ensureRealtimeClientLoaded() {
+    if (document.getElementById('gicotexRealtimeClientScript')) return;
+    const script = document.createElement('script');
+    script.id = 'gicotexRealtimeClientScript';
+    script.src = '/src/assets/js/realtime-client.js?v=1.0.0';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function debeFusionarVentasAsignadas() {
     return window.location.pathname.includes('/src/modulo/ventas/dashboard/');
   }
@@ -997,6 +1006,7 @@ function cargarSidebarModulos() {
     crearAccesoMensajeriaGlobal();
     cargarBadgeAlertasGlobal();
     verificarAlertasPendientesAlIngreso();
+    ensureRealtimeClientLoaded();
     setInterval(cargarIndicadores, REFRESH_MS);
     setInterval(cargarBadgeAlertasGlobal, REFRESH_MS);
     document.addEventListener('click', event => {

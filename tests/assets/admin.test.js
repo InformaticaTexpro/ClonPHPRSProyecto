@@ -314,6 +314,16 @@ describe('admin UI real', () => {
       '/api/admin/usuarios/1/menus',
       expect.objectContaining({ method: 'PUT' })
     );
+
+    window.__ADMIN_API__.openUserDrawer(2, 'edit');
+    await flush();
+    await flush();
+
+    const codeInput = document.getElementById('adminUserCodigo');
+    const nameInput = document.getElementById('adminUserNombre');
+    expect(codeInput).toBeTruthy();
+    expect(codeInput.hasAttribute('readonly')).toBe(true);
+    expect(nameInput.getAttribute('data-slug-source')).toBeNull();
   });
 
   test('permite aplicar permisos por área y crear vendedores', async () => {

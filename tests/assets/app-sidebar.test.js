@@ -75,7 +75,7 @@ describe('app-sidebar', () => {
     expect(document.body.textContent).toContain('Producción');
     expect(document.body.textContent).toContain('Administración');
     expect(document.body.textContent).toContain('Gerencia');
-    expect(document.body.textContent).not.toContain('Alertas');
+    expect(document.body.textContent).toContain('Alertas');
 
     const enlaces = Array.from(document.querySelectorAll('#sidebarNav a'));
     const dashboard = enlaces.find(link => link.textContent.includes('Dashboard'));

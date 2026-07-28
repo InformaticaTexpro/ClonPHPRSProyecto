@@ -508,5 +508,16 @@ function cerrarRecordatorio() {
   recordatorioOv.setAttribute('aria-hidden', 'true');
 }
 
+async function handleRealtimeAlertaEvent(_payload = {}) {
+  await cargarAlertas();
+  await cargarBadgeAlertas();
+}
+
+window.GICOTEXAlertasRealtime = {
+  refreshAlertas: () => cargarAlertas(),
+  refreshBadge: () => cargarBadgeAlertas(),
+  handleRealtimeAlertaEvent,
+};
+
 btnCerrarRec?.addEventListener('click', cerrarRecordatorio);
 btnIrAlertas?.addEventListener('click', cerrarRecordatorio);

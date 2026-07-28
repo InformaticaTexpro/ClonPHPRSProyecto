@@ -12,8 +12,63 @@ const express          = require('express');
 const router           = express.Router();
 const { pool: db }     = require('../config/db');
 const { requireAuth }  = require('../middlewares/requireAuth');
+const socketHub        = require('../realtime/socketHub');
 
 router.use(requireAuth);
+
+async function getAlertRecipientIds(alertaId) {
+  const [rows] = await db.query(
+    `SELECT id_usuario
+     FROM alerta_destinatarios
+     WHERE id_alerta = ?`,
+    [alertaId]
+  );
+  return rows.map(row => Number(row.id_usuario)).filter(id => Number.isFinite(id) && id > 0);
+}
+
+async function getAlertBadgeTotal(usuarioId) {
+  const [[{ total }]] = await db.query(`
+    SELECT COUNT(*) AS total
+    FROM alertas a
+    LEFT JOIN alerta_destinatarios ad ON ad.id_alerta = a.id AND ad.id_usuario = ?
+    WHERE
+      a.activa = 1 AND a.completada = 0
+      AND a.fecha_vence >= CURDATE()
+      AND COALESCE(ad.archivada, 0) = 0
+      AND (
+        DATEDIFF(a.fecha_vence, CURDATE()) <= 7
+        OR a.frecuencia_recordatorio = 'siempre'
+      )
+      AND COALESCE(ad.silenciada, 0) = 0
+      AND (
+        a.id_creador = ?
+        OR EXISTS (SELECT 1 FROM alerta_destinatarios adx WHERE adx.id_alerta = a.id AND adx.id_usuario = ?)
+      )
+  `, [usuarioId, usuarioId, usuarioId]);
+  return Number(total || 0);
+}
+
+async function emitAlertBadge(usuarioIds) {
+  if (!socketHub.getIO()) return;
+  const uniqueIds = Array.from(new Set((usuarioIds || []).map(Number).filter(id => Number.isFinite(id) && id > 0)));
+  await Promise.all(uniqueIds.map(async userId => {
+    const total = await getAlertBadgeTotal(userId);
+    socketHub.emitToUser(userId, 'alerta:badge:update', { total });
+  }));
+}
+
+async function emitAlertSnapshot(usuarioIds, alerta = null, estado = 'nuevo') {
+  if (!socketHub.getIO()) return;
+  const uniqueIds = Array.from(new Set((usuarioIds || []).map(Number).filter(id => Number.isFinite(id) && id > 0)));
+  socketHub.emitToUsers(uniqueIds, estado === 'nuevo' ? 'alerta:new' : 'alerta:update', {
+    alerta,
+    alerta_id: alerta?.id || null,
+    estado,
+    total_pendientes: null,
+    badge: null,
+  });
+  await emitAlertBadge(uniqueIds);
+}
 
 /**
  * Parsea una fecha como local (sin desfase UTC).
@@ -276,6 +331,18 @@ router.post('/', async (req, res) => {
       );
     }
     await conn.commit();
+    emitAlertSnapshot([...destSet], {
+      id: idAlerta,
+      titulo,
+      descripcion: descripcion || null,
+      tipo,
+      fecha_vence,
+      frecuencia_recordatorio,
+      id_creador: uid,
+      destinatarios_ids: Array.from(destSet),
+    }, 'nuevo').catch(err => {
+      console.warn('[alertas] no se pudo emitir alerta:new:', err.message);
+    });
     res.json({ ok: true, id: idAlerta });
   } catch (e) {
     await conn.rollback();
@@ -321,6 +388,18 @@ router.put('/:id', async (req, res) => {
       );
     }
     await conn.commit();
+    emitAlertSnapshot(Array.from(destSet), {
+      id,
+      titulo,
+      descripcion: descripcion || null,
+      tipo,
+      fecha_vence,
+      frecuencia_recordatorio,
+      id_creador: uid,
+      destinatarios_ids: Array.from(destSet),
+    }, 'actualizada').catch(err => {
+      console.warn('[alertas] no se pudo emitir alerta:update:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     await conn.rollback();
@@ -341,6 +420,11 @@ router.patch('/:id/completar', async (req, res) => {
     if (a.id_creador !== uid && !req.usuario.is_admin)
       return res.status(403).json({ ok: false, error: 'Sin permisos' });
     await db.query(`UPDATE alertas SET completada=1, activa=0 WHERE id=?`, [id]);
+    getAlertRecipientIds(id).then(recipients => {
+      emitAlertSnapshot([uid, a.id_creador, ...recipients], { id, id_creador: a.id_creador }, 'completada').catch(err => {
+        console.warn('[alertas] no se pudo emitir completar:', err.message);
+      });
+    }).catch(err => console.warn('[alertas] no se pudo resolver destinatarios:', err.message));
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas completar]', e);
@@ -358,6 +442,11 @@ router.patch('/:id/desactivar', async (req, res) => {
     if (a.id_creador !== uid && !req.usuario.is_admin)
       return res.status(403).json({ ok: false, error: 'Sin permisos' });
     await db.query(`UPDATE alertas SET activa=0 WHERE id=?`, [id]);
+    getAlertRecipientIds(id).then(recipients => {
+      emitAlertSnapshot([uid, a.id_creador, ...recipients], { id, id_creador: a.id_creador }, 'desactivada').catch(err => {
+        console.warn('[alertas] no se pudo emitir desactivar:', err.message);
+      });
+    }).catch(err => console.warn('[alertas] no se pudo resolver destinatarios:', err.message));
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas desactivar]', e);
@@ -378,6 +467,11 @@ router.patch('/:id/activar', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'No se puede activar una alerta completada' });
     }
     await db.query(`UPDATE alertas SET activa=1 WHERE id=?`, [id]);
+    getAlertRecipientIds(id).then(recipients => {
+      emitAlertSnapshot([uid, a.id_creador, ...recipients], { id, id_creador: a.id_creador }, 'activa').catch(err => {
+        console.warn('[alertas] no se pudo emitir activar:', err.message);
+      });
+    }).catch(err => console.warn('[alertas] no se pudo resolver destinatarios:', err.message));
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas activar]', e);
@@ -414,6 +508,9 @@ router.patch('/:id/archivar', async (req, res) => {
         archivada = 1,
         fecha_archivada = NOW()
     `, [id, uid]);
+    emitAlertSnapshot([uid], { id, id_creador: a.id_creador }, 'archivada').catch(err => {
+      console.warn('[alertas] no se pudo emitir archivar:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas archivar]', e);
@@ -450,6 +547,9 @@ router.patch('/:id/desarchivar', async (req, res) => {
         archivada = 0,
         fecha_archivada = NULL
     `, [id, uid]);
+    emitAlertSnapshot([uid], { id, id_creador: a.id_creador }, 'desarchivada').catch(err => {
+      console.warn('[alertas] no se pudo emitir desarchivar:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas desarchivar]', e);
@@ -470,6 +570,9 @@ router.patch('/:id/descartar', async (req, res) => {
         descartada_hoy      = VALUES(descartada_hoy),
         ultimo_recordatorio = VALUES(ultimo_recordatorio)
     `, [id, uid, hoy, hoy]);
+    emitAlertSnapshot([uid], { id, id_creador: uid }, 'descartada').catch(err => {
+      console.warn('[alertas] no se pudo emitir descartar:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas descartar]', e);
@@ -487,6 +590,9 @@ router.patch('/:id/silenciar', async (req, res) => {
       VALUES (?, ?, 1)
       ON DUPLICATE KEY UPDATE silenciada = 1
     `, [id, uid]);
+    emitAlertSnapshot([uid], { id, id_creador: uid }, 'silenciada').catch(err => {
+      console.warn('[alertas] no se pudo emitir silenciar:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas silenciar]', e);
@@ -503,7 +609,11 @@ router.delete('/:id', async (req, res) => {
     if (!a) return res.status(404).json({ ok: false, error: 'No encontrada' });
     if (a.id_creador !== uid && !req.usuario.is_admin)
       return res.status(403).json({ ok: false, error: 'Sin permisos para eliminar' });
+    const recipients = socketHub.getIO() ? await getAlertRecipientIds(id) : [];
     await db.query(`DELETE FROM alertas WHERE id=?`, [id]);
+    emitAlertSnapshot([uid, a.id_creador, ...recipients], { id, id_creador: a.id_creador }, 'eliminada').catch(err => {
+      console.warn('[alertas] no se pudo emitir delete:', err.message);
+    });
     res.json({ ok: true });
   } catch (e) {
     console.error('[alertas DELETE]', e);

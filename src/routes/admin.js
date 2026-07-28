@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const express = require('express');
 const crypto = require('crypto');
@@ -61,7 +61,7 @@ function asBoolean(value, fallback = null) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
   const normalized = normalizeKey(value);
-  if (['1', 'true', 'si', 'sí', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['1', 'true', 'si', 'sÃ­', 'yes', 'y', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return fallback;
 }
@@ -102,17 +102,17 @@ function formatAreaLabel(value) {
   const normalized = normalizeKey(value);
   const labels = {
     ventas: 'Ventas',
-    produccion: 'Producción',
+    produccion: 'ProducciÃ³n',
     bodega: 'Bodega',
-    'servicio-tecnico': 'Servicio Técnico',
-    facturacion: 'Facturación',
+    'servicio-tecnico': 'Servicio TÃ©cnico',
+    facturacion: 'FacturaciÃ³n',
     contabilidad: 'Contabilidad',
     rrhh: 'RRHH',
     gerencia: 'Gerencia',
-    administracion: 'Administración',
-    admin: 'Administración',
+    administracion: 'AdministraciÃ³n',
+    admin: 'AdministraciÃ³n',
   };
-  return labels[normalized] || normalizeText(value) || 'Sin área';
+  return labels[normalized] || normalizeText(value) || 'Sin Ã¡rea';
 }
 
 function buildSuggestions(area) {
@@ -170,7 +170,7 @@ async function withTransaction(work) {
         try {
           await conn.rollback();
         } catch (rollbackError) {
-          console.error('[ADMIN] rollback falló:', rollbackError);
+          console.error('[ADMIN] rollback fallÃ³:', rollbackError);
         }
       }
       throw error;
@@ -181,7 +181,7 @@ async function withTransaction(work) {
 function requireId(id, label = 'ID') {
   const parsed = asNumber(id, null);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    const error = new Error(`${label} inválido`);
+    const error = new Error(`${label} invÃ¡lido`);
     error.status = 400;
     throw error;
   }
@@ -252,8 +252,8 @@ function mapAreaRow(row) {
   };
 }
 
-// La migración `src/database/perfiles_area_es_base_migration.sql` agrega
-// `perfil.area` y `perfil.es_base`. Mientras no esté aplicada, el router
+// La migraciÃ³n `src/database/perfiles_area_es_base_migration.sql` agrega
+// `perfil.area` y `perfil.es_base`. Mientras no estÃ© aplicada, el router
 // conserva un fallback seguro para no romper el arranque.
 let perfilSchemaCache = null;
 
@@ -774,7 +774,7 @@ async function resolveMenus(conn, rawMenus) {
   });
 
   if (missing.length) {
-    throw adminError('MENU_NO_EXISTE', `Menús no encontrados: ${missing.join(', ')}`);
+    throw adminError('MENU_NO_EXISTE', `MenÃºs no encontrados: ${missing.join(', ')}`);
   }
 
   return resolved;
@@ -841,7 +841,7 @@ async function syncUserMenus(conn, userId, menus) {
 function assertSelfAdminGuard(req, targetId, nextIsAdmin, confirmed) {
   const currentId = Number(req.usuario?.id ?? req.usuario?.sub);
   if (Number(targetId) === currentId && !nextIsAdmin && !confirmed) {
-    const error = new Error('No puedes quitarte permisos de administración sin confirmación');
+    const error = new Error('No puedes quitarte permisos de administraciÃ³n sin confirmaciÃ³n');
     error.status = 400;
     throw error;
   }
@@ -897,10 +897,10 @@ router.post('/usuarios', async (req, res) => {
     const password = normalizeText(req.body.password);
 
     if (!nombre || !email || !codigo || !area) {
-      return res.status(400).json({ ok: false, error: 'Nombre, email, código y área son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'Nombre, email, cÃ³digo y Ã¡rea son obligatorios' });
     }
     if (!isValidEmail(email)) {
-      return res.status(400).json({ ok: false, error: 'Ingresa un correo válido.' });
+      return res.status(400).json({ ok: false, error: 'Ingresa un correo vÃ¡lido.' });
     }
 
     const usuario = await withTransaction(async conn => {
@@ -917,7 +917,7 @@ router.post('/usuarios', async (req, res) => {
         [codigo]
       );
       if (codigoDupes.length) {
-        throw adminError('CODIGO_DUPLICADO', 'Ya existe un usuario con ese código', 409);
+        throw adminError('CODIGO_DUPLICADO', 'Ya existe un usuario con ese cÃ³digo', 409);
       }
 
       const storedPassword = password
@@ -939,7 +939,7 @@ router.post('/usuarios', async (req, res) => {
     res.status(201).json({
       ok: true,
       data: usuario,
-      warning: password ? null : 'Usuario creado inactivo hasta definir contraseña segura',
+      warning: password ? null : 'Usuario creado inactivo hasta definir contraseÃ±a segura',
     });
   } catch (error) {
     console.error('[ADMIN] POST /usuarios:', error);
@@ -952,14 +952,13 @@ router.put('/usuarios/:id', async (req, res) => {
     const userId = requireId(req.params.id, 'Usuario');
     const nombre = normalizeText(req.body.nombre);
     const email = normalizeText(req.body.email).toLowerCase();
-    const codigo = cleanCode(req.body.codigo);
     const area = normalizeText(req.body.area);
     const isAdminInput = req.body.is_admin;
     const isActiveInput = req.body.is_active;
     const confirmed = asBoolean(req.body.confirmar, false) || asBoolean(req.body.confirmacion_fuerte, false);
 
-    if (!nombre || !email || !codigo || !area) {
-      return res.status(400).json({ ok: false, error: 'Nombre, email, código y área son obligatorios' });
+    if (!nombre || !email || !area) {
+      return res.status(400).json({ ok: false, error: 'Nombre, email y área son obligatorios' });
     }
     if (!isValidEmail(email)) {
       return res.status(400).json({ ok: false, error: 'Ingresa un correo válido.' });
@@ -995,19 +994,11 @@ router.put('/usuarios/:id', async (req, res) => {
         throw adminError('EMAIL_DUPLICADO', 'Ya existe un usuario registrado con este correo.', 409);
       }
 
-      const [codigoDupes] = await conn.query(
-        'SELECT id FROM usuario WHERE TRIM(codigo) = TRIM(?) AND id <> ? LIMIT 1',
-        [codigo, userId]
-      );
-      if (codigoDupes.length) {
-        throw adminError('CODIGO_DUPLICADO', 'Este código ya está asociado a otro usuario.', 409);
-      }
-
       await conn.query(
         `UPDATE usuario
-         SET nombre = ?, email = ?, codigo = ?, area = ?, is_admin = ?, is_active = ?
+         SET nombre = ?, email = ?, area = ?, is_admin = ?, is_active = ?
          WHERE id = ?`,
-        [nombre, email, codigo, area, nextIsAdmin ? 1 : 0, nextIsActive ? 1 : 0, userId]
+        [nombre, email, area, nextIsAdmin ? 1 : 0, nextIsActive ? 1 : 0, userId]
       );
 
       await syncUserBaseProfileByArea(conn, userId, area, current.area);
@@ -1138,7 +1129,7 @@ router.delete('/usuarios/:id', async (req, res) => {
       return loadUser(conn, userId);
     });
 
-    res.json({ ok: true, data: usuario, deleted: false, mensaje: 'Usuario desactivado lógicamente' });
+    res.json({ ok: true, data: usuario, deleted: false, mensaje: 'Usuario desactivado lÃ³gicamente' });
   } catch (error) {
     console.error('[ADMIN] DELETE /usuarios/:id:', error);
     res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al eliminar usuario' });
@@ -1150,7 +1141,7 @@ router.patch('/usuarios/:id/password', async (req, res) => {
     const userId = requireId(req.params.id, 'Usuario');
     const password = normalizeText(req.body.password);
     if (!password) {
-      return res.status(400).json({ ok: false, error: 'La contraseña es obligatoria' });
+      return res.status(400).json({ ok: false, error: 'La contraseÃ±a es obligatoria' });
     }
 
     const usuario = await withTransaction(async conn => {
@@ -1169,7 +1160,7 @@ router.patch('/usuarios/:id/password', async (req, res) => {
     res.json({ ok: true, data: usuario });
   } catch (error) {
     console.error('[ADMIN] PATCH /usuarios/:id/password:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar contraseña' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar contraseÃ±a' });
   }
 });
 
@@ -1179,21 +1170,21 @@ router.get('/menus', async (_req, res) => {
     res.json({ ok: true, data: menus });
   } catch (error) {
     console.error('[ADMIN] GET /menus:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menús' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menÃºs' });
   }
 });
 
 router.get('/menus/:id', async (req, res) => {
   try {
-    const menuId = requireId(req.params.id, 'Menú');
+    const menuId = requireId(req.params.id, 'MenÃº');
     const menu = await withConnection(conn => loadMenuById(conn, menuId));
     if (!menu) {
-      return res.status(404).json({ ok: false, error: 'Menú no encontrado' });
+      return res.status(404).json({ ok: false, error: 'MenÃº no encontrado' });
     }
     res.json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] GET /menus/:id:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menÃº' });
   }
 });
 
@@ -1208,16 +1199,16 @@ router.post('/menus', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!codigo || !nombre || !url) {
-      return res.status(400).json({ ok: false, error: 'Código, nombre y URL son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo, nombre y URL son obligatorios' });
     }
     if (!isValidMenuUrl(url)) {
-      return res.status(400).json({ ok: false, error: 'La URL debe comenzar con / y apuntar a un archivo index.html del módulo.' });
+      return res.status(400).json({ ok: false, error: 'La URL debe comenzar con / y apuntar a un archivo index.html del mÃ³dulo.' });
     }
 
     const menu = await withTransaction(async conn => {
       const [dupes] = await conn.query('SELECT id FROM menu WHERE codigo = ? LIMIT 1', [codigo]);
       if (dupes.length) {
-        throw adminError('MENU_DUPLICADO', 'Ya existe un menú con este código.', 409);
+        throw adminError('MENU_DUPLICADO', 'Ya existe un menÃº con este cÃ³digo.', 409);
       }
 
       const [result] = await conn.query(
@@ -1232,13 +1223,13 @@ router.post('/menus', async (req, res) => {
     res.status(201).json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] POST /menus:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al crear menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al crear menÃº' });
   }
 });
 
 router.put('/menus/:id', async (req, res) => {
   try {
-    const menuId = requireId(req.params.id, 'Menú');
+    const menuId = requireId(req.params.id, 'MenÃº');
     const codigo = cleanCode(req.body.codigo);
     const nombre = normalizeText(req.body.nombre);
     const url = normalizeText(req.body.url);
@@ -1248,16 +1239,16 @@ router.put('/menus/:id', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!codigo || !nombre || !url) {
-      return res.status(400).json({ ok: false, error: 'Código, nombre y URL son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo, nombre y URL son obligatorios' });
     }
     if (!isValidMenuUrl(url)) {
-      return res.status(400).json({ ok: false, error: 'La URL debe comenzar con / y apuntar a un archivo index.html del módulo.' });
+      return res.status(400).json({ ok: false, error: 'La URL debe comenzar con / y apuntar a un archivo index.html del mÃ³dulo.' });
     }
 
     const menu = await withTransaction(async conn => {
       const current = await loadMenuById(conn, menuId);
       if (!current) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1267,7 +1258,7 @@ router.put('/menus/:id', async (req, res) => {
         [codigo, menuId]
       );
       if (dupes.length) {
-        throw adminError('MENU_DUPLICADO', 'Ya existe un menú con este código.', 409);
+        throw adminError('MENU_DUPLICADO', 'Ya existe un menÃº con este cÃ³digo.', 409);
       }
 
       await conn.query(
@@ -1283,17 +1274,17 @@ router.put('/menus/:id', async (req, res) => {
     res.json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] PUT /menus/:id:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar menÃº' });
   }
 });
 
 router.patch('/menus/:id/activar', async (req, res) => {
   try {
-    const menuId = requireId(req.params.id, 'Menú');
+    const menuId = requireId(req.params.id, 'MenÃº');
     const menu = await withTransaction(async conn => {
       const current = await loadMenuById(conn, menuId);
       if (!current) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1303,17 +1294,17 @@ router.patch('/menus/:id/activar', async (req, res) => {
     res.json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] PATCH /menus/:id/activar:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al activar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al activar menÃº' });
   }
 });
 
 router.patch('/menus/:id/desactivar', async (req, res) => {
   try {
-    const menuId = requireId(req.params.id, 'Menú');
+    const menuId = requireId(req.params.id, 'MenÃº');
     const menu = await withTransaction(async conn => {
       const current = await loadMenuById(conn, menuId);
       if (!current) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1323,17 +1314,17 @@ router.patch('/menus/:id/desactivar', async (req, res) => {
     res.json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] PATCH /menus/:id/desactivar:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al desactivar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al desactivar menÃº' });
   }
 });
 
 router.delete('/menus/:id', async (req, res) => {
   try {
-    const menuId = requireId(req.params.id, 'Menú');
+    const menuId = requireId(req.params.id, 'MenÃº');
     const menu = await withTransaction(async conn => {
       const current = await loadMenuById(conn, menuId);
       if (!current) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1356,7 +1347,7 @@ router.delete('/menus/:id', async (req, res) => {
     res.json({ ok: true, data: menu });
   } catch (error) {
     console.error('[ADMIN] DELETE /menus/:id:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al eliminar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al eliminar menÃº' });
   }
 });
 
@@ -1394,13 +1385,13 @@ router.post('/perfiles', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!codigo || !nombre) {
-      return res.status(400).json({ ok: false, error: 'Código y nombre son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo y nombre son obligatorios' });
     }
 
     const perfil = await withTransaction(async conn => {
       const [dupes] = await conn.query('SELECT id FROM perfil WHERE codigo = ? LIMIT 1', [codigo]);
       if (dupes.length) {
-        throw adminError('PERFIL_DUPLICADO', 'Ya existe un perfil con este código.', 409);
+        throw adminError('PERFIL_DUPLICADO', 'Ya existe un perfil con este cÃ³digo.', 409);
       }
 
       const [result] = await conn.query(
@@ -1430,7 +1421,7 @@ router.put('/perfiles/:id', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!codigo || !nombre) {
-      return res.status(400).json({ ok: false, error: 'Código y nombre son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo y nombre son obligatorios' });
     }
 
     const perfil = await withTransaction(async conn => {
@@ -1446,7 +1437,7 @@ router.put('/perfiles/:id', async (req, res) => {
         [codigo, profileId]
       );
       if (dupes.length) {
-        throw adminError('PERFIL_DUPLICADO', 'Ya existe un perfil con este código.', 409);
+        throw adminError('PERFIL_DUPLICADO', 'Ya existe un perfil con este cÃ³digo.', 409);
       }
 
       await conn.query(
@@ -1547,7 +1538,7 @@ router.get('/perfiles/:id/menus', async (req, res) => {
     res.json({ ok: true, data: perfil.menus });
   } catch (error) {
     console.error('[ADMIN] GET /perfiles/:id/menus:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menús del perfil' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener menÃºs del perfil' });
   }
 });
 
@@ -1579,14 +1570,14 @@ router.put('/perfiles/:id/menus', async (req, res) => {
     res.json({ ok: true, data: perfil.menus });
   } catch (error) {
     console.error('[ADMIN] PUT /perfiles/:id/menus:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar menús del perfil' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar menÃºs del perfil' });
   }
 });
 
 router.post('/perfiles/:id/menus/:menuId', async (req, res) => {
   try {
     const profileId = requireId(req.params.id, 'Perfil');
-    const menuId = requireId(req.params.menuId, 'Menú');
+    const menuId = requireId(req.params.menuId, 'MenÃº');
     const perfil = await withTransaction(async conn => {
       const current = await loadProfileById(conn, profileId);
       if (!current) {
@@ -1596,7 +1587,7 @@ router.post('/perfiles/:id/menus/:menuId', async (req, res) => {
       }
       const menu = await loadMenuById(conn, menuId);
       if (!menu) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1614,14 +1605,14 @@ router.post('/perfiles/:id/menus/:menuId', async (req, res) => {
     res.json({ ok: true, data: perfil.menus });
   } catch (error) {
     console.error('[ADMIN] POST /perfiles/:id/menus/:menuId:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar menú al perfil' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar menÃº al perfil' });
   }
 });
 
 router.delete('/perfiles/:id/menus/:menuId', async (req, res) => {
   try {
     const profileId = requireId(req.params.id, 'Perfil');
-    const menuId = requireId(req.params.menuId, 'Menú');
+    const menuId = requireId(req.params.menuId, 'MenÃº');
     const perfil = await withTransaction(async conn => {
       const current = await loadProfileById(conn, profileId);
       if (!current) {
@@ -1631,7 +1622,7 @@ router.delete('/perfiles/:id/menus/:menuId', async (req, res) => {
       }
       const menu = await loadMenuById(conn, menuId);
       if (!menu) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1647,7 +1638,7 @@ router.delete('/perfiles/:id/menus/:menuId', async (req, res) => {
     res.json({ ok: true, data: perfil.menus });
   } catch (error) {
     console.error('[ADMIN] DELETE /perfiles/:id/menus/:menuId:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al quitar menú del perfil' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al quitar menÃº del perfil' });
   }
 });
 
@@ -1785,7 +1776,7 @@ router.delete('/usuarios/:id/perfiles/:perfilId', async (req, res) => {
 
       const basePerfil = await loadBaseProfileByArea(conn, current.area);
       if (basePerfil && Number(basePerfil.id) === Number(profileId)) {
-        const error = new Error('El perfil base del área se asigna automáticamente');
+        const error = new Error('El perfil base del Ã¡rea se asigna automÃ¡ticamente');
         error.status = 400;
         throw error;
       }
@@ -1822,7 +1813,7 @@ router.put('/usuarios/:id/menus', async (req, res) => {
       const keepsAdminMenu = menus.some(menu => normalizeKey(menu.codigo) === ADMIN_MENU_CODE);
 
       if (Number(userId) === currentId && !keepsAdminMenu && !confirmed) {
-        const error = new Error('No puedes quitarte el acceso a Administración sin confirmación fuerte');
+        const error = new Error('No puedes quitarte el acceso a AdministraciÃ³n sin confirmaciÃ³n fuerte');
         error.status = 400;
         throw error;
       }
@@ -1841,7 +1832,7 @@ router.put('/usuarios/:id/menus', async (req, res) => {
 router.post('/usuarios/:id/menus/:menuId', async (req, res) => {
   try {
     const userId = requireId(req.params.id, 'Usuario');
-    const menuId = requireId(req.params.menuId, 'Menú');
+    const menuId = requireId(req.params.menuId, 'MenÃº');
     const usuario = await withTransaction(async conn => {
       const current = await loadUser(conn, userId);
       if (!current) {
@@ -1851,7 +1842,7 @@ router.post('/usuarios/:id/menus/:menuId', async (req, res) => {
       }
       const menu = await loadMenuById(conn, menuId);
       if (!menu) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1868,14 +1859,14 @@ router.post('/usuarios/:id/menus/:menuId', async (req, res) => {
     res.json({ ok: true, data: usuario.menus });
   } catch (error) {
     console.error('[ADMIN] POST /usuarios/:id/menus/:menuId:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar menÃº' });
   }
 });
 
 router.delete('/usuarios/:id/menus/:menuId', async (req, res) => {
   try {
     const userId = requireId(req.params.id, 'Usuario');
-    const menuId = requireId(req.params.menuId, 'Menú');
+    const menuId = requireId(req.params.menuId, 'MenÃº');
     const usuario = await withTransaction(async conn => {
       const current = await loadUser(conn, userId);
       if (!current) {
@@ -1885,7 +1876,7 @@ router.delete('/usuarios/:id/menus/:menuId', async (req, res) => {
       }
       const menu = await loadMenuById(conn, menuId);
       if (!menu) {
-        const error = new Error('Menú no encontrado');
+        const error = new Error('MenÃº no encontrado');
         error.status = 404;
         throw error;
       }
@@ -1894,7 +1885,7 @@ router.delete('/usuarios/:id/menus/:menuId', async (req, res) => {
       if (Number(userId) === currentId && normalizeKey(menu.codigo) === ADMIN_MENU_CODE) {
         const confirmed = asBoolean(req.body?.confirmar, false) || asBoolean(req.body?.force, false);
         if (!confirmed) {
-          const error = new Error('No puedes quitarte el acceso a Administración sin confirmación fuerte');
+          const error = new Error('No puedes quitarte el acceso a AdministraciÃ³n sin confirmaciÃ³n fuerte');
           error.status = 400;
           throw error;
         }
@@ -1910,7 +1901,7 @@ router.delete('/usuarios/:id/menus/:menuId', async (req, res) => {
     res.json({ ok: true, data: usuario.menus });
   } catch (error) {
     console.error('[ADMIN] DELETE /usuarios/:id/menus/:menuId:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al quitar menú' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al quitar menÃº' });
   }
 });
 
@@ -1942,7 +1933,7 @@ router.post('/usuarios/:id/vendedores', async (req, res) => {
     const tipo = normalizeVendorType(req.body.tipo);
 
     if (!codVendedor || !tipo) {
-      return res.status(400).json({ ok: false, error: 'Código de vendedor y tipo son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo de vendedor y tipo son obligatorios' });
     }
 
     const vendedores = await withTransaction(async conn => {
@@ -1984,7 +1975,7 @@ router.put('/usuarios/:id/vendedores/:cod', async (req, res) => {
     const tipo = normalizeVendorType(req.body.tipo);
 
     if (!codVendedor || !tipo) {
-      return res.status(400).json({ ok: false, error: 'Código de vendedor y tipo son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'CÃ³digo de vendedor y tipo son obligatorios' });
     }
 
     const vendedores = await withTransaction(async conn => {
@@ -1996,7 +1987,7 @@ router.put('/usuarios/:id/vendedores/:cod', async (req, res) => {
       );
 
       if (!result.affectedRows) {
-        const error = new Error('Relación usuario-vendedor no encontrada');
+        const error = new Error('RelaciÃ³n usuario-vendedor no encontrada');
         error.status = 404;
         throw error;
       }
@@ -2030,7 +2021,7 @@ router.delete('/usuarios/:id/vendedores/:cod', async (req, res) => {
       );
 
       if (!result.affectedRows) {
-        const error = new Error('Relación usuario-vendedor no encontrada');
+        const error = new Error('RelaciÃ³n usuario-vendedor no encontrada');
         error.status = 404;
         throw error;
       }
@@ -2058,21 +2049,21 @@ router.get('/areas', async (_req, res) => {
     res.json({ ok: true, data: areas });
   } catch (error) {
     console.error('[ADMIN] GET /areas:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener áreas' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener Ã¡reas' });
   }
 });
 
 router.get('/areas/:id', async (req, res) => {
   try {
-    const areaId = requireId(req.params.id, 'Área');
+    const areaId = requireId(req.params.id, 'Ãrea');
     const area = await withConnection(conn => loadAreaById(conn, areaId));
     if (!area) {
-      return res.status(404).json({ ok: false, error: 'Área no encontrada' });
+      return res.status(404).json({ ok: false, error: 'Ãrea no encontrada' });
     }
     res.json({ ok: true, data: area });
   } catch (error) {
     console.error('[ADMIN] GET /areas/:id:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al obtener Ã¡rea' });
   }
 });
 
@@ -2085,18 +2076,18 @@ router.post('/areas', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!nombre || !codigo) {
-      return res.status(400).json({ ok: false, error: 'Nombre y código son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'Nombre y cÃ³digo son obligatorios' });
     }
 
     const area = await withTransaction(async conn => {
       const schema = await getAreaSchema(conn);
       if (!schema.exists) {
-        throw adminError('AREA_TABLA_NO_EXISTE', 'La tabla area aún no está creada. Ejecuta la migración de áreas.', 503);
+        throw adminError('AREA_TABLA_NO_EXISTE', 'La tabla area aÃºn no estÃ¡ creada. Ejecuta la migraciÃ³n de Ã¡reas.', 503);
       }
 
       const [dupes] = await conn.query('SELECT id FROM area WHERE codigo = ? LIMIT 1', [codigo]);
       if (dupes.length) {
-        throw adminError('AREA_DUPLICADA', 'Ya existe un área con este código.', 409);
+        throw adminError('AREA_DUPLICADA', 'Ya existe un Ã¡rea con este cÃ³digo.', 409);
       }
 
       if (perfilBaseId !== null) {
@@ -2118,13 +2109,13 @@ router.post('/areas', async (req, res) => {
     res.status(201).json({ ok: true, data: area });
   } catch (error) {
     console.error('[ADMIN] POST /areas:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al crear área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al crear Ã¡rea' });
   }
 });
 
 router.put('/areas/:id', async (req, res) => {
   try {
-    const areaId = requireId(req.params.id, 'Área');
+    const areaId = requireId(req.params.id, 'Ãrea');
     const nombre = normalizeText(req.body.nombre);
     const codigo = cleanCode(req.body.codigo || req.body.nombre);
     const descripcion = normalizeText(req.body.descripcion);
@@ -2132,25 +2123,25 @@ router.put('/areas/:id', async (req, res) => {
     const activo = asBoolean(req.body.activo, true);
 
     if (!nombre || !codigo) {
-      return res.status(400).json({ ok: false, error: 'Nombre y código son obligatorios' });
+      return res.status(400).json({ ok: false, error: 'Nombre y cÃ³digo son obligatorios' });
     }
 
     const area = await withTransaction(async conn => {
       const current = await loadAreaById(conn, areaId);
       if (!current) {
-        const error = new Error('Área no encontrada');
+        const error = new Error('Ãrea no encontrada');
         error.status = 404;
         throw error;
       }
 
       const schema = await getAreaSchema(conn);
       if (!schema.exists) {
-        throw adminError('AREA_TABLA_NO_EXISTE', 'La tabla area aún no está creada. Ejecuta la migración de áreas.', 503);
+        throw adminError('AREA_TABLA_NO_EXISTE', 'La tabla area aÃºn no estÃ¡ creada. Ejecuta la migraciÃ³n de Ã¡reas.', 503);
       }
 
       const [dupes] = await conn.query('SELECT id FROM area WHERE codigo = ? AND id <> ? LIMIT 1', [codigo, areaId]);
       if (dupes.length) {
-        throw adminError('AREA_DUPLICADA', 'Ya existe un área con este código.', 409);
+        throw adminError('AREA_DUPLICADA', 'Ya existe un Ã¡rea con este cÃ³digo.', 409);
       }
 
       if (perfilBaseId !== null) {
@@ -2173,17 +2164,17 @@ router.put('/areas/:id', async (req, res) => {
     res.json({ ok: true, data: area });
   } catch (error) {
     console.error('[ADMIN] PUT /areas/:id:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al actualizar Ã¡rea' });
   }
 });
 
 router.patch('/areas/:id/activar', async (req, res) => {
   try {
-    const areaId = requireId(req.params.id, 'Área');
+    const areaId = requireId(req.params.id, 'Ãrea');
     const area = await withTransaction(async conn => {
       const current = await loadAreaById(conn, areaId);
       if (!current) {
-        const error = new Error('Área no encontrada');
+        const error = new Error('Ãrea no encontrada');
         error.status = 404;
         throw error;
       }
@@ -2193,18 +2184,18 @@ router.patch('/areas/:id/activar', async (req, res) => {
     res.json({ ok: true, data: area });
   } catch (error) {
     console.error('[ADMIN] PATCH /areas/:id/activar:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al activar área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al activar Ã¡rea' });
   }
 });
 
 router.patch('/areas/:id/desactivar', async (req, res) => {
   try {
-    const areaId = requireId(req.params.id, 'Área');
+    const areaId = requireId(req.params.id, 'Ãrea');
     const confirmed = asBoolean(req.body?.confirmar, false);
     const area = await withTransaction(async conn => {
       const current = await loadAreaById(conn, areaId);
       if (!current) {
-        const error = new Error('Área no encontrada');
+        const error = new Error('Ãrea no encontrada');
         error.status = 404;
         throw error;
       }
@@ -2218,7 +2209,7 @@ router.patch('/areas/:id/desactivar', async (req, res) => {
       );
       const activeUsers = Number(users[0]?.total || 0);
       if (activeUsers > 0 && !confirmed) {
-        const error = new Error('No se puede desactivar un área con usuarios activos sin confirmación');
+        const error = new Error('No se puede desactivar un Ã¡rea con usuarios activos sin confirmaciÃ³n');
         error.status = 409;
         error.code = 'AREA_CON_USUARIOS';
         throw error;
@@ -2230,25 +2221,25 @@ router.patch('/areas/:id/desactivar', async (req, res) => {
     res.json({ ok: true, data: area });
   } catch (error) {
     console.error('[ADMIN] PATCH /areas/:id/desactivar:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al desactivar área', code: error.code || '' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al desactivar Ã¡rea', code: error.code || '' });
   }
 });
 
 router.post('/areas/:id/aplicar-perfil', async (req, res) => {
   try {
-    const areaId = requireId(req.params.id, 'Área');
+    const areaId = requireId(req.params.id, 'Ãrea');
     const perfilIdInput = asNumber(req.body?.perfil_id, null);
     const result = await withTransaction(async conn => {
       const area = await loadAreaById(conn, areaId);
       if (!area) {
-        const error = new Error('Área no encontrada');
+        const error = new Error('Ãrea no encontrada');
         error.status = 404;
         throw error;
       }
 
       const perfilId = perfilIdInput || area.perfil_base_id;
       if (!perfilId) {
-        const error = new Error('El área no tiene perfil base asociado');
+        const error = new Error('El Ã¡rea no tiene perfil base asociado');
         error.status = 400;
         throw error;
       }
@@ -2290,7 +2281,7 @@ router.post('/areas/:id/aplicar-perfil', async (req, res) => {
     res.json({ ok: true, data: result });
   } catch (error) {
     console.error('[ADMIN] POST /areas/:id/aplicar-perfil:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al aplicar perfil al área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al aplicar perfil al Ã¡rea' });
   }
 });
 
@@ -2300,7 +2291,7 @@ router.post('/accesos/asignar-por-area', async (req, res) => {
     const menus = await withTransaction(async conn => {
       const resolvedMenus = await resolveMenus(conn, req.body.menus);
       if (!resolvedMenus.length) {
-        const error = new Error('Debes indicar al menos un menú');
+        const error = new Error('Debes indicar al menos un menÃº');
         error.status = 400;
         throw error;
       }
@@ -2326,7 +2317,7 @@ router.post('/accesos/asignar-por-area', async (req, res) => {
     res.json({ ok: true, data: menus });
   } catch (error) {
     console.error('[ADMIN] POST /accesos/asignar-por-area:', error);
-    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar accesos por área' });
+    res.status(error.status || 500).json({ ok: false, error: error.message || 'Error al asignar accesos por Ã¡rea' });
   }
 });
 
@@ -2368,7 +2359,7 @@ router.get('/vendedor-metas/:id', async (req, res) => {
 router.post('/vendedor-metas', async (req, res) => {
   try {
     const usuarioId = requireId(req.body.usuario_id, 'Usuario');
-    const anio = requireId(req.body.anio, 'Año');
+    const anio = requireId(req.body.anio, 'AÃ±o');
     const tipoPeriodo = vendedorMetaModel.normalizeTipoPeriodo(req.body.tipo_periodo);
     const mes = asNumber(req.body.mes, null);
     const meta = asNumber(req.body.meta, null);
@@ -2376,10 +2367,10 @@ router.post('/vendedor-metas', async (req, res) => {
     const observacion = normalizeText(req.body.observacion);
 
     if (!tipoPeriodo) {
-      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo válido.' });
+      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo vÃ¡lido.' });
     }
     if (meta === null || !Number.isFinite(meta) || meta < 0) {
-      return res.status(400).json({ ok: false, error: 'La meta debe ser un número válido.' });
+      return res.status(400).json({ ok: false, error: 'La meta debe ser un nÃºmero vÃ¡lido.' });
     }
 
     const metaGuardada = await withTransaction(async conn => {
@@ -2410,7 +2401,7 @@ router.put('/vendedor-metas/:id', async (req, res) => {
   try {
     const metaId = requireId(req.params.id, 'Meta');
     const usuarioId = requireId(req.body.usuario_id, 'Usuario');
-    const anio = requireId(req.body.anio, 'Año');
+    const anio = requireId(req.body.anio, 'AÃ±o');
     const tipoPeriodo = vendedorMetaModel.normalizeTipoPeriodo(req.body.tipo_periodo);
     const mes = asNumber(req.body.mes, null);
     const meta = asNumber(req.body.meta, null);
@@ -2418,10 +2409,10 @@ router.put('/vendedor-metas/:id', async (req, res) => {
     const observacion = normalizeText(req.body.observacion);
 
     if (!tipoPeriodo) {
-      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo válido.' });
+      return res.status(400).json({ ok: false, error: 'Selecciona un tipo de periodo vÃ¡lido.' });
     }
     if (meta === null || !Number.isFinite(meta) || meta < 0) {
-      return res.status(400).json({ ok: false, error: 'La meta debe ser un número válido.' });
+      return res.status(400).json({ ok: false, error: 'La meta debe ser un nÃºmero vÃ¡lido.' });
     }
 
     const metaActualizada = await withTransaction(async conn => {

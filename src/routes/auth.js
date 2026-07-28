@@ -4,9 +4,7 @@
  * routes/auth.js
  *
  * Endpoints de autenticación:
- *   POST /api/auth/login        — Inicio de sesión (email + password)
  *   GET  /api/auth/me           — Perfil del usuario autenticado
- *   POST /api/auth/logout       — Cierre de sesión (client-side)
  *   POST /api/auth/refresh      — Renovación silenciosa de token JWT
  */
 
@@ -32,7 +30,7 @@ function logLoginFailure(motivo, detalle = {}) {
     email: detalle.email || '',
     passwordState: detalle.passwordState || '',
   };
-  console.warn(`[POST /api/auth/login] ${motivo}`, logData);
+  console.warn('[AUTH] login failure:', motivo, logData);
 }
 
 function describirPasswordGuardado(encoded) {
@@ -157,7 +155,7 @@ async function cargarMenusUsuario(usuarioId) {
   return { menus, perfiles, allMenus };
 }
 
-// â”€â”€ POST /api/auth/login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- POST /api/auth/login ---------------------------------------------------
 router.post('/login', async (req, res) => {
   // Acepta tanto { email } (frontend actual) como { usuario } (retrocompat)
   const { email, usuario, password } = req.body;
@@ -259,7 +257,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// â”€â”€ GET /api/auth/me â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- GET /api/auth/me -------------------------------------------------------
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.pool.query(
@@ -284,7 +282,7 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-// â”€â”€ POST /api/auth/logout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- POST /api/auth/logout --------------------------------------------------
 // JWT es stateless; logout se gestiona borrando el token en el cliente.
 router.post('/logout', requireAuth, (_req, res) => {
   res.json({ ok: true, message: 'Sesión cerrada' });

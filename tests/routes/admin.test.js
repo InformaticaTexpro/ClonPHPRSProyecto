@@ -332,13 +332,12 @@ function handleQuery(sql, params = []) {
     return [{ insertId: nextId }];
   }
 
-  if (normalized.startsWith('UPDATE usuario SET nombre = ?, email = ?, codigo = ?, area = ?, is_admin = ?, is_active = ? WHERE id = ?')) {
-    const [nombre, email, codigo, area, isAdmin, isActive, id] = params;
+  if (normalized.startsWith('UPDATE usuario SET nombre = ?, email = ?, area = ?, is_admin = ?, is_active = ? WHERE id = ?')) {
+    const [nombre, email, area, isAdmin, isActive, id] = params;
     const user = state.users.find(item => Number(item.id) === Number(id));
     if (user) {
       user.nombre = nombre;
       user.email = email;
-      user.codigo = codigo;
       user.area = area;
       user.is_admin = Number(isAdmin);
       user.is_active = Number(isActive);
@@ -592,7 +591,7 @@ describe('PUT /api/admin/usuarios/:id', () => {
     const res = await request(app).put('/api/admin/usuarios/2').send({
       nombre: 'Ana Editada',
       email: 'ana.editada@texpro.cl',
-      codigo: '101',
+      codigo: '999',
       area: 'ventas',
       is_admin: false,
       is_active: true,
@@ -601,6 +600,8 @@ describe('PUT /api/admin/usuarios/:id', () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.data.nombre).toBe('Ana Editada');
+    expect(res.body.data.codigo).toBe('101');
+    expect(state.users.find(user => Number(user.id) === 2).codigo).toBe('101');
   });
 
   test('bloquea dejar el sistema sin admin', async () => {

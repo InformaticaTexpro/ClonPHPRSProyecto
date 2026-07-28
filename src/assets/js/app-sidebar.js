@@ -18,6 +18,15 @@
     ? [{ id: 'extra-alertas', codigo: 'alertas', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', icono: '🔔', grupo: 'General', orden: 1, extra: true }]
     : [];
 
+  function ensureRealtimeClientLoaded() {
+    if (document.getElementById('gicotexRealtimeClientScript')) return;
+    const script = document.createElement('script');
+    script.id = 'gicotexRealtimeClientScript';
+    script.src = '/src/assets/js/realtime-client.js?v=1.0.0';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function normalizarTexto(valor) {
     return String(valor || '')
       .trim()
@@ -691,6 +700,9 @@
         }
         .texpro-chat-list-name { display:block; font-size:.84rem; font-weight:800; line-height:1.2; }
         .texpro-chat-list-sub { display:block; margin-top:2px; font-size:.72rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-list-status {
+          display:inline-flex; align-items:center; gap:6px; margin-top:4px; font-size:.7rem; font-weight:700; color:var(--color-text-muted, #5d6675);
+        }
         .texpro-chat-thread { min-height:0; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(244,247,251,.98)); }
         .texpro-chat-thread-empty { min-height:100%; display:grid; place-items:center; text-align:center; padding:24px; color:var(--color-text-muted, #5d6675); }
         .texpro-chat-thread-head {
@@ -699,6 +711,9 @@
         }
         .texpro-chat-thread-head h4 { margin:0; font-size:.92rem; }
         .texpro-chat-thread-head p { margin:2px 0 0; font-size:.76rem; color:var(--color-text-muted, #5d6675); }
+        .texpro-chat-thread-status {
+          display:inline-flex; align-items:center; gap:6px; margin-top:5px; font-size:.72rem; font-weight:700; color:var(--color-text-muted, #5d6675);
+        }
         .texpro-chat-thread-actions { display:flex; gap:6px; }
         .texpro-chat-thread-actions button {
           border:0; border-radius:10px; padding:7px 9px; background:rgba(0,0,0,.05); cursor:pointer; font:inherit; font-size:.78rem;
@@ -726,6 +741,11 @@
           font:inherit; font-weight:800; cursor:pointer;
         }
         .texpro-chat-empty { padding:18px 12px; text-align:center; color:var(--color-text-muted, #5d6675); }
+        .presence-dot {
+          width:9px; height:9px; border-radius:999px; display:inline-block; flex:0 0 auto;
+        }
+        .presence-dot.is-online { background:#10b981; }
+        .presence-dot.is-offline { background:#9ca3af; }
         @media (max-width: 640px) {
           .texpro-chat-widget { right:10px; bottom:10px; left:10px; align-items:stretch; }
           .texpro-chat-panel { width:100%; height:min(70vh, 620px); }
@@ -785,6 +805,7 @@
       user,
       conversaciones: [],
       directorio: { usuarios: [], areas: [] },
+      onlineUsers: new Set(),
       conversacionActivaId: null,
       mensajesActivos: [],
       panelActivo: 'usuarios',
@@ -883,6 +904,27 @@
       return `${prefix}${conversation.ultimo_mensaje.cuerpo}`;
     }
 
+    function normalizeUserId(value) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    function isUserOnline(userId) {
+      const normalized = normalizeUserId(userId);
+      return normalized ? chatState.onlineUsers.has(normalized) : false;
+    }
+
+    function setOnlineUsers(ids = []) {
+      chatState.onlineUsers = new Set((Array.isArray(ids) ? ids : []).map(normalizeUserId).filter(Boolean));
+    }
+
+    function conversationPresenceInfo(conversation) {
+      if (!conversation) return { online: false, label: 'Desconectado' };
+      const peer = (conversation.participantes || []).find(part => Number(part.usuario_id) !== Number(chatState.user?.id));
+      const online = peer ? isUserOnline(peer.usuario_id) : false;
+      return { online, label: online ? 'En línea' : 'Desconectado' };
+    }
+
     function directConversationForUser(userId) {
       return chatState.conversaciones.find(conversation => {
         if (conversation.tipo !== 'directa') return false;
@@ -921,12 +963,17 @@
 
         refs.list.innerHTML = usuarios.length ? usuarios.map(usuario => {
           const active = Number(directConversationForUser(usuario.id)?.id) === Number(chatState.conversacionActivaId);
+          const online = isUserOnline(usuario.id);
           return `
             <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''}" data-user-id="${usuario.id}">
               <div class="texpro-chat-avatar">${chatInitials(usuario.nombre)}</div>
               <div>
                 <span class="texpro-chat-list-name">${chatEscape(usuario.nombre)}</span>
                 <span class="texpro-chat-list-sub">${chatEscape(usuario.area || 'Sin área')}</span>
+                <span class="texpro-chat-list-status">
+                  <span class="presence-dot ${online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
+                  <span>${online ? 'En línea' : 'Desconectado'}</span>
+                </span>
               </div>
             </button>
           `;
@@ -951,12 +998,17 @@
 
       refs.list.innerHTML = conversaciones.length ? conversaciones.map(conversation => {
         const active = Number(conversation.id) === Number(chatState.conversacionActivaId);
+        const presence = conversationPresenceInfo(conversation);
         return `
           <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''}" data-conversation-id="${conversation.id}">
             <div class="texpro-chat-avatar">${chatInitials(conversationTitle(conversation))}</div>
             <div>
               <span class="texpro-chat-list-name">${chatEscape(conversationTitle(conversation))}</span>
               <span class="texpro-chat-list-sub">${chatEscape(conversationSubtitle(conversation))}</span>
+              <span class="texpro-chat-list-status">
+                <span class="presence-dot ${presence.online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
+                <span>${chatEscape(presence.label)}</span>
+              </span>
             </div>
           </button>
         `;
@@ -985,12 +1037,17 @@
 
       const archivada = Boolean(conversation.archivada);
       const silenciada = Boolean(conversation.silenciada);
+      const presence = conversationPresenceInfo(conversation);
 
       refs.thread.innerHTML = `
         <div class="texpro-chat-thread-head">
           <div>
             <h4>${chatEscape(conversationTitle(conversation))}</h4>
             <p>${chatEscape(conversationSubtitle(conversation))}</p>
+            <span class="texpro-chat-thread-status">
+              <span class="presence-dot ${presence.online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
+              <span>${chatEscape(presence.label)}</span>
+            </span>
           </div>
           <div class="texpro-chat-thread-actions">
             <button type="button" data-chat-flag="silenciar">${silenciada ? 'Activar' : 'Silenciar'}</button>
@@ -1072,6 +1129,19 @@
       }
     }
 
+    async function loadPresence() {
+      try {
+        const data = await chatApi('/usuarios-online');
+        setOnlineUsers(data?.online || data?.data?.online || []);
+        renderList();
+        renderThread();
+      } catch {
+        setOnlineUsers([]);
+        renderList();
+        renderThread();
+      }
+    }
+
     async function loadDirectory() {
       const data = await chatApi('/directorio');
       chatState.directorio = data?.data || { usuarios: [], areas: [] };
@@ -1080,6 +1150,33 @@
     async function loadConversations() {
       const data = await chatApi('/conversaciones');
       chatState.conversaciones = Array.isArray(data?.data) ? data.data : [];
+      renderList();
+      renderThread();
+    }
+
+    async function handleRealtimeChatEvent(payload = {}) {
+      const conversationId = Number(payload.conversacion_id || payload?.mensaje?.conversacion_id || payload?.conversacion?.id || 0);
+      if (!conversationId) {
+        await loadConversations();
+        await loadUnread();
+        return;
+      }
+
+      await loadConversations();
+      if (Number(chatState.conversacionActivaId) === conversationId) {
+        await loadConversationMessages(conversationId);
+      }
+      await loadUnread();
+    }
+
+    async function handleRealtimePresenceUpdate(payload = {}) {
+      const userId = normalizeUserId(payload?.usuario_id);
+      if (!userId) return;
+      if (payload.online) {
+        chatState.onlineUsers.add(userId);
+      } else {
+        chatState.onlineUsers.delete(userId);
+      }
       renderList();
       renderThread();
     }
@@ -1126,6 +1223,7 @@
       try {
         await loadDirectory();
         await loadConversations();
+        await loadPresence();
         await loadUnread();
         renderTabs();
       } catch (error) {
@@ -1134,6 +1232,15 @@
         chatState.loading = false;
       }
     }
+
+    window.GICOTEXMensajeriaWidgetRealtime = {
+      refreshConversations: () => loadConversations(),
+      refreshUnreadBadge: () => loadUnread(),
+      refreshPresence: () => loadPresence(),
+      handleRealtimeChatEvent,
+      handleRealtimePresenceEvent: handleRealtimePresenceUpdate,
+      getActiveConversationId: () => chatState.conversacionActivaId,
+    };
 
     refs.toggle.addEventListener('click', () => openWidget(!chatState.opened));
     refs.close.addEventListener('click', () => openWidget(false));
@@ -1179,7 +1286,7 @@
     const nav = document.getElementById('sidebarNav');
     if (nav) {
       inyectarEstilos();
-      nav.innerHTML = '<div class="nav-loading">Cargando menú...</div>';
+      nav.innerHTML = '<div class="nav-loading">Cargando menús...</div>';
     }
 
     const data = await obtenerContextoSidebar();
@@ -1194,6 +1301,7 @@
     validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
     renderSidebar(data);
     crearWidgetMensajeriaGlobal(data);
+    ensureRealtimeClientLoaded();
   }
 
   if (document.readyState === 'loading') {
@@ -1202,3 +1310,4 @@
     init();
   }
 })();
+

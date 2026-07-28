@@ -4,6 +4,7 @@
  * server.js — Texpro RSProyecto
  */
 
+const http     = require('http');
 const path      = require('path');
 const express   = require('express');
 const helmet    = require('helmet');
@@ -34,9 +35,15 @@ const rrhhRoutes            = require('./routes/rrhh');
 const { requireAuth }       = require('./middlewares/requireAuth');
 const { getDetalleFolio }   = require('./models/venta');
 const { validateFolio }     = require('./utils/validators');
+const { attachRealtime }     = require('./realtime/setup');
 
 const app  = express();
+const server = http.createServer(app);
 const PORT = Number(process.env.PORT || 3000);
+const io = attachRealtime(app, server);
+
+app.server = server;
+app.io = io;
 
 // ── Proxy confiable (Render / Railway usan proxy inverso)
 app.set('trust proxy', 1);
@@ -177,7 +184,7 @@ app.use((err, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`[RSProyecto] Servidor en http://localhost:${PORT}`));
+  server.listen(PORT, () => console.log(`[RSProyecto] Servidor en http://localhost:${PORT}`));
 }
 
 module.exports = app;

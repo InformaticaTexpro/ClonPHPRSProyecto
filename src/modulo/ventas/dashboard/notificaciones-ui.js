@@ -12,7 +12,7 @@
 (function () {
 
   /* ── Helpers ──────────────────────────────────────────────────── */
-  const ENABLE_ALERTAS = false;
+  const ENABLE_ALERTAS = true;
   const API_NOTIF  = '/api/notificaciones';
   const API_ALERTA = '/api/alertas';
   const token = () => localStorage.getItem('token') || sessionStorage.getItem('token') || '';

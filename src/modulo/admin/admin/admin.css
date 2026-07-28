@@ -972,9 +972,14 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 226, 167, .10);
 }
 
-.input-control[disabled] {
+.input-control[disabled],
+.input-control[readonly] {
   background: #F4F6FA;
   color: var(--color-gray-dark, #6B7280);
+}
+
+.input-control[readonly] {
+  cursor: not-allowed;
 }
 
 .audit-timeline {

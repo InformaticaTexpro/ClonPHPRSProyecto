@@ -6,6 +6,7 @@
     user: null,
     conversaciones: [],
     directorio: { usuarios: [], areas: [] },
+    onlineUsers: new Set(),
     conversacionActivaId: null,
     mensajesActivos: [],
     search: '',
@@ -140,6 +141,59 @@
     }) || null;
   }
 
+  function normalizeUserId(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  function isUserOnline(userId) {
+    const normalized = normalizeUserId(userId);
+    return normalized ? state.onlineUsers.has(normalized) : false;
+  }
+
+  function setOnlineUsers(ids = []) {
+    state.onlineUsers = new Set(
+      (Array.isArray(ids) ? ids : [])
+        .map(normalizeUserId)
+        .filter(Boolean)
+    );
+  }
+
+  function getConversationPeer(conversation) {
+    return (conversation?.participantes || []).find(part => Number(part.usuario_id) !== Number(state.user?.id)) || null;
+  }
+
+  function conversationOnlineInfo(conversation) {
+    if (!conversation) return { online: false, label: 'Desconectado' };
+    if (conversation.tipo !== 'directa') {
+      const connected = (conversation.participantes || [])
+        .filter(part => Number(part.usuario_id) !== Number(state.user?.id) && isUserOnline(part.usuario_id))
+        .length;
+      return connected > 0
+        ? { online: true, label: `${connected} conectado${connected === 1 ? '' : 's'}` }
+        : { online: false, label: 'Grupo' };
+    }
+
+    const peer = getConversationPeer(conversation);
+    const online = peer ? isUserOnline(peer.usuario_id) : false;
+    return {
+      online,
+      label: online ? 'En línea' : 'Desconectado',
+    };
+  }
+
+  function conversationPresenceClass(conversation) {
+    return conversationOnlineInfo(conversation).online ? 'is-online' : 'is-offline';
+  }
+
+  function conversationPresenceLabel(conversation) {
+    return conversationOnlineInfo(conversation).label;
+  }
+
+  function isNearBottom(container) {
+    if (!container) return true;
+    return (container.scrollHeight - container.scrollTop - container.clientHeight) < 48;
+  }
   function updateCounter(total) {
     if (!el.conversationCount) return;
     el.conversationCount.textContent = String(total);
@@ -184,6 +238,7 @@
       el.conversationList.innerHTML = usuarios.map(user => {
         const directConversation = getDirectConversationForUser(user.id);
         const active = Number(directConversation?.id) === Number(state.conversacionActivaId);
+        const online = isUserOnline(user.id);
         return `
           <button type="button" class="conversation-item user-item ${active ? 'active' : ''}" data-user-id="${user.id}">
             <div class="conversation-avatar">${escapeHtml(initials(user.nombre))}</div>
@@ -193,6 +248,10 @@
                 <span>${escapeHtml(user.email || '')}</span>
               </div>
               <div class="conversation-subtitle">${escapeHtml(user.area || 'Sin área')}</div>
+              <div class="conversation-presence">
+                <span class="presence-dot ${online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
+                <span>${online ? 'En línea' : 'Desconectado'}</span>
+              </div>
               <div class="conversation-snippet">${directConversation ? 'Chat abierto o disponible' : 'Abrir chat directo'}</div>
             </div>
             <div class="conversation-badges">
@@ -242,6 +301,8 @@
     el.conversationList.innerHTML = conversaciones.map(conversation => {
       const active = Number(conversation.id) === Number(state.conversacionActivaId);
       const unread = Number(conversation.no_leidos || 0);
+      const presenceLabel = conversationPresenceLabel(conversation);
+      const presenceClass = conversationPresenceClass(conversation);
       return `
         <button type="button" class="conversation-item ${active ? 'active' : ''}" data-conversation-id="${conversation.id}">
           <div class="conversation-avatar">${escapeHtml(conversationAvatar(conversation))}</div>
@@ -251,6 +312,10 @@
               <span>${escapeHtml(formatDateTime(conversation.ultimo_mensaje?.created_at || conversation.updated_at || conversation.created_at))}</span>
             </div>
             <div class="conversation-subtitle">${escapeHtml(conversationSubtitle(conversation))}</div>
+            <div class="conversation-presence">
+              <span class="presence-dot ${presenceClass}" aria-hidden="true"></span>
+              <span>${escapeHtml(presenceLabel)}</span>
+            </div>
             <div class="conversation-snippet">${escapeHtml(conversationSnippet(conversation))}</div>
           </div>
           <div class="conversation-badges">
@@ -275,7 +340,7 @@
         </div>
       `;
       el.threadTitle.textContent = 'Selecciona un usuario';
-      el.threadSubtitle.textContent = 'Aquí verás el historial del chat directo.';
+      el.threadSubtitle.innerHTML = '<span>Aquí verás el historial del chat directo.</span>';
       el.messageInput.disabled = true;
       el.btnSendMessage.disabled = true;
       el.btnToggleArchivo.disabled = true;
@@ -287,8 +352,18 @@
     const conversation = state.conversaciones.find(item => Number(item.id) === Number(state.conversacionActivaId));
     if (!conversation) return;
 
+    const stickToBottom = isNearBottom(el.messagesFeed);
+    const presenceLabel = conversationPresenceLabel(conversation);
+    const presenceClass = conversationPresenceClass(conversation);
+
     el.threadTitle.textContent = conversationTitle(conversation);
-    el.threadSubtitle.textContent = conversationSubtitle(conversation);
+    el.threadSubtitle.innerHTML = `
+      <span>${escapeHtml(conversationSubtitle(conversation))}</span>
+      <span class="thread-status">
+        <span class="presence-dot ${presenceClass}" aria-hidden="true"></span>
+        <span>${escapeHtml(presenceLabel)}</span>
+      </span>
+    `;
     el.messageInput.disabled = false;
     el.btnSendMessage.disabled = false;
     el.btnToggleArchivo.disabled = false;
@@ -326,7 +401,9 @@
       `;
     }).join('');
 
-    el.messagesFeed.scrollTop = el.messagesFeed.scrollHeight;
+    if (stickToBottom) {
+      el.messagesFeed.scrollTop = el.messagesFeed.scrollHeight;
+    }
   }
 
   async function loadHeaderBadge() {
@@ -336,6 +413,19 @@
       el.unreadHeaderCount.textContent = String(total);
     } catch {
       el.unreadHeaderCount.textContent = '0';
+    }
+  }
+
+  async function loadPresence() {
+    try {
+      const data = await api('/usuarios-online');
+      setOnlineUsers(data?.online || data?.data?.online || []);
+      renderConversationList();
+      renderMessages();
+    } catch {
+      setOnlineUsers([]);
+      renderConversationList();
+      renderMessages();
     }
   }
 
@@ -354,6 +444,20 @@
     renderConversationList();
     renderMessages();
     await loadHeaderBadge();
+  }
+
+  async function handleRealtimePresenceUpdate(payload = {}) {
+    const userId = normalizeUserId(payload?.usuario_id);
+    if (!userId) return;
+
+    if (payload.online) {
+      state.onlineUsers.add(userId);
+    } else {
+      state.onlineUsers.delete(userId);
+    }
+
+    renderConversationList();
+    renderMessages();
   }
 
   async function loadDirectory() {
@@ -469,6 +573,21 @@
     }
   }
 
+  async function handleRealtimeChatEvent(payload = {}) {
+    const conversationId = Number(payload.conversacion_id || payload?.mensaje?.conversacion_id || payload?.conversacion?.id || 0);
+    if (!conversationId) {
+      await loadConversations();
+      await loadHeaderBadge();
+      return;
+    }
+
+    await loadConversations();
+    if (Number(state.conversacionActivaId) === conversationId) {
+      await loadMessages(conversationId, { silent: true });
+    }
+    await loadHeaderBadge();
+  }
+
   function loadSession() {
     try {
       const raw = sessionStorage.getItem('texpro_user') || localStorage.getItem('user') || localStorage.getItem('usuario');
@@ -478,6 +597,18 @@
       return null;
     }
   }
+
+  window.GICOTEXMensajeriaRealtime = {
+    refreshConversations: () => loadConversations(),
+    refreshUnreadBadge: () => loadHeaderBadge(),
+    refreshPresence: () => loadPresence(),
+    refreshActiveConversation: () => (state.conversacionActivaId
+      ? loadMessages(state.conversacionActivaId, { silent: true })
+      : Promise.resolve()),
+    handleRealtimeChatEvent,
+    handleRealtimePresenceEvent: handleRealtimePresenceUpdate,
+    getActiveConversationId: () => state.conversacionActivaId,
+  };
 
   function bindEvents() {
     el.conversationSearch.addEventListener('input', event => {
@@ -539,6 +670,7 @@
 
     await loadDirectory();
     await loadConversations();
+    await loadPresence();
     await loadHeaderBadge();
 
     if (state.user?.id) {

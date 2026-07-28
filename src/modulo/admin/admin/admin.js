@@ -335,6 +335,7 @@
     };
 
     if (type === 'user') {
+      const isEditing = state.drawer.mode === 'edit';
       const nombre = document.getElementById('adminUserNombre')?.value.trim();
       const email = document.getElementById('adminUserEmail')?.value.trim();
       const codigo = slugifyCodigo(document.getElementById('adminUserCodigo')?.value);
@@ -343,7 +344,11 @@
 
       mark('adminUserNombre', !!nombre, 'Este campo es obligatorio.');
       mark('adminUserEmail', !!email && isValidEmail(email), 'Ingresa un correo válido.');
-      mark('adminUserCodigo', !!codigo, 'Este campo es obligatorio.');
+      if (!isEditing) {
+        validateDrawerField('adminUserCodigo', codigo ? 'valid' : 'warning', codigo ? 'Código válido.' : 'Se generará automáticamente desde el nombre.');
+      } else {
+        validateDrawerField('adminUserCodigo', 'valid', 'El código no se modifica desde esta vista.');
+      }
       mark('adminUserArea', !!area, 'Este campo es obligatorio.');
       validateDrawerField('adminUserIsAdmin', '', '');
       validateDrawerField('adminUserIsActive', '', '');
@@ -354,7 +359,7 @@
         result.valid = result.valid && !duplicated;
       }
 
-      if (codigo) {
+      if (!isEditing && codigo) {
         const duplicated = uniqueCodeExists(state.users, codigo, currentId);
         validateDrawerField('adminUserCodigo', duplicated ? 'invalid' : 'valid', duplicated ? 'Este código ya existe.' : 'Código disponible');
         result.valid = result.valid && !duplicated;
@@ -711,39 +716,37 @@
     const metrics = getSummaryMetrics();
 
     const cards = [
-      { label: 'Total usuarios', value: metrics.totalUsers, hint: 'Desde /api/admin/usuarios' },
-      { label: 'Usuarios activos', value: metrics.activeUsers, hint: 'Con is_active = 1' },
-      { label: 'Usuarios inactivos', value: metrics.inactiveUsers, hint: 'Con is_active = 0' },
-      { label: 'Administradores', value: metrics.adminUsers, hint: 'Con is_admin = 1' },
-      { label: 'Menús activos', value: metrics.activeMenus, hint: 'Desde /api/admin/menus' },
-      { label: 'Usuarios sin menús', value: metrics.usersWithoutMenus, hint: 'Pendientes de acceso' },
+      { label: 'Total usuarios', value: metrics.totalUsers },
+      { label: 'Usuarios activos', value: metrics.activeUsers },
+      { label: 'Usuarios inactivos', value: metrics.inactiveUsers },
+      { label: 'Administradores', value: metrics.adminUsers },
+      { label: 'Menús activos', value: metrics.activeMenus },
+      { label: 'Usuarios sin menús', value: metrics.usersWithoutMenus },
     ];
 
     container.innerHTML = cards.map(card => `
       <article class="admin-kpi">
         <span class="admin-kpi__label">${escHtml(card.label)}</span>
         <span class="admin-kpi__value">${escHtml(card.value)}</span>
-        <span class="admin-kpi__hint">${escHtml(card.hint)}</span>
       </article>
     `).join('');
 
     const summaryGrid = document.getElementById('adminSummaryGrid');
     if (summaryGrid) {
       summaryGrid.innerHTML = [
-        { label: 'Usuarios', value: metrics.totalUsers, hint: 'Registro total cargado desde la API' },
-        { label: 'Activos', value: metrics.activeUsers, hint: 'Usuarios habilitados' },
-        { label: 'Inactivos', value: metrics.inactiveUsers, hint: 'Usuarios deshabilitados' },
-        { label: 'Perfiles', value: state.profiles.length, hint: 'Perfiles configurados' },
-        { label: 'Áreas', value: metrics.totalAreas, hint: 'Catálogo maestro' },
-        { label: 'Perfiles base', value: metrics.baseProfiles, hint: 'Heredados por área' },
-        { label: 'Menús', value: state.menus.length, hint: 'Catálogo total disponible' },
-        { label: 'Menús activos', value: metrics.activeMenus, hint: 'Listos para heredar' },
-        { label: 'Alertas', value: metrics.usersWithoutMenus, hint: 'Usuarios sin acceso directo' },
+        { label: 'Usuarios', value: metrics.totalUsers },
+        { label: 'Activos', value: metrics.activeUsers },
+        { label: 'Inactivos', value: metrics.inactiveUsers },
+        { label: 'Perfiles', value: state.profiles.length },
+        { label: 'Áreas', value: metrics.totalAreas },
+        { label: 'Perfiles base', value: metrics.baseProfiles },
+        { label: 'Menús', value: state.menus.length },
+        { label: 'Menús activos', value: metrics.activeMenus },
+        { label: 'Alertas', value: metrics.usersWithoutMenus },
       ].map(card => `
         <article class="summary-metric">
           <span class="summary-metric__label">${escHtml(card.label)}</span>
           <span class="summary-metric__value">${escHtml(card.value)}</span>
-          <span class="summary-metric__hint">${escHtml(card.hint)}</span>
         </article>
       `).join('');
     }
@@ -1314,9 +1317,11 @@
     }
   }
 
-    function renderUserDrawer(user) {
+  function renderUserDrawer(user) {
     const readOnly = state.drawer.readOnly;
     const isEditing = state.drawer.mode === 'edit';
+    const userNameSlugAttr = isEditing ? '' : 'data-slug-source="#adminUserCodigo"';
+    const codeReadOnly = readOnly || isEditing;
     const suggestedProfile = profileByCode(suggestProfileCodeForArea(user?.area))
       || profileByCode(user?.perfil_principal)
       || profileByCode(user?.perfil_codigo)
@@ -1327,7 +1332,7 @@
         <div class="drawer-grid">
           <div class="drawer-field field-group" data-field-wrap="adminUserNombre">
             <label for="adminUserNombre">Nombre visible <span class="required-mark">*</span></label>
-            <input class="input-control" id="adminUserNombre" data-slug-source="#adminUserCodigo" type="text" value="${escHtml(user?.nombre || '')}" ${readOnly ? 'disabled' : ''} />
+            <input class="input-control" id="adminUserNombre" ${userNameSlugAttr} type="text" value="${escHtml(user?.nombre || '')}" ${readOnly ? 'disabled' : ''} />
             ${fieldHelp('Nombre visible del usuario dentro del sistema. Ejemplo: Claudia Rincones.', 'adminUserNombre')} 
           </div>
           <div class="drawer-field field-group" data-field-wrap="adminUserEmail">
@@ -1336,9 +1341,12 @@
             ${fieldHelp('Debe ser único y válido. Se usará para iniciar sesión. Ejemplo: usuario@texpro.cl.', 'adminUserEmail')}
           </div>
           <div class="drawer-field field-group" data-field-wrap="adminUserCodigo">
-            <label for="adminUserCodigo">Código <span class="required-mark">*</span></label>
-            <input class="input-control" id="adminUserCodigo" type="text" value="${escHtml(user?.codigo || '')}" ${readOnly ? 'disabled' : ''} />
-            ${fieldHelp('Código interno o comercial si aplica. No ingresar IDs de base de datos.', 'adminUserCodigo')}
+            <label for="adminUserCodigo">Código</label>
+            <input class="input-control${isEditing ? ' is-readonly' : ''}" id="adminUserCodigo" type="text" value="${escHtml(user?.codigo || '')}" ${codeReadOnly ? 'readonly' : ''} ${readOnly && !isEditing ? 'disabled' : ''} />
+            ${fieldHelp(isEditing
+              ? 'El código no se modifica desde esta vista. Para cambiar códigos comerciales usa Vendedores asociados.'
+              : 'Código interno opcional. Si aplica a ventas, respeta ceros a la izquierda.'
+            , 'adminUserCodigo')}
           </div>
           <div class="drawer-field field-group" data-field-wrap="adminUserArea">
             <label for="adminUserArea">Área <span class="required-mark">*</span></label>
@@ -1807,13 +1815,17 @@
     if (state.drawer.type === 'user') {
       const nombre = document.getElementById('adminUserNombre')?.value.trim();
       const email = document.getElementById('adminUserEmail')?.value.trim();
-      const codigo = slugifyCodigo(document.getElementById('adminUserCodigo')?.value);
       const area = document.getElementById('adminUserArea')?.value;
       const primaryProfileCode = document.getElementById('adminUserPerfilPrincipal')?.value.trim();
       const isAdmin = toBool(document.getElementById('adminUserIsAdmin')?.value, false);
       const isActive = toBool(document.getElementById('adminUserIsActive')?.value, true);
       const password = document.getElementById('adminUserPassword')?.value || '';
-      const payload = { nombre, email, codigo, area, is_admin: isAdmin, is_active: isActive };
+      const payload = { nombre, email, area, is_admin: isAdmin, is_active: isActive };
+      if (state.drawer.mode === 'new') {
+        const codigoInput = document.getElementById('adminUserCodigo');
+        const codigo = slugifyCodigo(codigoInput?.value || nombre);
+        if (codigo) payload.codigo = codigo;
+      }
       if (password) payload.password = password;
 
       if (state.drawer.mode === 'new') {

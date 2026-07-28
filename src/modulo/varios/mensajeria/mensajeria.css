@@ -381,6 +381,42 @@ h1, h2, h3, h4, .header-title, .sidebar-brand {
   font-size: .82rem;
 }
 
+.conversation-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: .74rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.thread-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.presence-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.presence-dot.is-online {
+  background: #10b981;
+}
+
+.presence-dot.is-offline {
+  background: #9ca3af;
+}
+
 .conversation-meta {
   display: flex;
   gap: 8px;
