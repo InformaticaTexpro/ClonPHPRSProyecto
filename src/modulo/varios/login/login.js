@@ -50,6 +50,7 @@
         facturacion: '/src/modulo/facturacion/facturacion/index.html',
         rrhh: '/src/modulo/rrhh/rrhh/index.html',
         'recursos_humanos': '/src/modulo/rrhh/rrhh/index.html',
+        general: '/src/modulo/general/general/index.html',
         contabilidad: '/src/modulo/contabilidad/contabilidad/index.html',
         cobranza: '/src/modulo/contabilidad/contabilidad/index.html',
         servicio_tecnico: '/src/modulo/servtecnico/servicio-tecnico/index.html',
@@ -64,7 +65,7 @@
       }
 
       const menusUtiles = menus
-      .filter(menu => normalizar(menu?.codigo) !== 'alertas' && normalizar(menu?.codigo) !== 'mensajeria' && normalizar(menu?.grupo) !== 'general' && String(menu?.url || '').trim())
+      .filter(menu => normalizar(menu?.codigo) !== 'alertas' && normalizar(menu?.codigo) !== 'mensajeria' && String(menu?.url || '').trim())
       .sort((a, b) => (Number(a?.orden ?? 0) - Number(b?.orden ?? 0)) || String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es'));
       if (menusUtiles.length) return menusUtiles[0].url;
 

@@ -16,6 +16,7 @@
     vendedores: { codigos: ['ventas_dashboard'], rutas: ['/src/modulo/ventas/dashboard/index.html'] },
     comercial: { codigos: ['ventas_dashboard'], rutas: ['/src/modulo/ventas/dashboard/index.html'] },
     gerencia: { codigos: ['ventas_dashboard'], rutas: ['/src/modulo/ventas/dashboard/index.html'] },
+    general: { codigos: ['general'], rutas: ['/src/modulo/general/general/index.html'] },
     produccion: { codigos: ['produccion'], rutas: ['/src/modulo/produccion/produccion/index.html'] },
     bodega: { codigos: ['bodega'], rutas: ['/src/modulo/bodega/bodega/index.html'] },
     facturacion: { codigos: ['facturacion'], rutas: ['/src/modulo/facturacion/facturacion/index.html'] },
@@ -79,8 +80,7 @@
 
   function esMenuGeneral(menu) {
     const codigo = normalizarCodigo(menu?.codigo);
-    const grupo = normalizarCodigo(menu?.grupo);
-    return codigo === 'alertas' || grupo === 'general';
+    return codigo === 'alertas' || codigo === 'mensajeria';
   }
 
   function getRutaPreferida(area, menus) {

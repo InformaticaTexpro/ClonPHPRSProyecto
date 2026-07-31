@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - General</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="general.css?v=1.0.0" />
+</head>
+<body class="general-home">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">General</span>
+          <span class="user-area" id="userArea">General</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <h1 class="header-title">General</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep" aria-hidden="true">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Marcar todo leído
+              </button>
+            </div>
+            <ul class="notif-lista" id="notifLista" role="list">
+              <li class="notif-empty">Sin notificaciones nuevas</li>
+            </ul>
+          </div>
+        </div>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">T</div>
+          <span class="chip-name" id="chipName">General</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content general-main">
+      <section class="general-hero">
+        <div class="general-hero__content">
+          <p class="general-kicker">Acceso general del sistema</p>
+          <h2>Centro común para funciones compartidas</h2>
+          <p>
+            Este módulo agrupa accesos transversales del sistema que pueden ser visibles según perfil,
+            manteniendo una entrada clara y separada del resto de los módulos operativos.
+          </p>
+          <div class="general-hero__actions">
+            <a class="general-button" href="/src/modulo/varios/alertas/index.html">Abrir accesos comunes</a>
+            <span class="general-hero__note">Base visible para navegación común</span>
+          </div>
+        </div>
+        <div class="general-hero__panel">
+          <span>Vista general</span>
+          <strong>Accesos compartidos</strong>
+          <p>Espacio para utilidades comunes y futuras herramientas transversales del sistema.</p>
+        </div>
+      </section>
+
+      <section class="general-card-grid" aria-label="Accesos generales">
+        <article class="general-card general-card--highlight">
+          <div class="general-card__icon">🏠</div>
+          <div class="general-card__body">
+            <p class="general-card__tag">Servicio común</p>
+            <h3>Accesos comunes</h3>
+            <p>Entrada rápida a funciones transversales del sistema.</p>
+          </div>
+          <a class="general-card__link" href="/src/modulo/varios/alertas/index.html">Abrir</a>
+        </article>
+
+        <article class="general-card general-card--muted">
+          <div class="general-card__icon">⚙️</div>
+          <div class="general-card__body">
+            <p class="general-card__tag">Próximamente</p>
+            <h3>Utilidades del sistema</h3>
+            <p>Espacio reservado para herramientas compartidas y futuras mejoras de navegación.</p>
+          </div>
+          <button class="general-card__link" type="button" disabled>Sin acción disponible</button>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="general.js?v=1.0.0"></script>
+  <script src="../../ventas/dashboard/notificaciones-ui.js?v=2.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+</body>
+</html>

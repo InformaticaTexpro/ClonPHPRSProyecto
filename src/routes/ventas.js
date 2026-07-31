@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * routes/ventas.js — API REST módulo de ventas
@@ -45,7 +45,16 @@ const {
   obtenerConfirmacionPorId,
   obtenerConfirmacionUsuario,
 } = require('../models/confirmacion');
+const {
+  guardarReporteCompartidoConfirmado,
+  obtenerReporteCompartidoUsuarioPeriodo,
+} = require('../models/reporteCompartido');
 const { generarPdfConfirmacion } = require('../utils/pdfConfirmacion');
+const {
+  crearNotificacion,
+  obtenerUsuariosRrhhYAdmin,
+} = require('../models/notificacion');
+const socketHub = require('../realtime/socketHub');
 
 /** Códigos de vendedor asignados al usuario autenticado. */
 function getCodigos(req) {
@@ -73,6 +82,221 @@ function buildCarteraExistsClause(codigosIn, aliasCliente = 'c') {
         AND av.VenCod IN (${codigosIn})
     )
   `;
+}
+
+async function cargarFoliosAsignadosConfirmables({ usuarioId, codigos, mes, anio }) {
+  if (!codigos.length) return [];
+  const placeholders = codigos.map(() => '?').join(',');
+  const params = [...codigos];
+  let wherePeriodo = '';
+  if (Number.isInteger(Number(mes)) && Number.isInteger(Number(anio))) {
+    wherePeriodo = ' AND fc.mes = ? AND fc.anio = ?';
+    params.push(Number(mes), Number(anio));
+  }
+
+  const [rows] = await db.query(
+    `SELECT
+       fc.id,
+       fc.folio,
+       fc.fecha,
+       fc.cliente,
+       fc.monto_neto,
+       fc.monto_asignado,
+       fc.porcentaje,
+       fc.cod_vendedor_principal,
+       fc.cod_vendedor_compartido,
+       fc.nombre_vendedor_compartido,
+       fc.mes,
+       fc.anio,
+       fc.rol
+     FROM factura_compartida fc
+     WHERE fc.cod_vendedor_principal IN (${placeholders})
+       AND fc.rol = 'compartido'
+       ${wherePeriodo}
+     ORDER BY fc.fecha DESC, fc.folio DESC`,
+    params
+  );
+  return rows.map(row => ({
+    ...row,
+    usuario_id: usuarioId,
+  }));
+}
+
+function buildReporteCompartidoSnapshot({ usuario, mes, anio, rows }) {
+  const filas = Array.isArray(rows) ? rows : [];
+  const periodoLabel = new Date(Number(anio), Number(mes) - 1, 1).toLocaleDateString('es-CL', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const foliosAsignados = filas.map(row => ({
+    folio: String(row.folio || ''),
+    fecha: row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL') : '',
+    cliente: row.cliente || '',
+    vendedor_asignado: row.nombre_vendedor_compartido || row.cod_vendedor_compartido || '',
+    porcentaje_participacion: Number(row.porcentaje || 0),
+    monto_asignado: Number(row.monto_asignado || 0),
+  }));
+
+  const totalMontoAsignado = foliosAsignados.reduce((acc, row) => acc + Number(row.monto_asignado || 0), 0);
+
+  return {
+    tipo: 'folios_asignados',
+    resumen: {
+      cantidad_folios: new Set(foliosAsignados.map(row => String(row.folio))).size,
+      cantidad_lineas: foliosAsignados.length,
+      total_monto_asignado: Math.round(totalMontoAsignado),
+      total_venta: Math.round(totalMontoAsignado),
+      total_venta_real: Math.round(totalMontoAsignado),
+      total_descuento: 0,
+      total_comision: Math.round(totalMontoAsignado),
+    },
+    folios_asignados: foliosAsignados,
+    periodo: { anio: Number(anio), mes: Number(mes), label: periodoLabel },
+    generado_en: new Date().toISOString(),
+    confirmacion: {
+      confirmado_por: Number(usuario?.id ?? usuario?.sub),
+      confirmado_at: new Date().toISOString(),
+    },
+    usuario: {
+      id: Number(usuario?.id ?? usuario?.sub),
+      nombre: usuario?.nombre || '',
+      email: usuario?.email || '',
+      area: usuario?.area || '',
+    },
+  };
+}
+
+async function notificarReporteCompartidoRRHH({ usuario, reporteId, snapshot }) {
+  const destinatarios = Array.from(new Set(await obtenerUsuariosRrhhYAdmin()));
+  if (!destinatarios.length) return { creadas: 0, emitidas: 0, destinatarios: [] };
+
+  const periodoLabel = snapshot?.periodo?.label || new Date(
+    Number(snapshot?.periodo?.anio || snapshot?.anio || 0),
+    Number(snapshot?.periodo?.mes || snapshot?.mes || 1) - 1,
+    1
+  ).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+
+  const titulo = 'Nuevo reporte de ventas compartidas';
+  const mensaje = `${usuario?.nombre || 'Un vendedor'} envió su reporte de ventas compartidas de ${periodoLabel} para revisión de RRHH.`;
+  const notificacionBase = {
+    tipo: 'reporte_compartido_enviado',
+    titulo,
+    mensaje,
+    folio: String(reporteId || ''),
+    mes: snapshot?.periodo?.mes ?? snapshot?.mes ?? null,
+    anio: snapshot?.periodo?.anio ?? snapshot?.anio ?? null,
+  };
+
+  let creadas = 0;
+  let emitidas = 0;
+
+  for (const usuarioId of destinatarios) {
+    try {
+      await crearNotificacion({ usuarioId, ...notificacionBase });
+      creadas += 1;
+    } catch (err) {
+      console.warn('[ventas compartidas] No se pudo registrar la notificación RRHH:', err.message);
+      continue;
+    }
+
+    try {
+      socketHub.emitToUser(usuarioId, 'notificacion:new', {
+        notificacion: {
+          id: null,
+          usuario_id: usuarioId,
+          ...notificacionBase,
+          leida: 0,
+          fecha_creacion: new Date().toISOString(),
+        },
+      });
+      emitidas += 1;
+    } catch (err) {
+      console.warn('[ventas compartidas] No se pudo emitir la notificación RRHH:', err.message);
+    }
+  }
+
+  return { creadas, emitidas, destinatarios };
+}
+
+function construirEstadoReporteCompartido(reporte) {
+  if (!reporte) {
+    return {
+      existe: false,
+      confirmado: false,
+      estado: null,
+      confirmado_at: null,
+      revisado_at: null,
+      motivo_rechazo: null,
+      comentario_rrhh: null,
+      reporte: null,
+    };
+  }
+
+  return {
+    existe: true,
+    confirmado: true,
+    estado: reporte.estado || null,
+    confirmado_at: reporte.confirmado_at || null,
+    revisado_at: reporte.revisado_at || null,
+    motivo_rechazo: reporte.motivo_rechazo || null,
+    comentario_rrhh: reporte.comentario_rrhh || null,
+    reporte: {
+      id: reporte.id,
+      estado: reporte.estado,
+      confirmado_at: reporte.confirmado_at,
+      revisado_at: reporte.revisado_at,
+      motivo_rechazo: reporte.motivo_rechazo || null,
+      comentario_rrhh: reporte.comentario_rrhh || null,
+      periodo_label: reporte.periodo_label,
+    },
+  };
+}
+
+async function generarSnapshotYGuardarReporteCompartido({ usuario, usuarioId, mes, anio, codigos }) {
+  const reporteExistente = await obtenerReporteCompartidoUsuarioPeriodo(usuarioId, anio, mes);
+  if (reporteExistente && ['confirmado_vendedor', 'validado_rrhh'].includes(String(reporteExistente.estado || ''))) {
+    const error = new Error(
+      reporteExistente.estado === 'validado_rrhh'
+        ? 'Este reporte ya fue validado por RRHH.'
+        : 'Este reporte ya fue confirmado y enviado a RRHH.'
+    );
+    error.code = reporteExistente.estado === 'validado_rrhh' ? 'REPORTE_YA_VALIDADO' : 'REPORTE_YA_CONFIRMADO';
+    throw error;
+  }
+
+  const detalles = await cargarFoliosAsignadosConfirmables({
+    usuarioId,
+    codigos,
+    mes,
+    anio,
+  });
+
+  if (!detalles.length) {
+    const error = new Error('No hay folios asignados para confirmar en este período.');
+    error.code = 'REPORTE_SIN_DATOS';
+    throw error;
+  }
+  const snapshot = buildReporteCompartidoSnapshot({ usuario, mes, anio, rows: detalles });
+
+
+  const guardado = await guardarReporteCompartidoConfirmado({
+    vendedorUsuarioId: usuarioId,
+    vendedorNombre: usuario?.nombre || 'Sin nombre',
+    vendedorEmail: usuario?.email || null,
+    anio,
+    mes,
+    totalVenta: snapshot.resumen.total_venta,
+    totalVentaReal: snapshot.resumen.total_venta_real,
+    totalDescuento: snapshot.resumen.total_descuento,
+    totalComision: snapshot.resumen.total_comision,
+    cantidadFolios: snapshot.resumen.cantidad_folios,
+    cantidadLineas: snapshot.resumen.cantidad_lineas,
+    reporteJson: snapshot,
+    confirmadoPor: usuarioId,
+  });
+
+  return { id: guardado?.id || guardado || 0, snapshot };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -522,6 +746,31 @@ router.get('/confirmacion-estado', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/ventas/compartidas/confirmacion
+ * Estado de la confirmación del reporte de ventas compartidas.
+ */
+async function obtenerEstadoReporteCompartidoHandler(req, res) {
+  try {
+    let mes, anio;
+    try { ({ mes, anio } = validarMesAnio(req.query.mes, req.query.anio)); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+
+    const usuarioId = getUsuarioId(req);
+    const reporte = await obtenerReporteCompartidoUsuarioPeriodo(usuarioId, anio, mes);
+    res.json({
+      ok: true,
+      ...construirEstadoReporteCompartido(reporte),
+    });
+  } catch (err) {
+    console.error('[GET /api/ventas/compartidas/confirmacion]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al obtener estado de confirmación compartida' });
+  }
+}
+
+router.get('/compartidas/confirmacion', requireAuth, obtenerEstadoReporteCompartidoHandler);
+router.get('/compartidas/confirmacion-estado', requireAuth, obtenerEstadoReporteCompartidoHandler);
+
+/**
  * POST /api/ventas/confirmar
  * Confirma todas las ventas del mes para el usuario autenticado.
  * Body: { mes: number, anio: number }
@@ -654,6 +903,62 @@ router.post('/confirmar', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/ventas/compartidas/confirmar
+ * Confirma el snapshot del reporte de ventas compartidas del período.
+ */
+async function confirmarReporteCompartidoHandler(req, res) {
+  try {
+    let mes, anio;
+    try { ({ mes, anio } = validarMesAnio(req.body.mes, req.body.anio)); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+
+    const usuario = req.usuario;
+    const usuarioId = getUsuarioId(req);
+    const codigos = getCodigos(req);
+
+    if (!codigos.length) {
+      return res.status(403).json({ ok: false, error: 'No tienes códigos de vendedor para confirmar este reporte.' });
+    }
+
+    const { id, snapshot } = await generarSnapshotYGuardarReporteCompartido({
+      usuario,
+      usuarioId,
+      mes,
+      anio,
+      codigos,
+    });
+
+    try {
+      await notificarReporteCompartidoRRHH({ usuario, reporteId: id, snapshot });
+    } catch (err) {
+      console.warn('[POST /api/ventas/compartidas/confirmar] notificación RRHH:', err.message);
+    }
+
+    res.json({
+      ok: true,
+      id,
+      estado: 'confirmado_vendedor',
+      mensaje: 'Ventas compartidas confirmadas y enviadas a RRHH.',
+      resumen: snapshot.resumen,
+      periodo: snapshot.periodo,
+    });
+  } catch (err) {
+    const codigo = String(err.code || '');
+    if (codigo === 'REPORTE_SIN_DATOS') {
+      return res.status(404).json({ ok: false, code: codigo, error: err.message });
+    }
+    if (codigo === 'REPORTE_YA_CONFIRMADO' || codigo === 'REPORTE_YA_VALIDADO') {
+      return res.status(409).json({ ok: false, code: codigo, error: err.message });
+    }
+    console.error('[POST /api/ventas/compartidas/confirmar]', err.message);
+    res.status(500).json({ ok: false, error: 'Error al confirmar el reporte de ventas compartidas' });
+  }
+}
+
+router.post('/compartidas/confirmar', requireAuth, confirmarReporteCompartidoHandler);
+router.post('/compartidas/confirmar-reporte', requireAuth, confirmarReporteCompartidoHandler);
+
+/**
  * GET /api/ventas/confirmacion/:id/pdf
  * El vendedor descarga su propio PDF (solo puede ver el suyo).
  */
@@ -687,3 +992,5 @@ router.get('/confirmacion/:id/pdf', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+

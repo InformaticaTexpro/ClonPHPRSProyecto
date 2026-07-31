@@ -95,7 +95,7 @@ function initSidebar() {
          <span class="nav-label">${m.nombre}</span>
        </a>`).join('')}`;
 
-  const ini = (USUARIO.nombre || '?').charAt(0).toUpperCase();
+  const ini = (USUARIO.nombre || 'T').charAt(0).toUpperCase();
   const ua  = document.getElementById('userAvatar');
   const un  = document.getElementById('userName');
   const uu  = document.getElementById('userArea');

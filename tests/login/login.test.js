@@ -117,4 +117,16 @@ describe('resolverRutaPrincipalUsuario', () => {
 
     expect(resolverRutaPrincipalUsuario(user)).toBeNull();
   });
+
+  test('general puede usarse como ruta principal cuando existe el modulo', () => {
+    const user = {
+      area: 'General',
+      menus: [
+        { id: 60, codigo: 'general', grupo: 'General', url: '/src/modulo/general/general/index.html', orden: 1 },
+      ],
+    };
+
+    expect(resolverRutaPrincipalUsuario(user)).toBe('/src/modulo/general/general/index.html');
+    expect(resolverRutaInicialUsuario(user)).toBe('/src/modulo/general/general/index.html');
+  });
 });

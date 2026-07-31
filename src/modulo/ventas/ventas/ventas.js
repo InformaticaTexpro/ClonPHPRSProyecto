@@ -1221,7 +1221,6 @@
 
   async function iniciarPanelCoordinador() {
     setStyle('panelCoordinador', 'display', 'block');
-    setStyle('panelCompartidos', 'display', 'none');
 
     const btnCompartir = document.getElementById('btnCompartir');
     if (btnCompartir) btnCompartir.addEventListener('click', async () => {
@@ -1332,6 +1331,7 @@
       if (!tbody) return;
       if (!_ultimosAsignados.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
+        await cargarEstadoReporteCompartido(_ultimosAsignados);
         return;
       }
       tbody.innerHTML = _ultimosAsignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
@@ -1357,6 +1357,7 @@
           } catch(err) { alert(`Error: ${err.message}`); }
         });
       });
+      await cargarEstadoReporteCompartido(_ultimosAsignados);
     } catch(err) { console.error('[cargarFoliosAsignados]', err); }
   }
 
@@ -1382,6 +1383,158 @@
     tbody.querySelectorAll('.btn-crud--cancel').forEach(btn => {
       btn.addEventListener('click', () => cargarFoliosAsignados());
     });
+  }
+
+  function getReporteCompartidoResumenActual() {
+    const filas = Array.isArray(_ultimosAsignados) ? _ultimosAsignados : [];
+    const totalVentaReal = filas.reduce((acc, row) => acc + Number(row.monto_asignado || 0), 0);
+    const cantidadFolios = new Set(filas.map(row => String(row.folio))).size;
+
+    return {
+      total_venta: Math.round(totalVentaReal),
+      total_venta_real: Math.round(totalVentaReal),
+      total_descuento: 0,
+      total_comision: Math.round(totalVentaReal),
+      cantidad_folios: cantidadFolios,
+      cantidad_lineas: filas.length,
+    };
+  }
+
+  function setEstadoReporteCompartido(texto, variante = 'normal') {
+    const el = document.getElementById('compartidosEstado');
+    if (!el) return;
+    el.textContent = texto;
+    el.dataset.variant = variante;
+  }
+
+  function setTextoBotonReporteCompartido(texto) {
+    const btn = document.getElementById('btnConfirmarReporteCompartido');
+    if (btn) btn.textContent = texto;
+  }
+
+  async function cargarEstadoReporteCompartido(foliosAsignados = _ultimosAsignados) {
+    const btn = document.getElementById('btnConfirmarReporteCompartido');
+    if (!btn) return;
+
+    const filas = Array.isArray(foliosAsignados) ? foliosAsignados : [];
+    const totalFolios = filas.length;
+    const totalPendientes = 0;
+    const resumen = {
+      total_venta_real: filas.reduce((acc, row) => acc + Number(row.monto_asignado || 0), 0),
+    };
+    const estadoReporte = null;
+
+    console.debug?.('[folios asignados confirmacion]', {
+      totalFolios,
+      totalPendientes,
+      estadoReporte,
+    });
+
+    if (totalFolios === 0) {
+      btn.disabled = true;
+      btn.classList.remove('is-confirmed');
+      setEstadoReporteCompartido('Sin folios asignados en este período', 'muted');
+      return;
+    }
+
+    try {
+      const params = getParams();
+      const res = await fetch(`${API}/compartidas/confirmacion?${new URLSearchParams(params)}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'No se pudo obtener el estado');
+
+      if (data.existe && data.estado) {
+        const fecha = data.confirmado_at ? new Date(data.confirmado_at).toLocaleDateString('es-CL') : 'hoy';
+        const estadoTexto = data.estado === 'validado_rrhh'
+          ? 'Validado por RRHH'
+          : (data.estado === 'rechazado_rrhh'
+            ? `Rechazado por RRHH${data.motivo_rechazo ? `: ${data.motivo_rechazo}` : ''}`
+            : `Reporte ya confirmado el ${fecha}`);
+        setEstadoReporteCompartido(estadoTexto, data.estado);
+        const bloqueado = data.estado === 'confirmado_vendedor' || data.estado === 'validado_rrhh';
+        btn.disabled = bloqueado;
+        btn.classList.toggle('is-confirmed', bloqueado);
+        setTextoBotonReporteCompartido(data.estado === 'rechazado_rrhh'
+          ? 'Reenviar confirmación'
+          : 'Confirmar ventas compartidas');
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('is-confirmed');
+        setTextoBotonReporteCompartido('Confirmar ventas compartidas');
+        setEstadoReporteCompartido(`Listo para enviar a RRHH · ${formatCLP(resumen.total_venta_real)} total asignado`, 'ready');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.classList.remove('is-confirmed');
+      setEstadoReporteCompartido('Estado no disponible', 'error');
+      console.error('[cargarEstadoReporteCompartido]', err);
+    }
+  }
+
+  function abrirModalReporteCompartido() {
+    if (!_ultimosAsignados.length) return;
+    const modal = document.getElementById('modalConfirmarCompartidos');
+    if (!modal) return;
+    const params = getParams();
+    const resumen = getReporteCompartidoResumenActual();
+    const periodo = `${MESES_NOMBRE[Number(params.mes) - 1] || 'Mes'} ${params.anio}`;
+    document.getElementById('modalCompartidoPeriodo').textContent = periodo;
+    document.getElementById('modalCompartidoTotalVenta').textContent = formatCLP(resumen.total_venta);
+    document.getElementById('modalCompartidoTotalVentaReal').textContent = formatCLP(resumen.total_venta_real);
+    document.getElementById('modalCompartidoTotalDescuento').textContent = formatCLP(resumen.total_descuento);
+    document.getElementById('modalCompartidoTotalComision').textContent = formatCLP(resumen.total_comision);
+    document.getElementById('modalCompartidoFolios').textContent = `${resumen.cantidad_folios}`;
+    document.getElementById('modalCompartidoLineas').textContent = `${resumen.cantidad_lineas}`;
+    const feedback = document.getElementById('modalCompartidoFeedback');
+    if (feedback) feedback.textContent = '';
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('is-open');
+  }
+
+  function cerrarModalReporteCompartido() {
+    const modal = document.getElementById('modalConfirmarCompartidos');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.hidden = true;
+  }
+
+  async function confirmarReporteCompartido() {
+    const feedback = document.getElementById('modalCompartidoFeedback');
+    const btn = document.getElementById('btnEnviarReporteCompartido');
+    const params = getParams();
+    const detalle = Array.isArray(_ultimosAsignados) ? _ultimosAsignados : [];
+    if (!detalle.length) return;
+
+    try {
+      if (btn) btn.disabled = true;
+      if (feedback) feedback.textContent = 'Confirmando reporte...';
+
+      const res = await fetch('/api/ventas/compartidas/confirmar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ mes: Number(params.mes), anio: Number(params.anio) }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'No se pudo confirmar el reporte');
+
+      if (feedback) feedback.textContent = data.mensaje || 'Ventas compartidas confirmadas y enviadas a RRHH.';
+      setEstadoReporteCompartido('Ventas compartidas confirmadas y enviadas a RRHH.', 'success');
+      setTextoBotonReporteCompartido('Confirmar ventas compartidas');
+      await cargarEstadoReporteCompartido();
+      cerrarModalReporteCompartido();
+    } catch (err) {
+      if (btn) btn.disabled = false;
+      if (feedback) feedback.textContent = `Error: ${err.message}`;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   async function cargarVentas() {
@@ -1431,33 +1584,6 @@
         bindDetalleRows(tbodyV, 'Folio', 8);
       }
 
-      const tbodyC = document.getElementById('tbodyCompartidos');
-      setText('totalCompartidos', `${_ultimosCompartidos.length} registros`);
-
-      if (!_ultimosCompartidos.length) {
-        if (tbodyC) tbodyC.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:2rem;color:#aaa">Sin folios compartidos este mes</td></tr>';
-      } else if (tbodyC) {
-        tbodyC.innerHTML = _ultimosCompartidos.map(c => `
-          <tr data-folio="${c.folio}">
-            <td class="det-btn-td">
-              <button class="btn-det" title="Ver detalle">
-                <svg class="det-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-            </td>
-            <td><strong>${c.folio}</strong></td>
-            <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
-            <td>${c.cliente || '—'}</td>
-            <td>${c.coordinador || c.cod_vendedor_principal || '—'}</td>
-            <td style="text-align:right">${c.porcentaje}%</td>
-            <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
-          </tr>`).join('');
-        bindDetalleRows(tbodyC, 'folio', 7);
-      }
-
     } catch (err) {
       console.error('[cargarVentas]', err);
     } finally {
@@ -1475,10 +1601,16 @@
 
     if (esCoordinador(_usuarioActual)) {
       await iniciarPanelCoordinador();
-    } else {
-      setStyle('panelCompartidos',  'display', 'block');
-      setStyle('panelCoordinador', 'display', 'none');
     }
+
+    document.getElementById('btnConfirmarReporteCompartido')?.addEventListener('click', abrirModalReporteCompartido);
+    document.getElementById('btnEnviarReporteCompartido')?.addEventListener('click', confirmarReporteCompartido);
+    document.querySelectorAll('[data-modal-close="true"]').forEach(btn => {
+      btn.addEventListener('click', cerrarModalReporteCompartido);
+    });
+    document.getElementById('modalConfirmarCompartidos')?.addEventListener('click', (event) => {
+      if (event.target?.dataset?.modalClose === 'true') cerrarModalReporteCompartido();
+    });
 
     await refrescarVista();
 
@@ -1488,3 +1620,4 @@
   });
 
 })();
+

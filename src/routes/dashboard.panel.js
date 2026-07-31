@@ -11,7 +11,7 @@ router.use(requireAuth);
 
 function getCodigosCoordinador(usuario) {
   return (usuario?.vendedores || [])
-    .filter(v => String(v.tipo || '').toUpperCase() === 'C')
+    .filter(v => String(v.tipo || '').trim().toUpperCase() === 'C')
     .map(v => String(v.cod_vendedor || '').trim())
     .filter(Boolean);
 }

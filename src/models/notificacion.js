@@ -207,6 +207,31 @@ async function usuarioIdDesdeCodVendedor(codVendedor) {
   return null;
 }
 
+/**
+ * Obtiene los usuarios activos que deben recibir notificaciones de RRHH.
+ * Se incluyen usuarios cuyo `area` corresponde a RRHH y/o administradores,
+ * sin duplicar IDs cuando un mismo usuario cumple ambas condiciones.
+ */
+async function obtenerUsuariosRrhhYAdmin() {
+  const [rows] = await db.pool.query(`
+    SELECT DISTINCT id
+    FROM usuario
+    WHERE is_active = 1
+      AND (
+        is_admin = 1
+        OR LOWER(TRIM(COALESCE(area, ''))) IN ('rrhh', 'recursos humanos', 'rh')
+      )
+  `);
+
+  return Array.from(
+    new Set(
+      (Array.isArray(rows) ? rows : [])
+        .map(row => Number(row?.id))
+        .filter(id => Number.isInteger(id) && id > 0)
+    )
+  );
+}
+
 module.exports = {
   crearNotificacion,
   notificarFolioRecibido,
@@ -218,4 +243,5 @@ module.exports = {
   marcarLeida,
   marcarTodasLeidas,
   usuarioIdDesdeCodVendedor,
+  obtenerUsuariosRrhhYAdmin,
 };

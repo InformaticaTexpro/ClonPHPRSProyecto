@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - RRHH</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="rrhh.css?v=1.2.0" />
+</head>
+<body class="rrhh-home">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">R</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">RRHH</span>
+          <span class="user-area" id="userArea">RRHH</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <h1 class="header-title">RRHH</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep" aria-hidden="true">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Marcar todo leído
+              </button>
+            </div>
+            <ul class="notif-lista" id="notifLista" role="list">
+              <li class="notif-empty">Sin notificaciones nuevas</li>
+            </ul>
+          </div>
+        </div>
+        <div class="header-user-chip">
+          <div class="chip-avatar" id="chipAvatar">T</div>
+          <span class="chip-name" id="chipName">...</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content rrhh-main">
+      <section class="rrhh-hero">
+        <div class="rrhh-hero__content">
+          <p class="rrhh-kicker">Gestión de Recursos Humanos</p>
+          <h2>Portada RRHH</h2>
+          <p>
+            Panel de control para dotación, asistencia, vacaciones, documentación y seguimiento interno del área.
+            La revisión de ventas compartidas quedó disponible como submódulo en la sidebar de RRHH.
+          </p>
+          <div class="rrhh-hero__chips" aria-label="Resumen general">
+            <span class="rrhh-chip">124 colaboradores activos</span>
+            <span class="rrhh-chip">9 vacaciones en curso</span>
+            <span class="rrhh-chip">6 documentos por revisar</span>
+          </div>
+        </div>
+        <div class="rrhh-hero__actions">
+          <button class="rrhh-button" id="btnActualizarVista" type="button">Actualizar vista</button>
+          <div class="rrhh-hero__note">
+            El acceso a <strong>Revisión ventas compartidas</strong> ahora se realiza desde el menú lateral de RRHH.
+          </div>
+        </div>
+      </section>
+
+      <section class="rrhh-metrics" aria-label="Indicadores RRHH">
+        <article class="rrhh-metric-card">
+          <span class="rrhh-metric-card__label">Dotación activa</span>
+          <strong class="rrhh-metric-card__value">124</strong>
+          <span class="rrhh-metric-card__hint">12 ingresos este trimestre</span>
+        </article>
+        <article class="rrhh-metric-card">
+          <span class="rrhh-metric-card__label">Ausencias hoy</span>
+          <strong class="rrhh-metric-card__value">3</strong>
+          <span class="rrhh-metric-card__hint">1 justificada y 2 en revisión</span>
+        </article>
+        <article class="rrhh-metric-card">
+          <span class="rrhh-metric-card__label">Vacaciones activas</span>
+          <strong class="rrhh-metric-card__value">9</strong>
+          <span class="rrhh-metric-card__hint">Cobertura operativa al 93%</span>
+        </article>
+        <article class="rrhh-metric-card">
+          <span class="rrhh-metric-card__label">Documentos pendientes</span>
+          <strong class="rrhh-metric-card__value">6</strong>
+          <span class="rrhh-metric-card__hint">Contratos y anexos en firma</span>
+        </article>
+      </section>
+
+      <section class="rrhh-grid">
+        <article class="rrhh-panel">
+          <div class="rrhh-panel__header">
+            <div>
+              <p class="rrhh-panel__eyebrow">Agenda de hoy</p>
+              <h3>Acciones priorizadas</h3>
+            </div>
+            <span class="rrhh-panel__badge">Actualizado</span>
+          </div>
+          <div class="rrhh-timeline">
+            <div class="rrhh-timeline__item">
+              <span class="rrhh-timeline__time">08:30</span>
+              <div>
+                <strong>Inducción nuevo ingreso</strong>
+                <p>Onboarding de dos colaboradores con entrega de accesos y documentación.</p>
+              </div>
+            </div>
+            <div class="rrhh-timeline__item">
+              <span class="rrhh-timeline__time">10:15</span>
+              <div>
+                <strong>Revisión de asistencia</strong>
+                <p>Validación de marcaciones y observaciones de ausencias del turno mañana.</p>
+              </div>
+            </div>
+            <div class="rrhh-timeline__item">
+              <span class="rrhh-timeline__time">12:00</span>
+              <div>
+                <strong>Firma de anexos</strong>
+                <p>Cuatro documentos en espera de confirmación por parte de colaboradores.</p>
+              </div>
+            </div>
+            <div class="rrhh-timeline__item">
+              <span class="rrhh-timeline__time">16:30</span>
+              <div>
+                <strong>Revisión de cierre</strong>
+                <p>Consolidación de pendientes y preparación de reportes del día.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="rrhh-panel">
+          <div class="rrhh-panel__header">
+            <div>
+              <p class="rrhh-panel__eyebrow">Alertas internas</p>
+              <h3>Seguimiento operativo</h3>
+            </div>
+            <span class="rrhh-panel__badge rrhh-panel__badge--soft">RRHH</span>
+          </div>
+          <div class="rrhh-alert-list">
+            <div class="rrhh-alert">
+              <span class="rrhh-alert__dot rrhh-alert__dot--warning"></span>
+              <div>
+                <strong>3 expedientes incompletos</strong>
+                <p>Faltan respaldos en carpetas de contratación recientes.</p>
+              </div>
+            </div>
+            <div class="rrhh-alert">
+              <span class="rrhh-alert__dot rrhh-alert__dot--success"></span>
+              <div>
+                <strong>Evaluaciones al día</strong>
+                <p>El ciclo trimestral cerró con un 96% de cumplimiento.</p>
+              </div>
+            </div>
+            <div class="rrhh-alert">
+              <span class="rrhh-alert__dot rrhh-alert__dot--info"></span>
+              <div>
+                <strong>2 solicitudes de permisos</strong>
+                <p>Esperan aprobación para coordinar cobertura de turnos.</p>
+              </div>
+            </div>
+            <div class="rrhh-alert">
+              <span class="rrhh-alert__dot rrhh-alert__dot--neutral"></span>
+              <div>
+                <strong>Revisión ventas compartidas</strong>
+                <p>Disponible como submódulo del menú RRHH para validación puntual.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="rrhh-grid rrhh-grid--wide">
+        <article class="rrhh-panel">
+          <div class="rrhh-panel__header">
+            <div>
+              <p class="rrhh-panel__eyebrow">Estado de procesos</p>
+              <h3>Flujo de trabajo RRHH</h3>
+            </div>
+          </div>
+          <div class="rrhh-progress-list">
+            <div class="rrhh-progress">
+              <div class="rrhh-progress__row">
+                <span>Onboarding completado</span>
+                <strong>87%</strong>
+              </div>
+              <div class="rrhh-progress__bar"><span style="width:87%"></span></div>
+            </div>
+            <div class="rrhh-progress">
+              <div class="rrhh-progress__row">
+                <span>Documentación digitalizada</span>
+                <strong>92%</strong>
+              </div>
+              <div class="rrhh-progress__bar"><span style="width:92%"></span></div>
+            </div>
+            <div class="rrhh-progress">
+              <div class="rrhh-progress__row">
+                <span>Evaluaciones de desempeño</span>
+                <strong>74%</strong>
+              </div>
+              <div class="rrhh-progress__bar"><span style="width:74%"></span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="rrhh-panel rrhh-panel--accent">
+          <div class="rrhh-panel__header">
+            <div>
+              <p class="rrhh-panel__eyebrow">Equipo en foco</p>
+              <h3>Indicadores de la semana</h3>
+            </div>
+          </div>
+          <div class="rrhh-team-list">
+            <div class="rrhh-team-item">
+              <strong>Capacitación interna</strong>
+              <span>18 personas inscritas</span>
+            </div>
+            <div class="rrhh-team-item">
+              <strong>Movimientos de personal</strong>
+              <span>4 altas y 1 cambio de cargo</span>
+            </div>
+            <div class="rrhh-team-item">
+              <strong>Clima laboral</strong>
+              <span>Encuesta abierta hasta el viernes</span>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="rrhh.js?v=1.2.0"></script>
+  <script src="../../ventas/dashboard/notificaciones-ui.js?v=2.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+</body>
+</html>

@@ -23,7 +23,7 @@
     <nav class="sidebar-nav" id="sidebarNav"></nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">
-        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-avatar" id="userAvatar">T</div>
         <div class="user-info">
           <span class="user-name" id="userName">Cargando...</span>
           <span class="user-area" id="userArea"></span>
@@ -60,7 +60,7 @@
     </header>
 
     <main class="main-content">
-      <section class="workspace-shell">
+      <section class="workspace-shell" id="workspaceShell">
         <aside class="panel panel--left">
           <div class="panel-header">
             <div>
@@ -87,6 +87,10 @@
 
         <section class="panel panel--right">
           <div class="thread-header" id="threadHeader">
+            <button type="button" class="thread-back-btn" id="btnBackToList" aria-label="Volver al listado">
+              <span aria-hidden="true">←</span>
+              <span>Volver</span>
+            </button>
             <div>
               <h2 id="threadTitle">Selecciona un usuario</h2>
               <p id="threadSubtitle">Aquí verás el historial del chat directo.</p>

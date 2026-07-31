@@ -53,6 +53,17 @@ function normalizarVendedores(vendedores) {
   }));
 }
 
+function grupoNormalizado(menu) {
+  const codigo = String(menu?.codigo || '').trim();
+  const grupo = String(menu?.grupo || 'General').trim() || 'General';
+
+  if (codigo === 'rrhh' || codigo === 'rrhh_reportes_compartidos') {
+    return 'RRHH';
+  }
+
+  return grupo;
+}
+
 function normalizarMenus(menus) {
   return (menus || [])
     .map(menu => ({
@@ -61,7 +72,7 @@ function normalizarMenus(menus) {
       nombre: String(menu?.nombre || '').trim(),
       url: String(menu?.url || '').trim(),
       icono: String(menu?.icono || '').trim(),
-      grupo: String(menu?.grupo || 'General').trim() || 'General',
+      grupo: grupoNormalizado(menu),
       orden: Number(menu?.orden ?? 0) || 0,
     }))
     .filter(menu => menu.id !== null && menu.url);

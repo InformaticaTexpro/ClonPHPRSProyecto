@@ -56,6 +56,24 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function buildNotificationTarget(n) {
+    const mes = Number(n?.mes || 0);
+    const anio = Number(n?.anio || 0);
+    const qs = new URLSearchParams();
+    if (mes > 0) qs.set('mes', String(mes));
+    if (anio > 0) qs.set('anio', String(anio));
+
+    switch (String(n?.tipo || '')) {
+      case 'reporte_compartido_enviado':
+        return `/src/modulo/rrhh/reportes-compartidos/index.html${qs.toString() ? `?${qs.toString()}` : ''}`;
+      case 'reporte_compartido_validado':
+      case 'reporte_compartido_rechazado':
+        return `/src/modulo/ventas/ventas/index.html${qs.toString() ? `?${qs.toString()}` : ''}`;
+      default:
+        return '';
+    }
+  }
+
   /* ── DOM refs ─────────────────────────────────────────────────── */
   const btn      = document.getElementById('notifBtn');
   const badge    = document.getElementById('notifBadge');
@@ -106,7 +124,7 @@
         const ico = iconoTipo(n.tipo);
         return `
           <li class="notif-item ${n.leida ? 'notif-item--leida' : ''}"
-              data-id="${n.id}" data-fuente="notif"
+              data-id="${n.id}" data-fuente="notif" data-tipo="${escHtml(n.tipo)}"
               role="menuitem" tabindex="0"
               title="${n.leida ? 'Leída' : 'Marcar como leída'}">
             <div class="notif-icono ${ico.cls}">${ico.emoji}</div>
@@ -156,8 +174,10 @@
 
     /* Marcar notificación como leída al click */
     lista.querySelectorAll('.notif-item[data-fuente="notif"]:not(.notif-item--leida)').forEach(el => {
-      el.addEventListener('click', () => marcarLeida(+el.dataset.id, el));
-      el.addEventListener('keydown', e => { if (e.key === 'Enter') marcarLeida(+el.dataset.id, el); });
+      el.addEventListener('click', () => manejarNotificacionClick(+el.dataset.id, el, el.dataset.tipo));
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') manejarNotificacionClick(+el.dataset.id, el, el.dataset.tipo);
+      });
     });
 
     /* Click en alerta → ir al módulo de alertas */
@@ -203,6 +223,28 @@
         actualizarBadge();
       })
       .catch(console.error);
+  }
+
+  async function manejarNotificacionClick(id, el, tipo) {
+    const notif = notificaciones.find(x => Number(x.id) === Number(id));
+    const target = buildNotificationTarget(notif || { tipo });
+    if (!target) {
+      marcarLeida(id, el);
+      return;
+    }
+
+    try {
+      await fetch(`${API_NOTIF}/${id}/leer`, { method: 'PATCH', headers: hdrs() });
+    } catch (err) {
+      console.warn('[notificaciones-ui] no se pudo marcar como leida antes de navegar:', err.message);
+    }
+
+    const n = notificaciones.find(x => x.id === id);
+    if (n) n.leida = 1;
+    if (el) el.classList.add('notif-item--leida');
+    actualizarBadge();
+    cerrarPanel();
+    window.location.href = target;
   }
 
   /* ── Marcar todas las notificaciones como leídas ───────────────────── */
@@ -285,6 +327,15 @@
     fetchNotificaciones();
     if (ENABLE_ALERTAS) fetchAlertas();
   }, 30_000);
+
+  window.GICOTEXNotificacionesRealtime = {
+    refreshNotificaciones: fetchNotificaciones,
+    refreshAlertas: fetchAlertas,
+    refreshAll: () => {
+      fetchNotificaciones();
+      if (ENABLE_ALERTAS) fetchAlertas();
+    },
+  };
 
   /* ── Estilos inline para los nuevos elementos de alerta ───────────────── */
   const style = document.createElement('style');

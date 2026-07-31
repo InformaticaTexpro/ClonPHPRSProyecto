@@ -71,6 +71,11 @@ function resetState() {
       { id: 1, codigo: 'ventas', nombre: 'Ventas', descripcion: 'Base ventas', area: 'ventas', es_base: 1, activo: 1 },
       { id: 2, codigo: 'administracion', nombre: 'AdministraciÃ³n', descripcion: 'Base admin', area: 'administracion', es_base: 1, activo: 1 },
     ],
+    areas: [
+      { id: 1, codigo: 'ventas', nombre: 'Ventas', descripcion: 'Area comercial', perfil_base_id: 1, activo: 1, created_at: '2026-06-01 00:00:00', updated_at: '2026-06-01 00:00:00' },
+      { id: 2, codigo: 'laboratorio', nombre: 'Laboratorio', descripcion: 'Area de pruebas', perfil_base_id: null, activo: 1, created_at: '2026-06-01 00:00:00', updated_at: '2026-06-01 00:00:00' },
+      { id: 3, codigo: 'administracion', nombre: 'AdministraciÃƒÂ³n', descripcion: 'Area administrativa', perfil_base_id: 2, activo: 1, created_at: '2026-06-01 00:00:00', updated_at: '2026-06-01 00:00:00' },
+    ],
     profileMenus: [
       { perfil_id: 1, menu_id: 1, activo: 1 },
       { perfil_id: 1, menu_id: 2, activo: 1 },
@@ -144,6 +149,37 @@ function getProfileMenus(profileIds) {
     .filter(Boolean);
 }
 
+function normalizeAreaKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getAreaRows(areaId = null, areaCode = null) {
+  const rows = state.areas.map(area => {
+    const perfil = state.profiles.find(item => Number(item.id) === Number(area.perfil_base_id));
+    const totalUsuarios = state.users.filter(user => normalizeAreaKey(user.area) === normalizeAreaKey(area.codigo)).length;
+    const totalUsuariosActivos = state.users.filter(user => Number(user.is_active) === 1 && normalizeAreaKey(user.area) === normalizeAreaKey(area.codigo)).length;
+    return {
+      ...area,
+      perfil_base_nombre: perfil?.nombre || '',
+      perfil_base_codigo: perfil?.codigo || '',
+      total_usuarios: totalUsuarios,
+      total_usuarios_activos: totalUsuariosActivos,
+      created_at: area.created_at || '2026-06-01 00:00:00',
+      updated_at: area.updated_at || '2026-06-01 00:00:00',
+    };
+  });
+
+  if (areaId !== null && areaId !== undefined) {
+    return rows.filter(area => Number(area.id) === Number(areaId));
+  }
+
+  if (areaCode !== null && areaCode !== undefined) {
+    return rows.filter(area => normalizeAreaKey(area.codigo) === normalizeAreaKey(areaCode));
+  }
+
+  return rows;
+}
+
 function handleQuery(sql, params = []) {
   const normalized = String(sql).replace(/\s+/g, ' ').trim();
 
@@ -153,6 +189,10 @@ function handleQuery(sql, params = []) {
       return [[{ Field: column }]];
     }
     return [[]];
+  }
+
+  if (normalized.startsWith("SHOW TABLES LIKE 'area'")) {
+    return [[{ 'Tables_in_test': 'area' }]];
   }
 
   if (normalized.startsWith('SELECT u.id, u.nombre, u.email, u.codigo, u.area, u.is_admin, u.is_active, u.last_login, u.fecha_creacion AS created_at FROM usuario u')) {
@@ -179,6 +219,23 @@ function handleQuery(sql, params = []) {
     return [getProfileMenus(ids)];
   }
 
+  if (normalized.includes('FROM usuario_perfil up') && normalized.includes('INNER JOIN usuario u ON u.id = up.usuario_id') && normalized.includes('ORDER BY up.perfil_id ASC, u.nombre ASC')) {
+    const ids = params.map(Number);
+    return [[...state.userProfiles.filter(rel => ids.includes(Number(rel.perfil_id)) && Number(rel.activo) === 1).map(rel => {
+      const user = state.users.find(item => Number(item.id) === Number(rel.usuario_id));
+      return user ? {
+        perfil_id: rel.perfil_id,
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        area: user.area,
+        codigo: user.codigo,
+        is_active: user.is_active,
+        asignado_activo: rel.activo,
+      } : null;
+    }).filter(Boolean)]];
+  }
+
   if (normalized.includes('FROM perfil p') && normalized.includes('p.codigo') && normalized.includes('p.nombre') && normalized.includes('FROM perfil p')) {
     if (normalized.includes('WHERE p.id = ?')) {
       return [getProfilesCatalog(params[0])];
@@ -202,6 +259,30 @@ function handleQuery(sql, params = []) {
     const area = String(params[0] || '').trim().toLowerCase();
     const perfil = state.profiles.find(item => Number(item.es_base) === 1 && String(item.area).trim().toLowerCase() === area && Number(item.activo) === 1);
     return [[perfil ? { ...perfil } : undefined].filter(Boolean)];
+  }
+
+  if (normalized.includes('FROM area a LEFT JOIN perfil p ON p.id = a.perfil_base_id')) {
+    const areaId = normalized.includes('WHERE a.id = ?') ? Number(params[0]) : null;
+    const areaCode = normalized.includes('WHERE LOWER(TRIM(a.codigo)) = LOWER(TRIM(?))') ? params[0] : null;
+    return [getAreaRows(areaId, areaCode)];
+  }
+
+  if (normalized.startsWith('SELECT id FROM area WHERE codigo = ? LIMIT 1')) {
+    const area = state.areas.find(item => normalizeAreaKey(item.codigo) === normalizeAreaKey(params[0]));
+    return [[area ? { id: area.id } : undefined].filter(Boolean)];
+  }
+
+  if (normalized.startsWith('SELECT id FROM area WHERE codigo = ? AND id <> ? LIMIT 1')) {
+    const codigo = normalizeAreaKey(params[0]);
+    const exclude = Number(params[1]);
+    const area = state.areas.find(item => normalizeAreaKey(item.codigo) === codigo && Number(item.id) !== exclude);
+    return [[area ? { id: area.id } : undefined].filter(Boolean)];
+  }
+
+  if (normalized.startsWith('SELECT COUNT(*) AS total FROM usuario WHERE is_active = 1 AND LOWER(TRIM(COALESCE(area, \'\'))) = LOWER(TRIM(COALESCE(?, \'\')))')) {
+    const area = normalizeAreaKey(params[0]);
+    const total = state.users.filter(user => Number(user.is_active) === 1 && normalizeAreaKey(user.area) === area).length;
+    return [[{ total }]];
   }
 
   if (normalized.startsWith('SELECT id, codigo, nombre, url, icono, grupo, orden, activo FROM menu ORDER BY')) {
@@ -421,19 +502,61 @@ function handleQuery(sql, params = []) {
     return [{ affectedRows: perfil ? 1 : 0 }];
   }
 
+  if (normalized.startsWith('INSERT INTO area (codigo, nombre, descripcion, perfil_base_id, activo)')) {
+    const nextId = Math.max(0, ...state.areas.map(area => Number(area.id))) + 1;
+    const [codigo, nombre, descripcion, perfilBaseId, activo] = params;
+    state.areas.push({
+      id: nextId,
+      codigo,
+      nombre,
+      descripcion,
+      perfil_base_id: perfilBaseId === null || perfilBaseId === undefined ? null : Number(perfilBaseId),
+      activo: Number(activo),
+      created_at: '2026-07-10 00:00:00',
+      updated_at: '2026-07-10 00:00:00',
+    });
+    return [{ insertId: nextId }];
+  }
+
+  if (normalized.startsWith('UPDATE area SET codigo = ?, nombre = ?, descripcion = ?, perfil_base_id = ?, activo = ? WHERE id = ?')) {
+    const [codigo, nombre, descripcion, perfilBaseId, activo, id] = params;
+    const area = state.areas.find(item => Number(item.id) === Number(id));
+    if (area) {
+      area.codigo = codigo;
+      area.nombre = nombre;
+      area.descripcion = descripcion;
+      area.perfil_base_id = perfilBaseId === null || perfilBaseId === undefined ? null : Number(perfilBaseId);
+      area.activo = Number(activo);
+      area.updated_at = '2026-07-11 00:00:00';
+    }
+    return [{ affectedRows: area ? 1 : 0 }];
+  }
+
+  if (normalized.startsWith('UPDATE area SET activo = 1 WHERE id = ?')) {
+    const area = state.areas.find(item => Number(item.id) === Number(params[0]));
+    if (area) area.activo = 1;
+    return [{ affectedRows: area ? 1 : 0 }];
+  }
+
+  if (normalized.startsWith('UPDATE area SET activo = 0 WHERE id = ?')) {
+    const area = state.areas.find(item => Number(item.id) === Number(params[0]));
+    if (area) area.activo = 0;
+    return [{ affectedRows: area ? 1 : 0 }];
+  }
+
   if (normalized.startsWith('SELECT COUNT(*) AS total FROM usuario_menu WHERE menu_id = ?')) {
     const total = state.userMenus.filter(rel => Number(rel.menu_id) === Number(params[0])).length;
-    return [{ total }];
+    return [[{ total }]];
   }
 
   if (normalized.startsWith('SELECT COUNT(*) AS total FROM perfil_menu WHERE perfil_id = ?')) {
     const total = state.profileMenus.filter(rel => Number(rel.perfil_id) === Number(params[0])).length;
-    return [{ total }];
+    return [[{ total }]];
   }
 
   if (normalized.startsWith('SELECT COUNT(*) AS total FROM usuario_perfil WHERE perfil_id = ?')) {
     const total = state.userProfiles.filter(rel => Number(rel.perfil_id) === Number(params[0])).length;
-    return [{ total }];
+    return [[{ total }]];
   }
 
   if (normalized.startsWith('DELETE FROM menu WHERE id = ?')) {
@@ -459,6 +582,14 @@ function handleQuery(sql, params = []) {
     const rel = state.userProfiles.find(item => Number(item.usuario_id) === userId && Number(item.perfil_id) === perfilId);
     if (rel) rel.activo = 0;
     return [{ affectedRows: rel ? 1 : 0 }];
+  }
+
+  if (normalized.startsWith('DELETE FROM usuario_perfil WHERE usuario_id = ? AND perfil_id IN (?)')) {
+    const userId = Number(params[0]);
+    const perfilId = Number(params[1]);
+    const before = state.userProfiles.length;
+    state.userProfiles = state.userProfiles.filter(rel => !(Number(rel.usuario_id) === userId && Number(rel.perfil_id) === perfilId));
+    return [{ affectedRows: before - state.userProfiles.length }];
   }
 
   if (normalized.startsWith('UPDATE usuario_perfil SET activo = 0 WHERE usuario_id = ?')) {
@@ -707,5 +838,102 @@ describe('Seguridad de sesión', () => {
     const res = await request(app).patch('/api/admin/usuarios/1/desactivar').send({ confirmar: true });
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
+  });
+});
+describe('Areas', () => {
+  test('lista areas reales con perfil base y conteos', async () => {
+    const res = await request(app).get('/api/admin/areas');
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.data).toHaveLength(3);
+    expect(res.body.data[0]).toHaveProperty('perfil_base_nombre');
+    expect(res.body.data[0]).toHaveProperty('total_usuarios');
+  });
+
+  test('crea area, normaliza el codigo y bloquea duplicados', async () => {
+    const created = await request(app).post('/api/admin/areas').send({
+      nombre: 'Laboratorio Nueva',
+      codigo: 'Laboratorio Nueva',
+      descripcion: 'Area de pruebas',
+      perfil_base_id: 1,
+      activo: 1,
+    });
+
+    expect(created.status).toBe(201);
+    expect(created.body.ok).toBe(true);
+    expect(created.body.data.codigo).toBe('laboratorio_nueva');
+    expect(state.areas.some(area => area.codigo === 'laboratorio_nueva')).toBe(true);
+
+    const duplicate = await request(app).post('/api/admin/areas').send({
+      nombre: 'Duplicada',
+      codigo: 'laboratorio_nueva',
+      descripcion: 'Duplicada',
+      activo: 1,
+    });
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.ok).toBe(false);
+  });
+
+  test('edita, desactiva y reactiva un area', async () => {
+    const updated = await request(app).put('/api/admin/areas/2').send({
+      nombre: 'Laboratorio Ajustado',
+      codigo: 'Laboratorio Ajustado',
+      descripcion: 'Area ajustada',
+      perfil_base_id: null,
+      activo: 1,
+    });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.ok).toBe(true);
+    expect(updated.body.data.codigo).toBe('laboratorio_ajustado');
+    expect(state.areas.find(area => Number(area.id) === 2).nombre).toBe('Laboratorio Ajustado');
+
+    state.users[1].area = 'laboratorio_ajustado';
+
+    const blocked = await request(app).patch('/api/admin/areas/2/desactivar').send({});
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.code).toBe('AREA_CON_USUARIOS');
+
+    const deactivated = await request(app).patch('/api/admin/areas/2/desactivar').send({ confirmar: true });
+    expect(deactivated.status).toBe(200);
+    expect(deactivated.body.data.activo).toBe(false);
+
+    const activated = await request(app).patch('/api/admin/areas/2/activar').send({});
+    expect(activated.status).toBe(200);
+    expect(activated.body.data.activo).toBe(true);
+  });
+
+  test('crea usuario usando area.codigo validada', async () => {
+    const res = await request(app).post('/api/admin/usuarios').send({
+      nombre: 'Usuario Laboratorio',
+      email: 'lab@texpro.cl',
+      codigo: '777',
+      area: 'Laboratorio',
+      is_admin: false,
+      is_active: true,
+      password: 'Secreta123',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.ok).toBe(true);
+    expect(state.users.find(user => user.email === 'lab@texpro.cl').area).toBe('laboratorio');
+  });
+
+  test('rechaza area inexistente', async () => {
+    const res = await request(app).post('/api/admin/usuarios').send({
+      nombre: 'Usuario Invalido',
+      email: 'invalido@texpro.cl',
+      codigo: '778',
+      area: 'area-que-no-existe',
+      is_admin: false,
+      is_active: true,
+      password: 'Secreta123',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toBeDefined();
   });
 });

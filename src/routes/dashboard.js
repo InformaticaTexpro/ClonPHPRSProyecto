@@ -101,8 +101,9 @@ function getCodigos(usuario) {
 
 function getCodigosCoordinador(usuario) {
   return (usuario.vendedores || [])
-    .filter(v => v.tipo === 'C')
-    .map(v => v.cod_vendedor);
+    .filter(v => String(v.tipo || '').trim().toUpperCase() === 'C')
+    .map(v => String(v.cod_vendedor || '').trim())
+    .filter(Boolean);
 }
 
 function mssqlIn(arr) {

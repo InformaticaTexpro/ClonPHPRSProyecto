@@ -10,6 +10,8 @@
 
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 const mockQuery = jest.fn();
 const mockSoftlandRequest = {
@@ -24,7 +26,7 @@ jest.mock('../../src/middlewares/requireAuth', () => ({
       id: 1,
       nombre: 'Ana',
       is_admin: false,
-      vendedores: [{ cod_vendedor: 'C001', tipo: 'C' }],
+      vendedores: [{ cod_vendedor: 'C001', tipo: 'c' }],
     };
     next();
   },
@@ -149,16 +151,47 @@ describe('Routing precedence for /api/dashboard', () => {
   });
 
   test('GET /asignados responde desde dashboard.panel.js', async () => {
+    mockQuery.mockResolvedValueOnce([[
+      {
+        id: 1,
+        folio: 1001,
+        fecha: '2026-06-01',
+        cliente: 'Cliente 1',
+        monto_neto: 1000,
+        monto_asignado: 500,
+        porcentaje: 50,
+        cod_vendedor_principal: 'C001',
+        cod_vendedor_compartido: 'V002',
+        nombre_vendedor_compartido: 'Vendedor 2',
+        mes: 6,
+        anio: 2026,
+      },
+    ]]);
+
     const app = buildApp();
 
     const res = await request(app).get('/api/dashboard/asignados?mes=6&anio=2026');
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(res.body.asignados).toHaveLength(1);
 
     const sql = mockQuery.mock.calls[0][0];
     expect(sql).toContain('MONTH(fc.fecha) = ?');
     expect(sql).toContain('ORDER BY fc.fecha DESC, fc.folio DESC');
     expect(sql).not.toContain('fc.mes = ? AND fc.anio = ?');
+  });
+});
+
+describe('ventas.js â€” estado del botÃ³n de confirmaciÃ³n', () => {
+  test('actualiza el botÃ³n usando la misma lista que renderiza Folios Asignados', () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../src/modulo/ventas/ventas/ventas.js'),
+      'utf8'
+    );
+
+    expect(source).toContain('await cargarEstadoReporteCompartido(_ultimosAsignados);');
+    expect(source).toContain("setEstadoReporteCompartido(`Listo para enviar a RRHH · ${formatCLP(resumen.total_venta_real)} total asignado`, 'ready');");
+    expect(source).not.toContain("if (btnConfirmar) btnConfirmar.disabled = !_ultimosAsignados.length;");
   });
 });

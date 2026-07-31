@@ -8,6 +8,7 @@ html, body {
   font-family: var(--font-secondary, 'Open Sans', sans-serif);
   background: var(--color-bg, #F4F6FA);
   color: var(--color-black, #1A1D23);
+  overflow-x: hidden;
 }
 
 body {
@@ -21,10 +22,11 @@ body {
   display: flex;
   flex-direction: column;
   transition: margin-left .25s;
+  min-width: 0;
 }
 
 .main-wrapper--expanded {
-  margin-left: 64px;
+  margin-left: 112px;
 }
 
 .sidebar {
@@ -42,7 +44,7 @@ body {
 }
 
 .sidebar--collapsed {
-  width: 64px;
+  width: 112px;
 }
 
 .sidebar--collapsed .sidebar-brand,
@@ -229,6 +231,12 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.header-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .header-title {
@@ -260,6 +268,7 @@ body {
   border: 1px solid var(--color-gray-light, #E8EAF0);
   border-radius: 100px;
   background: #fff;
+  min-width: 0;
 }
 
 .chip-avatar {
@@ -278,6 +287,11 @@ body {
 .chip-name {
   font-size: .8rem;
   font-weight: 600;
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-content {
@@ -286,6 +300,7 @@ body {
   max-width: 1600px;
   width: 100%;
   align-self: center;
+  min-width: 0;
 }
 
 .admin-hero {
@@ -1524,6 +1539,11 @@ body {
     transform: translateX(0);
   }
 
+  .sidebar.sidebar--open,
+  .sidebar.sidebar--mobile-open {
+    transform: translateX(0);
+  }
+
   .main-wrapper {
     margin-left: 0;
   }
@@ -1534,6 +1554,20 @@ body {
 
   .header-menu-btn {
     display: flex;
+  }
+
+  .main-header {
+    height: auto;
+    align-items: flex-start;
+  }
+
+  .header-left,
+  .header-right {
+    width: 100%;
+  }
+
+  .header-right {
+    justify-content: space-between;
   }
 
   .admin-tabs {

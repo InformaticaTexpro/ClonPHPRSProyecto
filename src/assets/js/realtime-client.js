@@ -276,6 +276,19 @@
     setBadge('texproAlertasCampanaBadge', total);
   }
 
+  async function handleNotificationNew(payload = {}) {
+    const api = window.GICOTEXNotificacionesRealtime;
+    if (api?.refreshAll) {
+      await api.refreshAll();
+    } else if (api?.refreshNotificaciones) {
+      await api.refreshNotificaciones();
+    }
+
+    const titulo = payload?.notificacion?.titulo || 'Nueva notificación';
+    const mensaje = payload?.notificacion?.mensaje || 'Tienes una actualización pendiente.';
+    showToast(titulo, mensaje);
+  }
+
   async function connect() {
     const token = getToken();
     if (!token) return null;
@@ -315,6 +328,7 @@
     socket.on('alerta:new', handleAlertNew);
     socket.on('alerta:update', handleAlertUpdate);
     socket.on('alerta:badge:update', handleAlertBadgeUpdate);
+    socket.on('notificacion:new', handleNotificationNew);
     socket.on('realtime:ready', async () => {
       await syncBadges();
       await syncPresence();

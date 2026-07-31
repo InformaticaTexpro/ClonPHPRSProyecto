@@ -11,6 +11,7 @@
     mensajesActivos: [],
     search: '',
     panelActivo: 'usuarios',
+    mobileView: 'list',
     cargandoMensajes: false,
   };
 
@@ -80,12 +81,12 @@
   }
 
   function initials(name) {
-    return String(name || '?')
+    return String(name || 'T')
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map(part => part[0].toUpperCase())
-      .join('') || '?';
+      .join('') || 'T';
   }
 
   function setHeaderUser(user) {
@@ -194,6 +195,46 @@
     if (!container) return true;
     return (container.scrollHeight - container.scrollTop - container.clientHeight) < 48;
   }
+
+  function isMobileChatViewport() {
+    return window.matchMedia && window.matchMedia('(max-width: 780px)').matches;
+  }
+
+  function syncSidebarLayout() {
+    if (!el.mainWrapper || !el.sidebar) return;
+    const collapsed = el.sidebar.classList.contains('sidebar--collapsed');
+    const mobile = isMobileChatViewport();
+    el.mainWrapper.classList.toggle('main-wrapper--expanded', collapsed && !mobile);
+  }
+
+  function syncMobileChatView() {
+    if (!el.workspaceShell) return;
+
+    const mobile = isMobileChatViewport();
+    const showThread = mobile && state.mobileView === 'thread' && Boolean(state.conversacionActivaId);
+
+    el.workspaceShell.classList.toggle('is-thread-open', showThread);
+    if (el.btnBackToList) {
+      el.btnBackToList.hidden = !mobile || !state.conversacionActivaId;
+    }
+
+    if (!mobile) {
+      state.mobileView = state.conversacionActivaId ? 'thread' : 'list';
+      el.workspaceShell.classList.remove('is-thread-open');
+      if (el.btnBackToList) el.btnBackToList.hidden = true;
+    }
+  }
+
+  function openChatThreadView() {
+    state.mobileView = 'thread';
+    syncMobileChatView();
+  }
+
+  function returnToConversationList() {
+    state.mobileView = 'list';
+    syncMobileChatView();
+  }
+
   function updateCounter(total) {
     if (!el.conversationCount) return;
     el.conversationCount.textContent = String(total);
@@ -333,6 +374,8 @@
 
   function renderMessages() {
     if (!state.conversacionActivaId) {
+      state.mobileView = 'list';
+      syncMobileChatView();
       el.messagesFeed.innerHTML = `
         <div class="empty-thread">
           <h3>No hay un chat abierto todavía</h3>
@@ -404,6 +447,8 @@
     if (stickToBottom) {
       el.messagesFeed.scrollTop = el.messagesFeed.scrollHeight;
     }
+
+    syncMobileChatView();
   }
 
   async function loadHeaderBadge() {
@@ -502,6 +547,7 @@
   }
 
   async function openConversation(conversationId) {
+    openChatThreadView();
     await loadMessages(conversationId);
   }
 
@@ -628,6 +674,19 @@
       }
     });
 
+    el.sidebarToggle?.addEventListener('click', () => {
+      el.sidebar?.classList.toggle('sidebar--collapsed');
+      syncSidebarLayout();
+    });
+
+    el.headerMenuBtn?.addEventListener('click', () => {
+      el.sidebar?.classList.toggle('sidebar--open');
+    });
+
+    el.btnBackToList?.addEventListener('click', () => {
+      returnToConversationList();
+    });
+
     el.composerForm.addEventListener('submit', sendMessage);
     el.btnToggleSilencio.addEventListener('click', () => toggleFlag('silenciada'));
     el.btnToggleArchivo.addEventListener('click', () => toggleFlag('archivada'));
@@ -642,6 +701,7 @@
   async function init() {
     el.sidebar = qs('sidebar');
     el.mainWrapper = qs('mainWrapper');
+    el.workspaceShell = qs('workspaceShell');
     el.headerMenuBtn = qs('headerMenuBtn');
     el.sidebarToggle = qs('sidebarToggle');
     el.btnLogout = qs('btnLogout');
@@ -657,6 +717,7 @@
     el.threadSubtitle = qs('threadSubtitle');
     el.btnToggleSilencio = qs('btnToggleSilencio');
     el.btnToggleArchivo = qs('btnToggleArchivo');
+    el.btnBackToList = qs('btnBackToList');
     el.messagesFeed = qs('messagesFeed');
     el.composerForm = qs('composerForm');
     el.messageInput = qs('messageInput');
@@ -667,6 +728,12 @@
     setHeaderUser(state.user);
     bindEvents();
     renderPanelTabs();
+    syncSidebarLayout();
+    syncMobileChatView();
+    window.addEventListener('resize', () => {
+      syncSidebarLayout();
+      syncMobileChatView();
+    }, { passive: true });
 
     await loadDirectory();
     await loadConversations();

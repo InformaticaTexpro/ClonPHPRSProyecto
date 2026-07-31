@@ -1,0 +1,326 @@
+.rrhh-home {
+  background:
+    radial-gradient(circle at top left, rgba(0, 174, 142, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 22%),
+    linear-gradient(180deg, #f4f8f7 0%, #eef4f2 100%);
+}
+
+.rrhh-home .main-wrapper {
+  background: transparent;
+}
+
+.rrhh-main {
+  display: grid;
+  gap: 18px;
+}
+
+.rrhh-hero,
+.rrhh-panel,
+.rrhh-metric-card {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(17, 24, 39, 0.06);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+}
+
+.rrhh-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+  gap: 18px;
+  align-items: center;
+  padding: 24px;
+}
+
+.rrhh-hero__content {
+  display: grid;
+  gap: 14px;
+}
+
+.rrhh-kicker,
+.rrhh-panel__eyebrow,
+.rrhh-metric-card__label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #6e7f7a;
+}
+
+.rrhh-hero h2,
+.rrhh-panel h3 {
+  margin: 0;
+  color: #12312d;
+}
+
+.rrhh-hero h2 {
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  line-height: 1.15;
+}
+
+.rrhh-hero p,
+.rrhh-panel p,
+.rrhh-team-item span,
+.rrhh-progress__row span,
+.rrhh-metric-card__hint {
+  margin: 0;
+  color: #51615d;
+  line-height: 1.65;
+}
+
+.rrhh-hero__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rrhh-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(0, 174, 142, 0.09);
+  color: #0b5f51;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.rrhh-hero__actions {
+  display: grid;
+  justify-items: stretch;
+  gap: 14px;
+}
+
+.rrhh-hero__note {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(0, 174, 142, 0.08), rgba(0, 174, 142, 0.03));
+  color: #0d4f45;
+  line-height: 1.55;
+  border: 1px solid rgba(0, 174, 142, 0.12);
+}
+
+.rrhh-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rrhh-metric-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.rrhh-metric-card__value {
+  font-size: 2rem;
+  line-height: 1;
+  color: #0f4038;
+}
+
+.rrhh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rrhh-grid--wide {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.rrhh-panel {
+  padding: 20px;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.rrhh-panel--accent {
+  border-top: 4px solid #00ae8e;
+}
+
+.rrhh-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rrhh-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 174, 142, 0.12);
+  color: #0b5f51;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.rrhh-panel__badge--soft {
+  background: rgba(71, 85, 105, 0.1);
+  color: #475569;
+}
+
+.rrhh-timeline,
+.rrhh-alert-list,
+.rrhh-progress-list,
+.rrhh-team-list {
+  display: grid;
+  gap: 12px;
+}
+
+.rrhh-timeline__item,
+.rrhh-alert,
+.rrhh-team-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f9fbfb;
+  border: 1px solid rgba(15, 64, 56, 0.08);
+}
+
+.rrhh-timeline__item {
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+}
+
+.rrhh-timeline__time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border-radius: 12px;
+  background: rgba(0, 174, 142, 0.12);
+  color: #0d5f51;
+  font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.rrhh-alert {
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: start;
+}
+
+.rrhh-alert strong,
+.rrhh-team-item strong,
+.rrhh-timeline__item strong {
+  color: #12312d;
+}
+
+.rrhh-alert__dot {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+
+.rrhh-alert__dot--warning { background: #f59e0b; }
+.rrhh-alert__dot--success { background: #10b981; }
+.rrhh-alert__dot--info { background: #0ea5e9; }
+.rrhh-alert__dot--neutral { background: #64748b; }
+
+.rrhh-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.rrhh-progress__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.rrhh-progress__row strong {
+  color: #12312d;
+}
+
+.rrhh-progress__bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15, 64, 56, 0.08);
+}
+
+.rrhh-progress__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #00e2a7, #0ea5e9);
+}
+
+.rrhh-team-item {
+  gap: 4px;
+}
+
+.rrhh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  text-decoration: none;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  background: linear-gradient(135deg, #0d7c68, #0b5f51);
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(13, 124, 104, 0.18);
+}
+
+.rrhh-button:hover {
+  transform: translateY(-1px);
+}
+
+.rrhh-button:focus-visible {
+  outline: 3px solid rgba(0, 174, 142, 0.22);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1280px) {
+  .rrhh-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rrhh-grid,
+  .rrhh-grid--wide {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .rrhh-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .rrhh-hero,
+  .rrhh-panel,
+  .rrhh-metric-card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .rrhh-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .rrhh-timeline__item {
+    grid-template-columns: 1fr;
+  }
+
+  .rrhh-button {
+    width: 100%;
+  }
+}

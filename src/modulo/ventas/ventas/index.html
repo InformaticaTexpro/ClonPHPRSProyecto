@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texpro — Ventas Asignadas</title>
+  <title>Texpro &mdash; Ventas Asignadas</title>
   <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,7 +18,7 @@
     <div class="sidebar-header">
       <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
       <span class="sidebar-brand">TEXPRO</span>
-      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar men&uacute;">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
       </button>
     </div>
@@ -31,9 +31,9 @@
           <span class="user-area" id="userArea"></span>
         </div>
       </div>
-      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesi&oacute;n">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-        <span class="btn-logout-text">Cerrar sesión</span>
+        <span class="btn-logout-text">Cerrar sesi&oacute;n</span>
       </button>
     </div>
   </aside>
@@ -41,17 +41,17 @@
   <div class="main-wrapper" id="mainWrapper">
     <header class="main-header">
       <div class="header-left">
-        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Men&uacute; m&oacute;vil">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
         <h1 class="header-title">Ventas Asignadas</h1>
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
-        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
-          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores econ&oacute;micos">
+          <span class="hind-label">USD</span><span class="hind-valor">&mdash;</span>
           <span class="hind-sep" aria-hidden="true">|</span>
-          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+          <span class="hind-label">UF</span><span class="hind-valor">&mdash;</span>
         </span>
         <div class="notif-wrapper" id="notifWrapper">
           <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
@@ -64,7 +64,7 @@
           <div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones">
             <div class="notif-panel-header">
               <span class="notif-panel-title">Notificaciones</span>
-              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas">
+              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como le&iacute;das">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 Marcar todo leído
               </button>
@@ -83,10 +83,10 @@
 
     <main class="main-content">
 
-      <!-- Barra bienvenida + filtros + botón PDF -->
+      <!-- Barra bienvenida + filtros + bot&oacute;n PDF -->
       <div class="welcome-bar">
         <div class="welcome-text">
-          <h2 id="welcomeTitle">Hola 👋</h2>
+          <h2 id="welcomeTitle">Hola &#128075;</h2>
           <p id="welcomeSubtitle">Cargando...</p>
         </div>
         <div class="welcome-filtros">
@@ -99,19 +99,19 @@
           <div class="pdf-filter-group">
             <label class="pdf-filter-label" for="filtroPdf">Filtro PDF</label>
             <select class="filtro-select" id="filtroPdf" aria-label="Filtro PDF">
-              <option value="todos">Todos mis códigos</option>
-              <option value="compartidos">Solo códigos compartidos</option>
-              <option value="especifico">Código específico</option>
+              <option value="todos">Todos mis c&oacute;digos</option>
+              <option value="compartidos">Solo c&oacute;digos compartidos</option>
+              <option value="especifico">C&oacute;digo espec&iacute;fico</option>
             </select>
           </div>
           <div class="pdf-filter-group pdf-filter-group--codigo" id="grupoPdfCodigo" style="display:none">
-            <label class="pdf-filter-label" for="pdfCodVendedor">Código vendedor</label>
+            <label class="pdf-filter-label" for="pdfCodVendedor">C&oacute;digo vendedor</label>
             <input
               class="filtro-select pdf-filter-input"
               type="text"
               id="pdfCodVendedor"
               list="listaCodigosPdf"
-              placeholder="Escribe o selecciona un código"
+              placeholder="Escribe o selecciona un c&oacute;digo"
               autocomplete="off"
             />
             <datalist id="listaCodigosPdf"></datalist>
@@ -127,22 +127,22 @@
       <section class="tabla-seccion panel-coordinador" id="panelCoordinador" style="display:none">
         <div class="tabla-card coord-card panel-coordinador__share-card">
           <div class="coord-card-header panel-coordinador__header">
-            <div class="coord-card-icon panel-coordinador__share-icon" aria-hidden="true">🤝</div>
+            <div class="coord-card-icon panel-coordinador__share-icon" aria-hidden="true">&#129309;</div>
             <h3 class="coord-card-title panel-coordinador__title">Compartir Folio con Vendedor</h3>
-            <p class="coord-card-subtitle panel-coordinador__subtitle">Asigna un porcentaje de participación de un folio a otro vendedor.</p>
+            <p class="coord-card-subtitle panel-coordinador__subtitle">Asigna un porcentaje de participaci&oacute;n de un folio a otro vendedor.</p>
           </div>
           <div class="coord-form panel-coordinador__form">
             <div class="coord-form-row panel-coordinador__form-grid">
               <div class="coord-form-group">
                 <label class="coord-label" for="coordFolio">Folio</label>
-                <select class="filtro-select" id="coordFolio"><option value="">— Selecciona un folio —</option></select>
+                <select class="filtro-select" id="coordFolio"><option value="">&mdash; Selecciona un folio &mdash;</option></select>
               </div>
               <div class="coord-form-group">
                 <label class="coord-label" for="coordVendedor">Vendedor</label>
-                <select class="filtro-select" id="coordVendedor"><option value="">— Selecciona vendedor —</option></select>
+                <select class="filtro-select" id="coordVendedor"><option value="">&mdash; Selecciona vendedor &mdash;</option></select>
               </div>
               <div class="coord-form-group coord-form-group--sm panel-coordinador__field">
-                <label class="coord-label" for="coordPorcentaje">% Participación</label>
+                <label class="coord-label" for="coordPorcentaje">% Participaci&oacute;n</label>
                 <div class="coord-input-group panel-coordinador__percent-group">
                   <input class="filtro-select coord-input-group__input" type="number" id="coordPorcentaje" min="1" max="100" value="50" />
                   <span class="coord-input-group__addon" aria-hidden="true">%</span>
@@ -161,8 +161,19 @@
         </div>
         <div class="tabla-card coord-assigned-card panel-coordinador__assigned-card">
           <div class="tabla-header coord-assigned-header panel-coordinador__assigned-header">
-            <h3 class="tabla-titulo panel-coordinador__assigned-title">Folios Asignados</h3>
-            <span class="tabla-total" id="totalAsignados">0 registros</span>
+            <div class="tabla-header__title-group">
+              <h3 class="tabla-titulo panel-coordinador__assigned-title">Folios Asignados</h3>
+              <span class="tabla-total" id="totalAsignados">0 registros</span>
+            </div>
+            <div class="tabla-header__actions">
+              <span class="compartidos-estado" id="compartidosEstado">Sin confirmar</span>
+              <button class="btn-buscar btn-confirmar-reporte" id="btnConfirmarReporteCompartido" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 6 9 17l-5-5"/>
+                </svg>
+                Confirmar ventas compartidas
+              </button>
+            </div>
           </div>
           <div class="tabla-wrapper coord-assigned-wrap panel-coordinador__table-wrapper">
             <table class="dash-tabla">
@@ -183,31 +194,35 @@
         </div>
       </section>
 
-      <!-- PANEL COMPARTIDOS (vendedor) -->
-      <section class="tabla-seccion" id="panelCompartidos" style="display:none">
-        <div class="tabla-card coord-assigned-card panel-coordinador__assigned-card">
-          <div class="tabla-header">
-            <h3 class="tabla-titulo">Ventas Compartidas Conmigo</h3>
-            <span class="tabla-total" id="totalCompartidos">0 registros</span>
+      <div class="modal-confirmacion" id="modalConfirmarCompartidos" aria-hidden="true" hidden>
+        <div class="modal-confirmacion__backdrop" data-modal-close="true"></div>
+        <div class="modal-confirmacion__card" role="dialog" aria-modal="true" aria-labelledby="modalConfirmarCompartidosTitle">
+          <div class="modal-confirmacion__header">
+            <div>
+              <p class="modal-confirmacion__eyebrow">Ventas compartidas</p>
+              <h3 id="modalConfirmarCompartidosTitle">Confirmar ventas compartidas</h3>
+            </div>
+            <button class="modal-confirmacion__close" type="button" data-modal-close="true" aria-label="Cerrar">&times;</button>
           </div>
-          <div class="tabla-wrapper">
-            <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th style="width:40px"></th>
-                  <th>Folio</th><th>Fecha</th><th>Cliente</th>
-                  <th>Vendedor Origen</th>
-                  <th style="text-align:right">% Part.</th>
-                  <th style="text-align:right">Monto Asignado</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyCompartidos">
-                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
-              </tbody>
-            </table>
+          <p class="modal-confirmacion__copy">
+            Al confirmar, declaras que revisaste los montos de ventas compartidas de este período. El reporte será enviado a RRHH para validación.
+          </p>
+          <div class="modal-confirmacion__summary">
+            <div><span>Período</span><strong id="modalCompartidoPeriodo">—</strong></div>
+            <div><span>Total venta</span><strong id="modalCompartidoTotalVenta">—</strong></div>
+            <div><span>Total venta real</span><strong id="modalCompartidoTotalVentaReal">—</strong></div>
+            <div><span>Total descuento</span><strong id="modalCompartidoTotalDescuento">—</strong></div>
+            <div><span>Comisión</span><strong id="modalCompartidoTotalComision">—</strong></div>
+            <div><span>Folios</span><strong id="modalCompartidoFolios">—</strong></div>
+            <div><span>Líneas</span><strong id="modalCompartidoLineas">—</strong></div>
           </div>
+          <div class="modal-confirmacion__actions">
+            <button class="btn-outline" type="button" data-modal-close="true">Cancelar</button>
+            <button class="btn-buscar" id="btnEnviarReporteCompartido" type="button">Confirmar y enviar a RRHH</button>
+          </div>
+          <p class="modal-confirmacion__feedback" id="modalCompartidoFeedback"></p>
         </div>
-      </section>
+      </div>
 
       <!-- TABLA VENTAS DEL MES -->
       <section class="tabla-seccion">
@@ -222,7 +237,7 @@
                 <tr>
                   <th style="width:40px"></th>
                   <th>Folio</th><th>Fecha</th><th>Cliente</th>
-                  <th>Cód. Vendedor</th>
+                  <th>C&oacute;d. Vendedor</th>
                   <th style="text-align:right">Monto</th>
                   <th style="text-align:right">TotLineaReal</th>
                   <th style="text-align:right">Descuento</th>
@@ -241,6 +256,7 @@
 
   <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
   <script src="ventas.js?v=1.1.1"></script>
+  <script src="../dashboard/notificaciones-ui.js?v=2.0.0"></script>
   <script>
     (function () {
       function parseCLP(texto) {
@@ -255,7 +271,7 @@
       }
 
       function formatPct(valor) {
-        if (!Number.isFinite(valor) || Math.abs(valor) < 0.005) return '—';
+        if (!Number.isFinite(valor) || Math.abs(valor) < 0.005) return '&mdash;';
         return `${Math.round(valor * 100) / 100}%`;
       }
 
@@ -271,12 +287,12 @@
           const celdaTotalReal = celdas[6];
           const celdaDescuento = celdas[7];
           const actual = celdaDescuento.textContent.trim();
-          if (actual && actual !== '—') return;
+          if (actual && actual !== '&mdash;') return;
 
           const monto = parseCLP(celdaMonto.textContent);
           const totalReal = parseCLP(celdaTotalReal.textContent);
           if (!monto || !totalReal || Math.abs(totalReal) <= Math.abs(monto)) {
-            celdaDescuento.textContent = '—';
+            celdaDescuento.textContent = '&mdash;';
             return;
           }
 
@@ -300,3 +316,4 @@
   <script src="../../../assets/js/indicadores-header.js?v=1.0.1"></script>
 </body>
 </html>
+

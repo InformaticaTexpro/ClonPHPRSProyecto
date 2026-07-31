@@ -890,7 +890,7 @@ router.post('/usuarios', async (req, res) => {
     const nombre = normalizeText(req.body.nombre);
     const email = normalizeText(req.body.email).toLowerCase();
     const codigo = cleanCode(req.body.codigo);
-    const area = normalizeText(req.body.area);
+    const area = cleanCode(req.body.area);
     const isAdmin = boolToDb(req.body.is_admin, 0);
     const isActiveInput = asBoolean(req.body.is_active, true);
     const isActive = isActiveInput === null ? 1 : (isActiveInput ? 1 : 0);
@@ -918,6 +918,11 @@ router.post('/usuarios', async (req, res) => {
       );
       if (codigoDupes.length) {
         throw adminError('CODIGO_DUPLICADO', 'Ya existe un usuario con ese cÃ³digo', 409);
+      }
+
+      const areaRow = await loadAreaByCode(conn, area);
+      if (!areaRow) {
+        throw adminError('AREA_INVALIDA', 'El Ã¡rea seleccionada no existe.', 400);
       }
 
       const storedPassword = password
@@ -952,7 +957,7 @@ router.put('/usuarios/:id', async (req, res) => {
     const userId = requireId(req.params.id, 'Usuario');
     const nombre = normalizeText(req.body.nombre);
     const email = normalizeText(req.body.email).toLowerCase();
-    const area = normalizeText(req.body.area);
+    const area = cleanCode(req.body.area);
     const isAdminInput = req.body.is_admin;
     const isActiveInput = req.body.is_active;
     const confirmed = asBoolean(req.body.confirmar, false) || asBoolean(req.body.confirmacion_fuerte, false);
@@ -992,6 +997,11 @@ router.put('/usuarios/:id', async (req, res) => {
       );
       if (emailDupes.length) {
         throw adminError('EMAIL_DUPLICADO', 'Ya existe un usuario registrado con este correo.', 409);
+      }
+
+      const areaRow = await loadAreaByCode(conn, area);
+      if (!areaRow) {
+        throw adminError('AREA_INVALIDA', 'El Ã¡rea seleccionada no existe.', 400);
       }
 
       await conn.query(
