@@ -743,3 +743,21 @@ img, svg, canvas, table { max-width: 100%; }
   .header-indicadores { font-size:.78rem; }
   .header-user-chip { padding-right:8px; }
 }
+
+.dashboard-status {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  background: linear-gradient(135deg, rgba(253, 237, 236, 0.95), rgba(255, 248, 247, 0.98));
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  line-height: var(--line-height-normal);
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-status[data-tipo="warning"] {
+  border-color: rgba(243, 156, 18, 0.25);
+  background: linear-gradient(135deg, rgba(254, 249, 231, 0.96), rgba(255, 252, 244, 0.99));
+  color: #9a6700;
+}

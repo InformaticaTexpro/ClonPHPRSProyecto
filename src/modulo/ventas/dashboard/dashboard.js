@@ -86,6 +86,27 @@
     renderVendedoresFooter(0, 0, null);
   }
 
+  function mostrarEstadoDashboard(mensaje, tipo = 'error') {
+    const el = document.getElementById('dashboardStatus');
+    if (!el) return;
+    el.hidden = false;
+    el.dataset.tipo = tipo;
+    el.textContent = mensaje;
+  }
+
+  function ocultarEstadoDashboard() {
+    const el = document.getElementById('dashboardStatus');
+    if (!el) return;
+    el.hidden = true;
+    el.textContent = '';
+    delete el.dataset.tipo;
+  }
+
+  function reportarFalloDashboard(contexto, err) {
+    const detalle = err instanceof Error ? err.message : String(err || '');
+    mostrarEstadoDashboard(detalle ? `${contexto}. ${detalle}` : contexto);
+  }
+
   if (window.Chart && window.ChartDataLabels) {
     window.Chart.register(window.ChartDataLabels);
   }
@@ -245,7 +266,10 @@
         fill.style.width      = `${pct}%`;
         fill.style.background = progreso >= 100 ? 'var(--color-primary)' : progreso >= 70 ? 'var(--color-accent)' : 'var(--color-danger)';
       }
-    } catch (err) { console.error('[cargarResumen]', err); }
+    } catch (err) {
+      console.error('[cargarResumen]', err);
+      reportarFalloDashboard('No se pudo cargar el resumen del dashboard', err);
+    }
   }
 
   // ── Gráfico ───────────────────────────────────────────────────────────────────────────────
@@ -301,7 +325,10 @@
           }
         }
       });
-    } catch (err) { console.error('[cargarGrafico]', err); }
+    } catch (err) {
+      console.error('[cargarGrafico]', err);
+      reportarFalloDashboard('No se pudo cargar la evolución mensual', err);
+    }
   }
 
   // ── Tabla vendedores ──────────────────────────────────────────────────────────────────────
@@ -336,7 +363,10 @@
         ? Math.round((1 - sumVentas / sumLista) * 10000) / 100
         : null;
       renderVendedoresFooter(sumVentas, sumLista, descuento);
-    } catch (err) { console.error('[cargarVendedores]', err); }
+    } catch (err) {
+      console.error('[cargarVendedores]', err);
+      reportarFalloDashboard('No se pudo cargar la tabla de vendedores', err);
+    }
   }
 
   // ── Tabla ventas del mes ──────────────────────────────────────────────────────────────────
@@ -350,7 +380,10 @@
       ventasMesData = data.ventas || [];
       poblarFiltroVendedor(ventasMesData);
       aplicarFiltrosVentasMes();
-    } catch (err) { console.error('[cargarVentasMes]', err); }
+    } catch (err) {
+      console.error('[cargarVentasMes]', err);
+      reportarFalloDashboard('No se pudo cargar las ventas del mes', err);
+    }
   }
 
   function poblarFiltroVendedor(lista) {
@@ -494,6 +527,7 @@
       });
     } catch (err) {
       console.error('[cargarCartera]', err);
+      reportarFalloDashboard('No se pudo cargar la cartera de clientes', err);
       ['countTotal','countActivo','countInactivo','countNuevo','countRecuperado','countActivoMes']
         .forEach(id => setText(id, '—'));
     }
@@ -699,7 +733,10 @@
         }
         renderGraficoClientesDistribucion(datosTotal);
       }
-    } catch (err) { console.error('[cargarGraficoClientes]', err); }
+    } catch (err) {
+      console.error('[cargarGraficoClientes]', err);
+      reportarFalloDashboard('No se pudo cargar la distribución por categoría', err);
+    }
   }
 
   // ── Clientes por vendedor ─────────────────────────────────────────────────────────────────
@@ -722,12 +759,16 @@
         const totalPeriodo = data.clientes.reduce((s, c) => s + (c.totalClientesPeriodo || 0), 0);
         tfoot.innerHTML = `<tr><td><strong>Total</strong></td><td></td><td style="text-align:right"><strong>${totalPeriodo.toLocaleString('es-CL')}</strong></td></tr>`;
       }
-    } catch (err) { console.error('[cargarClientesResumen]', err); }
+    } catch (err) {
+      console.error('[cargarClientesResumen]', err);
+      reportarFalloDashboard('No se pudo cargar el resumen de clientes', err);
+    }
   }
 
   // ── Cargar todo ───────────────────────────────────────────────────────────────────────────
   async function cargarTodo() {
     mostrarCarga();
+    ocultarEstadoDashboard();
     try {
       await Promise.all([
         cargarResumen(),

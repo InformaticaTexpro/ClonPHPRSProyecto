@@ -3,44 +3,21 @@
   "version": "1.0.0",
   "description": "Sistema de centralización de información para Texpro",
   "private": true,
-  "main": "src/server.js",
+  "main": "index.php",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": ".\\.tools\\php\\php.exe -S 127.0.0.1:8000 -t . router.php",
+    "dev": ".\\.tools\\php\\php.exe -S 127.0.0.1:8000 -t . router.php",
     "lint": "eslint .",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",
-    "test:watch": "jest --watch --passWithNoTests",
-    "test:mysql": "jest src/config/db.test.js --runInBand --forceExit",
-    "test:softland": "jest src/config/db.softland.test.js --runInBand --forceExit",
-    "test:integration": "npm run test:mysql && npm run test:softland",
-    "test:unit": "jest tests/ --passWithNoTests",
-    "users:password-status": "node scripts/list-users-password-status.js",
-    "users:migrate-plaintext-passwords": "node scripts/migrate-plaintext-passwords.js",
-    "build": "node -e \"console.log('Build OK')\""
-  },
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cross-env": "^7.0.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "express-rate-limit": "^8.3.1",
-    "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mssql": "^11.0.1",
-    "multer": "^2.2.0",
-    "mysql2": "^3.11.0",
-    "puppeteer": "^24.43.1",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "test:watch": "jest --watch --passWithNoTests"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
     "eslint": "^9.21.0",
     "globals": "^15.15.0",
     "jest": "^30.3.0",
-    "jest-environment-jsdom": "^30.3.0",
-    "supertest": "^7.0.0"
+    "jest-environment-jsdom": "^30.3.0"
   }
 }

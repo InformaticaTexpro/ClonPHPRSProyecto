@@ -26,7 +26,44 @@ Este proyecto usa **GitHub Actions** para integración continua.
 
 ## Stack Tecnológico
 
-- **Frontend:** HTML5 / CSS3 / JavaScript (Vanilla o framework a definir)
-- **Backend:** Node.js (a definir)
+- **Frontend:** HTML5 / CSS3 / JavaScript
+- **Backend:** PHP 8.x
 - **CI:** GitHub Actions
 - **Testing:** Jest
+
+## Backend PHP
+
+La API principal ya corre en PHP dentro de `/api` y está preparada para subirla a un hosting compartido con Apache/PHP como `hn.cl`.
+
+### Arranque local
+
+- `npm start` levanta el servidor PHP embebido usando `router.php`
+- `npm run dev` usa el mismo arranque local
+
+### Rutas principales
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `POST /api/auth/refresh`
+- `POST /api/auth/recuperar`
+- `POST /api/auth/verificar-otp`
+- `POST /api/auth/nueva-password`
+- `GET /api/health`
+- `GET /api/indicadores`
+- `GET /api/dashboard/*`
+- `GET /api/ventas/*`
+- `GET /api/admin/*`
+- `GET /api/rrhh/*`
+- `GET /api/alertas/*`
+- `GET /api/mensajeria/*`
+- `GET /api/notificaciones/*`
+- `GET /api/vendedores/*`
+
+### Requisitos del hosting
+
+- PHP 8.1 o superior
+- Extensión `pdo_mysql`
+- Extensión `curl`
+- Para Softland: extensión `pdo_sqlsrv` o `sqlsrv`
+- Acceso saliente HTTPS a Microsoft Graph si se usa recuperación por correo

@@ -1,264 +1,153 @@
-# Guía Comentada del Código - RSProyecto
+# Guia comentada del codigo - RSProyecto
 
-Esta guía explica qué hace cada parte del sistema y de dónde obtiene la información.
+Esta guia resume la arquitectura actual del proyecto y el estado de la migracion del backend a PHP.
 
-## 1) Visión general de arquitectura
+## 1) Vision general
 
-El proyecto está dividido en:
+El proyecto esta dividido en:
 
-- Backend Node.js con Express en src/server.js.
-- Frontend estático (HTML/CSS/JS) en src/login, src/dashboard, src/ventas, src/recuperar-password.
+- Backend PHP en `api/index.php`, con servicios en `api/src`.
+- Frontend estatico en `src/modulo` y `src/assets`.
 - Acceso a datos:
-  - MySQL (bdtexpro): usuarios, metas, notificaciones, OTP.
-  - SQL Server Softland: ventas, folios, detalle comercial.
+  - MySQL para usuarios, metas, alertas, mensajes y notificaciones.
+  - SQL Server Softland para ventas, folios y detalle comercial.
 
 Flujo principal:
 
-1. El frontend hace login contra /api/auth/login.
-2. Backend valida contraseña (formato Django PBKDF2) y emite JWT.
-3. Frontend usa JWT para consumir endpoints protegidos.
-4. Endpoints consultan MySQL o Softland según la funcionalidad.
+1. El frontend hace login contra `/api/auth/login`.
+2. El backend valida la contrasena, emite JWT y devuelve el perfil.
+3. El frontend usa el JWT para consumir endpoints protegidos.
+4. Los servicios PHP consultan MySQL o Softland segun la funcionalidad.
 
-## 2) Entrypoint del backend
+## 2) Entrada del backend
 
-### src/server.js
+### `api/index.php`
 
 Responsabilidad:
 
-- Crear aplicación Express.
-- Configurar seguridad HTTP (helmet + CSP).
+- Inicializar el backend PHP.
 - Configurar CORS.
-- Servir archivos estáticos.
-- Montar rutas API.
+- Resolver rutas `/api/*`.
+- Delegar cada modulo al servicio correspondiente.
 
 Datos que consume:
 
-- Variables de entorno (puerto, frontend permitido, secretos).
-- testConnection de src/config/db para healthcheck.
+- `api/bootstrap.php`
+- Conexiones a MySQL y utilidades compartidas
 
 Datos que expone:
 
-- Endpoints /api/\*.
-- /api/health para verificar estado de DB.
+- Endpoints `/api/*`
+- `/api/health`
 
-## 3) Configuración y conexiones
+## 3) Servicios PHP
 
-### src/config/db.js
-
-Responsabilidad:
-
-- Crear pool MySQL con mysql2/promise.
-- Exponer función testConnection.
-
-Fuente de datos:
-
-- Variables DB_HOST, DB_USER, DB_PASSWORD, DB_NAME.
-
-### src/config/db.softland.js
+### `api/src/Services.php`
 
 Responsabilidad:
 
-- Crear/reutilizar conexión mssql a Softland.
-- Exponer getSoftlandPool y closeSoftlandPool.
+- Login, sesion actual, logout y recuperacion de contrasena.
 
-Fuente de datos:
-
-- Variables SOFTLAND*DB*\*.
-
-## 4) Autenticación y autorización
-
-### src/routes/auth.js
+### `api/src/AnalyticsService.php`
 
 Responsabilidad:
 
-- Login, endpoint de sesión actual, logout.
+- Resumen de dashboard, evolucion, vendedores, ventas por mes, cartera y detalle comercial.
 
-Fuentes de datos:
-
-- findByEmail, findById y otros desde src/models/usuario.
-- verifyPasswordDjango desde src/utils/pbkdf2Django.
-- generarToken desde src/utils/jwt.
-
-Flujo login:
-
-1. Recibe email/password.
-2. Busca usuario en MySQL.
-3. Verifica hash Django.
-4. Carga vendedores y metas del usuario.
-5. Emite JWT y retorna perfil resumido.
-
-### src/middlewares/requireAuth.js
+### `api/src/SalesService.php`
 
 Responsabilidad:
 
-- Leer Authorization Bearer token.
-- Verificar JWT.
-- Volver a consultar vendedores en MySQL para tener permisos actualizados.
+- Confirmacion de ventas y PDFs asociados.
 
-Salida:
-
-- Inyecta req.usuario para uso de rutas.
-
-## 5) Módulo de recuperación de contraseña
-
-### src/routes/recuperar.js
+### `api/src/AdminService.php`
 
 Responsabilidad:
 
-- Flujo de 3 pasos: enviar OTP, validar OTP, cambiar contraseña.
+- Gestion administrativa de usuarios, menus, perfiles, areas y metas.
 
-Fuentes de datos:
-
-- src/models/usuario para buscar usuario y actualizar password.
-- src/utils/otpStore para crear/verificar OTP.
-- src/utils/mailer para envío de correo.
-- jsonwebtoken para token temporal de reset.
-
-## 6) Módulo de ventas
-
-### src/routes/ventas.js
+### `api/src/RrhhService.php`
 
 Responsabilidad:
 
-- Endpoints de ventas, totales, evolución, clientes, folio y detalle.
+- Confirmaciones, reportes compartidos y PDFs de RRHH.
 
-Fuentes de datos:
-
-- src/models/venta (consultas a Softland).
-- src/config/db (meta anual en MySQL vendedor_meta).
-
-Regla de acceso:
-
-- requireAuth y filtro por codigos de vendedor del usuario autenticado.
-
-### src/models/venta.js
+### `api/src/AlertasService.php`
 
 Responsabilidad:
 
-- Ejecutar consultas SQL Server (Softland).
-- Devolver datos listos para endpoints.
+- CRUD y estados de alertas.
 
-Fuente de datos:
-
-- Tablas [PRODIN].[softland].iw_gsaen, iw_gmovi, cwtauxi, cwtvend, iw_tprod.
-
-## 7) Módulo dashboard
-
-### src/routes/dashboard.js
+### `api/src/MensajeriaService.php`
 
 Responsabilidad:
 
-- KPIs, evolución, vendedores, ventas mes, detalle y gestión de folios compartidos.
+- Conversaciones, mensajes, directorio y presencia.
 
-Fuentes de datos:
-
-- Softland para ventas y descuentos.
-- MySQL para metas y factura_compartida.
-- src/models/notificacion para disparar notificaciones de meta.
-
-## 8) Módulo de notificaciones
-
-### src/routes/notificaciones.js
+### `api/src/NotificacionesService.php`
 
 Responsabilidad:
 
-- Listar notificaciones.
-- Contar no leídas.
-- Marcar una o todas como leídas.
+- Listado, contador y marcacion de notificaciones.
 
-Fuente de datos:
-
-- src/models/notificacion.
-
-### src/models/notificacion.js
+### `api/src/VendedoresService.php`
 
 Responsabilidad:
 
-- CRUD sobre notificaciones.
-- Mensajes de meta cumplida/superada.
-- Resolución de usuario por código vendedor.
+- Contratos, descarga de PDFs, actualizacion de RUT e info del vendedor.
 
-Fuente de datos:
-
-- MySQL: tabla notificaciones y usuario_vendedor.
-
-## 9) Modelos de usuario
-
-### src/models/usuario.js
+### `api/src/DashboardService.php`
 
 Responsabilidad:
 
-- Consultar y actualizar usuario.
-- Leer vendedores, permisos y metas asociadas.
+- Compartir ventas, asignados, categorias y clientes resumen.
 
-Fuente de datos:
+### `api/src/VentasService.php`
 
-- MySQL: usuario, usuario_vendedor, usuario_permisos, vendedor_meta.
+Responsabilidad:
 
-## 10) Utilidades transversales
+- Listado de ventas, KPIs, resumenes, historiales y descuentos.
 
-### src/utils/jwt.js
+### `api/src/IndicadoresService.php`
 
-- Genera y valida tokens JWT.
+Responsabilidad:
 
-### src/utils/pbkdf2Django.js
+- Indicadores economicos para el header y otros widgets del frontend.
 
-- Verifica/genera hashes compatibles con Django PBKDF2 SHA256.
+## 4) Utilidades PHP
 
-### src/utils/otpStore.js
+### `api/src/Database.php`
 
-- Persiste OTP en MySQL, invalida anteriores y marca uso único.
+- Crea y reutiliza conexiones a MySQL y Softland.
 
-### src/utils/mailer.js
+### `api/src/Security.php`
 
-- Envía correos mediante Microsoft Graph API.
+- Validaciones de negocio, token y parametros sensibles.
 
-### src/utils/stringHelpers.js
+### `api/src/Http.php`
 
-- Validaciones de mes/año y helper de trim.
+- Respuestas JSON, lectura de cuerpos y helpers HTTP.
 
-## 11) Frontend
+### `api/src/Pdf.php`
 
-### src/login/login.js
+- Generacion y entrega de documentos PDF.
 
-- Maneja formulario de login.
-- Llama a /api/auth/login.
-- Guarda token y usuario en storage.
+### `api/src/Env.php`
 
-### src/dashboard/dashboard.js
+- Carga variables de entorno.
 
-- Carga KPIs, gráfico, tablas y modal de detalle.
-- Llama endpoints de /api/dashboard.
+## 5) Arranque local
 
-### src/dashboard/notificaciones-ui.js
+El proyecto ahora puede levantarse con PHP:
 
-- Campana de notificaciones con polling cada 30s.
-- Llama endpoints de /api/notificaciones.
+- `npm start`
+- `npm run dev`
 
-### src/ventas/ventas.js
+Ambos usan `router.php`, que enruta:
 
-- KPIs de ventas, tabla paginada, gráfico y detalle de folio.
-- Llama endpoints de /api/ventas.
+- `/api/*` hacia `api/index.php`
+- el frontend estatico hacia `src/modulo`
 
-### src/recuperar-password/recuperar.js
+## 6) Estado de la migracion
 
-- Flujo visual de recuperación por pasos.
-- Llama endpoints /api/auth/recuperar, /verificar-otp, /nueva-password.
-
-### src/assets/js/inactividad.js
-
-- Control global de inactividad por localStorage.
-- Cierra sesión automáticamente al vencer temporizador.
-
-## 12) Pruebas
-
-- Existe configuración de Jest y ESLint.
-- Parte importante de tests está vacía o mínima.
-- Tests activos relevantes: tests/dashboard.test.js y tests/models/venta.test.js.
-
-## 13) Recomendaciones para legibilidad futura
-
-1. Mantener comentario de cabecera en cada archivo con: responsabilidad, entradas y fuentes de datos.
-2. Documentar en cada endpoint qué middleware lo protege.
-3. En modelos, comentar siempre tabla origen y columnas críticas.
-4. Mantener contrato de respuesta JSON consistente: { ok, data/error }.
+El backend principal ya fue reemplazado por PHP y el arranque Node antiguo fue retirado del repositorio.
