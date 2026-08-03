@@ -6,8 +6,8 @@
   "main": "index.php",
   "type": "commonjs",
   "scripts": {
-    "start": ".\\.tools\\php\\php.exe -S 127.0.0.1:8000 -t . router.php",
-    "dev": ".\\.tools\\php\\php.exe -S 127.0.0.1:8000 -t . router.php",
+    "start": "php -S 127.0.0.1:8000 -t . router.php",
+    "dev": "php -S 127.0.0.1:8000 -t . router.php",
     "lint": "eslint .",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests",

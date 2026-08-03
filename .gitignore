@@ -1,9 +1,17 @@
 node_modules/
 coverage/
 dist/
+.tools/
 .env
+.env.*
+!.env.example
 *.log
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+vendor/
+storage/logs/*
+storage/cache/*
+storage/uploads/*
+storage/reports/*
