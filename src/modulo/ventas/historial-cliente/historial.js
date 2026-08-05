@@ -87,6 +87,10 @@
     return row.Email || row.email || row.EmailAux || row.emailAux || row.MAIL || row.Mail || '';
   }
 
+  function nombreCliente(row) {
+    return String(row?.NomAux || row?.nombre || row?.CodAux || row?.codAux || '').trim();
+  }
+
   // ── Sidebar ──────────────────────────────────────────────────────────────
   const MODULOS = [
     { nombre: 'Dashboard',           icon: '\uD83C\uDFE0', url: '../dashboard/index.html',                        area: null },
@@ -386,7 +390,7 @@
           data-tel="${escHtml(c.FonAux1 || '')}"
           data-email="${escHtml(extraerEmail(c))}">
           <span class="hist-ac-codigo">${escHtml(c.CodAux)}</span>
-          <span class="hist-ac-nombre">${escHtml(c.NomAux)}</span>
+          <span class="hist-ac-nombre">${escHtml(nombreCliente(c))}</span>
         </li>`).join('');
       show('listaClientes');
       lista.querySelectorAll('li[data-cod]').forEach(li => {
@@ -425,7 +429,7 @@
     if (lista) lista.innerHTML = '';
     if (chip) {
       const chipNombre = document.getElementById('clienteChipNombre');
-      if (chipNombre) chipNombre.textContent = `${cod}  \u2014  ${nom}`;
+      if (chipNombre) chipNombre.textContent = `${cod}  \u2014  ${nom || cod}`;
       show('clienteChip');
     }
     if (btnBus) btnBus.disabled = false;

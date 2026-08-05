@@ -12,6 +12,7 @@ Fecha de auditoría: `2026-08-03`
 - Se validaron los consumidores reales del frontend mediante `fetch()` y referencias internas.
 - Se marcaron como duplicadas las rutas PHP que tienen dos implementaciones activas o una implementación activa y otra inalcanzable.
 - Se marcó como obsoleto todo lo que no tiene consumo real o quedó reemplazado por otra capa.
+- Se centralizaron helpers repetidos de usuario, códigos de vendedor, fechas y acceso a Softland en `api/src/SharedServiceHelpers.php`.
 
 ## Matriz de equivalencia
 
@@ -30,14 +31,14 @@ Fecha de auditoría: `2026-08-03`
 | dashboard | GET | `/api/dashboard/evolucion` | `src/routes/dashboard.ajustes.js` | `api/src/AnalyticsService.php::evolucion()` | `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Serie mensual compatible | Mantener |
 | dashboard | GET | `/api/dashboard/vendedores` | `src/routes/dashboard.ajustes.js` | `api/src/AnalyticsService.php::vendedores()` | `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Totales y porcentaje de descuento calculados en PHP | Mantener |
 | dashboard | GET | `/api/dashboard/ventas-mes` | `src/routes/dashboard.ajustes.js` | `api/src/AnalyticsService.php::ventasMes()` + `api/index.php` | `src/modulo/ventas/dashboard/dashboard.js`, `src/modulo/ventas/ventas/ventas.js`, `src/assets/js/indicadores-header.js` | Migrado con diferencias | Antes devolvía descuento en cero; ahora se calcula desde lista vs cobrado | Validar con Softland real y comparar con Node |
-| dashboard | GET | `/api/dashboard/detalle/{folio}` | `src/server.js` + `src/models/venta.js` | `api/src/AnalyticsService.php::detalleFolio()` | `src/modulo/ventas/dashboard/dashboard.js` | Migrado con diferencias | PHP calcula `precio_real`, `neto_real`, `dcto`; la versión Node usaba otra capa de detalle | Validar fórmula contra Node antes de borrar compatibilidad |
-| dashboard | GET | `/api/ventas/detalle/{folio}` | `src/routes/ventas.js` + `src/models/venta.js` | `api/src/AnalyticsService.php::detalleFolio()` | `src/modulo/ventas/ventas/ventas.js` | Duplicado | Misma lógica de detalle expuesta por dos rutas distintas | Unificar una sola ruta canónica |
+| dashboard | GET | `/api/dashboard/detalle/{folio}` | `src/server.js` + `src/models/venta.js` | Retirado en PHP | `src/modulo/ventas/dashboard/dashboard.js` | Obsoleto | El dashboard ya consume `/api/ventas/detalle/{folio}` | Retirar alias histórico |
+| ventas | GET | `/api/ventas/detalle/{folio}` | `src/routes/ventas.js` + `src/models/venta.js` | `api/src/AnalyticsService.php::detalleFolio()` | `src/modulo/ventas/ventas/ventas.js`, `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Ruta canónica para el detalle de folio | Mantener |
 | dashboard | GET | `/api/dashboard/vendedores-todos` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::vendedoresTodos()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Lista de vendedores para sharing | Mantener |
-| dashboard | GET | `/api/dashboard/compartidos` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::compartidos()` y `api/index.php` | `src/modulo/ventas/ventas/ventas.js`, `src/assets/js/indicadores-header.js` | Duplicado | Hay lógica paralela en `AnalyticsService` y `DashboardService`; una queda inalcanzable para GET | Consolidar una sola implementación |
-| dashboard | GET | `/api/dashboard/asignados` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::asignados()` y `api/src/DashboardService.php::asignados()` | `src/modulo/ventas/ventas/ventas.js`, `src/assets/js/indicadores-header.js` | Duplicado | `AnalyticsService` responde primero; `DashboardService` queda oculta para GET | Elegir una implementación y borrar la otra |
-| dashboard | GET | `/api/dashboard/compartir/lista` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::compartirLista()` y `api/src/DashboardService.php::compartirLista()` | `src/modulo/ventas/ventas/ventas.js` | Duplicado | GET queda absorbido por `AnalyticsService`; `DashboardService` queda parcialmente relegada a mutaciones | Unificar criterio y eliminar la ruta duplicada |
-| dashboard | GET | `/api/dashboard/categorias-vendedor` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::categoriasVendedor()` y `api/src/DashboardService.php::categoriasVendedor()` | `src/assets/js/indicadores-header.js`, `src/modulo/ventas/dashboard/dashboard.js` | Duplicado | La primera rama de `api/index.php` responde antes | Consolidar |
-| dashboard | GET | `/api/dashboard/clientes-resumen` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::clientesResumen()` y `api/src/DashboardService.php::clientesResumen()` | `src/modulo/ventas/dashboard/dashboard.js`, `src/assets/js/indicadores-header.js` | Duplicado | Misma salida, doble ruta lógica | Consolidar |
+| dashboard | GET | `/api/dashboard/compartidos` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::compartidos()` | `src/modulo/ventas/ventas/ventas.js`, `src/assets/js/indicadores-header.js` | Migrado y equivalente | Lectura centralizada en AnalyticsService | Mantener |
+| dashboard | GET | `/api/dashboard/asignados` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::asignados()` | `src/modulo/ventas/ventas/ventas.js`, `src/assets/js/indicadores-header.js` | Migrado y equivalente | Lectura centralizada en AnalyticsService | Mantener |
+| dashboard | GET | `/api/dashboard/compartir/lista` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::compartirLista()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Lectura centralizada en AnalyticsService | Mantener |
+| dashboard | GET | `/api/dashboard/categorias-vendedor` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::categoriasVendedor()` | `src/assets/js/indicadores-header.js`, `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Lectura centralizada en AnalyticsService | Mantener |
+| dashboard | GET | `/api/dashboard/clientes-resumen` | `src/routes/dashboard.panel.js` | `api/src/AnalyticsService.php::clientesResumen()` | `src/modulo/ventas/dashboard/dashboard.js`, `src/assets/js/indicadores-header.js` | Migrado y equivalente | Lectura centralizada en AnalyticsService | Mantener |
 | cartera | GET | `/api/cartera` | `src/routes/cartera.js` | `api/src/AnalyticsService.php::cartera()` | `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Estructura de KPIs y listados compatible | Mantener |
 | ventas | GET | `/api/ventas/` | `src/routes/ventas.js` | `api/src/VentasService.php::ventas()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Wrapper sobre `ventasMes()` | Mantener |
 | ventas | GET | `/api/ventas/kpis` | `src/routes/ventas.js` | `api/src/VentasService.php::kpis()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Calcula cobrado, lista y descuento | Mantener |
@@ -50,9 +51,9 @@ Fecha de auditoría: `2026-08-03`
 | ventas | GET | `/api/ventas/cliente-info` | `src/routes/ventas.js` | `api/src/VentasService.php::clienteInfo()` | `src/modulo/ventas/historial-cliente/historial.js` | Migrado y equivalente | Devuelve datos Softland del cliente | Mantener |
 | ventas | GET | `/api/ventas/historial-cliente` | `src/routes/ventas.js` | `api/src/VentasService.php::historialCliente()` | `src/modulo/ventas/historial-cliente/historial.js` | Migrado y equivalente | Mantiene filtros por fecha | Mantener |
 | ventas | GET | `/api/ventas/folio/{folio}` | `src/routes/ventas.js` | `api/src/VentasService.php::folio()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Devuelve subtotal y descuento del encabezado | Mantener |
-| ventas | GET | `/api/ventas/detalle/{folio}` | `src/routes/ventas.js` | `api/src/VentasService.php::detalle()` -> `AnalyticsService::detalleFolio()` | `src/modulo/ventas/ventas/ventas.js` | Duplicado | Misma información expuesta por ventas y dashboard | Definir ruta canónica y retirar la duplicada |
+| ventas | GET | `/api/ventas/detalle/{folio}` | `src/routes/ventas.js` | `api/src/VentasService.php::detalle()` -> `AnalyticsService::detalleFolio()` | `src/modulo/ventas/ventas/ventas.js`, `src/modulo/ventas/dashboard/dashboard.js` | Migrado y equivalente | Ruta canónica para el detalle de folio | Mantener |
 | ventas | GET | `/api/ventas/descuentos` | `src/routes/ventas.js` | `api/src/VentasService.php::descuentos()` | `src/modulo/ventas/ventas/ventas.js` | Migrado con diferencias | Campo `data` reutiliza vendedores para descuento global | Validar si el frontend lo sigue consumiendo |
-| ventas | GET | `/api/ventas/confirmacion-estado` | `src/routes/ventas.js` + `src/models/confirmacion.js` | `api/src/SalesService.php::confirmacionEstado()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Respuesta de estado de confirmación mensual | Mantener |
+| ventas | GET | `/api/ventas/confirmacion-estado` | `src/routes/ventas.js` + `src/models/confirmacion.js` | Eliminado en PHP | Sin consumo frontend actual | Obsoleto | El alias quedó sin consumo real tras la limpieza de ventas | Retirado |
 | ventas | POST | `/api/ventas/confirmar` | `src/routes/ventas.js` | `api/src/SalesService.php::confirmar()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Genera PDF y registra confirmación | Mantener y probar PDF |
 | ventas | GET | `/api/ventas/confirmacion/{id}/pdf` | `src/routes/ventas.js` + `src/utils/pdfConfirmacion.js` | `api/src/SalesService.php::getPdf()` + `api/src/Pdf.php` | `src/modulo/ventas/ventas/ventas.js` | Migrado con diferencias | Ya no depende de Puppeteer; usa PDF PHP | Validar salida visual y permisos |
 | ventas | GET | `/api/ventas/compartidas/confirmacion` | `src/routes/ventas.js` | `api/src/SalesService.php::sharedConfirmationState()` | `src/modulo/ventas/ventas/ventas.js` | Migrado y equivalente | Estado de confirmación compartida | Mantener |
@@ -66,28 +67,24 @@ Fecha de auditoría: `2026-08-03`
 | rrhh | GET | `/api/rrhh/confirmaciones`, `/confirmaciones/{id}/pdf` | `src/routes/rrhh.js` | `api/src/RrhhService.php::route()` | `src/modulo/rrhh/rrhh/rrhh.js` | Migrado y equivalente | PDF servido desde PHP con `Content-Type: application/pdf` | Mantener |
 | rrhh | GET/PATCH | `/api/rrhh/reportes-compartidos`, `/reportes-compartidos/{id}`, `/reportes-compartidos/{id}/validar`, `/reportes-compartidos/{id}/rechazar`, `/ventas-compartidas/revision` | `src/routes/rrhh.js` | `api/src/RrhhService.php::route()` | `src/modulo/rrhh/reportes-compartidos/reportes-compartidos.js` | Migrado y equivalente | Conserva flujo de revisión y estados | Mantener |
 | vendedores | GET/POST/PUT/DELETE | `/api/vendedores/{id}/contrato`, `/api/vendedores/{id}/rut`, `/api/vendedores/{id}/info` | `src/routes/vendedores.js` | `api/src/VendedoresService.php::route()` | Administración y módulos de vendedor | Migrado y equivalente | Soporta stream de archivo/PDF | Mantener y proteger rutas de archivo |
-| infraestructura | N/A | `api/routes/*` | No existía como capa Node separada | No existe aún; todo vive en `api/index.php` | N/A | Parcial | El front controller funciona, pero las rutas no están modularizadas | Extraer `api/routes/*.php` por módulo en fase 3 |
-| infraestructura | N/A | `.tools/php/` | No aplica | No aplica | N/A | Obsoleto | Binarios de PHP para Windows quedaron versionados dentro del repo | Eliminar del control de versiones y agregar a `.gitignore` |
+| infraestructura | N/A | `api/routes/*` | No existía como capa Node separada | `api/index.php` + `api/src/ApiApplication.php` | N/A | Migrado | El front controller quedó delgado y el despacho quedó encapsulado en `ApiApplication` | Mantener y seguir extrayendo si aparecen nuevos módulos |
+| infraestructura | N/A | `.tools/php/` | No aplica | No aplica | N/A | Resuelto | La carpeta local ya está ignorada y no aparece como rastreada en Git | Mantener fuera del control de versiones |
 | infraestructura | N/A | `socket.io` / WebSocket | `src/realtime/setup.js`, `src/realtime/socketHub.js`, `src/server.js` | No aplica | `src/assets/js/realtime-client.js` hoy hace polling | Obsoleto | Ya no hay uso residual de Socket.IO en la capa PHP | Eliminar runtime Node de realtime y mantener polling HTTP |
 | infraestructura | N/A | `puppeteer` | `src/utils/pdfConfirmacion.js` y dependencias antiguas del stack Node | Reemplazado por `api/src/Pdf.php` y `SalesService.php` | Flujos de PDF | Obsoleto | La generación de PDF ya no depende de Node | Retirar dependencias Node de PDF cuando se complete la equivalencia |
 
 ## Hallazgos transversales
 
-- La API PHP actual todavía está centralizada en `api/index.php`; la extracción a `api/routes/*.php` sigue pendiente.
-- Hay duplicidades reales en:
-  - `/api/dashboard/asignados`
-  - `/api/dashboard/compartidos`
-  - `/api/dashboard/categorias-vendedor`
-  - `/api/dashboard/clientes-resumen`
-  - `/api/dashboard/compartir/lista`
-  - `/api/dashboard/detalle/{folio}` y `/api/ventas/detalle/{folio}`
+- La API PHP ya no centraliza toda la lógica en `api/index.php`; el despacho quedó encapsulado en `api/src/ApiApplication.php` y las rutas están separadas por módulo en `api/routes/*.php`.
+- Ya no quedan duplicidades reales de lectura en dashboard/ventas; el detalle quedó canonizado en `/api/ventas/detalle/{folio}`.
+- Los helpers comunes de `AnalyticsService`, `DashboardService`, `SalesService` y `VentasService` ya quedaron consolidados; ahora el foco es retirar código muerto y terminar de unificar detalle de folio.
 - El frontend sigue funcionando con polling HTTP para alertas y mensajería, sin `socket.io` activo en runtime.
 - No se detectó uso runtime de `puppeteer` en la API PHP actual; los PDFs ya se generan en PHP.
-- `.tools/php/` está versionado dentro del repositorio y debe sacarse del control de versiones antes de una entrega final.
+- `.tools/php/` quedó fuera del control de versiones y debe permanecer ignorado.
 
 ## Archivos y artefactos a revisar en la siguiente fase
 
 - `api/index.php`
+- `api/src/ApiApplication.php`
 - `api/src/AnalyticsService.php`
 - `api/src/DashboardService.php`
 - `api/src/VentasService.php`
@@ -97,6 +94,5 @@ Fecha de auditoría: `2026-08-03`
 - `api/src/NotificacionesService.php`
 - `api/src/RrhhService.php`
 - `api/src/VendedoresService.php`
+- `api/src/SharedServiceHelpers.php`
 - `.tools/php/`
-- `estructura.txt`
-

@@ -7,12 +7,15 @@
     conversaciones: [],
     directorio: { usuarios: [], areas: [] },
     onlineUsers: new Set(),
+    lastMessageIds: new Map(),
+    drafts: new Map(),
     conversacionActivaId: null,
     mensajesActivos: [],
     search: '',
     panelActivo: 'usuarios',
     mobileView: 'list',
     cargandoMensajes: false,
+    activeRefreshTimer: null,
   };
 
   const el = {};
@@ -128,6 +131,13 @@
     return `${prefix}${conversation.ultimo_mensaje.cuerpo}`;
   }
 
+  function conversationNewMessageLabel(conversation) {
+    const unread = Number(conversation?.no_leidos || 0);
+    if (!unread || !conversation?.ultimo_mensaje) return '';
+    const sender = conversation.ultimo_mensaje.remitente_nombre || 'Usuario';
+    return unread === 1 ? `Nuevo de ${sender}` : `${unread} nuevos de ${sender}`;
+  }
+
   function conversationAvatar(conversation) {
     return initials(conversationTitle(conversation));
   }
@@ -189,6 +199,25 @@
 
   function conversationPresenceLabel(conversation) {
     return conversationOnlineInfo(conversation).label;
+  }
+
+  function showIncomingMessageToast(conversation, message) {
+    const notifier = window.GICOTEXRealtime?.showToast;
+    if (typeof notifier !== 'function') return;
+    const sender = message?.remitente_nombre || 'Usuario';
+    const title = `Nuevo mensaje de ${sender}`;
+    const body = `${conversationTitle(conversation)}: ${String(message?.cuerpo || '').slice(0, 120)}`;
+    notifier(title, body);
+  }
+
+  function rememberConversationLastMessage(conversationId, messages = []) {
+    const id = Number(conversationId);
+    const latest = Array.isArray(messages) && messages.length ? messages[messages.length - 1] : null;
+    const latestId = Number(latest?.id || 0);
+    if (id > 0 && latestId > 0) {
+      state.lastMessageIds.set(id, latestId);
+    }
+    return latest;
   }
 
   function isNearBottom(container) {
@@ -342,10 +371,11 @@
     el.conversationList.innerHTML = conversaciones.map(conversation => {
       const active = Number(conversation.id) === Number(state.conversacionActivaId);
       const unread = Number(conversation.no_leidos || 0);
+      const newLabel = conversationNewMessageLabel(conversation);
       const presenceLabel = conversationPresenceLabel(conversation);
       const presenceClass = conversationPresenceClass(conversation);
       return `
-        <button type="button" class="conversation-item ${active ? 'active' : ''}" data-conversation-id="${conversation.id}">
+        <button type="button" class="conversation-item ${active ? 'active' : ''} ${unread ? 'has-new-message' : ''}" data-conversation-id="${conversation.id}">
           <div class="conversation-avatar">${escapeHtml(conversationAvatar(conversation))}</div>
           <div>
             <div class="conversation-meta">
@@ -360,6 +390,7 @@
             <div class="conversation-snippet">${escapeHtml(conversationSnippet(conversation))}</div>
           </div>
           <div class="conversation-badges">
+            ${newLabel ? `<span class="badge badge--new">${escapeHtml(newLabel)}</span>` : ''}
             ${unread ? `<span class="badge badge--unread">${unread}</span>` : ''}
             ${conversation.silenciada ? '<span class="badge badge--muted">Silenciada</span>' : ''}
           </div>
@@ -373,6 +404,7 @@
   }
 
   function renderMessages() {
+    const previousScrollTop = el.messagesFeed?.scrollTop || 0;
     if (!state.conversacionActivaId) {
       state.mobileView = 'list';
       syncMobileChatView();
@@ -446,6 +478,8 @@
 
     if (stickToBottom) {
       el.messagesFeed.scrollTop = el.messagesFeed.scrollHeight;
+    } else if (previousScrollTop > 0) {
+      el.messagesFeed.scrollTop = previousScrollTop;
     }
 
     syncMobileChatView();
@@ -477,6 +511,13 @@
   async function loadConversations() {
     const data = await api('/conversaciones');
     state.conversaciones = Array.isArray(data?.data) ? data.data : [];
+    state.conversaciones.forEach(conversation => {
+      const latest = conversation?.ultimo_mensaje;
+      const latestId = Number(latest?.id || 0);
+      if (latestId > 0) {
+        state.lastMessageIds.set(Number(conversation.id), latestId);
+      }
+    });
 
     if (state.conversacionActivaId) {
       const stillExists = state.conversaciones.some(item => Number(item.id) === Number(state.conversacionActivaId));
@@ -519,7 +560,11 @@
     try {
       const data = await api(`/conversaciones/${conversationId}/mensajes`);
       state.conversacionActivaId = Number(conversationId);
-      state.mensajesActivos = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+      const mensajes = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+      const conversation = data?.data?.conversacion || state.conversaciones.find(item => Number(item.id) === Number(conversationId));
+      const previousLastId = Number(state.lastMessageIds.get(Number(conversationId)) || 0);
+      const latest = rememberConversationLastMessage(conversationId, mensajes);
+      state.mensajesActivos = mensajes;
 
       const updatedConversation = data?.data?.conversacion;
       if (updatedConversation) {
@@ -531,6 +576,10 @@
             participantes: updatedConversation.participantes || state.conversaciones[index].participantes || [],
           };
         }
+      }
+
+      if (latest && previousLastId > 0 && Number(latest.id || 0) > previousLastId && Number(latest.remitente_id) !== Number(state.user?.id)) {
+        showIncomingMessageToast(conversation || updatedConversation || {}, latest);
       }
 
       renderConversationList();
@@ -589,11 +638,26 @@
         body: JSON.stringify({ cuerpo: body }),
       });
       el.messageInput.value = '';
+      state.drafts.delete(Number(conversationId));
       await loadMessages(conversationId, { silent: true });
       await loadConversations();
     } catch (error) {
       alert(error.message);
     }
+  }
+
+  function startActiveConversationAutoRefresh() {
+    if (state.activeRefreshTimer) {
+      clearInterval(state.activeRefreshTimer);
+    }
+
+    state.activeRefreshTimer = setInterval(() => {
+      if (!state.conversacionActivaId) return;
+      if (document.hidden) return;
+      if (document.activeElement === el.messageInput) return;
+      if (String(el.messageInput?.value || '').trim()) return;
+      loadMessages(state.conversacionActivaId, { silent: true }).catch(() => {});
+    }, 3500);
   }
 
   async function toggleFlag(flag) {
@@ -629,7 +693,9 @@
 
     await loadConversations();
     if (Number(state.conversacionActivaId) === conversationId) {
-      await loadMessages(conversationId, { silent: true });
+      if (document.activeElement !== el.messageInput && !String(el.messageInput?.value || '').trim()) {
+        await loadMessages(conversationId, { silent: true });
+      }
     }
     await loadHeaderBadge();
   }
@@ -649,7 +715,9 @@
     refreshUnreadBadge: () => loadHeaderBadge(),
     refreshPresence: () => loadPresence(),
     refreshActiveConversation: () => (state.conversacionActivaId
-      ? loadMessages(state.conversacionActivaId, { silent: true })
+      ? (document.activeElement === el.messageInput || String(el.messageInput?.value || '').trim()
+        ? Promise.resolve()
+        : loadMessages(state.conversacionActivaId, { silent: true }))
       : Promise.resolve()),
     handleRealtimeChatEvent,
     handleRealtimePresenceEvent: handleRealtimePresenceUpdate,
@@ -688,13 +756,22 @@
     });
 
     el.composerForm.addEventListener('submit', sendMessage);
+    el.messageInput.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      event.preventDefault();
+      el.composerForm.requestSubmit();
+    });
+    el.messageInput.addEventListener('input', () => {
+      if (!state.conversacionActivaId) return;
+      state.drafts.set(Number(state.conversacionActivaId), el.messageInput.value);
+    });
     el.btnToggleSilencio.addEventListener('click', () => toggleFlag('silenciada'));
     el.btnToggleArchivo.addEventListener('click', () => toggleFlag('archivada'));
 
     el.btnLogout.addEventListener('click', () => {
       localStorage.removeItem('token');
       sessionStorage.removeItem('texpro_user');
-      window.location.href = '/src/modulo/login/index.html';
+      window.location.href = '/src/modulo/varios/login/index.html';
     });
   }
 
@@ -730,15 +807,59 @@
     renderPanelTabs();
     syncSidebarLayout();
     syncMobileChatView();
+    startActiveConversationAutoRefresh();
+    window.addEventListener('focus', () => {
+      if (state.conversacionActivaId) {
+        if (document.activeElement !== el.messageInput && !String(el.messageInput?.value || '').trim()) {
+          loadMessages(state.conversacionActivaId, { silent: true }).catch(() => {});
+        }
+      }
+      loadHeaderBadge().catch(() => {});
+    }, { passive: true });
     window.addEventListener('resize', () => {
       syncSidebarLayout();
       syncMobileChatView();
     }, { passive: true });
 
-    await loadDirectory();
-    await loadConversations();
-    await loadPresence();
-    await loadHeaderBadge();
+    try {
+      await loadDirectory();
+    } catch (error) {
+      console.warn('[mensajeria] no se pudo cargar el directorio:', error.message);
+      el.conversationList.innerHTML = `
+        <div class="empty-state">
+          <div>
+            <h3>No se pudo cargar el directorio</h3>
+            <p>Revisa la conexión o vuelve a intentar más tarde.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      await loadConversations();
+    } catch (error) {
+      console.warn('[mensajeria] no se pudieron cargar las conversaciones:', error.message);
+      el.conversationList.innerHTML = `
+        <div class="empty-state">
+          <div>
+            <h3>No se pudieron cargar los chats</h3>
+            <p>Intenta actualizar la vista para reintentar la carga.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      await loadPresence();
+    } catch (error) {
+      console.warn('[mensajeria] no se pudo cargar presencia en línea:', error.message);
+    }
+
+    try {
+      await loadHeaderBadge();
+    } catch (error) {
+      console.warn('[mensajeria] no se pudo cargar el contador:', error.message);
+    }
 
     if (state.user?.id) {
       document.title = 'Texpro - Mensajería interna';

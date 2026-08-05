@@ -1,44 +1,43 @@
-# RSProyecto — Texpro Productos Químicos y Tratamiento de Aguas
+﻿# RSProyecto â€” Texpro Productos QuÃ­micos y Tratamiento de Aguas
 
-Sistema de centralización de información para las áreas operativas de Texpro.
+Sistema de centralizaciÃ³n de informaciÃ³n para las Ã¡reas operativas de Texpro.
 
-## Módulos
+## MÃ³dulos
 
-| Módulo         | Estado       |
+| MÃ³dulo         | Estado       |
 |----------------|--------------|
-| Ventas         | 🚧 En desarrollo |
-| Bodega         | ⏳ Pendiente |
-| Producción     | ⏳ Pendiente |
-| Laboratorio    | ⏳ Pendiente |
-| Facturación    | ⏳ Pendiente |
-| Contabilidad   | ⏳ Pendiente |
-| RRHH           | ⏳ Pendiente |
-| Cobranza       | ⏳ Pendiente |
-| Gerencia       | ⏳ Pendiente |
+| Ventas         | Backend PHP migrado |
+| Bodega         | â³ Pendiente |
+| ProducciÃ³n     | â³ Pendiente |
+| Laboratorio    | â³ Pendiente |
+| FacturaciÃ³n    | â³ Pendiente |
+| Contabilidad   | â³ Pendiente |
+| RRHH           | â³ Pendiente |
+| Cobranza       | â³ Pendiente |
+| Gerencia       | â³ Pendiente |
 
 ## CI/CD
 
-Este proyecto usa **GitHub Actions** para integración continua.
+Este proyecto ya no depende de Node para su despliegue. La entrega se realiza directo con PHP.
+La capa PHP ya cubre autenticación, dashboard, ventas, alertas, mensajería, RRHH, notificaciones, vendedores e indicadores.
 
-- Lint y formato de código en cada `push` y `pull_request`
-- Ejecución de tests automáticos por módulo
-- Reporte de cobertura de código
+## Stack TecnolÃ³gico
 
-## Stack Tecnológico
-
-- **Frontend:** HTML5 / CSS3 / JavaScript
+- **Frontend:** HTML5 / CSS3 / JavaScript del navegador
 - **Backend:** PHP 8.x
-- **CI:** GitHub Actions
-- **Testing:** Jest
 
 ## Backend PHP
 
-La API principal ya corre en PHP dentro de `/api` y está preparada para subirla a un hosting compartido con Apache/PHP como `hn.cl`.
+La API principal ya corre en PHP dentro de `/api` y estÃ¡ preparada para subirla a un hosting compartido con Apache/PHP como `hn.cl`.
 
 ### Arranque local
 
-- `npm start` levanta el servidor PHP embebido usando `router.php`
-- `npm run dev` usa el mismo arranque local
+- En Windows local:
+  - `.\.tools\php\php.exe -S 127.0.0.1:8000 -t . router.php` 
+- En un entorno con PHP instalado:
+  - `php -S 127.0.0.1:8000 -t . router.php`
+
+Los endpoints históricos del backend Node fueron reemplazados por servicios PHP equivalentes y por un front controller único.
 
 ### Rutas principales
 
@@ -63,7 +62,10 @@ La API principal ya corre en PHP dentro de `/api` y está preparada para subirla
 ### Requisitos del hosting
 
 - PHP 8.1 o superior
-- Extensión `pdo_mysql`
-- Extensión `curl`
-- Para Softland: extensión `pdo_sqlsrv` o `sqlsrv`
-- Acceso saliente HTTPS a Microsoft Graph si se usa recuperación por correo
+- ExtensiÃ³n `pdo_mysql`
+- ExtensiÃ³n `curl`
+- Para Softland: extensiÃ³n `pdo_sqlsrv` o `sqlsrv`
+- Acceso saliente HTTPS a Microsoft Graph si se usa recuperaciÃ³n por correo
+
+
+

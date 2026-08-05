@@ -45,5 +45,5 @@ CREATE TABLE IF NOT EXISTS mensaje (
   KEY idx_mensaje_remitente_id (remitente_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- La mensajeria interna no se registra como menu del sidebar.
--- El acceso se expone desde la cabecera global y la ruta directa del modulo.
+-- La mensajeria interna se registra como menu del grupo General.
+-- El acceso sigue disponible desde la cabecera global y la ruta directa del modulo.

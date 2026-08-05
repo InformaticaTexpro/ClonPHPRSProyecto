@@ -51,7 +51,9 @@ function get_bearer_token(): ?string
     if (preg_match('/^Bearer\s+(.+)$/i', $header, $matches)) {
         return trim($matches[1]);
     }
-    return null;
+
+    $cookieToken = trim((string)($_COOKIE['texpro_token'] ?? ''));
+    return $cookieToken !== '' ? $cookieToken : null;
 }
 
 function require_bearer_token(): string
@@ -66,6 +68,30 @@ function require_bearer_token(): string
 function require_auth_payload(): array
 {
     return Security::jwt_decode(require_bearer_token(), (string)env('JWT_SECRET', ''));
+}
+
+function set_auth_cookie(string $token): void
+{
+    $secure = str_starts_with((string)env('FRONTEND_URL', ''), 'https://');
+    setcookie('texpro_token', $token, [
+        'expires' => 0,
+        'path' => '/',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function clear_auth_cookie(): void
+{
+    $secure = str_starts_with((string)env('FRONTEND_URL', ''), 'https://');
+    setcookie('texpro_token', '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 function require_current_user_id(): int

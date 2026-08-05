@@ -265,8 +265,41 @@ final class AdminService
 
     private function loadMenus(PDO $pdo): array
     {
+        $this->ensureCommonMenus($pdo);
         $rows = $pdo->query('SELECT id, codigo, nombre, url, icono, grupo, orden, activo FROM menu ORDER BY grupo ASC, orden ASC, nombre ASC')->fetchAll(PDO::FETCH_ASSOC);
         return array_map(fn(array $row): array => $this->mapMenuRow($row), $rows ?: []);
+    }
+
+    private function ensureCommonMenus(PDO $pdo): void
+    {
+        $menus = [
+            ['codigo' => 'general', 'nombre' => 'General', 'grupo' => 'General', 'url' => '/src/modulo/general/general/index.html', 'icono' => '🧭', 'orden' => 0],
+            ['codigo' => 'alertas', 'nombre' => 'Alertas', 'grupo' => 'General', 'url' => '/src/modulo/varios/alertas/index.html', 'icono' => '🔔', 'orden' => 1],
+            ['codigo' => 'mensajeria', 'nombre' => 'Chat', 'grupo' => 'General', 'url' => '/src/modulo/varios/mensajeria/index.html', 'icono' => '💬', 'orden' => 2],
+        ];
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)'
+        );
+
+        foreach ($menus as $menu) {
+            $stmt->execute([
+                $menu['codigo'],
+                $menu['nombre'],
+                $menu['grupo'],
+                $menu['url'],
+                $menu['icono'],
+                $menu['orden'],
+            ]);
+        }
     }
 
     private function loadMenuById(PDO $pdo, int $menuId): ?array
@@ -310,6 +343,7 @@ final class AdminService
              FROM perfil_menu pm
              INNER JOIN menu m ON m.id = pm.menu_id
              WHERE pm.perfil_id IN ($placeholders)
+               AND pm.activo = 1
              ORDER BY pm.perfil_id ASC, m.orden ASC, m.nombre ASC"
         );
         $stmtMenus->execute($ids);
@@ -1903,16 +1937,37 @@ final class AdminService
                 throw new RuntimeException('Debes indicar al menos un menú', 400);
             }
 
-            $stmt = $pdo->query('SELECT id, area FROM usuario WHERE is_active = 1');
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            $targets = array_values(array_filter($users, fn(array $user): bool => $this->normalizeKey($user['area'] ?? '') === $area));
-            foreach ($targets as $user) {
-                $this->syncUserMenus($pdo, (int)$user['id'], $menus);
+            $areaRow = $this->loadAreaByCode($pdo, $area);
+            if (!$areaRow) {
+                throw new RuntimeException('Área no encontrada', 404);
+            }
+            $perfilBaseId = (int)($areaRow['perfil_base_id'] ?? 0);
+            if ($perfilBaseId <= 0) {
+                throw new RuntimeException('El área no tiene perfil base asociado', 400);
+            }
+            $perfil = $this->loadProfileById($pdo, $perfilBaseId);
+            if (!$perfil) {
+                throw new RuntimeException('Perfil base del área no encontrado', 404);
             }
 
+            $pdo->prepare('UPDATE perfil_menu SET activo = 0 WHERE perfil_id = ?')->execute([$perfilBaseId]);
+            $stmt = $pdo->prepare(
+                'INSERT INTO perfil_menu (perfil_id, menu_id, activo)
+                 VALUES (?, ?, 1)
+                 ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
+            );
+            foreach ($menus as $menu) {
+                $stmt->execute([$perfilBaseId, $menu['id']]);
+            }
+
+            $stmt = $pdo->prepare('SELECT COUNT(*) AS total FROM usuario WHERE is_active = 1 AND LOWER(TRIM(COALESCE(area, ""))) = LOWER(TRIM(COALESCE(?, "")))');
+            $stmt->execute([$areaRow['codigo']]);
+            $usersCount = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+
             return [
-                'usuarios' => count($targets),
-                'asignaciones' => count($targets) * count($menus),
+                'usuarios' => $usersCount,
+                'perfil' => $perfil,
+                'asignaciones' => count($menus),
                 'menus' => $menus,
             ];
         });

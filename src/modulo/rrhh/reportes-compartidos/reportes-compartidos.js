@@ -448,19 +448,22 @@
     const esValidado = detalle?.estado === 'validado_rrhh';
     const esRechazado = detalle?.estado === 'rechazado_rrhh';
 
-    btnValidar.hidden = !esPendiente;
-    btnRechazar.hidden = !esPendiente;
-    btnValidar.disabled = !esPendiente;
-    btnRechazar.disabled = !esPendiente;
+    btnValidar.textContent = esRechazado ? 'Cambiar a validado' : 'Validar reporte';
+    btnRechazar.textContent = esValidado ? 'Cambiar a rechazado' : 'Rechazar reporte';
+
+    btnValidar.hidden = esValidado;
+    btnRechazar.hidden = esRechazado;
+    btnValidar.disabled = false;
+    btnRechazar.disabled = false;
 
     if (esPendiente) {
       note.textContent = 'Desde este mismo modal puedes validar o rechazar el reporte sin abrir pantallas adicionales.';
       note.className = 'rrhh-detail-actions__note';
     } else if (esValidado) {
-      note.textContent = 'Este reporte ya fue validado por RRHH.';
+      note.textContent = 'Este reporte ya fue validado por RRHH. Si necesitas corregirlo, puedes cambiar su estado a rechazado desde aquí.';
       note.className = 'rrhh-detail-actions__note';
     } else if (esRechazado) {
-      note.textContent = 'Este reporte fue rechazado por RRHH.';
+      note.textContent = 'Este reporte fue rechazado por RRHH. Si corresponde, puedes cambiarlo a validado desde aquí.';
       note.className = 'rrhh-detail-actions__note';
     } else {
       note.textContent = '';
@@ -546,6 +549,20 @@
       || ''
     ).trim();
     return label || `Usuario ${item?.id || item?.usuario_id || ''}`.trim();
+  }
+
+  function normalizeClientLabel(item, fallback = '') {
+    const label = String(
+      item?.cliente
+      || item?.nom_aux
+      || item?.NomAux
+      || item?.nombre_cliente
+      || item?.razon_social
+      || item?.folio
+      || fallback
+      || ''
+    ).trim();
+    return label || '—';
   }
 
   function normalizeVendorCode(value) {
@@ -775,9 +792,9 @@
       <tr data-report-id="${escapeHtml(reportId)}" class="${selected ? 'is-selected' : ''}">
         <td class="mono">${escapeHtml(row.folio)}</td>
         <td>${escapeHtml(formatDate(row.fecha))}</td>
-        <td>${escapeHtml(row.cliente || '—')}</td>
-        <td>${escapeHtml(row.vendedor_origen || '—')}</td>
-        <td>${escapeHtml(row.vendedor_asignado || '—')}</td>
+        <td>${escapeHtml(normalizeClientLabel(row, row.folio))}</td>
+        <td>${escapeHtml(row.vendedor_origen || row.vendedor_asignador || row.cod_vendedor_softland || '—')}</td>
+        <td>${escapeHtml(row.vendedor_asignado || row.nombre_vendedor_compartido || row.cod_vendedor_compartido || '—')}</td>
         <td class="numeric">${escapeHtml(formatPercent(row.porcentaje_participacion || 0))}</td>
         <td class="numeric">${escapeHtml(formatCurrency(row.monto_asignado || 0))}</td>
         <td><span class="status-pill ${row.existe_softland ? 'is-ok' : 'is-neutral'}">${row.existe_softland ? 'OK' : 'Pendiente'}</span></td>
@@ -815,7 +832,7 @@
       <tr>
         <td class="mono">${escapeHtml(row.folio)}</td>
         <td>${escapeHtml(formatDate(row.fecha))}</td>
-        <td>${escapeHtml(row.cliente || '—')}</td>
+        <td>${escapeHtml(normalizeClientLabel(row, row.folio))}</td>
         <td>${escapeHtml(row.vendedor_softland || row.cod_vendedor_softland || '—')}</td>
         <td class="numeric">${escapeHtml(formatCurrency(row.total_softland || 0))}</td>
         <td>${escapeHtml(row.cod_vendedor_softland || '—')}</td>
@@ -844,9 +861,9 @@
       <tr>
         <td class="mono">${escapeHtml(row.folio)}</td>
         <td>${escapeHtml(formatDate(row.fecha))}</td>
-        <td>${escapeHtml(row.cliente || '—')}</td>
-        <td>${escapeHtml(row.vendedor_asignador || '—')}</td>
-        <td>${escapeHtml(row.vendedor_asignado || '—')}</td>
+        <td>${escapeHtml(normalizeClientLabel(row, row.folio))}</td>
+        <td>${escapeHtml(row.vendedor_asignador || row.cod_vendedor_principal || '—')}</td>
+        <td>${escapeHtml(row.vendedor_asignado || row.nombre_vendedor_compartido || row.cod_vendedor_compartido || '—')}</td>
         <td class="numeric">${escapeHtml(formatPercent(row.porcentaje || 0))}</td>
         <td class="numeric">${escapeHtml(formatCurrency(row.monto_asignado || 0))}</td>
         <td class="mono">${escapeHtml(row.reporte_id || '—')}</td>
@@ -1116,16 +1133,35 @@
 
     const revisionQuery = buildServerQuery();
     const reportQuery = buildReportQuery();
+    const errores = [];
 
-    const [revision, reportes] = await Promise.all([
-      apiFetch(`/ventas-compartidas/revision?${new URLSearchParams(revisionQuery).toString()}`),
-      apiFetch(`/reportes-compartidos?${new URLSearchParams(reportQuery).toString()}`),
-    ]);
+    const revisionPromise = apiFetch(`/ventas-compartidas/revision?${new URLSearchParams(revisionQuery).toString()}`)
+      .catch(error => {
+        errores.push(`revisión: ${error.message}`);
+        return null;
+      });
+
+    const reportesPromise = apiFetch(`/reportes-compartidos?${new URLSearchParams(reportQuery).toString()}`)
+      .catch(error => {
+        errores.push(`reportes: ${error.message}`);
+        return null;
+      });
+
+    const [revision, reportes] = await Promise.all([revisionPromise, reportesPromise]);
 
     state.revision = revision;
-    state.reportes = Array.isArray(reportes.reportes) ? reportes.reportes : [];
+    state.reportes = Array.isArray(reportes?.reportes) ? reportes.reportes : [];
     rebuildVendorOptions();
     renderView();
+
+    if (errores.length) {
+      console.warn('[RRHH] carga parcial de revisión ventas compartidas:', errores.join(' | '));
+      if (errores.length === 1) {
+        alert(`Se cargó el módulo parcialmente. ${errores[0]}`);
+      } else {
+        alert(`Se cargó el módulo parcialmente. ${errores.join(' · ')}`);
+      }
+    }
   }
 
   function openInlineAction(tipo) {
@@ -1254,14 +1290,6 @@
       }
     });
 
-    $('btnRecargar2')?.addEventListener('click', async () => {
-      try {
-        await loadData();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
-
     const limpiarFiltros = async () => {
       if ($('filtroAnio')) $('filtroAnio').value = String(new Date().getFullYear());
       if ($('filtroMes')) $('filtroMes').value = String(new Date().getMonth() + 1);
@@ -1275,14 +1303,6 @@
     };
 
     $('btnLimpiarFiltros')?.addEventListener('click', async () => {
-      try {
-        await limpiarFiltros();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
-
-    $('btnLimpiarFiltros2')?.addEventListener('click', async () => {
       try {
         await limpiarFiltros();
       } catch (error) {

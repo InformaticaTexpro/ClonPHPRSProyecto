@@ -7,6 +7,7 @@ require_once __DIR__ . '/src/Database.php';
 require_once __DIR__ . '/src/Security.php';
 require_once __DIR__ . '/src/Pdf.php';
 require_once __DIR__ . '/src/Services.php';
+require_once __DIR__ . '/src/SharedServiceHelpers.php';
 require_once __DIR__ . '/src/AnalyticsService.php';
 require_once __DIR__ . '/src/SalesService.php';
 require_once __DIR__ . '/src/AdminService.php';
@@ -18,6 +19,7 @@ require_once __DIR__ . '/src/VendedoresService.php';
 require_once __DIR__ . '/src/DashboardService.php';
 require_once __DIR__ . '/src/VentasService.php';
 require_once __DIR__ . '/src/IndicadoresService.php';
+require_once __DIR__ . '/src/ApiApplication.php';
 
 $envPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env';
 if (is_file($envPath)) {

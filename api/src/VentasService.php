@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class VentasService
 {
+    use SharedServiceHelpers;
+
     public function __construct(
         private Database $db,
         private AnalyticsService $analytics
@@ -27,41 +29,6 @@ final class VentasService
             $method === 'GET' && $path === '/descuentos' => $this->descuentos($payload, $query),
             default => throw new RuntimeException('Ruta de ventas no encontrada', 404),
         };
-    }
-
-    private function currentUserId(array $payload): int
-    {
-        $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
-        if ($userId <= 0) {
-            throw new RuntimeException('Token inválido.', 401);
-        }
-        return $userId;
-    }
-
-    private function vendorCodes(array $payload): array
-    {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor FROM usuario_vendedor WHERE usuario_id = ?', [$this->currentUserId($payload)]);
-        return array_values(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows)));
-    }
-
-    private function monthYear(array $query): array
-    {
-        return Security::validate_mes_anio($query['mes'] ?? null, $query['anio'] ?? null);
-    }
-
-    private function asSoftlandPool(): PDO
-    {
-        return $this->db->softland();
-    }
-
-    private function buildInClause(array $values, array &$params): string
-    {
-        $placeholders = [];
-        foreach ($values as $value) {
-            $placeholders[] = '?';
-            $params[] = $value;
-        }
-        return implode(',', $placeholders);
     }
 
     private function buildCarteraExistsClause(string $codigosIn, string $aliasCliente = 'c'): string
@@ -211,14 +178,14 @@ final class VentasService
         $stmt = $softland->prepare(
             "SELECT TOP 40
                 c.CodAux,
-                RTRIM(c.NomAux) AS NomAux,
+                COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), RTRIM(c.CodAux)) AS NomAux,
                 RTRIM(c.FonAux1) AS FonAux1,
                 RTRIM(c.FonAux2) AS FonAux2,
                 RTRIM(c.EMail) AS Email
              FROM [PRODIN].[softland].[cwtauxi] c
              WHERE (RTRIM(c.NomAux) LIKE ? OR c.CodAux LIKE ?)
                AND {$this->buildCarteraExistsClause($in)}
-             ORDER BY RTRIM(c.NomAux)"
+             ORDER BY COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), RTRIM(c.CodAux))"
         );
         $stmt->execute(array_merge(["%{$qSafe}%", "%{$qSafe}%"], $codigos));
         return ['ok' => true, 'clientes' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
@@ -241,7 +208,7 @@ final class VentasService
         $stmt = $softland->prepare(
             "SELECT TOP 1
                 RTRIM(c.CodAux) AS rut,
-                RTRIM(c.NomAux) AS nombre,
+                COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), RTRIM(c.CodAux)) AS nombre,
                 RTRIM(c.FonAux1) AS telefono,
                 RTRIM(c.FonAux2) AS telefono2,
                 RTRIM(c.DirAux) AS direccion,
@@ -293,7 +260,7 @@ final class VentasService
         $stmt = $softland->prepare(
             "SELECT
                 c.CodAux,
-                RTRIM(c.NomAux) AS NomAux,
+                COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), RTRIM(c.CodAux)) AS NomAux,
                 RTRIM(c.FonAux1) AS FonAux1,
                 RTRIM(c.FonAux2) AS FonAux2,
                 RTRIM(c.EMail) AS Email,
@@ -324,7 +291,23 @@ final class VentasService
              ORDER BY h.Fecha DESC, m.CodProd"
         );
         $stmt->execute(array_merge([$codAux], $codigos, [$desde, $hasta]));
-        return ['ok' => true, 'historial' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return ['ok' => true, 'historial' => array_map(static function (array $row): array {
+            $cod = trim((string)($row['CodAux'] ?? ''));
+            $nom = trim((string)($row['NomAux'] ?? ''));
+            $row['CodAux'] = $cod;
+            $row['NomAux'] = $nom !== '' ? $nom : $cod;
+            $row['FONAux1'] = trim((string)($row['FONAux1'] ?? ''));
+            $row['FonAux2'] = trim((string)($row['FonAux2'] ?? ''));
+            $row['Email'] = trim((string)($row['Email'] ?? ''));
+            $row['Direccion'] = trim((string)($row['Direccion'] ?? ''));
+            $row['Ciudad'] = trim((string)($row['Ciudad'] ?? ''));
+            $row['CodVendedor'] = trim((string)($row['CodVendedor'] ?? ''));
+            $row['Fecha'] = trim((string)($row['Fecha'] ?? ''));
+            $row['CodProd'] = trim((string)($row['CodProd'] ?? ''));
+            $row['DetProd'] = trim((string)($row['DetProd'] ?? ''));
+            return $row;
+        }, $rows)];
     }
 
     private function folio(array $payload, string $folio, array $query): array

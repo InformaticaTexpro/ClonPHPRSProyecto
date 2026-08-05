@@ -3,12 +3,14 @@
 (function () {
   if (window.GICOTEXRealtime) return;
 
-  const POLL_MS = 60 * 1000;
+  const POLL_MS = 8 * 1000;
   const TOAST_WRAP_ID = 'gicotexRealtimeToasts';
   const REALTIME_STYLE_ID = 'gicotexRealtimeStyles';
 
   const state = {
     pollTimer: null,
+    unreadTotal: 0,
+    unreadInitialized: false,
   };
 
   function getToken() {
@@ -130,8 +132,21 @@
     try {
       const data = await fetchJson('/api/mensajeria/no-leidos');
       const total = Number(data?.data?.total || 0);
+      const previous = Number(state.unreadTotal || 0);
+      const initialized = state.unreadInitialized;
+      state.unreadTotal = total;
+      state.unreadInitialized = true;
       setBadge('unreadHeaderCount', total);
       setBadge('texproMensajeriaBadge', total);
+      if (initialized && total > previous) {
+        const delta = total - previous;
+        showToast(
+          'Nuevo mensaje',
+          delta === 1
+            ? 'Tienes un mensaje sin leer.'
+            : `Tienes ${delta} mensajes nuevos sin leer.`
+        );
+      }
     } catch (err) {
       console.warn('[realtime] chat badge:', err.message);
     }
@@ -157,9 +172,23 @@
     await Promise.all(apis.map(api => (typeof api.refreshPresence === 'function' ? api.refreshPresence() : Promise.resolve())));
   }
 
+  async function syncChatViews() {
+    const apis = [window.GICOTEXMensajeriaRealtime, window.GICOTEXMensajeriaWidgetRealtime].filter(Boolean);
+    await Promise.all(apis.map(api => {
+      const tasks = [];
+      if (typeof api.refreshConversations === 'function') tasks.push(api.refreshConversations());
+      if (typeof api.refreshActiveConversation === 'function') tasks.push(api.refreshActiveConversation());
+      if (typeof api.refreshUnreadBadge === 'function') tasks.push(api.refreshUnreadBadge());
+      return Promise.all(tasks);
+    }));
+  }
+
   function startPolling() {
     if (state.pollTimer) return;
-    state.pollTimer = setInterval(syncBadges, POLL_MS);
+    state.pollTimer = setInterval(() => {
+      syncBadges();
+      syncChatViews();
+    }, POLL_MS);
   }
 
   function stopPolling() {
@@ -175,7 +204,21 @@
   async function init() {
     await syncBadges();
     await syncPresence();
+    await syncChatViews();
     startPolling();
+
+    const refreshOnFocus = () => {
+      syncBadges();
+      syncPresence();
+      syncChatViews();
+    };
+
+    window.addEventListener('focus', refreshOnFocus, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshOnFocus();
+      }
+    }, { passive: true });
   }
 
   window.GICOTEXRealtime = {
@@ -185,6 +228,7 @@
     refreshChatBadge,
     refreshAlertBadge,
     syncPresence,
+    syncChatViews,
     startPolling,
     stopPolling,
     isConnected: () => false,

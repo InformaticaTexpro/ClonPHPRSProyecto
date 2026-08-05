@@ -73,6 +73,44 @@
     return Number(user?.id || user?.sub || user?.usuario_id || 0) || null;
   }
 
+  async function verificarAccesoAdmin() {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    if (!token) {
+      window.location.href = '/src/modulo/varios/login/index.html';
+      return null;
+    }
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.ok || !data?.user) {
+        throw new Error(data?.error || 'Sesión no disponible');
+      }
+
+      const user = data.user;
+      const menus = Array.isArray(user?.menus) ? user.menus : [];
+      const tieneAdmin = Boolean(user?.is_admin)
+        || menus.some(menu => normalizeKey(menu?.codigo) === ADMIN_MENU_CODE);
+
+      if (!tieneAdmin) {
+        window.location.href = '/src/modulo/varios/sin-acceso/index.html?modulo=Administración&from=/src/modulo/admin/admin/index.html';
+        return null;
+      }
+
+      const payload = JSON.stringify(user);
+      sessionStorage.setItem('texpro_user', payload);
+      localStorage.setItem('user', payload);
+      localStorage.setItem('usuario', payload);
+
+      return user;
+    } catch (error) {
+      window.location.href = '/src/modulo/varios/login/index.html';
+      return null;
+    }
+  }
+
   function normalizeText(value) {
     return String(value ?? '').trim();
   }
@@ -167,6 +205,7 @@
   function formatAreaLabel(value) {
     const key = normalizeKey(value);
     const labels = {
+      general: 'General',
       ventas: 'Ventas',
       produccion: 'Producción',
       bodega: 'Bodega',
@@ -184,16 +223,17 @@
   function buildSuggestions(areaCode) {
     const key = normalizeKey(areaCode);
     const map = {
-      ventas: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'alertas'],
-      produccion: ['produccion', 'bodega', 'alertas'],
-      bodega: ['bodega', 'alertas'],
-      'servicio-tecnico': ['servicio_tecnico', 'alertas'],
-      facturacion: ['facturacion', 'alertas'],
-      contabilidad: ['contabilidad', 'cobranza', 'alertas'],
-      rrhh: ['rrhh', 'alertas'],
-      gerencia: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'gerencia', 'alertas'],
-      administracion: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'produccion', 'bodega', 'servicio_tecnico', 'facturacion', 'rrhh', 'contabilidad', 'cobranza', 'administracion', 'alertas', 'gerencia'],
-      admin: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'produccion', 'bodega', 'servicio_tecnico', 'facturacion', 'rrhh', 'contabilidad', 'cobranza', 'administracion', 'alertas', 'gerencia'],
+      general: ['general', 'alertas', 'mensajeria'],
+      ventas: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'mensajeria'],
+      produccion: ['produccion', 'bodega', 'alertas', 'mensajeria'],
+      bodega: ['bodega', 'alertas', 'mensajeria'],
+      'servicio-tecnico': ['servicio_tecnico', 'alertas', 'mensajeria'],
+      facturacion: ['facturacion', 'alertas', 'mensajeria'],
+      contabilidad: ['contabilidad', 'cobranza', 'alertas', 'mensajeria'],
+      rrhh: ['rrhh', 'alertas', 'mensajeria'],
+      gerencia: ['ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'gerencia', 'alertas', 'mensajeria'],
+      administracion: ['general', 'ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'produccion', 'bodega', 'servicio_tecnico', 'facturacion', 'rrhh', 'contabilidad', 'cobranza', 'administracion', 'alertas', 'mensajeria', 'gerencia'],
+      admin: ['general', 'ventas_dashboard', 'ventas_asignadas', 'historial_cliente', 'produccion', 'bodega', 'servicio_tecnico', 'facturacion', 'rrhh', 'contabilidad', 'cobranza', 'administracion', 'alertas', 'mensajeria', 'gerencia'],
     };
     return map[key] || [];
   }
@@ -1144,10 +1184,10 @@
             return `
               <label class="permission-item">
                 <span class="permission-item__label">
-                  <input type="checkbox" data-permission-id="${escHtml(menu.id)}" ${checked ? 'checked' : ''} />
+                  <input type="checkbox" data-permission-id="${escHtml(menu.id)}" ${checked ? 'checked' : ''} disabled />
                   <strong>${escHtml(menu.nombre)}</strong>
                 </span>
-                <span class="badge ${checked ? 'badge--ok' : 'badge--blocked'}">${checked ? 'Asignado' : 'Bloqueado'}</span>
+                <span class="badge ${checked ? 'badge--ok' : 'badge--blocked'}">${checked ? 'Heredado' : 'Bloqueado'}</span>
                 ${inheritedWarning}
               </label>
             `;
@@ -1164,6 +1204,13 @@
     renderPermissionSelects();
     renderPermissionSummary();
     renderPermissionGroups();
+    ['permSelectAll', 'permClearAll', 'permRestoreArea', 'permSave'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.disabled = true;
+        el.title = 'Los accesos se gestionan desde perfiles.';
+      }
+    });
     const selected = selectedPermissionUser();
     if (selected) {
       await syncPermissionDraft(selected.id);
@@ -1619,9 +1666,9 @@
 
     if (subtitle) {
       if (state.drawer.type === 'menu') {
-        subtitle.textContent = 'Mantén el catálogo de navegación sincronizado con usuario_menu.';
+        subtitle.textContent = 'Mantén el catálogo de navegación sincronizado con los perfiles.';
       } else if (state.drawer.type === 'profile') {
-        subtitle.textContent = 'Gestiona perfiles base y perfiles manuales sin romper usuario_menu.';
+        subtitle.textContent = 'Gestiona perfiles base y perfiles manuales como fuente única de accesos.';
       } else if (state.drawer.type === 'area') {
         subtitle.textContent = 'Gestiona el catálogo maestro de áreas y su perfil base sugerido.';
       } else {
@@ -1994,30 +2041,7 @@
   }
 
   async function savePermissions() {
-    const user = selectedPermissionUser();
-    if (!user) return;
-
-    const menus = Array.from(state.permissionsDraft)
-      .map(id => menuById(id)?.codigo)
-      .filter(Boolean);
-    const payload = { menus };
-    const currentId = getCurrentUserId();
-    const keepingAdmin = menus.some(code => normalizeKey(code) === ADMIN_MENU_CODE);
-    if (Number(user.id) === Number(currentId) && !keepingAdmin) {
-      const confirmed = window.confirm('Estás por quitarte el acceso a Administración. ¿Quieres continuar?');
-      if (!confirmed) return;
-      payload.confirmar = true;
-    }
-
-    await apiFetch(`/usuarios/${user.id}/menus`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-
-    pushAudit('Permisos actualizados', `Se guardaron los menús del usuario ${user.nombre}.`);
-    toast('Permisos', 'Menús guardados correctamente.', 'success');
-    await loadData();
-    await syncPermissionDraft(user.id);
+    toast('Permisos', 'Los accesos ahora se administran desde perfiles y áreas.', 'warn');
   }
 
   async function saveProfileMenus() {
@@ -2167,9 +2191,9 @@
       body: JSON.stringify({ area: areaCode, menus: suggestions }),
     });
 
-    pushAudit('Accesos por área', `Se aplicaron menús a ${formatAreaLabel(areaCode)}.`);
-    setMessage(`Área ${formatAreaLabel(areaCode)}: ${affectedUsers.length} usuario(s) afectados. No se eliminarán accesos directos ni otros perfiles.`, 'warn');
-    toast('Áreas', `Accesos aplicados para ${formatAreaLabel(areaCode)}.`, 'success');
+    pushAudit('Accesos por área', `Se actualizó el perfil base de ${formatAreaLabel(areaCode)}.`);
+    setMessage(`Área ${formatAreaLabel(areaCode)}: se actualizó el perfil base y ${affectedUsers.length} usuario(s) quedaron alineados a la nueva herencia.`, 'success');
+    toast('Áreas', `Perfil base actualizado para ${formatAreaLabel(areaCode)}.`, 'success');
     await loadData();
   }
   async function saveVendorRelation() {
@@ -2771,9 +2795,11 @@
     renderLoadingState();
   }
 
-  function init() {
+  async function init() {
+    const acceso = await verificarAccesoAdmin();
+    if (!acceso) return;
     setLoading();
-    loadData();
+    await loadData();
   }
 
   window.__ADMIN_API__ = {

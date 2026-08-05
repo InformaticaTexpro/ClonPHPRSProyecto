@@ -26,26 +26,24 @@ return static function (
     if ($method === 'GET' && $path === '/ventas-mes') {
         json_response($analyticsService->ventasMes($payload, $query));
     }
-    if ($method === 'GET' && preg_match('#^/detalle/(\d+)$#', $path, $matches)) {
-        json_response($analyticsService->detalleFolio($payload, (int)$matches[1]));
-    }
     if ($method === 'GET' && $path === '/vendedores-todos') {
         json_response($analyticsService->vendedoresTodos($payload));
     }
     if ($method === 'GET' && $path === '/compartidos') {
-        json_response($dashboardService->route($payload, $method, $path, $query, $body));
+        json_response($analyticsService->compartidos($payload, $query));
     }
     if ($method === 'GET' && $path === '/asignados') {
-        json_response($dashboardService->route($payload, $method, $path, $query, $body));
+        json_response($analyticsService->asignados($payload, $query));
     }
     if ($method === 'GET' && $path === '/compartir/lista') {
-        json_response($dashboardService->route($payload, $method, $path, $query, $body));
+        json_response($analyticsService->compartirLista($payload, $query));
     }
     if ($method === 'GET' && $path === '/categorias-vendedor') {
-        json_response($dashboardService->route($payload, $method, $path, $query, $body));
+        $result = $analyticsService->categoriasVendedor($payload, $query);
+        json_response(['ok' => true, 'vendedores' => $result['vendedores'], 'todasLasCategorias' => $result['todasLasCategorias']]);
     }
     if ($method === 'GET' && $path === '/clientes-resumen') {
-        json_response($dashboardService->route($payload, $method, $path, $query, $body));
+        json_response(['ok' => true, 'clientes' => $analyticsService->clientesResumen($payload, $query)]);
     }
     if ($method === 'POST' && $path === '/compartir') {
         json_response($dashboardService->route($payload, $method, $path, $query, $body));

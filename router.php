@@ -15,7 +15,12 @@ if (str_starts_with($path, '/api')) {
 }
 
 if ($path === '/' || $path === '') {
-    header('Location: /src/modulo/varios/login/index.html', true, 302);
+    header('Location: /src/modulo/varios/login/index.php', true, 302);
+    return true;
+}
+
+if (is_dir($filePath) && is_file($filePath . DIRECTORY_SEPARATOR . 'index.php')) {
+    require $filePath . DIRECTORY_SEPARATOR . 'index.php';
     return true;
 }
 
@@ -24,5 +29,5 @@ if (is_dir($filePath) && is_file($filePath . DIRECTORY_SEPARATOR . 'index.html')
     return true;
 }
 
-header('Location: /src/modulo/varios/login/index.html', true, 302);
+header('Location: /src/modulo/varios/login/index.php', true, 302);
 return true;

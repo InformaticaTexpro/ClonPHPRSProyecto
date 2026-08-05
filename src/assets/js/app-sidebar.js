@@ -14,24 +14,7 @@
   };
 
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
-  const EXTRA_ITEMS = FEATURE_FLAGS.alertas
-    ? [{ id: 'extra-alertas', codigo: 'alertas', nombre: 'Alertas', url: '/src/modulo/varios/alertas/index.html', icono: '🔔', grupo: 'General', orden: 1, extra: true }]
-    : [];
-  if (FEATURE_FLAGS.mensajeria) {
-    const mensajeriaExiste = EXTRA_ITEMS.some(item => item.codigo === 'mensajeria');
-    if (!mensajeriaExiste) {
-      EXTRA_ITEMS.push({
-        id: 'extra-mensajeria',
-        codigo: 'mensajeria',
-        nombre: 'Chat',
-        url: '/src/modulo/varios/mensajeria/index.html',
-        icono: '💬',
-        grupo: 'General',
-        orden: 2,
-        extra: true,
-      });
-    }
-  }
+  const EXTRA_ITEMS = [];
 
   const GENERAL_ITEM = {
     id: 'extra-general',
@@ -41,7 +24,7 @@
     icono: '🏠',
     grupo: 'General',
     orden: 0,
-    extra: true,
+    extra: false,
   };
 
   const RRHH_HOME_ITEM = {
@@ -208,7 +191,6 @@
   }
 
   function tienePermiso(menu, indice) {
-    if (menu?.codigo === 'general') return true;
     return indice.ids.has(String(menu.id))
       || (menu.codigo && indice.codigos.has(menu.codigo))
       || indice.urls.has(menu.url);
@@ -242,6 +224,12 @@
       ...user,
       menus: Array.isArray(user.menus) ? user.menus : [],
     };
+  }
+
+  function usuarioTieneAccesoMenu(usuario, codigo) {
+    const objetivo = normalizarTexto(codigo);
+    if (!objetivo) return false;
+    return (Array.isArray(usuario?.menus) ? usuario.menus : []).some(menu => normalizarTexto(menu?.codigo) === objetivo);
   }
 
   function extraerCatalogo(data) {
@@ -888,7 +876,6 @@
                 <span>${item.icono}</span>
                 <span class="nav-label">${item.nombre}</span>
                 ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
-                ${item.extra ? '<span class="nav-extra-badge" id="navBadgeAlertas" style="display:none">0</span>' : ''}
               </a>
             `;
           }).join('')}
@@ -944,6 +931,7 @@
 
     const user = extraerUsuario(data);
     if (!user) return;
+    if (!usuarioTieneAccesoMenu(user, 'mensajeria')) return;
 
     const styleId = 'texproChatWidgetStyles';
     if (!document.getElementById(styleId)) {
@@ -959,6 +947,10 @@
           flex-direction: column;
           align-items: flex-end;
           gap: 10px;
+          pointer-events: none;
+        }
+        .texpro-chat-widget.is-open {
+          pointer-events: auto;
         }
         .texpro-chat-launcher {
           display: inline-flex;
@@ -973,6 +965,27 @@
           font-weight: 800;
           box-shadow: 0 16px 32px rgba(0, 0, 0, .18);
           cursor: pointer;
+          pointer-events: auto;
+        }
+        .texpro-chat-launcher--floating {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 2600;
+        }
+        .texpro-chat-launcher--sidebar {
+          width: 100%;
+          justify-content: center;
+          margin-top: 10px;
+          padding-inline: 12px;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, .18);
+        }
+        .texpro-chat-launcher--sidebar .texpro-chat-launcher__label {
+          flex: 1;
+          text-align: left;
+        }
+        .texpro-chat-launcher--sidebar .texpro-chat-launcher__badge {
+          margin-left: auto;
         }
         .texpro-chat-launcher strong {
           display: inline-flex;
@@ -988,17 +1001,30 @@
           font-weight: 800;
         }
         .texpro-chat-panel {
-          width: min(420px, calc(100vw - 24px));
-          height: min(560px, calc(100vh - 90px));
-          background: #fff;
+          width: min(480px, calc(100vw - 24px));
+          height: min(620px, calc(100vh - 32px));
+          padding: 8px;
+          box-sizing: border-box;
+          background: rgba(255, 255, 255, .78);
           border-radius: 24px;
           box-shadow: 0 28px 70px rgba(10, 24, 38, .28);
           overflow: hidden;
           display: none;
           flex-direction: column;
-          border: 1px solid rgba(19, 35, 61, .10);
         }
         .texpro-chat-widget.is-open .texpro-chat-panel { display: flex; }
+        .texpro-chat-surface {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          background: #fff;
+          border-radius: 18px;
+          overflow: hidden;
+          border: 1px solid rgba(19, 35, 61, .10);
+          box-sizing: border-box;
+        }
         .texpro-chat-head {
           display: flex;
           align-items: flex-start;
@@ -1038,9 +1064,10 @@
         }
         .texpro-chat-search input { width:100%; border:0; outline:0; background:transparent; font:inherit; }
         .texpro-chat-body { min-height:0; flex:1; display:grid; grid-template-columns: 170px minmax(0, 1fr); }
+        .texpro-chat-body { gap: 0; }
         .texpro-chat-list { min-height:0; overflow:auto; border-right:1px solid rgba(19,35,61,.08); background:rgba(248,251,255,.88); padding:8px; }
         .texpro-chat-list-item {
-          width:100%; display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
+          width:100%; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
           padding:10px 10px; border:0; border-radius:14px; background:transparent; text-align:left; cursor:pointer;
         }
         .texpro-chat-list-item:hover, .texpro-chat-list-item.is-active { background:#fff; box-shadow:0 8px 18px rgba(20,35,58,.06); }
@@ -1053,42 +1080,77 @@
         .texpro-chat-list-status {
           display:inline-flex; align-items:center; gap:6px; margin-top:4px; font-size:.7rem; font-weight:700; color:var(--color-text-muted, #5d6675);
         }
+        .texpro-chat-list-badges {
+          display:flex;
+          flex-direction:column;
+          align-items:flex-end;
+          gap:6px;
+          justify-self:end;
+        }
+        .texpro-chat-new-badge {
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          padding:6px 9px;
+          border-radius:999px;
+          background:rgba(8,211,168,.14);
+          color:#0a6a5c;
+          font-size:.69rem;
+          font-weight:800;
+          line-height:1;
+          text-align:right;
+        }
+        .texpro-chat-list-item.has-new-message {
+          border-color: rgba(8, 211, 168, 0.22);
+          box-shadow: 0 0 0 1px rgba(8, 211, 168, 0.10), 0 10px 20px rgba(20,35,58,.06);
+        }
         .texpro-chat-thread { min-height:0; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(244,247,251,.98)); }
+        .texpro-chat-thread,
+        .texpro-chat-thread-head,
+        .texpro-chat-messages,
+        .texpro-chat-composer,
+        .texpro-chat-body {
+          min-width: 0;
+        }
+        .texpro-chat-thread {
+          overflow: hidden;
+        }
         .texpro-chat-thread-empty { min-height:100%; display:grid; place-items:center; text-align:center; padding:24px; color:var(--color-text-muted, #5d6675); }
         .texpro-chat-thread-head {
           padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;
           border-bottom:1px solid rgba(19,35,61,.08);
+          flex-wrap: wrap;
         }
         .texpro-chat-thread-head h4 { margin:0; font-size:.92rem; }
         .texpro-chat-thread-head p { margin:2px 0 0; font-size:.76rem; color:var(--color-text-muted, #5d6675); }
         .texpro-chat-thread-status {
           display:inline-flex; align-items:center; gap:6px; margin-top:5px; font-size:.72rem; font-weight:700; color:var(--color-text-muted, #5d6675);
         }
-        .texpro-chat-thread-actions { display:flex; gap:6px; }
+        .texpro-chat-thread-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; margin-left:auto; }
         .texpro-chat-thread-actions button {
-          border:0; border-radius:10px; padding:7px 9px; background:rgba(0,0,0,.05); cursor:pointer; font:inherit; font-size:.78rem;
+          border:0; border-radius:10px; padding:7px 9px; background:rgba(0,0,0,.05); cursor:pointer; font:inherit; font-size:.78rem; flex:0 0 auto;
         }
-        .texpro-chat-messages { min-height:0; overflow:auto; padding:12px; display:grid; gap:10px; }
+        .texpro-chat-messages { min-height:0; overflow:auto; padding:12px; display:grid; gap:10px; align-content:start; }
         .texpro-chat-message {
-          max-width:86%; padding:10px 11px; border-radius:16px; background:#fff; border:1px solid rgba(19,35,61,.08);
+          max-width:86%; min-width:0; padding:10px 11px; border-radius:16px; background:#fff; border:1px solid rgba(19,35,61,.08);
           box-shadow:0 10px 20px rgba(20,35,58,.05);
         }
         .texpro-chat-message.is-self { margin-left:auto; background:linear-gradient(180deg, rgba(0,226,167,.14), rgba(0,226,167,.08)); border-color:rgba(0,226,167,.18); }
         .texpro-chat-message strong { display:block; margin-bottom:4px; font-size:.78rem; }
-        .texpro-chat-message p { margin:0; white-space:pre-wrap; line-height:1.38; font-size:.84rem; }
+        .texpro-chat-message p { margin:0; white-space:pre-wrap; line-height:1.38; font-size:.84rem; overflow-wrap:anywhere; }
         .texpro-chat-message small { display:block; margin-top:4px; font-size:.7rem; color:var(--color-text-muted, #5d6675); }
-        .texpro-chat-composer { padding:12px; border-top:1px solid rgba(19,35,61,.08); background:rgba(255,255,255,.96); }
+        .texpro-chat-composer { padding:12px; border-top:1px solid rgba(19,35,61,.08); background:rgba(255,255,255,.96); overflow:hidden; }
         .texpro-chat-composer textarea {
-          width:100%; min-height:72px; resize:vertical; padding:10px 11px; border-radius:14px; border:1px solid rgba(19,35,61,.10);
+          width:100%; box-sizing:border-box; min-height:92px; resize:vertical; padding:12px 13px; border-radius:14px; border:1px solid rgba(19,35,61,.10);
           outline:0; font:inherit; background:#fff;
         }
         .texpro-chat-composer-actions {
-          display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;
+          display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; flex-wrap:wrap;
         }
         .texpro-chat-hint { font-size:.76rem; color:var(--color-text-muted, #5d6675); }
         .texpro-chat-composer-actions button {
           border:0; border-radius:12px; padding:9px 12px; background:linear-gradient(135deg, #00e2a7, #13b8ff); color:#032e2c;
-          font:inherit; font-weight:800; cursor:pointer;
+          font:inherit; font-weight:800; cursor:pointer; flex:0 0 auto;
         }
         .texpro-chat-empty { padding:18px 12px; text-align:center; color:var(--color-text-muted, #5d6675); }
         .presence-dot {
@@ -1097,10 +1159,14 @@
         .presence-dot.is-online { background:#10b981; }
         .presence-dot.is-offline { background:#9ca3af; }
         @media (max-width: 640px) {
-          .texpro-chat-widget { right:10px; bottom:10px; left:10px; align-items:stretch; }
-          .texpro-chat-panel { width:100%; height:min(70vh, 620px); }
+          .texpro-chat-launcher--sidebar { display: none !important; }
+          .texpro-chat-launcher--floating { right:10px; bottom:10px; left:10px; width: auto; justify-content: center; }
+          .texpro-chat-panel { width:100%; height:min(78vh, 680px); }
           .texpro-chat-body { grid-template-columns:1fr; }
           .texpro-chat-list { max-height:160px; border-right:0; border-bottom:1px solid rgba(19,35,61,.08); }
+        }
+        @media (min-width: 641px) {
+          .texpro-chat-launcher--floating { display: none; }
         }
       `;
       document.head.appendChild(style);
@@ -1110,64 +1176,98 @@
     wrap.id = 'texproChatWidget';
     wrap.className = 'texpro-chat-widget';
     wrap.innerHTML = `
-      <button type="button" class="texpro-chat-launcher" data-chat-toggle aria-expanded="false">
-        <span aria-hidden="true">💬</span>
-        <span>Chat</span>
-        <strong data-chat-badge style="display:none">0</strong>
-      </button>
       <section class="texpro-chat-panel" data-chat-panel aria-hidden="true">
-        <div class="texpro-chat-head">
-          <div>
-            <h3>Chat interno</h3>
-            <p>Mensajes rápidos con tu equipo</p>
-          </div>
-          <div class="texpro-chat-head-actions">
-            <button type="button" data-chat-open-full title="Abrir vista completa">↗</button>
-            <button type="button" data-chat-close aria-label="Cerrar">×</button>
-          </div>
-        </div>
-        <div class="texpro-chat-tabs" role="tablist" aria-label="Chat interno">
-          <button type="button" class="texpro-chat-tab is-active" data-panel="usuarios" aria-selected="true">Usuarios</button>
-          <button type="button" class="texpro-chat-tab" data-panel="chats" aria-selected="false">Chats</button>
-        </div>
-        <label class="texpro-chat-search">
-          <span>⌕</span>
-          <input type="search" data-chat-search placeholder="Buscar persona o chat" />
-        </label>
-        <div class="texpro-chat-body">
-          <aside class="texpro-chat-list" data-chat-list>
-            <div class="texpro-chat-empty">Cargando...</div>
-          </aside>
-          <section class="texpro-chat-thread" data-chat-thread>
-            <div class="texpro-chat-thread-empty">
-              <div>
-                <h4>Selecciona un usuario</h4>
-                <p>Elige una persona de la lista para abrir o retomar un chat.</p>
-              </div>
+        <div class="texpro-chat-surface">
+          <div class="texpro-chat-head">
+            <div>
+              <h3>Chat interno</h3>
+              <p>Mensajes rápidos con tu equipo</p>
             </div>
-          </section>
+            <div class="texpro-chat-head-actions">
+              <button type="button" data-chat-open-full title="Abrir vista completa">↗</button>
+              <button type="button" data-chat-close aria-label="Cerrar">×</button>
+            </div>
+          </div>
+          <div class="texpro-chat-tabs" role="tablist" aria-label="Chat interno">
+            <button type="button" class="texpro-chat-tab is-active" data-panel="usuarios" aria-selected="true">Usuarios</button>
+            <button type="button" class="texpro-chat-tab" data-panel="chats" aria-selected="false">Chats</button>
+          </div>
+          <label class="texpro-chat-search">
+            <span>⌕</span>
+            <input type="search" data-chat-search placeholder="Buscar persona o chat" />
+          </label>
+          <div class="texpro-chat-body">
+            <aside class="texpro-chat-list" data-chat-list>
+              <div class="texpro-chat-empty">Cargando...</div>
+            </aside>
+            <section class="texpro-chat-thread" data-chat-thread>
+              <div class="texpro-chat-thread-empty">
+                <div>
+                  <h4>Selecciona un usuario</h4>
+                  <p>Elige una persona de la lista para abrir o retomar un chat.</p>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
     `;
     document.body.appendChild(wrap);
+
+    const sidebar = getSidebarElement();
+    const launcherMarkup = () => `
+      <span aria-hidden="true">💬</span>
+      <span class="texpro-chat-launcher__label">Chat</span>
+      <strong class="texpro-chat-launcher__badge" data-chat-badge style="display:none">0</strong>
+    `;
+    const floatingLauncher = document.createElement('button');
+    floatingLauncher.type = 'button';
+    floatingLauncher.className = 'texpro-chat-launcher texpro-chat-launcher--floating';
+    floatingLauncher.setAttribute('aria-expanded', 'false');
+    floatingLauncher.innerHTML = launcherMarkup();
+    document.body.appendChild(floatingLauncher);
+
+    let sidebarLauncher = null;
+    if (sidebar) {
+      sidebarLauncher = document.createElement('button');
+      sidebarLauncher.type = 'button';
+      sidebarLauncher.className = 'texpro-chat-launcher texpro-chat-launcher--sidebar';
+      sidebarLauncher.setAttribute('aria-expanded', 'false');
+      sidebarLauncher.innerHTML = launcherMarkup();
+      const footer = sidebar.querySelector('.sidebar-footer');
+      const logout = sidebar.querySelector('#btnLogout');
+      if (footer) {
+        footer.appendChild(sidebarLauncher);
+      } else if (logout && logout.parentElement === sidebar) {
+        sidebar.insertBefore(sidebarLauncher, logout);
+      } else {
+        sidebar.appendChild(sidebarLauncher);
+      }
+    }
 
     const chatState = {
       user,
       conversaciones: [],
       directorio: { usuarios: [], areas: [] },
       onlineUsers: new Set(),
+      lastMessageIds: new Map(),
+      drafts: new Map(),
       conversacionActivaId: null,
       mensajesActivos: [],
       panelActivo: 'usuarios',
       search: '',
       opened: false,
       loading: false,
+      activeRefreshTimer: null,
     };
 
     const refs = {
       wrap,
-      toggle: wrap.querySelector('[data-chat-toggle]'),
-      badge: wrap.querySelector('[data-chat-badge]'),
+      toggles: [floatingLauncher, sidebarLauncher].filter(Boolean),
+      badges: [floatingLauncher, sidebarLauncher]
+        .filter(Boolean)
+        .map(button => button.querySelector('[data-chat-badge]'))
+        .filter(Boolean),
       panel: wrap.querySelector('[data-chat-panel]'),
       close: wrap.querySelector('[data-chat-close]'),
       full: wrap.querySelector('[data-chat-open-full]'),
@@ -1229,12 +1329,14 @@
     }
 
     function setBadge(total) {
-      if (total > 0) {
-        refs.badge.textContent = total > 99 ? '99+' : String(total);
-        refs.badge.style.display = 'inline-flex';
-      } else {
-        refs.badge.style.display = 'none';
-      }
+      refs.badges.forEach(badge => {
+        if (total > 0) {
+          badge.textContent = total > 99 ? '99+' : String(total);
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      });
     }
 
     function conversationTitle(conversation) {
@@ -1252,6 +1354,13 @@
       if (!conversation?.ultimo_mensaje) return 'Sin mensajes todavía';
       const prefix = Number(conversation.ultimo_mensaje.remitente_id) === Number(chatState.user?.id) ? 'Tú: ' : '';
       return `${prefix}${conversation.ultimo_mensaje.cuerpo}`;
+    }
+
+    function conversationNewMessageLabel(conversation) {
+      const unread = Number(conversation?.no_leidos || 0);
+      if (!unread || !conversation?.ultimo_mensaje) return '';
+      const sender = conversation.ultimo_mensaje.remitente_nombre || 'Usuario';
+      return unread === 1 ? `Nuevo de ${sender}` : `${unread} nuevos de ${sender}`;
     }
 
     function normalizeUserId(value) {
@@ -1275,6 +1384,25 @@
       return { online, label: online ? 'En línea' : 'Desconectado' };
     }
 
+    function showIncomingMessageToast(conversation, message) {
+      const notifier = window.GICOTEXRealtime?.showToast;
+      if (typeof notifier !== 'function') return;
+      const sender = message?.remitente_nombre || 'Usuario';
+      const title = `Nuevo mensaje de ${sender}`;
+      const body = `${conversationTitle(conversation)}: ${String(message?.cuerpo || '').slice(0, 120)}`;
+      notifier(title, body);
+    }
+
+    function rememberConversationLastMessage(conversationId, messages = []) {
+      const id = Number(conversationId);
+      const latest = Array.isArray(messages) && messages.length ? messages[messages.length - 1] : null;
+      const latestId = Number(latest?.id || 0);
+      if (id > 0 && latestId > 0) {
+        chatState.lastMessageIds.set(id, latestId);
+      }
+      return latest;
+    }
+
     function directConversationForUser(userId) {
       return chatState.conversaciones.find(conversation => {
         if (conversation.tipo !== 'directa') return false;
@@ -1289,7 +1417,7 @@
       chatState.opened = open;
       wrap.classList.toggle('is-open', open);
       refs.panel.hidden = !open;
-      refs.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      refs.toggles.forEach(toggle => toggle.setAttribute('aria-expanded', open ? 'true' : 'false'));
       refs.panel.setAttribute('aria-hidden', open ? 'false' : 'true');
       if (open) loadData();
     }
@@ -1349,8 +1477,9 @@
       refs.list.innerHTML = conversaciones.length ? conversaciones.map(conversation => {
         const active = Number(conversation.id) === Number(chatState.conversacionActivaId);
         const presence = conversationPresenceInfo(conversation);
+        const newLabel = conversationNewMessageLabel(conversation);
         return `
-          <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''}" data-conversation-id="${conversation.id}">
+          <button type="button" class="texpro-chat-list-item ${active ? 'is-active' : ''} ${newLabel ? 'has-new-message' : ''}" data-conversation-id="${conversation.id}">
             <div class="texpro-chat-avatar">${chatInitials(conversationTitle(conversation))}</div>
             <div>
               <span class="texpro-chat-list-name">${chatEscape(conversationTitle(conversation))}</span>
@@ -1359,6 +1488,9 @@
                 <span class="presence-dot ${presence.online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
                 <span>${chatEscape(presence.label)}</span>
               </span>
+            </div>
+            <div class="texpro-chat-list-badges">
+              ${newLabel ? `<span class="texpro-chat-new-badge">${chatEscape(newLabel)}</span>` : ''}
             </div>
           </button>
         `;
@@ -1370,6 +1502,15 @@
     }
 
     function renderThread() {
+      const previousThread = refs.thread.querySelector('.texpro-chat-messages');
+      const previousScrollTop = previousThread ? previousThread.scrollTop : 0;
+      const activeInput = refs.thread.querySelector('[data-chat-input]');
+      const previousDraft = activeInput ? String(activeInput.value || '') : '';
+      const activeConversationId = Number(chatState.conversacionActivaId || 0);
+      if (activeConversationId > 0) {
+        chatState.drafts.set(activeConversationId, previousDraft);
+      }
+
       if (!chatState.conversacionActivaId) {
         refs.thread.innerHTML = `
           <div class="texpro-chat-thread-empty">
@@ -1387,18 +1528,9 @@
 
       const archivada = Boolean(conversation.archivada);
       const silenciada = Boolean(conversation.silenciada);
-      const presence = conversationPresenceInfo(conversation);
-
+      const draftValue = chatState.drafts.get(Number(chatState.conversacionActivaId)) || '';
       refs.thread.innerHTML = `
         <div class="texpro-chat-thread-head">
-          <div>
-            <h4>${chatEscape(conversationTitle(conversation))}</h4>
-            <p>${chatEscape(conversationSubtitle(conversation))}</p>
-            <span class="texpro-chat-thread-status">
-              <span class="presence-dot ${presence.online ? 'is-online' : 'is-offline'}" aria-hidden="true"></span>
-              <span>${chatEscape(presence.label)}</span>
-            </span>
-          </div>
           <div class="texpro-chat-thread-actions">
             <button type="button" data-chat-flag="silenciar">${silenciada ? 'Activar' : 'Silenciar'}</button>
             <button type="button" data-chat-flag="archivar">${archivada ? 'Desarchivar' : 'Archivar'}</button>
@@ -1417,13 +1549,30 @@
           }).join('') : '<div class="texpro-chat-empty">Aún no hay mensajes.</div>'}
         </div>
         <form class="texpro-chat-composer" data-chat-composer>
-          <textarea data-chat-input rows="3" placeholder="Escribe un mensaje..."></textarea>
+          <textarea data-chat-input rows="3" placeholder="Escribe un mensaje...">${chatEscape(draftValue)}</textarea>
           <div class="texpro-chat-composer-actions">
             <span class="texpro-chat-hint">${archivada ? 'El chat está archivado, pero puedes responder.' : 'Listo para responder.'}</span>
             <button type="submit">Enviar</button>
           </div>
         </form>
       `;
+
+      const nextInput = refs.thread.querySelector('[data-chat-input]');
+      const nextMessages = refs.thread.querySelector('.texpro-chat-messages');
+      if (nextInput && draftValue) {
+        nextInput.value = draftValue;
+      }
+      if (nextInput && document.activeElement === activeInput) {
+        nextInput.focus({ preventScroll: true });
+        try {
+          nextInput.setSelectionRange(draftValue.length, draftValue.length);
+        } catch {
+          // No-op: some browsers may not allow selection restore immediately.
+        }
+      }
+      if (nextMessages) {
+        nextMessages.scrollTop = previousScrollTop;
+      }
 
       refs.thread.querySelector('[data-chat-composer]')?.addEventListener('submit', async event => {
         event.preventDefault();
@@ -1436,11 +1585,22 @@
             body: JSON.stringify({ cuerpo: body }),
           });
           if (input) input.value = '';
+          chatState.drafts.delete(Number(chatState.conversacionActivaId));
           await loadConversationMessages(chatState.conversacionActivaId);
           await loadConversations();
         } catch (error) {
           alert(error.message);
         }
+      });
+
+      refs.thread.querySelector('[data-chat-input]')?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey) return;
+        event.preventDefault();
+        refs.thread.querySelector('[data-chat-composer]')?.requestSubmit();
+      });
+      refs.thread.querySelector('[data-chat-input]')?.addEventListener('input', event => {
+        if (!chatState.conversacionActivaId) return;
+        chatState.drafts.set(Number(chatState.conversacionActivaId), String(event.target.value || ''));
       });
 
       refs.thread.querySelector('[data-chat-flag="silenciar"]')?.addEventListener('click', async () => {
@@ -1500,6 +1660,12 @@
     async function loadConversations() {
       const data = await chatApi('/conversaciones');
       chatState.conversaciones = Array.isArray(data?.data) ? data.data : [];
+      chatState.conversaciones.forEach(conversation => {
+        const latestId = Number(conversation?.ultimo_mensaje?.id || 0);
+        if (latestId > 0) {
+          chatState.lastMessageIds.set(Number(conversation.id), latestId);
+        }
+      });
       renderList();
       renderThread();
     }
@@ -1514,7 +1680,10 @@
 
       await loadConversations();
       if (Number(chatState.conversacionActivaId) === conversationId) {
-        await loadConversationMessages(conversationId);
+        const draftInput = refs.thread.querySelector('[data-chat-input]');
+        if (document.activeElement !== draftInput && !String(draftInput?.value || '').trim()) {
+          await loadConversationMessages(conversationId);
+        }
       }
       await loadUnread();
     }
@@ -1535,9 +1704,16 @@
       if (!conversationId) return;
       const data = await chatApi(`/conversaciones/${conversationId}/mensajes`);
       chatState.conversacionActivaId = Number(conversationId);
-      chatState.mensajesActivos = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+      const mensajes = Array.isArray(data?.data?.mensajes) ? data.data.mensajes : [];
+      const conversation = data?.data?.conversacion || chatState.conversaciones.find(item => Number(item.id) === Number(conversationId));
+      const previousLastId = Number(chatState.lastMessageIds.get(Number(conversationId)) || 0);
+      const latest = rememberConversationLastMessage(conversationId, mensajes);
+      chatState.mensajesActivos = mensajes;
       renderList();
       renderThread();
+      if (latest && previousLastId > 0 && Number(latest.id || 0) > previousLastId && Number(latest.remitente_id) !== Number(chatState.user?.id)) {
+        showIncomingMessageToast(conversation || {}, latest);
+      }
       await chatApi(`/conversaciones/${conversationId}/leido`, { method: 'PATCH' }).catch(() => {});
       await loadUnread();
     }
@@ -1583,16 +1759,40 @@
       }
     }
 
+    function startActiveConversationAutoRefresh() {
+      if (chatState.activeRefreshTimer) {
+        clearInterval(chatState.activeRefreshTimer);
+      }
+
+      chatState.activeRefreshTimer = setInterval(() => {
+        if (!chatState.conversacionActivaId) return;
+        if (document.hidden) return;
+        const draftInput = refs.thread.querySelector('[data-chat-input]');
+        if (document.activeElement === draftInput) return;
+        if (String(draftInput?.value || '').trim()) return;
+        loadConversationMessages(chatState.conversacionActivaId).catch(() => {});
+      }, 3500);
+    }
+
     window.GICOTEXMensajeriaWidgetRealtime = {
       refreshConversations: () => loadConversations(),
       refreshUnreadBadge: () => loadUnread(),
       refreshPresence: () => loadPresence(),
+      refreshActiveConversation: () => (chatState.conversacionActivaId
+        ? (() => {
+          const draftInput = refs.thread.querySelector('[data-chat-input]');
+          if (document.activeElement === draftInput || String(draftInput?.value || '').trim()) {
+            return Promise.resolve();
+          }
+          return loadConversationMessages(chatState.conversacionActivaId);
+        })()
+        : Promise.resolve()),
       handleRealtimeChatEvent,
       handleRealtimePresenceEvent: handleRealtimePresenceUpdate,
       getActiveConversationId: () => chatState.conversacionActivaId,
     };
 
-    refs.toggle.addEventListener('click', () => openWidget(!chatState.opened));
+    refs.toggles.forEach(toggle => toggle.addEventListener('click', () => openWidget(!chatState.opened)));
     refs.close.addEventListener('click', () => openWidget(false));
     refs.full.addEventListener('click', () => {
       window.location.href = '/src/modulo/varios/mensajeria/index.html';
@@ -1611,7 +1811,18 @@
 
     openWidget(false);
     loadData();
-    setInterval(loadUnread, 60000);
+    startActiveConversationAutoRefresh();
+    window.addEventListener('focus', () => {
+      loadUnread();
+      loadPresence();
+      if (chatState.conversacionActivaId) {
+        const draftInput = refs.thread.querySelector('[data-chat-input]');
+        if (document.activeElement !== draftInput && !String(draftInput?.value || '').trim()) {
+          loadConversationMessages(chatState.conversacionActivaId).catch(() => {});
+        }
+      }
+    }, { passive: true });
+    setInterval(loadUnread, 20000);
   }
 
   async function obtenerContextoSidebar() {

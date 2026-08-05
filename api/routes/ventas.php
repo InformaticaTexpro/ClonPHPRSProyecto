@@ -15,9 +15,6 @@ return static function (
 
     $payload = require_auth_payload();
 
-    if ($method === 'GET' && $path === '/confirmacion-estado') {
-        json_response($salesService->confirmacionEstado($payload, $query));
-    }
     if ($method === 'POST' && $path === '/confirmar') {
         json_response($salesService->confirmar($payload, $body));
     }
@@ -28,10 +25,10 @@ return static function (
         echo $pdf['bytes'];
         exit;
     }
-    if ($method === 'GET' && ($path === '/compartidas/confirmacion' || $path === '/compartidas/confirmacion-estado')) {
+    if ($method === 'GET' && $path === '/compartidas/confirmacion') {
         json_response($salesService->sharedConfirmationState($payload, $query));
     }
-    if ($method === 'POST' && ($path === '/compartidas/confirmar' || $path === '/compartidas/confirmar-reporte')) {
+    if ($method === 'POST' && $path === '/compartidas/confirmar') {
         json_response($salesService->confirmShared($payload, $body));
     }
 

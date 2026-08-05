@@ -1,9 +1,31 @@
--- Migracion idempotente para el modulo General.
+﻿-- Migracion idempotente para el modulo General.
 -- Crea el menu General y lo asigna a todos los perfiles base.
 
 INSERT INTO `menu` (`codigo`, `nombre`, `grupo`, `url`, `icono`, `orden`, `activo`)
 VALUES
 ('general', 'General', 'General', '/src/modulo/general/general/index.html', '🧭', 0, 1)
+ON DUPLICATE KEY UPDATE
+  `nombre` = VALUES(`nombre`),
+  `grupo` = VALUES(`grupo`),
+  `url` = VALUES(`url`),
+  `icono` = VALUES(`icono`),
+  `orden` = VALUES(`orden`),
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `menu` (`codigo`, `nombre`, `grupo`, `url`, `icono`, `orden`, `activo`)
+VALUES
+('alertas', 'Alertas', 'General', '/src/modulo/varios/alertas/index.html', '🔔', 1, 1)
+ON DUPLICATE KEY UPDATE
+  `nombre` = VALUES(`nombre`),
+  `grupo` = VALUES(`grupo`),
+  `url` = VALUES(`url`),
+  `icono` = VALUES(`icono`),
+  `orden` = VALUES(`orden`),
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `menu` (`codigo`, `nombre`, `grupo`, `url`, `icono`, `orden`, `activo`)
+VALUES
+('mensajeria', 'Chat', 'General', '/src/modulo/varios/mensajeria/index.html', '💬', 2, 1)
 ON DUPLICATE KEY UPDATE
   `nombre` = VALUES(`nombre`),
   `grupo` = VALUES(`grupo`),
@@ -25,8 +47,8 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
 SELECT p.`id`, m.`id`, 1
 FROM `perfil` p
-INNER JOIN `menu` m ON m.`codigo` = 'general'
-WHERE p.`es_base` = 1
+INNER JOIN `menu` m ON m.`codigo` IN ('general', 'alertas', 'mensajeria')
+WHERE p.`codigo` = 'general'
 ON DUPLICATE KEY UPDATE
   `activo` = VALUES(`activo`);
 

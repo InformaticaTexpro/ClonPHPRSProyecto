@@ -10,6 +10,7 @@ final class MensajeriaService
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
         $userId = $this->currentUserId($payload);
+        $this->touchUserActivity($userId);
 
         return match (true) {
             $method === 'GET' && $path === '/directorio' => [
@@ -42,7 +43,7 @@ final class MensajeriaService
             ],
             $method === 'GET' && $path === '/usuarios-online' => [
                 'ok' => true,
-                'online' => [],
+                'online' => $this->getOnlineUserIds(),
             ],
             $method === 'PATCH' && preg_match('#^/conversaciones/(\d+)/archivar$#', $path, $matches) => [
                 'ok' => true,
@@ -54,6 +55,26 @@ final class MensajeriaService
             ],
             default => throw new RuntimeException('Ruta de mensajería no encontrada', 404),
         };
+    }
+
+    private function touchUserActivity(int $userId): void
+    {
+        $this->db->execute('UPDATE usuario SET last_login = NOW() WHERE id = ?', [$userId]);
+    }
+
+    private function getOnlineUserIds(int $withinMinutes = 10): array
+    {
+        $withinMinutes = max(1, $withinMinutes);
+        $rows = $this->db->fetchAll(
+            'SELECT id
+             FROM usuario
+             WHERE is_active = 1
+               AND last_login IS NOT NULL
+               AND last_login >= (NOW() - INTERVAL ' . $withinMinutes . ' MINUTE)
+             ORDER BY id ASC'
+        );
+
+        return array_values(array_filter(array_map(static fn (array $row): int => (int)($row['id'] ?? 0), $rows), static fn (int $id): bool => $id > 0));
     }
 
     private function currentUserId(array $payload): int

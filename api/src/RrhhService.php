@@ -129,6 +129,7 @@ final class RrhhService
     private function buildReporteRow(array $row): array
     {
         $json = $this->parseReporteJson($row['reporte_json'] ?? null);
+        $vendedorNombre = trim((string)($row['vendedor_nombre'] ?? ''));
         return [
             ...$row,
             'id' => (int)($row['id'] ?? 0),
@@ -145,6 +146,7 @@ final class RrhhService
             'reporte_json' => $json,
             'folios_asignados' => $this->extractSnapshotFolios($json),
             'tiene_diferencias' => $json ? $this->hasDifferences($json) : false,
+            'vendedor_nombre' => $vendedorNombre !== '' ? $vendedorNombre : ('Vendedor #' . (int)($row['vendedor_usuario_id'] ?? 0)),
         ];
     }
 
@@ -420,8 +422,8 @@ final class RrhhService
                 CONVERT(VARCHAR(10), h.Fecha, 120) AS fecha_iso,
                 CONVERT(VARCHAR(10), h.Fecha, 103) AS fecha,
                 h.CodVendedor AS cod_vendedor_softland,
-                COALESCE(vend.VenDes, h.CodVendedor) AS vendedor_softland,
-                RTRIM(COALESCE(c.NomAux, '')) AS cliente,
+                COALESCE(NULLIF(LTRIM(RTRIM(vend.VenDes)), ''), h.CodVendedor) AS vendedor_softland,
+                COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), NULLIF(LTRIM(RTRIM(h.CodAux)), '')) AS cliente,
                 ROUND(SUM(m.TotLinea), 0) AS total_softland
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
@@ -432,7 +434,7 @@ final class RrhhService
                AND h.Tipo = 'F'
                AND h.Fecha >= ?
                AND h.Fecha < ?
-             GROUP BY h.Folio, h.Fecha, h.CodVendedor, vend.VenDes, c.NomAux
+             GROUP BY h.Folio, h.Fecha, h.CodVendedor, h.CodAux, vend.VenDes, c.NomAux
              ORDER BY h.Fecha DESC, h.Folio DESC"
         );
         $fechaInicio = sprintf('%04d-%02d-01 00:00:00', $anio, $mes);
@@ -441,11 +443,12 @@ final class RrhhService
         $stmt->execute([...$codes, $fechaInicio, $fechaFin]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         return array_map(static function (array $row): array {
+            $cliente = trim((string)($row['cliente'] ?? ''));
             return [
                 'folio' => trim((string)($row['Folio'] ?? '')),
                 'fecha' => trim((string)($row['fecha_iso'] ?? $row['fecha'] ?? '')),
                 'fecha_formato' => trim((string)($row['fecha'] ?? '')),
-                'cliente' => trim((string)($row['cliente'] ?? '')),
+                'cliente' => $cliente !== '' ? $cliente : trim((string)($row['Folio'] ?? '')),
                 'cod_vendedor_softland' => trim((string)($row['cod_vendedor_softland'] ?? '')),
                 'vendedor_softland' => trim((string)($row['vendedor_softland'] ?? '')),
                 'total_softland' => (float)($row['total_softland'] ?? 0),
@@ -471,7 +474,7 @@ final class RrhhService
             $params = array_merge($params, array_map([$this, 'normalizeText'], $codigosAsignado));
         }
 
-        $sql = 'SELECT fc.id, fc.folio, fc.fecha, fc.cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje, fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido, fc.mes, fc.anio, fc.rol,
+        $sql = "SELECT fc.id, fc.folio, fc.fecha, COALESCE(NULLIF(TRIM(fc.cliente), ''), CAST(fc.folio AS CHAR)) AS cliente, fc.monto_neto, fc.monto_asignado, fc.porcentaje, fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido, fc.mes, fc.anio, fc.rol,
                        uvo.usuario_id AS vendedor_asignador_id, uva.usuario_id AS vendedor_asignado_id,
                        COALESCE(uo.nombre, fc.cod_vendedor_principal) AS vendedor_asignador,
                        COALESCE(ua.nombre, fc.nombre_vendedor_compartido, fc.cod_vendedor_compartido) AS vendedor_asignado
@@ -480,15 +483,16 @@ final class RrhhService
                 LEFT JOIN usuario uo ON uo.id = uvo.usuario_id
                 LEFT JOIN usuario_vendedor uva ON uva.cod_vendedor = fc.cod_vendedor_compartido
                 LEFT JOIN usuario ua ON ua.id = uva.usuario_id
-                WHERE ' . implode(' AND ', $where) . '
-                ORDER BY fc.fecha DESC, fc.folio DESC, fc.id DESC';
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY fc.fecha DESC, fc.folio DESC, fc.id DESC";
         $rows = $this->db->fetchAll($sql, $params);
         return array_map(static function (array $row): array {
+            $cliente = trim((string)($row['cliente'] ?? ''));
             return [
                 'id' => (int)$row['id'],
                 'folio' => trim((string)$row['folio']),
                 'fecha' => trim((string)$row['fecha']),
-                'cliente' => trim((string)$row['cliente']),
+                'cliente' => $cliente !== '' ? $cliente : trim((string)$row['folio']),
                 'monto_neto' => (float)($row['monto_neto'] ?? 0),
                 'monto_asignado' => (float)($row['monto_asignado'] ?? 0),
                 'porcentaje' => (float)($row['porcentaje'] ?? 0),
@@ -515,6 +519,43 @@ final class RrhhService
             [$usuarioId]
         );
         return array_values(array_filter(array_map(fn(array $row): string => $this->normalizeText($row['cod_vendedor'] ?? ''), $rows)));
+    }
+
+    private function listarCatalogoVendedoresCompartidos(array $codigos): array
+    {
+        $codes = array_values(array_unique(array_filter(array_map([$this, 'normalizeText'], $codigos))));
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT DISTINCT
+                uv.usuario_id,
+                TRIM(uv.cod_vendedor) AS cod_vendedor,
+                COALESCE(NULLIF(TRIM(u.nombre), ''), TRIM(uv.cod_vendedor)) AS nombre
+             FROM usuario_vendedor uv
+             LEFT JOIN usuario u ON u.id = uv.usuario_id
+             WHERE uv.cod_vendedor IN ($placeholders)
+               AND uv.cod_vendedor IS NOT NULL
+               AND TRIM(uv.cod_vendedor) <> ''
+             ORDER BY nombre ASC, cod_vendedor ASC",
+            $codes
+        );
+
+        return array_map(static function (array $row): array {
+            $usuarioId = isset($row['usuario_id']) ? (int)$row['usuario_id'] : null;
+            $codigo = trim((string)($row['cod_vendedor'] ?? ''));
+            $nombre = trim((string)($row['nombre'] ?? ''));
+            return [
+                'usuario_id' => $usuarioId,
+                'cod_vendedor' => $codigo,
+                'codigo_vendedor' => $codigo,
+                'vendedor_codigo' => $codigo,
+                'nombre' => $nombre !== '' ? $nombre : ($codigo !== '' ? $codigo : 'Vendedor'),
+                'vendedor_nombre' => $nombre !== '' ? $nombre : ($codigo !== '' ? $codigo : 'Vendedor'),
+            ];
+        }, $rows);
     }
 
     private function compararRevision(array $softland, array $asignaciones, array $reportes): array
@@ -574,9 +615,9 @@ final class RrhhService
             $comparacion[] = [
                 'folio' => $folio,
                 'fecha' => $soft['fecha'] ?? ($asig['fecha'] ?? ($snapshot['fecha'] ?? null)),
-                'cliente' => $soft['cliente'] ?? ($asig['cliente'] ?? ($snapshot['cliente'] ?? '')),
+                'cliente' => trim((string)($soft['cliente'] ?? ($asig['cliente'] ?? ($snapshot['cliente'] ?? '')))) ?: $folio,
                 'cod_vendedor_softland' => $soft['cod_vendedor_softland'] ?? '',
-                'vendedor_softland' => $soft['vendedor_softland'] ?? '',
+                'vendedor_softland' => trim((string)($soft['vendedor_softland'] ?? '')) ?: ($soft['cod_vendedor_softland'] ?? ''),
                 'vendedor_asignador' => $asig['vendedor_asignador'] ?? '',
                 'vendedor_asignado' => $asig['vendedor_asignado'] ?? ($snapshot['vendedor_asignado'] ?? ''),
                 'porcentaje_participacion' => (float)($asig['porcentaje'] ?? ($snapshot['porcentaje_participacion'] ?? 0)),
@@ -634,6 +675,16 @@ final class RrhhService
             $foliosSoftland = array_values(array_filter($foliosSoftland, fn(array $row): bool => str_contains(mb_strtolower($row['cliente']), mb_strtolower($cliente))));
         }
 
+        $codigosCatalogo = array_values(array_unique(array_filter(array_merge(
+            $this->softlandCodes(),
+            $codigosAsignador,
+            $codigosAsignado,
+            array_map(static fn(array $row): string => trim((string)($row['cod_vendedor_softland'] ?? '')), $foliosSoftland),
+            array_map(static fn(array $row): string => trim((string)($row['cod_vendedor_principal'] ?? '')), $asignaciones),
+            array_map(static fn(array $row): string => trim((string)($row['cod_vendedor_compartido'] ?? '')), $asignaciones)
+        ))));
+        $vendedoresCompartidos = $this->listarCatalogoVendedoresCompartidos($codigosCatalogo);
+
         $comparacion = $this->compararRevision($foliosSoftland, $asignaciones, $reportes);
         $comparacionFiltrada = $soloDiferencias
             ? array_values(array_filter($comparacion['comparacion'], fn(array $item): bool => !empty($item['diferencias'])))
@@ -657,7 +708,7 @@ final class RrhhService
             'folios_asignados' => $asignaciones,
             'reportes_confirmados' => $reportes,
             'comparacion' => $comparacionFiltrada,
-            'vendedores_compartidos' => [],
+            'vendedores_compartidos' => $vendedoresCompartidos,
         ];
     }
 
@@ -673,12 +724,11 @@ final class RrhhService
         if (!$reporte) {
             throw new RuntimeException('Reporte compartido no encontrado', 404);
         }
-        if (($reporte['estado'] ?? '') === 'validado_rrhh') {
+        $estadoActual = (string)($reporte['estado'] ?? '');
+        if ($estadoActual === 'validado_rrhh') {
             throw new RuntimeException('Este reporte ya fue validado.', 409);
         }
-        if (($reporte['estado'] ?? '') === 'rechazado_rrhh') {
-            throw new RuntimeException('Este reporte ya fue rechazado.', 409);
-        }
+        // Permite cambiar desde rechazo a validación sin perder la trazabilidad del movimiento.
 
         $stmt = $this->db->mysql()->prepare(
             'UPDATE reporte_venta_compartida_confirmacion
@@ -718,12 +768,11 @@ final class RrhhService
         if (!$reporte) {
             throw new RuntimeException('Reporte compartido no encontrado', 404);
         }
-        if (($reporte['estado'] ?? '') === 'rechazado_rrhh') {
+        $estadoActual = (string)($reporte['estado'] ?? '');
+        if ($estadoActual === 'rechazado_rrhh') {
             throw new RuntimeException('Este reporte ya fue rechazado.', 409);
         }
-        if (($reporte['estado'] ?? '') === 'validado_rrhh') {
-            throw new RuntimeException('Este reporte ya fue validado.', 409);
-        }
+        // Permite cambiar desde validación a rechazo cuando RRHH necesita corregir la decisión.
 
         $stmt = $this->db->mysql()->prepare(
             'UPDATE reporte_venta_compartida_confirmacion

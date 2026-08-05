@@ -28,7 +28,7 @@
   function _detectarLoginUrl() {
     // Estrategia: usar origin + ruta absoluta conocida del login.
     // Evita cálculos relativos frágiles basados en profundidad del path.
-    return window.location.origin + '/src/varios/login/index.html';
+    return window.location.origin + '/src/modulo/varios/login/index.php';
   }
 
   // Solo activar si hay token activo

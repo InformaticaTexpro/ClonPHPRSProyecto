@@ -65,6 +65,13 @@
     }
   }
 
+  function usuarioTieneAccesoMenu(codigo) {
+    const usuario = getUsuarioSesion();
+    const objetivo = String(codigo || '').trim().toLowerCase();
+    if (!usuario || !objetivo) return false;
+    return Array.isArray(usuario.menus) && usuario.menus.some(menu => String(menu?.codigo || '').trim().toLowerCase() === objetivo);
+  }
+
   function getAlertasSessionKey() {
     const usuario = getUsuarioSesion();
     const id = usuario?.id ?? usuario?.sub ?? usuario?.usuario_id ?? null;
@@ -708,6 +715,7 @@
 
   function crearCampanaAlertasGlobal() {
     if (!FEATURE_FLAGS.alertas) return;
+    if (!usuarioTieneAccesoMenu('alertas')) return;
     if (document.getElementById(ALERTAS_BELL_ID)) return;
     const headerRight = document.querySelector('.main-header .header-right');
     if (!headerRight) return;
@@ -772,6 +780,7 @@
 
   function crearAccesoMensajeriaGlobal() {
     if (!FEATURE_FLAGS.mensajeria) return;
+    if (!usuarioTieneAccesoMenu('mensajeria')) return;
     if (document.getElementById(MENSAJERIA_BELL_ID)) return;
     const headerRight = document.querySelector('.main-header .header-right');
     if (!headerRight) return;

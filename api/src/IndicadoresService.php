@@ -35,7 +35,7 @@ final class IndicadoresService
                 'data' => $payload,
             ]);
             return $payload;
-        } catch (Throwable $e) {
+        } catch (Throwable) {
             if ($cache && isset($cache['data'])) {
                 $data = $cache['data'];
                 $data['disponible'] = true;
@@ -82,32 +82,67 @@ final class IndicadoresService
     private function fetchJson(string $url, int $retries = self::FETCH_RETRIES): array
     {
         $lastError = null;
-        while ($retries-- >= 0) {
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_TIMEOUT => self::FETCH_TIMEOUT,
-                CURLOPT_HTTPHEADER => [
-                    'User-Agent: RSProyecto/1.0',
-                    'Accept: application/json',
-                ],
-            ]);
 
-            $response = curl_exec($ch);
-            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            if ($response !== false && $status >= 200 && $status < 300) {
-                curl_close($ch);
-                $json = json_decode((string)$response, true);
-                if (is_array($json)) {
-                    return $json;
+        while ($retries-- >= 0) {
+            try {
+                if (function_exists('curl_init')) {
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $url,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_TIMEOUT => self::FETCH_TIMEOUT,
+                        CURLOPT_HTTPHEADER => [
+                            'User-Agent: RSProyecto/1.0',
+                            'Accept: application/json',
+                        ],
+                    ]);
+
+                    $response = curl_exec($ch);
+                    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    if ($response !== false && $status >= 200 && $status < 300) {
+                        curl_close($ch);
+                        $json = json_decode((string)$response, true);
+                        if (is_array($json)) {
+                            return $json;
+                        }
+                        $lastError = 'Respuesta JSON invalida';
+                    } else {
+                        $lastError = curl_error($ch) ?: (string)$response;
+                    }
+                    curl_close($ch);
+                } else {
+                    $context = stream_context_create([
+                        'http' => [
+                            'method' => 'GET',
+                            'timeout' => self::FETCH_TIMEOUT,
+                            'header' => implode("\r\n", [
+                                'User-Agent: RSProyecto/1.0',
+                                'Accept: application/json',
+                            ]),
+                        ],
+                        'ssl' => [
+                            'verify_peer' => true,
+                            'verify_peer_name' => true,
+                        ],
+                    ]);
+
+                    $response = @file_get_contents($url, false, $context);
+                    $statusLine = $http_response_header[0] ?? '';
+                    $status = preg_match('/\s(\d{3})\s/', (string)$statusLine, $m) ? (int)$m[1] : 0;
+                    if ($response !== false && $status >= 200 && $status < 300) {
+                        $json = json_decode((string)$response, true);
+                        if (is_array($json)) {
+                            return $json;
+                        }
+                        $lastError = 'Respuesta JSON invalida';
+                    } else {
+                        $lastError = $statusLine ?: 'Error de red';
+                    }
                 }
-                $lastError = 'Respuesta JSON inválida';
-            } else {
-                $lastError = curl_error($ch) ?: (string)$response;
+            } catch (Throwable $e) {
+                $lastError = $e->getMessage();
             }
-            curl_close($ch);
 
             if ($retries >= 0) {
                 usleep(750000);
@@ -128,7 +163,7 @@ final class IndicadoresService
         $last = $serie[0] ?? null;
         $value = $last['valor'] ?? null;
         if ($value === null || !is_numeric($value)) {
-            throw new RuntimeException('Valor inválido: ' . $indicador, 500);
+            throw new RuntimeException('Valor invalido: ' . $indicador, 500);
         }
 
         return [

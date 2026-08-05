@@ -5,6 +5,33 @@
     linear-gradient(180deg, #f5f8f7 0%, #eef4f2 100%);
 }
 
+.rrhh-header-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rrhh-header-meta__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 174, 142, 0.12);
+  color: #0d5f51;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rrhh-header-meta__chip--soft {
+  background: rgba(71, 85, 105, 0.09);
+  color: #334155;
+}
+
 .reportes-compartidos__main {
   display: grid;
   gap: 18px;

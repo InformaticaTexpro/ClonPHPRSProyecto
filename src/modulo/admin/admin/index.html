@@ -62,7 +62,7 @@
         <div class="admin-hero__copy">
           <span class="admin-kicker">Sistema / Administración</span>
           <h2>Administración</h2>
-          <p>Gestión real de usuarios, módulos, permisos por menú y asignación usuario ↔ vendedor.</p>
+          <p>Gestión real de usuarios, módulos, perfiles y asignación usuario ↔ vendedor.</p>
         </div>
         <div class="admin-hero__status">
           <span class="admin-status-pill">Datos reales</span>
@@ -77,7 +77,7 @@
       <nav class="admin-tabs" id="adminTabs" aria-label="Secciones de administración">
         <button class="admin-tab is-active" data-tab="resumen" type="button">Resumen</button>
         <button class="admin-tab" data-tab="usuarios" type="button">Usuarios</button>
-        <button class="admin-tab" data-tab="permisos" type="button">Permisos por usuario</button>
+        <button class="admin-tab" data-tab="permisos" type="button">Accesos por usuario</button>
         <button class="admin-tab" data-tab="perfiles" type="button">Perfiles</button>
         <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
         <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
@@ -92,7 +92,7 @@
             <div class="panel-card__header">
               <div>
                 <h3>Resumen general</h3>
-                <p>Vista ejecutiva del estado actual del módulo y accesos más importantes.</p>
+                <p>Vista ejecutiva del estado actual del módulo, accesos clave y alertas de configuración.</p>
               </div>
               <div class="admin-summary-updated">
                 <span class="summary-chip">Última carga: <strong id="adminLastUpdated">—</strong></span>
@@ -130,7 +130,7 @@
             <div class="panel-card__header">
               <div>
                 <h3>Usuarios</h3>
-                <p>Listado real de usuarios, estado, menús y vendedores asociados.</p>
+                <p>Listado operativo de usuarios, estado, menús y vínculos comerciales heredados.</p>
               </div>
               <button class="btn-primary" id="btnNuevoUsuario" type="button">Nuevo usuario</button>
             </div>
@@ -147,6 +147,9 @@
                 <option value="admin">Solo admin</option>
                 <option value="no-admin">Solo no admin</option>
               </select>
+            </div>
+            <div class="form-section-note admin-explainer">
+              Aquí administras datos operativos del usuario y sus relaciones comerciales. La autorización efectiva se revisa en <strong>Accesos por usuario</strong> y la fuente principal siempre es <strong>Perfiles</strong>.
             </div>
             <div class="table-scroll">
               <table class="admin-table">
@@ -174,17 +177,17 @@
           <div class="panel-card panel-card--split">
             <div class="panel-card__header">
               <div>
-                <h3>Permisos por usuario</h3>
-                <p>Selecciona un usuario y ajusta sus menús directos. Los perfiles se gestionan aparte.</p>
+                <h3>Accesos por usuario</h3>
+                <p>Consulta la herencia efectiva de cada usuario. La edición real se hace en perfiles y áreas.</p>
               </div>
             </div>
             <div class="form-section-note admin-explainer">
-              Los accesos heredados vienen desde los perfiles asignados al usuario. Los accesos directos son excepciones individuales. Usa excepciones solo cuando un usuario necesite algo distinto a su perfil.
+              La autorización real se define desde perfiles. Esta vista sirve para revisar qué recibe cada usuario por herencia y qué queda bloqueado.
             </div>
             <div class="permission-topbar">
               <select class="input-control" id="permUserSelect"></select>
               <div class="permission-summary">
-                <span class="summary-chip">Permitidos: <strong id="permAllowedCount">0</strong></span>
+                <span class="summary-chip">Heredados: <strong id="permAllowedCount">0</strong></span>
                 <span class="summary-chip">Bloqueados: <strong id="permBlockedCount">0</strong></span>
               </div>
             </div>
@@ -195,7 +198,7 @@
               <button class="btn-secondary" id="permRestoreArea" type="button">Aplicar sugeridos por área</button>
               <button class="btn-primary" id="permSave" type="button">Guardar cambios</button>
             </div>
-            <div class="inline-help">Busca por nombre, correo o área. Marca solo accesos especiales; no repitas menús que ya vienen desde el perfil.</div>
+            <div class="inline-help">Busca por nombre, correo o área. La edición quedó deshabilitada porque los accesos ahora se administran desde perfiles.</div>
             <div class="permission-grid" id="permGroups"></div>
           </div>
         </section>
@@ -317,12 +320,12 @@
             <div class="panel-card__header">
               <div>
                 <h3>Áreas</h3>
-                <p>Catálogo maestro de áreas con perfil base, estado y acceso rápido por usuario.</p>
+                <p>Catálogo maestro de áreas con perfil base, estado y herencia operativa para usuarios.</p>
               </div>
               <button class="btn-primary" id="btnNuevaArea" type="button">Crear área</button>
             </div>
             <div class="form-section-note admin-explainer">
-              Revisa los usuarios afectados antes de aplicar sugeridos. Esta acción agrega accesos, pero no elimina permisos directos ni perfiles.
+              El perfil base del área es la referencia principal de accesos. Esta acción sincroniza la herencia del área sin tocar perfiles manuales ya asignados.
             </div>
             <div class="table-scroll">
               <table class="admin-table">
@@ -342,16 +345,16 @@
             <article class="panel-card panel-card--split area-assign-card">
               <div class="panel-card__header">
                 <div>
-                  <h3>Aplicar perfil a usuarios del área</h3>
-                  <p>Selecciona un área y un perfil para asignarlo sin quitar perfiles existentes.</p>
+                  <h3>Sincronizar herencia del área</h3>
+                  <p>Selecciona un área y un perfil para alinear la base de accesos central.</p>
                 </div>
               </div>
               <div class="toolbar-grid">
                 <select class="input-control" id="areaApplySelect"></select>
                 <select class="input-control" id="areaApplyProfileSelect"></select>
-                <button class="btn-primary" id="areaApplyButton" type="button">Aplicar perfil al área</button>
+                <button class="btn-primary" id="areaApplyButton" type="button">Sincronizar área</button>
               </div>
-              <div class="inline-help" id="areaApplyBaseHint">El área define el perfil base sugerido para el usuario.</div>
+              <div class="inline-help" id="areaApplyBaseHint">El área define el perfil base sugerido para el usuario y marca la herencia principal.</div>
               <div class="area-preview-grid" id="areaApplyPreview"></div>
             </article>
           </div>

@@ -3,17 +3,10 @@ declare(strict_types=1);
 
 final class SalesService
 {
+    use SharedServiceHelpers;
+
     public function __construct(private Database $db, private AnalyticsService $analytics)
     {
-    }
-
-    private function userId(array $payload): int
-    {
-        $id = (int)($payload['sub'] ?? $payload['id'] ?? 0);
-        if ($id <= 0) {
-            throw new RuntimeException('Token inválido.', 401);
-        }
-        return $id;
     }
 
     private function userInfo(int $userId): array
@@ -23,30 +16,6 @@ final class SalesService
             throw new RuntimeException('Usuario inactivo o no encontrado', 401);
         }
         return $row;
-    }
-
-    private function vendorCodes(int $userId): array
-    {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows)));
-    }
-
-    private function coordinatorCodes(int $userId): array
-    {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_filter(array_map(static function (array $row): string {
-            return strtoupper(trim((string)($row['tipo'] ?? ''))) === 'C' ? trim((string)($row['cod_vendedor'] ?? '')) : '';
-        }, $rows)));
-    }
-
-    private function monthYear(array $query): array
-    {
-        return Security::validate_mes_anio($query['mes'] ?? null, $query['anio'] ?? null);
-    }
-
-    private function monthStart(int $anio, int $mes): string
-    {
-        return sprintf('%04d-%02d-01', $anio, $mes);
     }
 
     private function queryArray(PDO $pdo, string $sql, array $params = []): array
@@ -80,23 +49,6 @@ final class SalesService
             @mkdir($dir, 0775, true);
         }
         file_put_contents($path, $pdf);
-    }
-
-    public function confirmacionEstado(array $payload, array $query): array
-    {
-        $userId = $this->userId($payload);
-        $params = $this->monthYear($query);
-        $conf = $this->existingConfirmation($userId, $params['mes'], $params['anio']);
-        return [
-            'ok' => true,
-            'confirmado' => (bool)$conf,
-            'confirmacion' => $conf ? [
-                'id' => (int)$conf['id'],
-                'fecha_confirmacion' => $conf['fecha_confirmacion'],
-                'total_folios' => (int)$conf['total_folios'],
-                'nombre_archivo' => $conf['nombre_archivo'],
-            ] : null,
-        ];
     }
 
     public function confirmar(array $payload, array $body): array

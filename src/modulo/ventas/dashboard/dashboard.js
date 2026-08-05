@@ -57,6 +57,14 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
   }
 
+  function periodoActual() {
+    const hoy = new Date();
+    return {
+      mes: hoy.getMonth() + 1,
+      anio: hoy.getFullYear(),
+    };
+  }
+
   function formatPctDescuento(valor) {
     if (valor === null || valor === undefined || valor === '') return '-';
     const n = Number(valor);
@@ -229,6 +237,7 @@
         if (i + 1 === hoy.getMonth() + 1) o.selected = true;
         selMes.appendChild(o);
       });
+      if (!selMes.value) selMes.value = String(hoy.getMonth() + 1);
     }
     const selAnio = document.getElementById('filtroAnio');
     if (selAnio) {
@@ -238,13 +247,24 @@
         if (y === hoy.getFullYear()) o.selected = true;
         selAnio.appendChild(o);
       }
+      if (!selAnio.value) selAnio.value = String(hoy.getFullYear());
     }
   }
 
   function getParams() {
+    const actual = periodoActual();
+    const mesSeleccionado = Number(document.getElementById('filtroMes')?.value || actual.mes);
+    const anioSeleccionado = Number(document.getElementById('filtroAnio')?.value || actual.anio);
+    const mes = Number.isInteger(mesSeleccionado) && mesSeleccionado >= 1 && mesSeleccionado <= 12
+      ? mesSeleccionado
+      : actual.mes;
+    const anio = Number.isInteger(anioSeleccionado) && anioSeleccionado >= 2026
+      ? anioSeleccionado
+      : actual.anio;
+
     return {
-      mes:  document.getElementById('filtroMes')?.value  || (new Date().getMonth() + 1),
-      anio: document.getElementById('filtroAnio')?.value || new Date().getFullYear()
+      mes,
+      anio
     };
   }
 
@@ -401,7 +421,7 @@
     const vendedor = filtroVendedorActivo;
     const tipos    = tiposActivos;
     const lista = ventasMesData.filter(v => {
-      if (q && !String(v.Folio||'').toLowerCase().includes(q) && !String(v.cliente||'').toLowerCase().includes(q)) return false;
+      if (q && !String(v.Folio||'').toLowerCase().includes(q) && !String(v.cliente||'').toLowerCase().includes(q) && !String(v.CodAux||'').toLowerCase().includes(q)) return false;
       if (vendedor && v.CodVendedor !== vendedor) return false;
       if (v.Tipo && !tipos.has(v.Tipo)) return false;
       return true;
@@ -419,13 +439,14 @@
       const pctDesc      = formatPctDescuento(v.pct_descuento ?? v.pctDescuento ?? v.dcto ?? v.Dcto ?? (pctDescRedondeado || null));
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
+      const cliente      = v.cliente || v.CodAux || '—';
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
       return `<tr data-folio="${v.Folio}">
         <td><strong>${escHtml(v.Folio) || '—'}</strong>${badgeComp}</td>
         <td>${escHtml(v.fecha_formato) || '—'}</td>
-        <td>${escHtml(v.cliente) || '—'}</td>
+        <td>${escHtml(cliente) || '—'}</td>
         <td>${escHtml(v.CodVendedor) || '—'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
         <td style="text-align:right">${formatCLP(totLineaReal)}</td>
@@ -456,7 +477,7 @@
     overlay.setAttribute('aria-hidden','false');
     document.body.style.overflow = 'hidden';
     try {
-      const res  = await fetch(`${API}/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
       if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin líneas</td></tr>'; return; }

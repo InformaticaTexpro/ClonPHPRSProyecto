@@ -14,6 +14,7 @@
 (function () {
 
   const API   = '/api/dashboard';
+  const API_VENTAS = '/api/ventas';
   const token = () => localStorage.getItem('token');
 
   let todosVendedores     = [];
@@ -31,8 +32,30 @@
   }
 
   function formatDescuentoVenta(v) {
-    const valorReal = Number(v.valor_real ?? v.ValorReal ?? v.monto ?? v.TotLinea ?? 0);
-    const totLineaReal = Number(v.TotLineaReal ?? v.tot_linea_real ?? v.total_lista_real ?? v.valor_historico_linea ?? 0);
+    const pctDirecto = v.pct_descuento ?? v.pctDescuento ?? v.dcto ?? v.Dcto;
+    if (pctDirecto !== undefined && pctDirecto !== null && pctDirecto !== '') {
+      const pct = Number(pctDirecto);
+      return Number.isFinite(pct) ? `${Math.round(pct)}%` : '—';
+    }
+
+    const valorReal = Number(
+      v.valor_real ??
+      v.ValorReal ??
+      v.neto_total ??
+      v.neto_real ??
+      v.monto ??
+      v.TotLinea ??
+      0
+    );
+    const totLineaReal = Number(
+      v.TotLineaReal ??
+      v.tot_linea_real ??
+      v.total_lista_real ??
+      v.valor_historico_linea ??
+      v.venta_lista_folio ??
+      v.venta_real_folio ??
+      0
+    );
 
     if (
       Number.isFinite(valorReal) &&
@@ -41,7 +64,7 @@
       Math.abs(valorReal) < Math.abs(totLineaReal)
     ) {
       const pct = (1 - (Math.abs(valorReal) / Math.abs(totLineaReal))) * 100;
-      return `${Math.round(pct * 100) / 100}%`;
+      return `${Math.round(pct)}%`;
     }
 
     return '—';
@@ -65,6 +88,16 @@
     const limpio = String(nombre || 'Usuario').trim();
     if (!limpio) return 'Usuario';
     return limpio.split(/\s+/)[0] || limpio;
+  }
+
+  function leerCampo(obj, ...keys) {
+    for (const key of keys) {
+      const value = obj?.[key];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return value;
+      }
+    }
+    return '';
   }
 
 
@@ -199,28 +232,31 @@
 
   function renderDetalle(data) {
     const d0 = data.detalle?.[0] || {};
+    const codCliente = leerCampo(d0, 'CodAux', 'cod_aux', 'codAux');
+    const canCod = leerCampo(d0, 'CanCod', 'cancod', 'can_cod');
+    const cliente = leerCampo(d0, 'Cliente', 'cliente', 'NomAux', 'nomaux');
 
     const bloque1 = `
       <div class="det-bloque det-bloque1">
         <div class="det-campo">
           <span class="det-label">Folio</span>
-          <span class="det-valor">${d0.Folio || data.folio || '—'}</span>
+          <span class="det-valor">${leerCampo(d0, 'Folio', 'folio') || data.folio || '—'}</span>
         </div>
         <div class="det-campo">
           <span class="det-label">Fecha</span>
-          <span class="det-valor">${d0.Fecha || '—'}</span>
+          <span class="det-valor">${leerCampo(d0, 'Fecha', 'fecha') || '—'}</span>
         </div>
         <div class="det-campo">
           <span class="det-label">Cód. Cliente</span>
-          <span class="det-valor">${d0.CodAux || '—'}</span>
+          <span class="det-valor">${codCliente || '—'}</span>
         </div>
         <div class="det-campo det-campo--wide">
           <span class="det-label">Cliente</span>
-          <span class="det-valor">${d0.Cliente || '—'}</span>
+          <span class="det-valor">${cliente || '—'}</span>
         </div>
         <div class="det-campo">
           <span class="det-label">CanCod</span>
-          <span class="det-valor">${d0.CanCod || '—'}</span>
+          <span class="det-valor">${canCod || '—'}</span>
         </div>
       </div>`;
 
@@ -239,8 +275,8 @@
       const descStr  = Number.isFinite(desc) ? `${desc}%` : '—';
       const negativo = totReal < 0;
 
-      const codProd  = p.CodProd  || '—';
-      const desProd  = p.DesProd  || p.descripcion || '—';
+      const codProd  = leerCampo(p, 'CodProd', 'codprod', 'codigo') || '—';
+      const desProd  = leerCampo(p, 'DesProd', 'descripcion', 'Descripcion') || '—';
 
       return `
         <tr class="${negativo ? 'det-row-neg' : ''}">
@@ -343,7 +379,7 @@
     if (!force && _detalleCache[folio]) return _detalleCache[folio];
     const qs = new URLSearchParams();
     if (anio != null && anio !== '') qs.set('anio', anio);
-    const url = qs.toString() ? `${API}/detalle/${folio}?${qs.toString()}` : `${API}/detalle/${folio}`;
+    const url = qs.toString() ? `${API_VENTAS}/detalle/${folio}?${qs.toString()}` : `${API_VENTAS}/detalle/${folio}`;
     const res  = await fetch(url, { headers:{ Authorization:`Bearer ${token()}` } });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || `Error detalle folio ${folio}`);
@@ -365,7 +401,7 @@
     resumen.totalReal = Math.round(resumen.totalReal);
     resumen.totalVenta = Math.round(resumen.totalVenta);
     resumen.dcto = base > 0
-      ? Math.round((((Math.abs(resumen.totalReal) - Math.abs(resumen.totalVenta)) / base) * 100) * 100) / 100
+      ? Math.round(((Math.abs(resumen.totalReal) - Math.abs(resumen.totalVenta)) / base) * 100)
       : null;
     return resumen;
   }
@@ -385,8 +421,8 @@
 
   function renderCabeceraFolioCompartido(doc, y, share, detalleInfo) {
     const primera = detalleInfo?.primera || {};
-    const cliente = primera.Cliente || share.cliente || '—';
-    const codAux  = primera.CodAux || '—';
+    const cliente = leerCampo(primera, 'Cliente', 'cliente', 'NomAux', 'nomaux') || share.cliente || '—';
+    const codAux  = leerCampo(primera, 'CodAux', 'cod_aux', 'codAux') || '—';
     const tipo    = resolverTipoFolio(
       share.tipo_folio,
       detalleInfo?.tipoFolio,
@@ -435,12 +471,12 @@
       const descBase = Number(p.dcto ?? p.Dcto);
       const desc     = Number.isFinite(descBase) ? descBase : (
         precReal !== 0
-          ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+          ? Math.round(((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100)
           : 0
       );
       return [
-        p.CodProd || '—',
-        p.DesProd || p.descripcion || '—',
+        leerCampo(p, 'CodProd', 'codprod', 'codigo') || '—',
+        leerCampo(p, 'DesProd', 'descripcion', 'Descripcion') || '—',
         String(cant),
         formatCLP(precReal),
         formatCLP(precVta),
@@ -765,15 +801,30 @@
         return;
       }
 
+      if (!_ultimasVentas.length && !_ultimosCompartidos.length && !_ultimosAsignados.length) {
+        await refrescarVista();
+      }
+
       const ventasParaPDF      = ordenarRegistrosPDF(filtrarVentasParaPDF(_ultimasVentas));
       const compartidosParaPDF  = modoPDF === 'compartidos'
         ? combinarCompartidosPDF()
         : (modoPDF === 'todos' ? ordenarRegistrosPDF(_ultimosCompartidos.slice()) : []);
       const asignadosParaPDF    = ordenarRegistrosPDF(modoPDF === 'todos' ? _ultimosAsignados.slice() : []);
+
+      if (!ventasParaPDF.length && !compartidosParaPDF.length && !asignadosParaPDF.length) {
+        throw new Error('No hay datos cargados para generar el PDF en este período.');
+      }
+
       const filtrosPDF          = getParams();
 
       const jsPDF    = await cargarLibreriaPDF();
+      if (typeof jsPDF !== 'function') {
+        throw new Error('No se pudo cargar la librería del PDF.');
+      }
       const doc      = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+      if (typeof doc.autoTable !== 'function') {
+        throw new Error('No se pudo cargar el plugin de tablas del PDF.');
+      }
       const mesLabel = getMesFiltro();
       const nombre   = _usuarioActual?.nombre || 'Vendedor';
       const hoy      = new Date().toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -892,10 +943,10 @@
               console.warn(`[PDF] No se pudo cargar detalle del folio ${venta.Folio}:`, e);
             }
 
-            const d0       = detalleData?.detalle?.[0] || {};
-            const lineas   = detalleData?.detalle || [];
-            const cliente  = d0.Cliente || venta.cliente || '?';
-            const fecha    = d0.Fecha   || venta.fecha_formato || '?';
+          const d0       = detalleData?.detalle?.[0] || {};
+          const lineas   = detalleData?.detalle || [];
+            const cliente  = leerCampo(d0, 'Cliente', 'cliente', 'NomAux', 'nomaux') || venta.cliente || '?';
+            const fecha    = leerCampo(d0, 'Fecha', 'fecha') || venta.fecha_formato || '?';
             const tipo     = resolverTipoFolio(
               detalleData?.tipo_folio,
               detalleData?.Tipo,
@@ -907,8 +958,8 @@
               venta.Tipo,
               venta.tipo
             );
-            const codAux   = d0.CodAux  || '?';
-            const canCod   = d0.CanCod  || '?';
+            const codAux   = leerCampo(d0, 'CodAux', 'cod_aux', 'codAux') || '?';
+            const canCod   = leerCampo(d0, 'CanCod', 'cancod', 'can_cod') || '?';
             if (y > altoPaginaPDF(doc) - 60) {
               doc.addPage();
               addPageHeader();
@@ -942,12 +993,12 @@
               const descBase = Number(p.dcto ?? p.Dcto);
               const desc     = Number.isFinite(descBase) ? descBase : (
                 precReal !== 0
-                  ? Math.round((((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100) * 100) / 100
+                  ? Math.round(((Math.abs(totReal) - Math.abs(totVta)) / Math.abs(totReal)) * 100)
                   : 0
               );
               return [
-                p.CodProd || '—',
-                p.DesProd || p.descripcion || '—',
+                leerCampo(p, 'CodProd', 'codprod', 'codigo') || '—',
+                leerCampo(p, 'DesProd', 'descripcion', 'Descripcion') || '—',
                 String(cant),
                 formatCLP(precReal),
                 formatCLP(precVta),
@@ -1020,7 +1071,7 @@
               totalReal: resumenGrupo.totalReal,
               totalVenta: resumenGrupo.totalVenta,
               dcto: baseGrupo
-                ? Math.round((((Math.abs(resumenGrupo.totalReal) - Math.abs(resumenGrupo.totalVenta)) / baseGrupo) * 100) * 100) / 100
+                ? Math.round(((Math.abs(resumenGrupo.totalReal) - Math.abs(resumenGrupo.totalVenta)) / baseGrupo) * 100)
                 : null,
             };
             y = renderResumenFolioCompartido(doc, y, resumenCodigo, `Total código ${grupo.codigo}`) + 2;
@@ -1187,6 +1238,16 @@
     };
   }
 
+  function aplicarPeriodoEnFiltros(periodo) {
+    if (!periodo) return;
+    const mes = String(periodo.mes || '');
+    const anio = String(periodo.anio || '');
+    const selMes = document.getElementById('filtroMes');
+    const selAnio = document.getElementById('filtroAnio');
+    if (selMes && mes) selMes.value = mes;
+    if (selAnio && anio) selAnio.value = anio;
+  }
+
   function bindDetalleRows(tbody, folioField, colspan) {
     tbody.querySelectorAll('tr[data-folio]').forEach(tr => {
       const folio   = tr.dataset.folio;
@@ -1323,17 +1384,22 @@
 
   async function cargarFoliosAsignados() {
     try {
-      const res  = await fetch(`${API}/asignados?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const params = getParams();
+      const res  = await fetch(`${API}/asignados?${new URLSearchParams(params)}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       const tbody = document.getElementById('tbodyAsignados');
+      if (!data.ok) throw new Error(data.error || 'No se pudieron cargar los folios asignados');
       _ultimosAsignados   = data.asignados || [];
       setText('totalAsignados', `${_ultimosAsignados.length} registros`);
       if (!tbody) return;
       if (!_ultimosAsignados.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados este mes</td></tr>';
+        const labelPeriodo = `${MESES_NOMBRE[Number(params.mes) - 1] || 'Mes'} ${params.anio || ''}`.trim();
+        tbody.innerHTML = `<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados en ${labelPeriodo}</td></tr>`;
         await cargarEstadoReporteCompartido(_ultimosAsignados);
         return;
       }
+      const labelPeriodo = `${MESES_NOMBRE[Number(params.mes) - 1] || 'Mes'} ${params.anio || ''}`.trim();
+      setEstadoReporteCompartido(`Mostrando folios asignados de ${labelPeriodo}`, 'ready');
       tbody.innerHTML = _ultimosAsignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
       tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1559,8 +1625,9 @@
       if (!_ultimasVentas.length) {
         if (tbodyV) tbodyV.innerHTML = '<tr class="tabla-empty"><td colspan="8" style="text-align:center;padding:2rem;color:#aaa">Sin ventas este mes</td></tr>';
       } else if (tbodyV) {
-        tbodyV.innerHTML = _ultimasVentas.map(v => {
-          const totLineaReal = v.TotLineaReal ?? v.monto;
+      tbodyV.innerHTML = _ultimasVentas.map(v => {
+          const totLineaReal = v.TotLineaReal ?? v.venta_lista_folio ?? v.venta_real_folio ?? v.monto;
+          const cliente = v.cliente || v.CodAux || '—';
           return `
             <tr data-folio="${v.Folio}">
               <td class="det-btn-td">
@@ -1574,7 +1641,7 @@
               </td>
               <td><strong>${v.Folio}</strong></td>
               <td>${v.fecha_formato || '—'}</td>
-              <td>${v.cliente || '—'}</td>
+              <td>${cliente}</td>
               <td>${v.CodVendedor || '—'}</td>
               <td style="text-align:right">${formatCLP(v.monto)}</td>
               <td style="text-align:right;color:var(--color-success,#27ae60)">${formatCLP(totLineaReal)}</td>

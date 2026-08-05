@@ -3,32 +3,33 @@ declare(strict_types=1);
 
 final class AnalyticsService
 {
+    use SharedServiceHelpers;
+
     public function __construct(private Database $db)
     {
     }
 
-    private function currentUserIdFromPayload(array $payload): int
+    private function getVendorName(string $codVendedor): string
     {
-        $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
-        if ($userId <= 0) {
-            throw new RuntimeException('Token inválido.', 401);
+        $cod = trim($codVendedor);
+        if ($cod === '') {
+            return '';
         }
-        return $userId;
-    }
 
-    private function getVendorCodes(int $userId): array
-    {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows)));
-    }
-
-    private function getCoordinatorCodes(int $userId): array
-    {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_filter(array_map(static function (array $row): string {
-            $tipo = strtoupper(trim((string)($row['tipo'] ?? '')));
-            return $tipo === 'C' ? trim((string)($row['cod_vendedor'] ?? '')) : '';
-        }, $rows)));
+        try {
+            $row = $this->db->fetchOne(
+                'SELECT u.nombre
+                 FROM usuario_vendedor uv
+                 INNER JOIN usuario u ON u.id = uv.usuario_id
+                 WHERE TRIM(uv.cod_vendedor) = ?
+                 LIMIT 1',
+                [$cod]
+            );
+            $nombre = trim((string)($row['nombre'] ?? ''));
+            return $nombre !== '' ? $nombre : $cod;
+        } catch (Throwable) {
+            return $cod;
+        }
     }
 
     private function inClause(array $values, array &$params): string
@@ -39,26 +40,6 @@ final class AnalyticsService
             $params[] = $value;
         }
         return implode(',', $placeholders);
-    }
-
-    private function softland(): PDO
-    {
-        return $this->db->softland();
-    }
-
-    private function softlandUnavailable(string $scope): ?array
-    {
-        if ($this->db->softlandAvailable()) {
-            return null;
-        }
-
-        return [
-            'ok' => false,
-            'error' => sprintf(
-                'No se pueden cargar los datos de %s porque falta el driver PDO_SQLSRV en este servidor.',
-                $scope
-            ),
-        ];
     }
 
     private function asFloat(mixed $value): float
@@ -84,21 +65,6 @@ final class AnalyticsService
         }
 
         return round((1 - (abs($cobrado) / $base)) * 100, 2);
-    }
-
-    private function monthYear(array $query): array
-    {
-        return Security::validate_mes_anio($query['mes'] ?? null, $query['anio'] ?? null);
-    }
-
-    private function monthStart(int $anio, int $mes): string
-    {
-        return sprintf('%04d-%02d-01', $anio, $mes);
-    }
-
-    private function monthEnd(int $anio, int $mes): string
-    {
-        return (new DateTimeImmutable($this->monthStart($anio, $mes)))->modify('last day of this month')->format('Y-m-d');
     }
 
     private function fetchMetaMes(int $userId, int $anio, int $mes): array
@@ -272,7 +238,7 @@ final class AnalyticsService
             $lista = (float)($row['ventaRealLista'] ?? 0);
             $rows[] = [
                 'codVendedor' => trim((string)$row['codVendedor']),
-                'nombreVendedor' => trim((string)($row['nombreVendedor'] ?? '')),
+                'nombreVendedor' => $this->getVendorName((string)$row['codVendedor']),
                 'totalFolios' => (int)($row['totalFolios'] ?? 0),
                 'totalVentasCobrado' => (int)round($ventas),
                 'ventaRealLista' => (int)round($lista),
@@ -302,7 +268,14 @@ final class AnalyticsService
             "SELECT
                 enc.Folio,
                 CONVERT(varchar(10), enc.Fecha, 120) AS fecha_formato,
-                RTRIM(enc.NomAux) AS cliente,
+                RTRIM(enc.CodAux) AS CodAux,
+                RTRIM(
+                    COALESCE(
+                        NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), enc.NomAux))), ''),
+                        NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomAux))), ''),
+                        enc.CodAux
+                    )
+                ) AS cliente,
                 enc.CodVendedor,
                 enc.Tipo,
                 SUM(m.TotLinea) AS monto,
@@ -310,11 +283,12 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              LEFT JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = enc.CodAux
              WHERE enc.CodVendedor IN (%s)
                AND enc.Tipo IN ('F','N','D')
                AND enc.Estado <> 'A'
                AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
-             GROUP BY enc.Folio, enc.Fecha, enc.NomAux, enc.CodVendedor, enc.Tipo
+             GROUP BY enc.Folio, enc.Fecha, enc.CodAux, CONVERT(varchar(max), enc.NomAux), CONVERT(varchar(max), c.NomAux), enc.CodVendedor, enc.Tipo
              ORDER BY enc.Fecha DESC, enc.Folio DESC",
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
@@ -328,6 +302,7 @@ final class AnalyticsService
                 'Folio' => (int)($row['Folio'] ?? 0),
                 'fecha_formato' => (string)($row['fecha_formato'] ?? ''),
                 'cliente' => trim((string)($row['cliente'] ?? '')),
+                'CodAux' => trim((string)($row['CodAux'] ?? '')),
                 'CodVendedor' => trim((string)($row['CodVendedor'] ?? '')),
                 'Tipo' => strtoupper(trim((string)($row['Tipo'] ?? ''))),
                 'monto' => (int)round($monto),
@@ -385,11 +360,21 @@ final class AnalyticsService
             "SELECT
                 h.Folio,
                 h.Fecha,
+                h.Tipo,
                 h.CodVendedor,
                 h.CodAux,
                 h.CanCod,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), h.NomAux))), ''),
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomAux))), ''),
+                    RTRIM(h.CodAux)
+                ) AS Cliente,
+                RTRIM(h.CodAux) AS cod_aux,
+                RTRIM(h.CodAux) AS CodAux,
+                RTRIM(h.CanCod) AS cancod,
+                RTRIM(h.CanCod) AS CanCod,
                 m.CodProd,
-                RTRIM(m.DetProd) AS DesProd,
+                LTRIM(RTRIM(CONVERT(varchar(max), m.DetProd))) AS DesProd,
                 m.CantFacturada,
                 m.TotLinea,
                 m.CantFacturada * ISNULL(t.PrecioVta, 0) AS neto_real,
@@ -403,6 +388,7 @@ final class AnalyticsService
                 ISNULL(t.PrecioVta, 0) AS PrecioVta
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
              LEFT JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
              WHERE h.Folio = ?
                AND h.Tipo IN ('F','N','D')
@@ -424,6 +410,9 @@ final class AnalyticsService
             $row['precio_real'] = $precioLista;
             $row['precio_vta'] = $precioVenta;
             $row['PrecioVta'] = $precioLista;
+            $row['Tipo'] = strtoupper(trim((string)($row['Tipo'] ?? '')));
+            $row['tipo'] = $row['Tipo'];
+            $row['tipo_folio'] = $row['Tipo'];
             $row['dcto'] = $this->discountPercent($totalReal, $totalCobrado);
             $rows[] = $row;
         }
@@ -468,14 +457,28 @@ final class AnalyticsService
         );
         $clientsStmt->execute($paramsClients);
         $clients = $clientsStmt->fetchAll(PDO::FETCH_ASSOC);
+        $clientCodes = array_values(array_filter(array_map(static function (array $row): string {
+            return trim((string)($row['CodAux'] ?? ''));
+        }, $clients)));
+        if (!$clientCodes) {
+            return [
+                'ok' => true,
+                'TotalClientes' => 0,
+                'ClientesActivos' => 0,
+                'ClientesInactivos' => 0,
+                'ClientesNuevos' => 0,
+                'ClientesRecuperados' => 0,
+                'total' => [], 'activos' => [], 'inactivos' => [], 'nuevos' => [], 'recuperados' => [], 'activosMesActual' => [],
+            ];
+        }
 
         $paramsPurchases = [];
-        $inPurchases = $this->inClause($vendCodes, $paramsPurchases);
+        $inPurchases = $this->inClause($clientCodes, $paramsPurchases);
         $stmt = $pool->prepare(
             "SELECT h.CodAux, h.Fecha, RTRIM(a.NomAux) AS NomAux, RTRIM(a.FonAux1) AS FONAux1, RTRIM(a.FonAux2) AS FonAux2, RTRIM(a.EMail) AS EMail
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = h.CodAux
-             WHERE h.CodVendedor IN ($inPurchases)
+             WHERE h.CodAux IN ($inPurchases)
                AND h.Tipo IN ('F','N','D')
                AND h.Estado <> 'A'
                AND h.Fecha <= ?
@@ -498,7 +501,7 @@ final class AnalyticsService
                 continue;
             }
             $history = $purchasesByClient[$codAux] ?? [];
-            $dates = array_values(array_filter(array_map(static function (array $r): ?DateTimeImmutable {
+            $datesGlobales = array_values(array_filter(array_map(static function (array $r): ?DateTimeImmutable {
                 try {
                     return new DateTimeImmutable(substr((string)($r['Fecha'] ?? ''), 0, 10));
                 } catch (Throwable) {
@@ -506,10 +509,10 @@ final class AnalyticsService
                 }
             }, $history)));
 
-            $fechaUltima = $dates ? $dates[count($dates) - 1] : null;
-            $fechaPrimera = $dates ? $dates[0] : null;
+            $fechaUltima = $datesGlobales ? $datesGlobales[count($datesGlobales) - 1] : null;
+            $fechaPrimera = $datesGlobales ? $datesGlobales[0] : null;
             $fechaMinMes = null;
-            foreach ($dates as $date) {
+            foreach ($datesGlobales as $date) {
                 if ($date >= $desde && $date <= $hasta) {
                     $fechaMinMes = $date;
                     break;
@@ -518,12 +521,13 @@ final class AnalyticsService
 
             $esActivo = $fechaUltima && $fechaUltima >= $ventanaActiva;
             $esInactivo = !$fechaUltima || $fechaUltima < $ventanaActiva;
+            // Nuevo = primera compra histórica real del cliente dentro del mes filtrado.
             $esNuevo = $fechaPrimera && $fechaPrimera >= $desde && $fechaPrimera <= $hasta;
             $esRecuperado = false;
             if ($fechaMinMes) {
                 $tieneSilencio = true;
                 $tieneHistorial = false;
-                foreach ($dates as $date) {
+                foreach ($datesGlobales as $date) {
                     if ($date < $fechaMinMes->modify('-180 days')) {
                         $tieneHistorial = true;
                     }
@@ -574,6 +578,263 @@ final class AnalyticsService
             'recuperados' => $recuperados,
             'activosMesActual' => $activosMesActual,
         ];
+    }
+
+    public function compartirLista(array $payload, array $query): array
+    {
+        $codigosCoord = $this->coordinatorCodes($payload);
+        if (!$codigosCoord) {
+            throw new RuntimeException('No autorizado para compartir', 403);
+        }
+
+        $periodoSolicitado = $this->monthYear($query);
+        $mes = $periodoSolicitado['mes'];
+        $anio = $periodoSolicitado['anio'];
+
+        $placeholders = implode(',', array_fill(0, count($codigosCoord), '?'));
+        $foliosYaAsignados = $this->db->fetchAll(
+            "SELECT DISTINCT folio
+             FROM factura_compartida
+             WHERE cod_vendedor_principal IN ($placeholders)
+               AND rol = 'compartido'",
+            $codigosCoord
+        );
+        $exclude = array_map(static fn(array $row): int => (int)$row['folio'], $foliosYaAsignados);
+        $excludeSql = $exclude ? ' AND h.Folio NOT IN (' . implode(',', array_map('intval', $exclude)) . ')' : '';
+
+        $softland = $this->db->softland();
+        $sql = "
+            SELECT TOP 200
+                h.Folio,
+                CONVERT(varchar(10), h.Fecha, 103) AS fecha_formato,
+                COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), NULLIF(LTRIM(RTRIM(h.CodAux)), '')) AS cliente,
+                ROUND(SUM(m.TotLinea), 0) AS monto,
+                h.CodVendedor
+            FROM [PRODIN].[softland].[iw_gsaen] h
+            LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
+            INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+            WHERE h.CodVendedor IN ($placeholders)
+              AND MONTH(h.Fecha) = ?
+              AND YEAR(h.Fecha) = ?
+              AND h.Tipo IN ('F','N','D')
+              AND h.Estado <> 'A'
+              $excludeSql
+            GROUP BY h.Folio, h.Fecha, h.CodAux, c.NomAux, h.CodVendedor
+            ORDER BY h.Fecha DESC
+        ";
+
+        $loadFolios = static function (PDO $softland, string $sql, array $params): array {
+            $stmt = $softland->prepare($sql);
+            $stmt->execute($params);
+            return array_map(static function (array $row): array {
+                return [
+                    'Folio' => (int)($row['Folio'] ?? 0),
+                    'fecha_formato' => trim((string)($row['fecha_formato'] ?? '')),
+                    'cliente' => trim((string)($row['cliente'] ?? '')),
+                    'monto' => (int)round((float)($row['monto'] ?? 0)),
+                    'CodVendedor' => trim((string)($row['CodVendedor'] ?? '')),
+                ];
+            }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        };
+        $folios = $loadFolios($softland, $sql, array_merge($codigosCoord, [$mes, $anio]));
+
+        return [
+            'ok' => true,
+            'periodo_solicitado' => $periodoSolicitado,
+            'folios' => $folios,
+        ];
+    }
+
+    public function compartidos(array $payload, array $query): array
+    {
+        $codes = $this->vendorCodes($payload);
+        if (!$codes) {
+            return [];
+        }
+
+        $periodo = $this->monthYear($query);
+        $mes = $periodo['mes'];
+        $anio = $periodo['anio'];
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT fc.id, fc.folio, fc.fecha, fc.mes, fc.anio,
+                    COALESCE(
+                      NULLIF(TRIM(fc.cliente), ''),
+                      NULLIF(TRIM(c.NomAux), ''),
+                      CAST(fc.folio AS CHAR)
+                    ) AS cliente,
+                    fc.monto_neto, fc.monto_asignado, fc.porcentaje,
+                    fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
+                    fc.monto_asignado AS monto, COALESCE(u.nombre, fc.cod_vendedor_principal) AS coordinador
+             FROM factura_compartida fc
+             LEFT JOIN usuario_vendedor uv ON uv.cod_vendedor = fc.cod_vendedor_principal
+             LEFT JOIN usuario u ON u.id = uv.usuario_id
+             LEFT JOIN (
+                SELECT h.Folio, YEAR(h.Fecha) AS anio, MONTH(h.Fecha) AS mes,
+                       COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), NULLIF(LTRIM(RTRIM(h.CodAux)), '')) AS NomAux
+                FROM [PRODIN].[softland].[iw_gsaen] h
+                LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
+                WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+             ) c ON c.Folio = fc.folio AND c.anio = fc.anio AND c.mes = fc.mes
+             WHERE fc.cod_vendedor_compartido IN ($placeholders)
+               AND fc.mes = ?
+               AND fc.anio = ?
+               AND fc.rol = 'compartido'
+             ORDER BY fc.fecha DESC",
+            array_merge($codes, [$mes, $anio])
+        );
+
+        return array_map(static function (array $row): array {
+            return [
+                'id' => (int)($row['id'] ?? 0),
+                'folio' => (string)($row['folio'] ?? ''),
+                'fecha' => (string)($row['fecha'] ?? ''),
+                'cliente' => trim((string)($row['cliente'] ?? '')),
+                'monto_neto' => (float)($row['monto_neto'] ?? 0),
+                'monto_asignado' => (float)($row['monto_asignado'] ?? 0),
+                'porcentaje' => (float)($row['porcentaje'] ?? 0),
+                'cod_vendedor_principal' => trim((string)($row['cod_vendedor_principal'] ?? '')),
+                'cod_vendedor_compartido' => trim((string)($row['cod_vendedor_compartido'] ?? '')),
+                'nombre_vendedor_compartido' => trim((string)($row['nombre_vendedor_compartido'] ?? '')),
+                'monto' => (float)($row['monto'] ?? 0),
+                'coordinador' => trim((string)($row['coordinador'] ?? '')),
+            ];
+        }, $rows);
+    }
+
+    public function asignados(array $payload, array $query): array
+    {
+        $codes = $this->coordinatorCodes($payload);
+        if (!$codes) {
+            return ['ok' => true, 'asignados' => [], 'periodo_solicitado' => null, 'periodo_utilizado' => null];
+        }
+
+        $periodoSolicitado = $this->monthYear($query);
+        $params = $codes;
+        $sql = "
+            SELECT fc.id, fc.folio, fc.fecha,
+                   COALESCE(
+                     NULLIF(TRIM(fc.cliente), ''),
+                     CAST(fc.folio AS CHAR)
+                   ) AS cliente,
+                   fc.monto_neto, fc.monto_asignado, fc.porcentaje,
+                   fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
+                   fc.monto_asignado AS monto, COALESCE(u.nombre, fc.cod_vendedor_compartido) AS vendedor
+            FROM factura_compartida fc
+            LEFT JOIN usuario_vendedor uv ON uv.cod_vendedor = fc.cod_vendedor_compartido
+            LEFT JOIN usuario u ON u.id = uv.usuario_id
+            WHERE fc.cod_vendedor_principal IN (" . implode(',', array_fill(0, count($codes), '?')) . ")
+              AND fc.rol = 'compartido'
+              AND fc.mes = ?
+              AND fc.anio = ?
+        ";
+        $sql .= ' ORDER BY fc.fecha DESC';
+
+        $params[] = $periodoSolicitado['mes'];
+        $params[] = $periodoSolicitado['anio'];
+        $rows = $this->db->fetchAll($sql, $params);
+
+        return [
+            'ok' => true,
+            'periodo_solicitado' => $periodoSolicitado,
+            'asignados' => $rows,
+        ];
+    }
+
+    public function categoriasVendedor(array $payload, array $query): array
+    {
+        $codes = $this->vendorCodes($payload);
+        if (!$codes) {
+            return ['vendedores' => [], 'todasLasCategorias' => []];
+        }
+
+        $periodo = $this->monthYear($query);
+        $mes = $periodo['mes'];
+        $anio = $periodo['anio'];
+        $catRows = $this->db->fetchAll('SELECT Cta, Categoria FROM categoriasproducto');
+        $catMap = [];
+        foreach ($catRows as $row) {
+            $catMap[(string)$row['Cta']] = (string)$row['Categoria'];
+        }
+
+        $softland = $this->db->softland();
+        $resultado = [];
+        foreach ($codes as $cod) {
+            $stmt = $softland->prepare("
+                SELECT t.CtaVentas, SUM(m.TotLinea) AS TotalVentas
+                FROM [PRODIN].[softland].[iw_gsaen] h
+                INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+                INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+                WHERE h.CodVendedor = ?
+                  AND h.Tipo IN ('F','N','D')
+                  AND h.Estado <> 'A'
+                  AND h.Fecha >= ?
+                  AND h.Fecha < DATEADD(MONTH, 1, ?)
+                  AND t.CtaVentas IS NOT NULL
+                GROUP BY t.CtaVentas
+                ORDER BY TotalVentas DESC
+            ");
+            $stmt->execute([$cod, $this->monthStart($anio, $mes), $this->monthStart($anio, $mes)]);
+            $agg = [];
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $cat = $catMap[(string)($row['CtaVentas'] ?? '')] ?? 'Otros';
+                $agg[$cat] = ($agg[$cat] ?? 0) + (float)($row['TotalVentas'] ?? 0);
+            }
+            $categorias = [];
+            foreach ($agg as $categoria => $total) {
+                $categorias[] = ['categoria' => $categoria, 'total' => (int)round($total)];
+            }
+            usort($categorias, static fn(array $a, array $b): int => $b['total'] <=> $a['total']);
+            $resultado[] = ['codVendedor' => $cod, 'categorias' => $categorias];
+        }
+
+        return [
+            'vendedores' => $resultado,
+            'todasLasCategorias' => array_values(array_unique(array_map(static fn(array $r): string => (string)$r['Categoria'], $catRows))),
+        ];
+    }
+
+    public function clientesResumen(array $payload, array $query): array
+    {
+        $codes = $this->vendorCodes($payload);
+        if (!$codes) {
+            return [];
+        }
+
+        $periodo = $this->monthYear($query);
+        $mes = $periodo['mes'];
+        $anio = $periodo['anio'];
+        $softland = $this->db->softland();
+        $resultado = [];
+        foreach ($codes as $cod) {
+            $stmt = $softland->prepare("
+                SELECT
+                  ? AS CodVendedor,
+                  (SELECT COUNT(DISTINCT CodAux)
+                   FROM [PRODIN].[softland].[iw_gsaen]
+                   WHERE CodVendedor = ?
+                     AND Tipo IN ('F','N','D')
+                     AND Estado <> 'A') AS TotalClientesHist,
+                  (SELECT COUNT(DISTINCT CodAux)
+                   FROM [PRODIN].[softland].[iw_gsaen]
+                   WHERE CodVendedor = ?
+                     AND Tipo IN ('F','N','D')
+                     AND Estado <> 'A'
+                     AND Fecha >= ?
+                     AND Fecha < DATEADD(MONTH, 1, ?)) AS TotalClientesPeriodo
+            ");
+            $stmt->execute([$cod, $cod, $cod, $this->monthStart($anio, $mes), $this->monthStart($anio, $mes)]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $resultado[] = [
+                    'codVendedor' => (string)$row['CodVendedor'],
+                    'totalClientesHist' => (int)($row['TotalClientesHist'] ?? 0),
+                    'totalClientesPeriodo' => (int)($row['TotalClientesPeriodo'] ?? 0),
+                ];
+            }
+        }
+
+        return $resultado;
     }
 }
 

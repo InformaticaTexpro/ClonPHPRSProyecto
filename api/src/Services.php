@@ -11,7 +11,7 @@ final class AuthService
     {
         $loginFinal = Security::normalize_login($login);
         if ($loginFinal === '' || $password === '') {
-            throw new RuntimeException('Email y contraseña requeridos', 400);
+            throw new RuntimeException('Email y contraseÃ±a requeridos', 400);
         }
 
         $user = $this->db->fetchOne(
@@ -25,11 +25,11 @@ final class AuthService
         );
 
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
         }
 
         if (!Security::verify_password_django($password, (string)$user['password'])) {
-            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
         }
 
         $this->db->execute('UPDATE usuario SET last_login = NOW() WHERE id = ?', [$user['id']]);
@@ -51,7 +51,7 @@ final class AuthService
         $payload = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
         $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token inválido.', 401);
+            throw new RuntimeException('Token invÃ¡lido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -60,7 +60,7 @@ final class AuthService
             [$userId]
         );
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('Sesión no válida', 401);
+            throw new RuntimeException('SesiÃ³n no vÃ¡lida', 401);
         }
 
         $vendedores = $this->load_vendedores($userId);
@@ -84,12 +84,12 @@ final class AuthService
         $exp = (int)($decoded['exp'] ?? 0);
         $window = 24 * 3600;
         if ($exp > 0 && ($now - $exp) > $window) {
-            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesión nuevamente.', 401);
+            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesiÃ³n nuevamente.', 401);
         }
 
         $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token inválido.', 401);
+            throw new RuntimeException('Token invÃ¡lido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -129,15 +129,12 @@ final class AuthService
 
     private function load_user_menus(int $userId): array
     {
+        $this->ensure_common_menus();
         $menus = $this->db->fetchAll(
             'SELECT DISTINCT
                 m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
              FROM menu m
              INNER JOIN (
-               SELECT um.menu_id
-               FROM usuario_menu um
-               WHERE um.usuario_id = ? AND um.activo = 1
-               UNION
                SELECT pm.menu_id
                FROM usuario_perfil up
                INNER JOIN perfil p ON p.id = up.perfil_id
@@ -149,7 +146,7 @@ final class AuthService
              ) accesos ON accesos.menu_id = m.id
              WHERE m.activo = 1
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC',
-            [$userId, $userId]
+            [$userId]
         );
 
         $perfiles = $this->db->fetchAll(
@@ -172,7 +169,10 @@ final class AuthService
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC'
         );
 
-        $menus = array_values(array_filter(array_map([self::class, 'normalize_menu'], $menus), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
+        $menus = array_values(array_filter(
+            array_map([self::class, 'normalize_menu'], $menus),
+            static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''
+        ));
         $allMenus = array_values(array_filter(array_map([self::class, 'normalize_menu'], $allMenus), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
         $perfiles = array_values(array_filter(array_map(static function (array $perfil): array {
             return [
@@ -185,6 +185,37 @@ final class AuthService
         }, $perfiles), static fn ($perfil) => $perfil['id'] !== null));
 
         return compact('menus', 'perfiles', 'allMenus');
+    }
+
+    private function ensure_common_menus(): void
+    {
+        $defaults = [
+            ['codigo' => 'general', 'nombre' => 'General', 'grupo' => 'General', 'url' => '/src/modulo/general/general/index.html', 'icono' => '🧭', 'orden' => 0],
+            ['codigo' => 'alertas', 'nombre' => 'Alertas', 'grupo' => 'General', 'url' => '/src/modulo/varios/alertas/index.html', 'icono' => '🔔', 'orden' => 1],
+            ['codigo' => 'mensajeria', 'nombre' => 'Chat', 'grupo' => 'General', 'url' => '/src/modulo/varios/mensajeria/index.html', 'icono' => '💬', 'orden' => 2],
+        ];
+
+        foreach ($defaults as $menu) {
+            $this->db->execute(
+                'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, 1)
+                 ON DUPLICATE KEY UPDATE
+                   nombre = VALUES(nombre),
+                   grupo = VALUES(grupo),
+                   url = VALUES(url),
+                   icono = VALUES(icono),
+                   orden = VALUES(orden),
+                   activo = VALUES(activo)',
+                [
+                    $menu['codigo'],
+                    $menu['nombre'],
+                    $menu['grupo'],
+                    $menu['url'],
+                    $menu['icono'],
+                    $menu['orden'],
+                ]
+            );
+        }
     }
 
     private static function normalize_menu(array $menu): array
@@ -242,7 +273,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'Si el correo está registrado, recibirás el código en breve.',
+            'message' => 'Si el correo estÃ¡ registrado, recibirÃ¡s el cÃ³digo en breve.',
         ];
     }
 
@@ -250,7 +281,7 @@ final class RecoveryService
     {
         $email = Security::validate_email($email);
         if (!preg_match('/^\d{6}$/', trim($otp))) {
-            throw new RuntimeException('Email y código de 6 dígitos son requeridos.', 400);
+            throw new RuntimeException('Email y cÃ³digo de 6 dÃ­gitos son requeridos.', 400);
         }
 
         $row = $this->db->fetchOne(
@@ -265,7 +296,7 @@ final class RecoveryService
         );
 
         if (!$row) {
-            throw new RuntimeException('Código incorrecto o expirado.', 401);
+            throw new RuntimeException('CÃ³digo incorrecto o expirado.', 401);
         }
 
         $this->db->execute('UPDATE otp_tokens SET usado = 1 WHERE id = ?', [$row['id']]);
@@ -273,7 +304,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'Código verificado correctamente.',
+            'message' => 'CÃ³digo verificado correctamente.',
             'resetToken' => $token,
         ];
     }
@@ -282,15 +313,15 @@ final class RecoveryService
     {
         $resetToken = trim($resetToken);
         if ($resetToken === '' || $password === '') {
-            throw new RuntimeException('Token y contraseña son requeridos.', 400);
+            throw new RuntimeException('Token y contraseÃ±a son requeridos.', 400);
         }
         if (mb_strlen($password) < 8) {
-            throw new RuntimeException('La contraseña debe tener mínimo 8 caracteres.', 400);
+            throw new RuntimeException('La contraseÃ±a debe tener mÃ­nimo 8 caracteres.', 400);
         }
 
         $payload = Security::jwt_decode($resetToken, (string)env('JWT_SECRET', ''));
         if (($payload['purpose'] ?? '') !== 'password_reset') {
-            throw new RuntimeException('Token de restablecimiento inválido o expirado.', 401);
+            throw new RuntimeException('Token de restablecimiento invÃ¡lido o expirado.', 401);
         }
 
         $email = Security::validate_email((string)($payload['email'] ?? ''));
@@ -306,7 +337,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
+            'message' => 'ContraseÃ±a actualizada correctamente. Ya puedes iniciar sesiÃ³n.',
         ];
     }
 
@@ -344,29 +375,19 @@ final class RecoveryService
             'saveToSentItems' => false,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => 'https://graph.microsoft.com/v1.0/users/' . rawurlencode($fromAddress) . '/sendMail',
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
+        $response = $this->httpPost(
+            'https://graph.microsoft.com/v1.0/users/' . rawurlencode($fromAddress) . '/sendMail',
+            (string)$payload,
+            [
                 'Authorization: Bearer ' . $token,
                 'Content-Type: application/json',
                 'Content-Length: ' . strlen((string)$payload),
-            ],
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_TIMEOUT => 30,
-        ]);
+            ]
+        );
 
-        $response = curl_exec($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($response === false || $status !== 202) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            throw new RuntimeException('Graph API error al enviar el OTP: ' . ($error !== '' ? $error : (string)$response), 500);
+        if ($response['status'] !== 202) {
+            throw new RuntimeException('Graph API error al enviar el OTP: ' . $response['body'], 500);
         }
-
-        curl_close($ch);
     }
 
     private function fetch_graph_access_token(string $tenantId, string $clientId, string $clientSecret): string
@@ -378,29 +399,20 @@ final class RecoveryService
             'scope' => 'https://graph.microsoft.com/.default',
         ]);
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => 'https://login.microsoftonline.com/' . rawurlencode($tenantId) . '/oauth2/v2.0/token',
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
+        $response = $this->httpPost(
+            'https://login.microsoftonline.com/' . rawurlencode($tenantId) . '/oauth2/v2.0/token',
+            $post,
+            [
                 'Content-Type: application/x-www-form-urlencoded',
                 'Content-Length: ' . strlen($post),
-            ],
-            CURLOPT_POSTFIELDS => $post,
-            CURLOPT_TIMEOUT => 30,
-        ]);
+            ]
+        );
 
-        $response = curl_exec($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($response === false || $status < 200 || $status >= 300) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            throw new RuntimeException('Error obteniendo token de Microsoft Graph: ' . ($error !== '' ? $error : (string)$response), 500);
+        if ($response['status'] < 200 || $response['status'] >= 300) {
+            throw new RuntimeException('Error obteniendo token de Microsoft Graph: ' . $response['body'], 500);
         }
 
-        curl_close($ch);
-        $json = json_decode((string)$response, true);
+        $json = json_decode((string)$response['body'], true);
         if (!is_array($json) || empty($json['access_token'])) {
             throw new RuntimeException('Respuesta inválida de Microsoft Graph', 500);
         }
@@ -408,8 +420,43 @@ final class RecoveryService
         return (string)$json['access_token'];
     }
 
+    private function httpPost(string $url, string $body, array $headers): array
+    {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => implode("\r\n", $headers),
+                'content' => $body,
+                'timeout' => 30,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+
+        $response = @file_get_contents($url, false, $context);
+        $status = 0;
+        if (!empty($http_response_header[0]) && preg_match('#HTTP/\S+\s+(\d{3})#', $http_response_header[0], $matches)) {
+            $status = (int)$matches[1];
+        }
+
+        if ($response === false) {
+            $error = error_get_last();
+            throw new RuntimeException('No se pudo conectar con Microsoft Graph: ' . ($error['message'] ?? 'error desconocido'), 500);
+        }
+
+        return [
+            'status' => $status,
+            'body' => (string)$response,
+        ];
+    }
+
     private function build_otp_html(string $code): string
     {
-        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">Recuperación de contraseña</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseña en el sistema TEXPRO.<br>Usa el siguiente código. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este código, ignora este correo.<br>Tu contraseña actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos Químicos y Tratamiento de Aguas</p></div></body></html>';
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">RecuperaciÃ³n de contraseÃ±a</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseÃ±a en el sistema TEXPRO.<br>Usa el siguiente cÃ³digo. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este cÃ³digo, ignora este correo.<br>Tu contraseÃ±a actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos QuÃ­micos y Tratamiento de Aguas</p></div></body></html>';
     }
 }
+
+

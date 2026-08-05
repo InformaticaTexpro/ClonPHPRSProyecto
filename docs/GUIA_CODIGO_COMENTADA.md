@@ -1,4 +1,4 @@
-# Guia comentada del codigo - RSProyecto
+﻿# Guia comentada del codigo - RSProyecto
 
 Esta guia resume la arquitectura actual del proyecto y el estado de la migracion del backend a PHP.
 
@@ -6,7 +6,7 @@ Esta guia resume la arquitectura actual del proyecto y el estado de la migracion
 
 El proyecto esta dividido en:
 
-- Backend PHP en `api/index.php`, con servicios en `api/src`.
+- Backend PHP en `api/index.php` y `api/src/ApiApplication.php`, con servicios en `api/src`.
 - Frontend estatico en `src/modulo` y `src/assets`.
 - Acceso a datos:
   - MySQL para usuarios, metas, alertas, mensajes y notificaciones.
@@ -27,8 +27,8 @@ Responsabilidad:
 
 - Inicializar el backend PHP.
 - Configurar CORS.
-- Resolver rutas `/api/*`.
-- Delegar cada modulo al servicio correspondiente.
+- Delegar la ejecución a `api/src/ApiApplication.php`.
+- Mantener el front controller mínimo.
 
 Datos que consume:
 
@@ -140,8 +140,8 @@ Responsabilidad:
 
 El proyecto ahora puede levantarse con PHP:
 
-- `npm start`
-- `npm run dev`
+- `.\.tools\php\php.exe -S 127.0.0.1:8000 -t . router.php` 
+- o `php -S 127.0.0.1:8000 -t . router.php` si PHP está en el PATH
 
 Ambos usan `router.php`, que enruta:
 
@@ -151,3 +151,5 @@ Ambos usan `router.php`, que enruta:
 ## 6) Estado de la migracion
 
 El backend principal ya fue reemplazado por PHP y el arranque Node antiguo fue retirado del repositorio.
+
+

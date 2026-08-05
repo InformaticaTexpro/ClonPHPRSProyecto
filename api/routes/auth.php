@@ -15,7 +15,11 @@ return static function (
 
     if ($method === 'POST' && $path === '/login') {
         $login = $body['email'] ?? $body['usuario'] ?? null;
-        json_response($authService->login((string)$login, (string)($body['password'] ?? '')));
+        $response = $authService->login((string)$login, (string)($body['password'] ?? ''));
+        if (!empty($response['token'])) {
+            set_auth_cookie((string)$response['token']);
+        }
+        json_response($response);
     }
 
     if ($method === 'GET' && $path === '/me') {
@@ -24,7 +28,8 @@ return static function (
 
     if ($method === 'POST' && $path === '/logout') {
         require_bearer_token();
-        json_response(['ok' => true, 'message' => 'Sesión cerrada']);
+        clear_auth_cookie();
+        json_response(['ok' => true, 'message' => 'Sesion cerrada']);
     }
 
     if ($method === 'POST' && $path === '/refresh') {

@@ -211,12 +211,18 @@ img, svg, canvas, table { max-width: 100%; }
 .welcome-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
 .welcome-text h2 { font-family:var(--font-primary,'Montserrat',sans-serif); font-size:1.3rem; font-weight:700; }
 .welcome-text p  { font-size:.85rem; color:var(--color-gray-dark,#6B7280); margin-top:2px; }
-.welcome-filtros { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.welcome-filtros {
+  display:flex;
+  gap:8px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+}
 .welcome-filtros .pdf-filter-group {
   display:flex;
   flex-direction:column;
   gap:4px;
   min-width:220px;
+  align-self:flex-end;
 }
 .welcome-filtros .pdf-filter-group--codigo {
   min-width:260px;
@@ -232,10 +238,38 @@ img, svg, canvas, table { max-width: 100%; }
   width:100%;
 }
 
-.filtro-select { padding:7px 12px; border:1px solid var(--color-gray-mid,#C7CBD6); border-radius:8px; font-size:.85rem; font-family:inherit; background:var(--color-white,#fff); color:var(--color-black,#1A1D23); cursor:pointer; }
+.welcome-filtros .filtro-select,
+.welcome-filtros .btn-buscar {
+  height:40px;
+}
+
+.filtro-select {
+  padding:7px 12px;
+  border:1px solid var(--color-gray-mid,#C7CBD6);
+  border-radius:8px;
+  font-size:.85rem;
+  font-family:inherit;
+  background:var(--color-white,#fff);
+  color:var(--color-black,#1A1D23);
+  cursor:pointer;
+}
 .filtro-select:focus { outline:none; border-color:var(--color-primary,#00E2A7); }
 
-.btn-buscar { display:flex; align-items:center; gap:6px; padding:7px 16px; background:var(--color-primary,#00E2A7); color:#000; font-weight:600; font-size:.85rem; border:none; border-radius:8px; cursor:pointer; transition:background .15s; }
+.btn-buscar {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:7px 16px;
+  background:var(--color-primary,#00E2A7);
+  color:#000;
+  font-weight:600;
+  font-size:.85rem;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  transition:background .15s;
+}
 .btn-buscar:hover { background:#00c896; }
 .btn-buscar:disabled { opacity:.55; cursor:not-allowed; }
 

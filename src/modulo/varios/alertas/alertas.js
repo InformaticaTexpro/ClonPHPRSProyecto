@@ -2,19 +2,32 @@
 /**
  * alertas.js v2.4 — Frontend del módulo de Alertas y Recordatorios
  * Texpro RSProyecto
- * Ruta ajustada: desde varios/alertas/ → ../login/index.html
+ * Ruta ajustada: desde varios/alertas/ → /src/modulo/varios/login/index.html
  * 2026-06-09: fix — agrega Dashboard y Historial al sidebar; unifica iconos
  */
 
-const TOKEN   = localStorage.getItem('token');
-const USUARIO = JSON.parse(sessionStorage.getItem('texpro_user') || 'null');
+const LOGIN_PATH = '/src/modulo/varios/login/index.html';
+const NO_ACCESS_PATH = '/src/modulo/varios/sin-acceso/index.html';
 
-if (!TOKEN || !USUARIO) {
-  location.href = '../login/index.html';
-}
+const readUsuario = () => {
+  const raw = sessionStorage.getItem('texpro_user')
+    || localStorage.getItem('user')
+    || localStorage.getItem('usuario');
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const TOKEN = localStorage.getItem('token');
+let USUARIO = null;
 
 const API = '/api/alertas';
-const headers = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}` });
+const headers = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${localStorage.getItem('token') || TOKEN}`,
+});
 
 let _alertas      = [];
 let _usuarios     = [];
@@ -40,7 +53,58 @@ const recordatorioLista = document.getElementById('recordatorioLista');
 const btnCerrarRec      = document.getElementById('btnCerrarRecordatorio');
 const btnIrAlertas      = document.getElementById('btnIrAlertas');
 
+function normalizarCodigo(valor) {
+  return String(valor || '').trim().toLowerCase();
+}
+
+function tieneAccesoMenu(usuario, codigo) {
+  const objetivo = normalizarCodigo(codigo);
+  if (!usuario || !objetivo) return false;
+  if (usuario.is_admin === true || usuario.is_admin === 1 || usuario.is_admin === '1') return true;
+  return Array.isArray(usuario.menus) && usuario.menus.some(menu => normalizarCodigo(menu?.codigo) === objetivo);
+}
+
+async function cargarSesionActual() {
+  if (!TOKEN) {
+    location.href = LOGIN_PATH;
+    return null;
+  }
+
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) {
+      location.href = LOGIN_PATH;
+      return null;
+    }
+    const usuario = payload.user || payload.usuario || null;
+    if (!usuario) {
+      location.href = LOGIN_PATH;
+      return null;
+    }
+    return usuario;
+  } catch {
+    location.href = LOGIN_PATH;
+    return null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  USUARIO = await cargarSesionActual();
+  if (!USUARIO) return;
+  if (!tieneAccesoMenu(USUARIO, 'alertas')) {
+    location.href = `${NO_ACCESS_PATH}?${new URLSearchParams({
+      modulo: 'Alertas',
+      from: '/src/modulo/varios/alertas/index.html',
+    }).toString()}`;
+    return;
+  }
+
   initSidebar();
   initHeader();
   await Promise.all([
@@ -73,6 +137,9 @@ function initSidebar() {
   if (!nav || !USUARIO) return;
 
   const visibles = MODULOS.filter(m => {
+    if (m.nombre === 'Alertas') {
+      return tieneAccesoMenu(USUARIO, 'alertas');
+    }
     if (m.area === null) return true;
     if (USUARIO.is_admin) return true;
     return m.area.includes(USUARIO.area);
@@ -114,7 +181,7 @@ function initSidebar() {
     Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i))
       .filter(key => key && key.startsWith('alertasPendientesMostradas:'))
       .forEach(key => sessionStorage.removeItem(key));
-    location.href = '../login/index.html';
+    location.href = LOGIN_PATH;
   });
 
   document.getElementById('sidebarToggle')?.addEventListener('click', () => {

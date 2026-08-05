@@ -1,4 +1,4 @@
--- =============================================================================
+﻿-- =============================================================================
 -- Migración: tablas del módulo de Administración
 -- Base de datos: bdtexpro
 -- Ejecutar una sola vez en el servidor de base de datos
@@ -98,7 +98,8 @@ VALUES
 (10, 'cobranza',          'Cobranza',          'Contabilidad',     '/src/modulo/cobranza/cobranza/index.html',            '💰', 2, 1),
 (11, 'administracion',    'Administración',    'Administración',   '/src/modulo/admin/admin/index.html',                  '🔧', 1, 1),
 (12, 'alertas',           'Alertas',           'General',          '/src/modulo/varios/alertas/index.html',               '🔔', 1, 1),
-(13, 'gerencia',          'Gerencia',          'Gerencia',         '/src/modulo/gerencia/index.html',                     '📈', 1, 1)
+(13, 'mensajeria',        'Chat',              'General',          '/src/modulo/varios/mensajeria/index.html',            '💬', 2, 1),
+(14, 'gerencia',          'Gerencia',          'Gerencia',         '/src/modulo/gerencia/index.html',                     '📈', 1, 1)
 ON DUPLICATE KEY UPDATE
   `nombre` = VALUES(`nombre`),
   `grupo` = VALUES(`grupo`),
@@ -167,6 +168,19 @@ INNER JOIN `menu` m ON m.`codigo` IN (
     WHEN 'rrhh' THEN 'alertas'
     WHEN 'gerencia' THEN 'alertas'
     WHEN 'administracion' THEN 'alertas'
+  CASE p.`codigo`
+    WHEN 'ventas' THEN 'mensajeria'
+    WHEN 'produccion' THEN 'mensajeria'
+    WHEN 'bodega' THEN 'mensajeria'
+    WHEN 'servicio-tecnico' THEN 'mensajeria'
+    WHEN 'facturacion' THEN 'mensajeria'
+    WHEN 'contabilidad' THEN 'mensajeria'
+    WHEN 'rrhh' THEN 'mensajeria'
+    WHEN 'gerencia' THEN 'mensajeria'
+    WHEN 'administracion' THEN 'mensajeria'
+    WHEN 'admin' THEN 'mensajeria'
+    ELSE NULL
+  END,
     WHEN 'admin' THEN 'alertas'
     ELSE NULL
   END,
