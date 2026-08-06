@@ -421,6 +421,13 @@ final class AnalyticsService
 
     public function cartera(array $payload, array $query): array
     {
+        return $this->carteraOptimizada($payload, $query);
+    }
+
+    private function carteraOptimizada(array $payload, array $query): array
+    {
+        @set_time_limit(120);
+
         $userId = $this->currentUserIdFromPayload($payload);
         $vendCodes = $this->getVendorCodes($userId);
         $params = $this->monthYear($query);
@@ -472,80 +479,62 @@ final class AnalyticsService
             ];
         }
 
-        $paramsPurchases = [];
+                $paramsPurchases = [];
         $inPurchases = $this->inClause($clientCodes, $paramsPurchases);
+        $fechaDesde = $desde->format('Y-m-d');
+        $fechaHasta = $hasta->format('Y-m-d');
+        $fechaActivaDesde = $ventanaActiva->format('Y-m-d');
+
         $stmt = $pool->prepare(
-            "SELECT h.CodAux, h.Fecha, RTRIM(a.NomAux) AS NomAux, RTRIM(a.FonAux1) AS FONAux1, RTRIM(a.FonAux2) AS FonAux2, RTRIM(a.EMail) AS EMail
+            "SELECT h.CodAux,
+                    MIN(CONVERT(date, h.Fecha)) AS FechaPrimera,
+                    MAX(CONVERT(date, h.Fecha)) AS FechaUltima,
+                    MIN(CASE WHEN h.Fecha >= ? AND h.Fecha <= ? THEN CONVERT(date, h.Fecha) END) AS FechaMinMesActual,
+                    MAX(CASE WHEN h.Fecha >= ? AND h.Fecha <= ? THEN 1 ELSE 0 END) AS TieneMesActual,
+                    MAX(CASE WHEN h.Fecha < ? THEN 1 ELSE 0 END) AS TieneHistorialPrevio,
+                    MAX(CASE WHEN h.Fecha >= ? THEN 1 ELSE 0 END) AS EsActivo,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), '')) AS NomAux,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux1))), '')) AS FONAux1,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux2))), '')) AS FonAux2,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.EMail))), '')) AS EMail
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = h.CodAux
              WHERE h.CodAux IN ($inPurchases)
                AND h.Tipo IN ('F','N','D')
                AND h.Estado <> 'A'
                AND h.Fecha <= ?
-             ORDER BY h.CodAux ASC, h.Fecha ASC"
+             GROUP BY h.CodAux
+             ORDER BY h.CodAux ASC"
         );
-        $stmt->execute(array_merge($paramsPurchases, [$hasta->format('Y-m-d')]));
-        $purchasesByClient = [];
+        $stmt->execute(array_merge(
+            [$fechaDesde, $fechaHasta, $fechaDesde, $fechaHasta, $fechaDesde, $fechaActivaDesde],
+            $paramsPurchases,
+            [$fechaHasta]
+        ));
+
+        $rows = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $codAux = trim((string)($row['CodAux'] ?? ''));
             if ($codAux === '') {
                 continue;
             }
-            $purchasesByClient[$codAux][] = $row;
-        }
 
-        $rows = [];
-        foreach ($clients as $clientRow) {
-            $codAux = trim((string)($clientRow['CodAux'] ?? ''));
-            if ($codAux === '') {
-                continue;
-            }
-            $history = $purchasesByClient[$codAux] ?? [];
-            $datesGlobales = array_values(array_filter(array_map(static function (array $r): ?DateTimeImmutable {
-                try {
-                    return new DateTimeImmutable(substr((string)($r['Fecha'] ?? ''), 0, 10));
-                } catch (Throwable) {
-                    return null;
-                }
-            }, $history)));
+            $fechaUltima = !empty($row['FechaUltima']) ? new DateTimeImmutable((string)$row['FechaUltima']) : null;
+            $fechaPrimera = !empty($row['FechaPrimera']) ? new DateTimeImmutable((string)$row['FechaPrimera']) : null;
+            $fechaMinMes = !empty($row['FechaMinMesActual']) ? new DateTimeImmutable((string)$row['FechaMinMesActual']) : null;
 
-            $fechaUltima = $datesGlobales ? $datesGlobales[count($datesGlobales) - 1] : null;
-            $fechaPrimera = $datesGlobales ? $datesGlobales[0] : null;
-            $fechaMinMes = null;
-            foreach ($datesGlobales as $date) {
-                if ($date >= $desde && $date <= $hasta) {
-                    $fechaMinMes = $date;
-                    break;
-                }
-            }
-
-            $esActivo = $fechaUltima && $fechaUltima >= $ventanaActiva;
-            $esInactivo = !$fechaUltima || $fechaUltima < $ventanaActiva;
-            // Nuevo = primera compra histórica real del cliente dentro del mes filtrado.
+            $esActivo = (bool)($row['EsActivo'] ?? 0);
+            $esInactivo = !$esActivo;
             $esNuevo = $fechaPrimera && $fechaPrimera >= $desde && $fechaPrimera <= $hasta;
-            $esRecuperado = false;
-            if ($fechaMinMes) {
-                $tieneSilencio = true;
-                $tieneHistorial = false;
-                foreach ($datesGlobales as $date) {
-                    if ($date < $fechaMinMes->modify('-180 days')) {
-                        $tieneHistorial = true;
-                    }
-                    if ($date >= $fechaMinMes->modify('-180 days') && $date < $fechaMinMes) {
-                        $tieneSilencio = false;
-                        break;
-                    }
-                }
-                $esRecuperado = $tieneSilencio && $tieneHistorial;
-            }
-            $esActivoMesActual = $fechaUltima && $fechaUltima >= $desde && $fechaUltima <= $hasta;
+            $esRecuperado = !$esNuevo && (bool)($row['TieneHistorialPrevio'] ?? 0) && (bool)($row['TieneMesActual'] ?? 0);
+            $esActivoMesActual = (bool)($row['TieneMesActual'] ?? 0);
 
             $rows[] = [
                 'CodAux' => $codAux,
-                'NomAux' => $history[0]['NomAux'] ?? '',
-                'FONAUX1' => $history[0]['FONAux1'] ?? '',
-                'FonAux2' => $history[0]['FonAux2'] ?? '',
-                'EMail' => $history[0]['EMail'] ?? '',
+                'NomAux' => trim((string)($row['NomAux'] ?? '')),
+                'FONAUX1' => trim((string)($row['FONAux1'] ?? '')),
+                'FonAux2' => trim((string)($row['FonAux2'] ?? '')),
+                'EMail' => trim((string)($row['EMail'] ?? '')),
                 'FechaUltimaCompra' => $fechaUltima?->format('Y-m-d'),
                 'FechaPrimeraCompra' => $fechaPrimera?->format('Y-m-d'),
                 'FechaMinMesActual' => $fechaMinMes?->format('Y-m-d'),
@@ -851,4 +840,5 @@ final class AnalyticsService
         return $resultado;
     }
 }
+
 
