@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Dashboard Comercial</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../gerencia.css?v=1.1.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menu">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Gerencia</span>
+          <span class="user-area" id="userArea">Comercial</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesion">
+        <span>⎋</span><span class="btn-logout-text">Cerrar sesion</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menu movil">☰</button>
+        <h1 class="header-title">Dashboard Comercial</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores comerciales">Datos reales</span>
+      </div>
+    </header>
+
+    <main class="gerencia-page">
+      <section class="hero-panel" aria-labelledby="tituloDashboard">
+        <div>
+          <p class="eyebrow">Gerencia comercial</p>
+          <h2 id="tituloDashboard">Dashboard Comercial</h2>
+          <p class="hero-description">
+            Vista consolidada del desempeno comercial de la empresa.
+          </p>
+        </div>
+        <span class="real-data-badge">Datos reales</span>
+      </section>
+
+      <section class="gerencia-filtros" aria-label="Filtro anual">
+        <div class="gerencia-filtro">
+          <label for="yearFilter">ANO</label>
+          <select class="filtro-select" id="yearFilter"></select>
+        </div>
+        <button class="btn-buscar" id="btnActualizarAnual" type="button">Actualizar</button>
+      </section>
+      <p class="gerencia-mensaje" id="mensajeAnual" role="status" aria-live="polite"></p>
+
+      <section class="kpis-grid gerencia-kpis gerencia-kpis--tres" aria-label="Resumen anual">
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--verde">$</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Ventas acumuladas</span>
+            <span class="kpi-valor" id="kpiVentasAcumuladas">—</span>
+            <small class="gerencia-kpi-ayuda" id="kpiVentasAyuda"></small>
+          </div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--azul">%</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Porcentaje de descuento</span>
+            <span class="kpi-valor" id="kpiDescuentoAnual">—</span>
+            <small class="gerencia-kpi-ayuda">Venta efectiva respecto del monto real</small>
+          </div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--naranja">Ø</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Promedio mensual de ventas</span>
+            <span class="kpi-valor" id="kpiPromedio">—</span>
+            <small class="gerencia-kpi-ayuda">Meses incluidos en el periodo</small>
+          </div>
+        </article>
+      </section>
+
+      <div class="gerencia-grid">
+        <section class="grafico-seccion">
+          <div class="grafico-card">
+            <div class="grafico-header">
+              <h3 class="grafico-titulo">Evolucion mensual</h3>
+              <p class="grafico-descripcion" id="descripcionEvolucion">Comparacion mensual de los tres periodos.</p>
+            </div>
+            <div class="grafico-wrapper gerencia-grafico-ancho">
+              <canvas id="monthlyComparisonChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="grafico-seccion">
+          <div class="grafico-card">
+            <div class="grafico-header">
+              <h3 class="grafico-titulo">Ventas por categoria de producto</h3>
+              <p class="grafico-descripcion" id="descripcionCategorias">Distribucion del ano seleccionado.</p>
+            </div>
+            <div class="gerencia-distribucion">
+              <div class="gerencia-torta">
+                <canvas id="categoryChart"></canvas>
+              </div>
+              <div class="tabla-wrapper gerencia-tabla-compacta">
+                <table class="dash-tabla">
+                  <thead>
+                    <tr>
+                      <th>Categoria de producto</th>
+                      <th class="numero">Venta</th>
+                      <th class="numero">Participacion</th>
+                    </tr>
+                  </thead>
+                  <tbody id="categoryTableBody">
+                    <tr><td colspan="3" class="gerencia-empty">Cargando...</td></tr>
+                  </tbody>
+                  <tfoot id="categoryTableFoot"></tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="tabla-seccion">
+        <div class="tabla-card">
+          <div class="tabla-header">
+            <div>
+              <h3 class="tabla-titulo">Comparativo mensual</h3>
+              <p class="gerencia-subtitulo" id="subtituloComparativo">Tres periodos consecutivos.</p>
+            </div>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla gerencia-comparativo">
+              <thead id="comparativoTableHead"></thead>
+              <tbody id="comparativoTableBody"></tbody>
+              <tfoot id="comparativoTableFoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="gerencia-loading-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite">
+    <div class="gerencia-loading-card" role="status" aria-label="Cargando datos de gerencia">
+      <div class="gerencia-loading-spinner" aria-hidden="true"></div>
+      <div class="gerencia-loading-copy">
+        <strong data-loading-text>Cargando datos...</strong>
+        <span>Estamos preparando la informacion mas reciente.</span>
+      </div>
+      <div class="gerencia-loading-skeleton" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="../gerencia.js?v=1.2.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

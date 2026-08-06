@@ -24,6 +24,7 @@ final class ApiApplication
         $notificacionesService = new NotificacionesService($database);
         $vendedoresService = new VendedoresService($database);
         $dashboardService = new DashboardService($database);
+        $gerenciaService = new GerenciaService($database);
         $ventasService = new VentasService($database, $analyticsService);
         $indicadoresService = new IndicadoresService();
 
@@ -39,6 +40,7 @@ final class ApiApplication
             'notificaciones' => $notificacionesService,
             'vendedores' => $vendedoresService,
             'dashboard' => $dashboardService,
+            'gerencia' => $gerenciaService,
             'ventas' => $ventasService,
             'indicadores' => $indicadoresService,
         ];
@@ -55,6 +57,7 @@ final class ApiApplication
             '/vendedores' => require dirname(__DIR__) . '/routes/vendedores.php',
             '/indicadores' => require dirname(__DIR__) . '/routes/indicadores.php',
             '/cartera' => require dirname(__DIR__) . '/routes/cartera.php',
+            '/gerencia' => require dirname(__DIR__) . '/routes/gerencia.php',
         ];
 
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));

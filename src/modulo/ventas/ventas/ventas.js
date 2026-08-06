@@ -1281,8 +1281,6 @@
   }
 
   async function iniciarPanelCoordinador() {
-    setStyle('panelCoordinador', 'display', 'block');
-
     const btnCompartir = document.getElementById('btnCompartir');
     if (btnCompartir) btnCompartir.addEventListener('click', async () => {
       const folio      = document.getElementById('coordFolio')?.value;
@@ -1315,11 +1313,20 @@
     });
   }
 
+  function configurarPanelCoordinador(esCoord) {
+    const panel = document.getElementById('panelCoordinador');
+    if (!panel) return;
+    panel.style.display = 'block';
+    panel.classList.toggle('panel-coordinador--solo-lectura', !esCoord);
+  }
+
   async function refrescarVista() {
     const esCoord = esCoordinador(_usuarioActual);
     await cargarVentas();
+    await cargarListaVendedores();
+    await cargarFoliosAsignados();
     if (esCoord) {
-      await Promise.all([cargarListaVendedores(), cargarFoliosParaCompartir(), cargarFoliosAsignados()]);
+      await cargarFoliosParaCompartir();
     }
   }
 
@@ -1343,7 +1350,30 @@
     ).join('');
   }
 
-  function filaAsignadoVista(c) {
+  function asignadosHeaderHtml(permitirAcciones) {
+    return permitirAcciones ? `
+      <tr>
+        <th>Folio</th>
+        <th>Fecha</th>
+        <th>Cliente</th>
+        <th>Vendedor Asignado</th>
+        <th style="text-align:right">% Part.</th>
+        <th style="text-align:right">Monto Asignado</th>
+        <th style="text-align:center">Acciones</th>
+      </tr>
+    ` : `
+      <tr>
+        <th>Folio</th>
+        <th>Fecha</th>
+        <th>Cliente</th>
+        <th>Vendedor Asignado</th>
+        <th style="text-align:right">% Part.</th>
+        <th style="text-align:right">Monto Asignado</th>
+      </tr>
+    `;
+  }
+
+  function filaAsignadoVista(c, permitirAcciones) {
     return `
       <td><strong>${c.folio}</strong></td>
       <td>${c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : '—'}</td>
@@ -1351,12 +1381,14 @@
       <td>${c.nombre_vendedor_compartido||c.cod_vendedor_compartido||'—'}</td>
       <td style="text-align:right">${c.porcentaje}%</td>
       <td style="text-align:right">${formatCLP(c.monto_asignado)}</td>
-      <td>
-        <div class="crud-acciones">
-          <button class="btn-crud btn-crud--edit" title="Editar"   data-id="${c.id}">&#9998;</button>
-          <button class="btn-crud btn-crud--del"  title="Eliminar" data-id="${c.id}" data-folio="${c.folio}">&times;</button>
-        </div>
-      </td>`;
+      ${permitirAcciones ? `
+        <td>
+          <div class="crud-acciones">
+            <button class="btn-crud btn-crud--edit" title="Editar" data-id="${c.id}">&#9998;</button>
+            <button class="btn-crud btn-crud--del" title="Eliminar" data-id="${c.id}" data-folio="${c.folio}">&times;</button>
+          </div>
+        </td>
+      ` : ''}`;
   }
 
   function filaAsignadoEdicion(c) {
@@ -1385,44 +1417,50 @@
   async function cargarFoliosAsignados() {
     try {
       const params = getParams();
+      const permitirAcciones = esCoordinador(_usuarioActual);
       const res  = await fetch(`${API}/asignados?${new URLSearchParams(params)}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
+      const table = document.querySelector('#panelCoordinador .coord-assigned-card .dash-tabla');
+      const thead = table?.querySelector('thead');
       const tbody = document.getElementById('tbodyAsignados');
       if (!data.ok) throw new Error(data.error || 'No se pudieron cargar los folios asignados');
       _ultimosAsignados   = data.asignados || [];
       setText('totalAsignados', `${_ultimosAsignados.length} registros`);
+      if (thead) thead.innerHTML = asignadosHeaderHtml(permitirAcciones);
       if (!tbody) return;
       if (!_ultimosAsignados.length) {
         const labelPeriodo = `${MESES_NOMBRE[Number(params.mes) - 1] || 'Mes'} ${params.anio || ''}`.trim();
-        tbody.innerHTML = `<tr class="tabla-empty"><td colspan="7" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados en ${labelPeriodo}</td></tr>`;
+        tbody.innerHTML = `<tr class="tabla-empty"><td colspan="${permitirAcciones ? 7 : 6}" style="text-align:center;padding:1.5rem;color:#aaa">Sin folios asignados en ${labelPeriodo}</td></tr>`;
         await cargarEstadoReporteCompartido(_ultimosAsignados);
         return;
       }
       const labelPeriodo = `${MESES_NOMBRE[Number(params.mes) - 1] || 'Mes'} ${params.anio || ''}`.trim();
       setEstadoReporteCompartido(`Mostrando folios asignados de ${labelPeriodo}`, 'ready');
-      tbody.innerHTML = _ultimosAsignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c)}</tr>`).join('');
-      tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const tr = btn.closest('tr');
-          const id = btn.dataset.id;
-          const c  = _ultimosAsignados.find(x => String(x.id) === id);
-          if (c) tr.innerHTML = filaAsignadoEdicion(c);
-          bindCrudSave(tbody);
+      tbody.innerHTML = _ultimosAsignados.map(c => `<tr data-id="${c.id}">${filaAsignadoVista(c, permitirAcciones)}</tr>`).join('');
+      if (permitirAcciones) {
+        tbody.querySelectorAll('.btn-crud--edit').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tr = btn.closest('tr');
+            const id = btn.dataset.id;
+            const c  = _ultimosAsignados.find(x => String(x.id) === id);
+            if (c) tr.innerHTML = filaAsignadoEdicion(c);
+            bindCrudSave(tbody);
+          });
         });
-      });
-      tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id    = btn.dataset.id;
-          const folio = btn.dataset.folio;
-          if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
-          try {
-            const r = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
-            const d = await r.json();
-            if (!d.ok) throw new Error(d.error);
-            await cargarFoliosAsignados();
-          } catch(err) { alert(`Error: ${err.message}`); }
+        tbody.querySelectorAll('.btn-crud--del').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id    = btn.dataset.id;
+            const folio = btn.dataset.folio;
+            if (!confirm(`¿Eliminar asignación del folio ${folio}?`)) return;
+            try {
+              const r = await fetch(`${API}/compartir/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token()}` } });
+              const d = await r.json();
+              if (!d.ok) throw new Error(d.error);
+              await cargarFoliosAsignados();
+            } catch(err) { alert(`Error: ${err.message}`); }
+          });
         });
-      });
+      }
       await cargarEstadoReporteCompartido(_ultimosAsignados);
     } catch(err) { console.error('[cargarFoliosAsignados]', err); }
   }
@@ -1666,7 +1704,10 @@
     initSelectores();
     sincronizarFiltroPDFUI();
 
-    if (esCoordinador(_usuarioActual)) {
+    const esCoord = esCoordinador(_usuarioActual);
+    configurarPanelCoordinador(esCoord);
+
+    if (esCoord) {
       await iniciarPanelCoordinador();
     }
 

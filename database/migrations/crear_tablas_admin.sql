@@ -99,7 +99,9 @@ VALUES
 (11, 'administracion',    'Administración',    'Administración',   '/src/modulo/admin/admin/index.html',                  '🔧', 1, 1),
 (12, 'alertas',           'Alertas',           'General',          '/src/modulo/varios/alertas/index.html',               '🔔', 1, 1),
 (13, 'mensajeria',        'Chat',              'General',          '/src/modulo/varios/mensajeria/index.html',            '💬', 2, 1),
-(14, 'gerencia',          'Gerencia',          'Gerencia',         '/src/modulo/gerencia/index.html',                     '📈', 1, 1)
+(14, 'gerencia',          'Dashboard Comercial', 'Gerencia',         '/src/modulo/gerencia/dashboard-comercial/index.html',  '📈', 1, 1),
+(15, 'gerencia_estadisticas_ventas', 'Estadísticas de Ventas', 'Gerencia', '/src/modulo/gerencia/comercial/estadisticas-ventas/index.html', '📊', 2, 1),
+(16, 'gerencia_dashboard_finanzas', 'Dashboard Finanzas', 'Gerencia', '/src/modulo/gerencia/comercial/dashboard-finanzas/index.html', '💳', 3, 1)
 ON DUPLICATE KEY UPDATE
   `nombre` = VALUES(`nombre`),
   `grupo` = VALUES(`grupo`),
@@ -130,102 +132,120 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
 SELECT p.`id`, m.`id`, 1
 FROM `perfil` p
-INNER JOIN `menu` m ON m.`codigo` IN (
-  CASE p.`codigo`
-    WHEN 'ventas' THEN 'ventas_dashboard'
-    WHEN 'produccion' THEN 'produccion'
-    WHEN 'bodega' THEN 'bodega'
-    WHEN 'servicio-tecnico' THEN 'servicio_tecnico'
-    WHEN 'facturacion' THEN 'facturacion'
-    WHEN 'contabilidad' THEN 'contabilidad'
-    WHEN 'rrhh' THEN 'rrhh'
-    WHEN 'gerencia' THEN 'gerencia'
-    WHEN 'administracion' THEN 'ventas_dashboard'
-    WHEN 'admin' THEN 'ventas_dashboard'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'ventas' THEN 'ventas_asignadas'
-    WHEN 'gerencia' THEN 'ventas_asignadas'
-    WHEN 'administracion' THEN 'ventas_asignadas'
-    WHEN 'admin' THEN 'ventas_asignadas'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'ventas' THEN 'historial_cliente'
-    WHEN 'gerencia' THEN 'historial_cliente'
-    WHEN 'administracion' THEN 'historial_cliente'
-    WHEN 'admin' THEN 'historial_cliente'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'ventas' THEN 'alertas'
-    WHEN 'produccion' THEN 'alertas'
-    WHEN 'bodega' THEN 'alertas'
-    WHEN 'servicio-tecnico' THEN 'alertas'
-    WHEN 'facturacion' THEN 'alertas'
-    WHEN 'contabilidad' THEN 'alertas'
-    WHEN 'rrhh' THEN 'alertas'
-    WHEN 'gerencia' THEN 'alertas'
-    WHEN 'administracion' THEN 'alertas'
-  CASE p.`codigo`
-    WHEN 'ventas' THEN 'mensajeria'
-    WHEN 'produccion' THEN 'mensajeria'
-    WHEN 'bodega' THEN 'mensajeria'
-    WHEN 'servicio-tecnico' THEN 'mensajeria'
-    WHEN 'facturacion' THEN 'mensajeria'
-    WHEN 'contabilidad' THEN 'mensajeria'
-    WHEN 'rrhh' THEN 'mensajeria'
-    WHEN 'gerencia' THEN 'mensajeria'
-    WHEN 'administracion' THEN 'mensajeria'
-    WHEN 'admin' THEN 'mensajeria'
-    ELSE NULL
-  END,
-    WHEN 'admin' THEN 'alertas'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'produccion' THEN 'bodega'
-    WHEN 'administracion' THEN 'produccion'
-    WHEN 'admin' THEN 'produccion'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'servicio-tecnico' THEN 'servicio_tecnico'
-    WHEN 'administracion' THEN 'servicio_tecnico'
-    WHEN 'admin' THEN 'servicio_tecnico'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'facturacion' THEN 'facturacion'
-    WHEN 'administracion' THEN 'facturacion'
-    WHEN 'admin' THEN 'facturacion'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'contabilidad' THEN 'contabilidad'
-    WHEN 'administracion' THEN 'contabilidad'
-    WHEN 'admin' THEN 'contabilidad'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'contabilidad' THEN 'cobranza'
-    WHEN 'administracion' THEN 'cobranza'
-    WHEN 'admin' THEN 'cobranza'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'administracion' THEN 'administracion'
-    WHEN 'admin' THEN 'administracion'
-    ELSE NULL
-  END,
-  CASE p.`codigo`
-    WHEN 'gerencia' THEN 'gerencia'
-    WHEN 'administracion' THEN 'gerencia'
-    WHEN 'admin' THEN 'gerencia'
-    ELSE NULL
-  END
-)
+INNER JOIN `menu` m ON m.`codigo` = 'ventas_dashboard'
+WHERE p.`codigo` IN ('ventas', 'gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'ventas_asignadas'
+WHERE p.`codigo` IN ('ventas', 'gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'historial_cliente'
+WHERE p.`codigo` IN ('ventas', 'gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'alertas'
+WHERE p.`codigo` IN ('ventas', 'produccion', 'bodega', 'servicio-tecnico', 'facturacion', 'contabilidad', 'rrhh', 'gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'mensajeria'
+WHERE p.`codigo` IN ('ventas', 'produccion', 'bodega', 'servicio-tecnico', 'facturacion', 'contabilidad', 'rrhh', 'gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'produccion'
+WHERE p.`codigo` IN ('produccion', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'bodega'
+WHERE p.`codigo` IN ('bodega', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'servicio_tecnico'
+WHERE p.`codigo` IN ('servicio-tecnico', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'facturacion'
+WHERE p.`codigo` IN ('facturacion', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'contabilidad'
+WHERE p.`codigo` IN ('contabilidad', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'cobranza'
+WHERE p.`codigo` IN ('contabilidad', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'administracion'
+WHERE p.`codigo` IN ('administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'gerencia'
+WHERE p.`codigo` IN ('gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'gerencia_estadisticas_ventas'
+WHERE p.`codigo` IN ('gerencia', 'administracion', 'admin')
+ON DUPLICATE KEY UPDATE
+  `activo` = VALUES(`activo`);
+
+INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
+SELECT p.`id`, m.`id`, 1
+FROM `perfil` p
+INNER JOIN `menu` m ON m.`codigo` = 'gerencia_dashboard_finanzas'
+WHERE p.`codigo` IN ('gerencia', 'administracion', 'admin')
 ON DUPLICATE KEY UPDATE
   `activo` = VALUES(`activo`);
 

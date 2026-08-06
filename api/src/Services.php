@@ -193,6 +193,9 @@ final class AuthService
             ['codigo' => 'general', 'nombre' => 'General', 'grupo' => 'General', 'url' => '/src/modulo/general/general/index.html', 'icono' => '🧭', 'orden' => 0],
             ['codigo' => 'alertas', 'nombre' => 'Alertas', 'grupo' => 'General', 'url' => '/src/modulo/varios/alertas/index.html', 'icono' => '🔔', 'orden' => 1],
             ['codigo' => 'mensajeria', 'nombre' => 'Chat', 'grupo' => 'General', 'url' => '/src/modulo/varios/mensajeria/index.html', 'icono' => '💬', 'orden' => 2],
+            ['codigo' => 'gerencia', 'nombre' => 'Dashboard Comercial', 'grupo' => 'Gerencia', 'url' => '/src/modulo/gerencia/dashboard-comercial/index.html', 'icono' => '📈', 'orden' => 1],
+            ['codigo' => 'gerencia_estadisticas_ventas', 'nombre' => 'Estadísticas de Ventas', 'grupo' => 'Gerencia', 'url' => '/src/modulo/gerencia/comercial/estadisticas-ventas/index.html', 'icono' => '📊', 'orden' => 2],
+            ['codigo' => 'gerencia_dashboard_finanzas', 'nombre' => 'Dashboard Finanzas', 'grupo' => 'Gerencia', 'url' => '/src/modulo/gerencia/comercial/dashboard-finanzas/index.html', 'icono' => '💳', 'orden' => 3],
         ];
 
         foreach ($defaults as $menu) {

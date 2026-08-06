@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Estadísticas de Ventas</title>
+  <link rel="icon" type="image/png" href="../../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../../gerencia.css?v=1.1.0" />
+  <link rel="stylesheet" href="./estadisticas-ventas.css?v=1.1.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Gerencia</span>
+          <span class="user-area" id="userArea">Comercial</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <span>⎋</span><span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Estadísticas de Ventas</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores comerciales">Mes seleccionado</span>
+      </div>
+    </header>
+
+    <main class="gerencia-page">
+      <section class="hero-panel" aria-labelledby="tituloEstadisticas">
+        <div>
+          <p class="eyebrow">Gerencia comercial</p>
+          <h2 id="tituloEstadisticas">Top 10 clientes y productos</h2>
+          <p class="hero-description">
+            Participación sobre la venta mensual con detalle de clientes, productos y categorías.
+          </p>
+        </div>
+        <a class="real-data-badge real-data-badge--link" href="../../dashboard-comercial/index.html">Volver al dashboard</a>
+      </section>
+
+      <section class="gerencia-filtros gerencia-filtros--mensual" aria-label="Filtro mensual">
+        <div class="gerencia-filtro">
+          <label for="monthFilter">MES</label>
+          <select class="filtro-select" id="monthFilter"></select>
+        </div>
+        <div class="gerencia-filtro">
+          <label for="yearFilter">AÑO</label>
+          <select class="filtro-select" id="yearFilter"></select>
+        </div>
+        <button class="btn-buscar" id="btnActualizar" type="button">Actualizar</button>
+      </section>
+      <p class="gerencia-mensaje" id="mensajeMensual" role="status" aria-live="polite"></p>
+
+      <section class="kpis-grid gerencia-kpis" aria-label="Resumen mensual">
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--verde">$</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Venta del mes</span>
+            <span class="kpi-valor" id="kpiVentaMes">—</span>
+          </div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--morado">★</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Meta del mes</span>
+            <span class="kpi-valor" id="kpiMetaMes">—</span>
+            <small class="gerencia-kpi-ayuda" id="metaMesAyuda"></small>
+          </div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--naranja">%</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Cumplimiento</span>
+            <span class="kpi-valor" id="kpiCumplimiento">—</span>
+          </div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-icono kpi-icono--azul">%</div>
+          <div class="kpi-info">
+            <span class="kpi-label">Porcentaje de descuento</span>
+            <span class="kpi-valor" id="kpiDescuentoMes">—</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="grafico-seccion">
+        <div class="grafico-card">
+          <div class="grafico-header">
+            <h3 class="grafico-titulo">Ventas por categoría del mes</h3>
+            <p class="grafico-descripcion" id="descripcionCategorias">Distribución del período seleccionado.</p>
+          </div>
+          <div class="gerencia-distribucion gerencia-distribucion--mensual">
+            <div class="gerencia-torta">
+              <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="tabla-wrapper gerencia-tabla-compacta">
+              <table class="dash-tabla">
+                <thead>
+                  <tr>
+                    <th>Categoría de producto</th>
+                    <th class="numero">Venta del mes</th>
+                    <th class="numero">Participación</th>
+                  </tr>
+                </thead>
+                <tbody id="categoryTableBody">
+                  <tr><td colspan="3" class="gerencia-empty">Cargando…</td></tr>
+                </tbody>
+                <tfoot id="categoryTableFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="gerencia-grid gerencia-grid--equilibrado">
+        <section class="tabla-seccion">
+          <div class="tabla-card">
+            <div class="tabla-header">
+              <div>
+                <h3 class="tabla-titulo">Top 10 clientes del mes</h3>
+                <p class="gerencia-subtitulo">Participación sobre la venta mensual.</p>
+              </div>
+            </div>
+            <div class="tabla-wrapper">
+              <table class="dash-tabla">
+                <thead>
+                  <tr>
+                    <th class="numero">Posición</th>
+                    <th>Cliente</th>
+                    <th class="numero">Venta</th>
+                    <th class="numero">Participación</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsTableBody">
+                  <tr><td colspan="4" class="gerencia-empty">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tabla-seccion">
+          <div class="tabla-card">
+            <div class="tabla-header">
+              <div>
+                <h3 class="tabla-titulo">Top 10 productos del mes</h3>
+                <p class="gerencia-subtitulo">Productos ordenados por venta efectiva.</p>
+              </div>
+            </div>
+            <div class="tabla-wrapper">
+              <table class="dash-tabla">
+                <thead>
+                  <tr>
+                    <th class="numero">Posición</th>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th class="numero">Venta</th>
+                    <th class="numero">Participación</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTableBody">
+                  <tr><td colspan="5" class="gerencia-empty">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="gerencia-loading-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite">
+    <div class="gerencia-loading-card" role="status" aria-label="Cargando datos de gerencia">
+      <div class="gerencia-loading-spinner" aria-hidden="true"></div>
+      <div class="gerencia-loading-copy">
+        <strong data-loading-text>Cargando datos...</strong>
+        <span>Estamos preparando la informacion mas reciente.</span>
+      </div>
+      <div class="gerencia-loading-skeleton" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="../../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="./estadisticas-ventas.js?v=1.1.0"></script>
+  <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

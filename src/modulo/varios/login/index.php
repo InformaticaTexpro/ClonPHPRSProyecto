@@ -32,7 +32,7 @@ function resolve_login_route(array $user): string
         'venta' => '/src/modulo/ventas/dashboard/index.html',
         'vendedores' => '/src/modulo/ventas/dashboard/index.html',
         'comercial' => '/src/modulo/ventas/dashboard/index.html',
-        'gerencia' => '/src/modulo/ventas/dashboard/index.html',
+        'gerencia' => '/src/modulo/gerencia/dashboard-comercial/index.html',
         'produccion' => '/src/modulo/produccion/produccion/index.html',
         'bodega' => '/src/modulo/bodega/bodega/index.html',
         'facturacion' => '/src/modulo/facturacion/facturacion/index.html',
@@ -44,8 +44,8 @@ function resolve_login_route(array $user): string
         'servicio_tecnico' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'servicio' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'serv_tecnico' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
-        'administracion' => '/src/modulo/admin/admin/index.html',
-        'admin' => '/src/modulo/admin/admin/index.html',
+        'administracion' => '/src/modulo/gerencia/dashboard-comercial/index.html',
+        'admin' => '/src/modulo/gerencia/dashboard-comercial/index.html',
     ];
 
     $area = normalize_login_area((string)($user['area'] ?? ''));

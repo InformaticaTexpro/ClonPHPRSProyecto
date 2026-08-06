@@ -59,6 +59,7 @@
     General: '🏠',
     Ventas: '💰',
     RRHH: '👥',
+    Gerencia: '📈',
   };
 
   function ensureRealtimeClientLoaded() {
@@ -102,6 +103,7 @@
           const codigo = normalizarTexto(menu?.codigo);
           const grupo = String(menu?.grupo || 'General').trim() || 'General';
           if (codigo === 'rrhh' || codigo === 'rrhh_reportes_compartidos') return 'RRHH';
+          if (codigo.startsWith('gerencia')) return 'Gerencia';
           return grupo;
         })(),
         orden: Number(menu?.orden ?? 0) || 0,
@@ -136,6 +138,7 @@
             const codigo = normalizarTexto(item.codigo);
             const grupo = String(item.grupo || 'General').trim() || 'General';
             if (codigo === 'rrhh' || codigo === 'rrhh_reportes_compartidos') return 'RRHH';
+            if (codigo.startsWith('gerencia')) return 'Gerencia';
             return grupo;
           })(),
           orden: Number(item.orden ?? 0) || 0,
@@ -238,6 +241,19 @@
       || data?.user?.allMenus
       || data?.user?.menusDisponibles
       || [];
+  }
+
+  function cerrarSesion() {
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('usuario');
+      sessionStorage.removeItem('texpro_user');
+    } catch (err) {
+      console.warn('[app-sidebar] No se pudo limpiar la sesion:', err.message);
+    }
+
+    window.location.href = '/src/modulo/varios/login/index.html';
   }
 
   function validarAccesoPaginaActual(catalogo, usuario, indicePermisos) {
@@ -1863,6 +1879,11 @@
     renderSidebar(data);
     crearWidgetMensajeriaGlobal(data);
     ensureRealtimeClientLoaded();
+
+    document.getElementById('btnLogout')?.addEventListener('click', event => {
+      event.preventDefault();
+      cerrarSesion();
+    });
   }
 
   if (document.readyState === 'loading') {

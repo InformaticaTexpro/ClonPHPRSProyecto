@@ -17,6 +17,7 @@ require_once __DIR__ . '/src/MensajeriaService.php';
 require_once __DIR__ . '/src/NotificacionesService.php';
 require_once __DIR__ . '/src/VendedoresService.php';
 require_once __DIR__ . '/src/DashboardService.php';
+require_once __DIR__ . '/src/GerenciaService.php';
 require_once __DIR__ . '/src/VentasService.php';
 require_once __DIR__ . '/src/IndicadoresService.php';
 require_once __DIR__ . '/src/ApiApplication.php';

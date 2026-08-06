@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Dashboard Finanzas</title>
+  <link rel="icon" type="image/png" href="../../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../../gerencia.css?v=1.1.0" />
+  <style>
+    .finanzas-shell { display: grid; gap: 1rem; }
+    .finanzas-panel {
+      background: rgba(255, 255, 255, .88);
+      border: 1px solid rgba(19, 35, 61, .08);
+      border-radius: 22px;
+      padding: 1.25rem;
+      box-shadow: 0 18px 40px rgba(10, 24, 38, .06);
+    }
+    .finanzas-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .finanzas-card {
+      background: #fff;
+      border-radius: 18px;
+      border: 1px solid rgba(19, 35, 61, .08);
+      padding: 1rem;
+      min-height: 132px;
+    }
+    .finanzas-card h3 { margin: 0 0 .35rem; font-size: 1rem; }
+    .finanzas-card p { margin: 0; color: var(--color-text-muted, #5d6675); line-height: 1.45; }
+    @media (max-width: 980px) {
+      .finanzas-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menu">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Gerencia</span>
+          <span class="user-area" id="userArea">Finanzas</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesion">
+        <span>⎋</span><span class="btn-logout-text">Cerrar sesion</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menu movil">☰</button>
+        <h1 class="header-title">Dashboard Finanzas</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores financieros">Mock</span>
+      </div>
+    </header>
+
+    <main class="gerencia-page">
+      <section class="hero-panel" aria-labelledby="tituloFinanzas">
+        <div>
+          <p class="eyebrow">Gerencia financiera</p>
+          <h2 id="tituloFinanzas">Dashboard Finanzas</h2>
+          <p class="hero-description">
+            Vista mock preparada para la futura integracion financiera sin bloquear la navegacion actual.
+          </p>
+        </div>
+        <span class="real-data-badge">Mock</span>
+      </section>
+
+      <nav class="gerencia-subnav" aria-label="Submodulos de gerencia">
+        <a class="gerencia-subnav__item" href="../../dashboard-comercial/index.html">
+          <span class="gerencia-subnav__copy">
+            <strong>Dashboard comercial</strong>
+            <span>Retorno al panel comercial principal.</span>
+          </span>
+          <span class="gerencia-subnav__badge">Ir</span>
+        </a>
+        <a class="gerencia-subnav__item" href="../../estadisticas-ventas/index.html">
+          <span class="gerencia-subnav__copy">
+            <strong>Estadisticas de ventas</strong>
+            <span>Detalle de clientes, productos y participacion.</span>
+          </span>
+          <span class="gerencia-subnav__badge">Ir</span>
+        </a>
+        <a class="gerencia-subnav__item" href="./index.html">
+          <span class="gerencia-subnav__copy">
+            <strong>Dashboard finanzas</strong>
+            <span>Espacio reservado para indicadores financieros.</span>
+          </span>
+          <span class="gerencia-subnav__badge">Activo</span>
+        </a>
+      </nav>
+
+      <section class="finanzas-shell">
+        <div class="finanzas-panel">
+          <h3>Estado del modulo</h3>
+          <p>
+            Este panel permanece como mock para mantener la estructura del submodulo de Gerencia.
+            Cuando se integren las consultas financieras reales, se podra reutilizar esta misma
+            navegacion y reemplazar solo las tarjetas de contenido.
+          </p>
+        </div>
+
+        <div class="finanzas-grid">
+          <article class="finanzas-card">
+            <h3>Ventas acumuladas</h3>
+            <p>Reservado para consolidado mensual o anual desde Softland y MySQL.</p>
+          </article>
+          <article class="finanzas-card">
+            <h3>Cuentas por cobrar</h3>
+            <p>Espacio previsto para cartera, vencimientos y alertas de pago.</p>
+          </article>
+          <article class="finanzas-card">
+            <h3>Margen y utilidad</h3>
+            <p>Indicadores pendientes de la capa financiera cuando el modulo quede listo.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

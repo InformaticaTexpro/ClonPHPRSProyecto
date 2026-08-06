@@ -926,38 +926,9 @@
     return usuario?.is_admin === true || usuario?.is_admin === 1 || usuario?.is_admin === '1';
   }
 
-  function insertarMenuGerencia() {
-    const nav = document.getElementById('sidebarNav');
-    if (!nav || nav.querySelector('[data-module="gerencia"]')) return false;
-
-    const link = document.createElement('a');
-    link.className = 'nav-item';
-    link.href = '../../gerencia/index.html';
-    link.dataset.module = 'gerencia';
-    link.innerHTML = '<span style="font-size:1rem">📈</span><span class="nav-label">Gerencia</span>';
-
-    const adminLink = Array.from(nav.querySelectorAll('.nav-item')).find(item =>
-      item.textContent.trim().toLowerCase().includes('administración')
-    );
-
-    if (adminLink) nav.insertBefore(link, adminLink);
-    else nav.appendChild(link);
-
-    return true;
-  }
-
   async function activarMenuGerenciaAdmin() {
-  if (!debeFusionarVentasAsignadas()) return;
-
-  const usuario = await obtenerUsuarioActual();
-  if (!esAdmin(usuario)) return;
-
-  let intentos = 0;
-  const timer = setInterval(() => {
-    intentos += 1;
-    if (insertarMenuGerencia() || intentos >= 20) clearInterval(timer);
-  }, 150);
-}
+    return;
+  }
 
 function cargarSidebarModulos() {
   if (!document.getElementById('sidebarNav')) return;
@@ -1010,7 +981,6 @@ function cargarSidebarModulos() {
     cargarSidebarModulos();
     cargarIndicadores();
     activarAutoRefreshFiltros();
-    activarMenuGerenciaAdmin();
     crearCampanaAlertasGlobal();
     crearAccesoMensajeriaGlobal();
     cargarBadgeAlertasGlobal();

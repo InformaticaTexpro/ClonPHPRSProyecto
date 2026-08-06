@@ -127,7 +127,9 @@
       venta: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
       vendedores: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
       comercial: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
-      gerencia: ['/src/modulo/ventas/dashboard/index.html', 'ventas_dashboard'],
+      gerencia: ['/src/modulo/gerencia/dashboard-comercial/index.html', 'gerencia'],
+      gerencia_estadisticas_ventas: ['/src/modulo/gerencia/comercial/estadisticas-ventas/index.html', 'gerencia_estadisticas_ventas'],
+      gerencia_dashboard_finanzas: ['/src/modulo/gerencia/comercial/dashboard-finanzas/index.html', 'gerencia_dashboard_finanzas'],
       produccion: ['/src/modulo/produccion/produccion/index.html', 'produccion'],
       bodega: ['/src/modulo/bodega/bodega/index.html', 'bodega'],
       facturacion: ['/src/modulo/facturacion/facturacion/index.html', 'facturacion'],
@@ -139,8 +141,8 @@
       servicio: ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
       'serv-tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
       'servicio tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
-      administracion: ['/src/modulo/admin/admin/index.html', 'administracion'],
-      admin: ['/src/modulo/admin/admin/index.html', 'administracion'],
+      administracion: ['/src/modulo/gerencia/dashboard-comercial/index.html', 'gerencia'],
+      admin: ['/src/modulo/gerencia/dashboard-comercial/index.html', 'gerencia'],
     };
 
     const rutaConfig = rutas[area];

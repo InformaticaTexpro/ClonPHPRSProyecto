@@ -704,13 +704,17 @@ final class AnalyticsService
 
     public function asignados(array $payload, array $query): array
     {
-        $codes = $this->coordinatorCodes($payload);
+        $coordinatorCodes = $this->coordinatorCodes($payload);
+        $vendorCodes = $this->vendorCodes($payload);
+
+        $codes = $coordinatorCodes ?: $vendorCodes;
         if (!$codes) {
             return ['ok' => true, 'asignados' => [], 'periodo_solicitado' => null, 'periodo_utilizado' => null];
         }
 
         $periodoSolicitado = $this->monthYear($query);
         $params = $codes;
+        $esCoordinador = (bool)$coordinatorCodes;
         $sql = "
             SELECT fc.id, fc.folio, fc.fecha,
                    COALESCE(
@@ -719,11 +723,21 @@ final class AnalyticsService
                    ) AS cliente,
                    fc.monto_neto, fc.monto_asignado, fc.porcentaje,
                    fc.cod_vendedor_principal, fc.cod_vendedor_compartido, fc.nombre_vendedor_compartido,
-                   fc.monto_asignado AS monto, COALESCE(u.nombre, fc.cod_vendedor_compartido) AS vendedor
+                   fc.monto_asignado AS monto,
+                   COALESCE(
+                     u_comp.nombre,
+                     fc.nombre_vendedor_compartido,
+                     fc.cod_vendedor_compartido,
+                     COALESCE(u_principal.nombre, fc.cod_vendedor_principal)
+                   ) AS vendedor
             FROM factura_compartida fc
-            LEFT JOIN usuario_vendedor uv ON uv.cod_vendedor = fc.cod_vendedor_compartido
-            LEFT JOIN usuario u ON u.id = uv.usuario_id
-            WHERE fc.cod_vendedor_principal IN (" . implode(',', array_fill(0, count($codes), '?')) . ")
+            LEFT JOIN usuario_vendedor uv_comp ON TRIM(uv_comp.cod_vendedor) = TRIM(fc.cod_vendedor_compartido)
+            LEFT JOIN usuario u_comp ON u_comp.id = uv_comp.usuario_id
+            LEFT JOIN usuario_vendedor uv_principal ON TRIM(uv_principal.cod_vendedor) = TRIM(fc.cod_vendedor_principal)
+            LEFT JOIN usuario u_principal ON u_principal.id = uv_principal.usuario_id
+            WHERE " . ($esCoordinador
+                ? 'fc.cod_vendedor_principal'
+                : 'fc.cod_vendedor_compartido') . " IN (" . implode(',', array_fill(0, count($codes), '?')) . ")
               AND fc.rol = 'compartido'
               AND fc.mes = ?
               AND fc.anio = ?

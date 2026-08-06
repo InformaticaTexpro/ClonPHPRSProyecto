@@ -587,6 +587,18 @@ section.tabla-seccion:last-of-type > .tabla-card > .tabla-wrapper::-webkit-scrol
   width: 100%;
 }
 
+#panelCoordinador.panel-coordinador--solo-lectura .panel-coordinador__share-card {
+  display: none;
+}
+
+#panelCoordinador.panel-coordinador--solo-lectura .panel-coordinador__assigned-card {
+  margin-top: 0;
+}
+
+#panelCoordinador.panel-coordinador--solo-lectura .panel-coordinador__assigned-header .tabla-header__actions {
+  display: none;
+}
+
 #panelCoordinador > .tabla-card {
   width: 100%;
 }
