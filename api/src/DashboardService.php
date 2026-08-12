@@ -5,8 +5,14 @@ final class DashboardService
 {
     use SharedServiceHelpers;
 
-    public function __construct(private Database $db)
+    public function __construct(private Database $db, private ?SoftlandBridgeClient $bridgeClient = null)
     {
+    }
+
+    private function bridgeEnabled(): bool
+    {
+        return $this->bridgeClient instanceof SoftlandBridgeClient
+            && $this->bridgeClient->isEnabled();
     }
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
@@ -23,6 +29,25 @@ final class DashboardService
     {
         if (!$codigosCoord) {
             return null;
+        }
+
+        if ($this->bridgeEnabled()) {
+            $this->bridgeClient->assertEnabledAndConfigured();
+            $resp = $this->bridgeClient->get('/dashboard/folio-coordinador', [
+                'folio' => $folio,
+                'codigos' => implode(',', $codigosCoord),
+            ]);
+
+            $row = is_array($resp['row'] ?? null) ? $resp['row'] : null;
+            if (!$row) {
+                return null;
+            }
+
+            $row['cliente'] = trim((string)($row['cliente'] ?? ''));
+            if ($row['cliente'] === '') {
+                $row['cliente'] = trim((string)($row['CodAux'] ?? ''));
+            }
+            return $row;
         }
 
         $placeholders = implode(',', array_fill(0, count($codigosCoord), '?'));

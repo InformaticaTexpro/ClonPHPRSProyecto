@@ -66,12 +66,21 @@ final class SalesService
         $ventasPropias = $this->analytics->ventasMes($payload, ['mes' => $mes, 'anio' => $anio])['ventas'] ?? [];
         $totalPropias = array_reduce($ventasPropias, static fn(int $acc, array $row): int => $acc + (int)($row['monto'] ?? 0), 0);
 
+        $codigosCompartidos = $this->normalizeVendorCodes($this->vendorCodes($payload));
+        if (!$codigosCompartidos) {
+            throw new RuntimeException('No hay códigos de vendedor asociados para confirmar ventas compartidas.', 404);
+        }
+
+        $placeholdersCompartidos = implode(',', array_fill(0, count($codigosCompartidos), '?'));
         $rowsAsignadas = $this->db->fetchAll(
             'SELECT folio, cliente, fecha, monto_asignado, porcentaje, rol, cod_vendedor_principal, cod_vendedor_compartido, nombre_vendedor_compartido
              FROM factura_compartida
-             WHERE usuario_id = ? AND mes = ? AND anio = ?
+             WHERE TRIM(cod_vendedor_compartido) IN (' . $placeholdersCompartidos . ')
+               AND mes = ?
+               AND anio = ?
+               AND rol = \'compartido\'
              ORDER BY fecha',
-            [$userId, $mes, $anio]
+            array_merge($codigosCompartidos, [$mes, $anio])
         );
         $totalAsignadas = array_reduce($rowsAsignadas, static fn(int $acc, array $row): int => $acc + (int)round((float)($row['monto_asignado'] ?? 0)), 0);
 
@@ -192,12 +201,21 @@ final class SalesService
             );
         }
 
+        $codigosCompartidos = $this->normalizeVendorCodes($this->vendorCodes($payload));
+        if (!$codigosCompartidos) {
+            throw new RuntimeException('No hay códigos de vendedor asociados para confirmar ventas compartidas.', 404);
+        }
+
+        $placeholdersCompartidos = implode(',', array_fill(0, count($codigosCompartidos), '?'));
         $rows = $this->db->fetchAll(
             'SELECT folio, cliente, fecha, monto_asignado, porcentaje, cod_vendedor_principal, cod_vendedor_compartido, nombre_vendedor_compartido
              FROM factura_compartida
-             WHERE usuario_id = ? AND mes = ? AND anio = ?
+             WHERE TRIM(cod_vendedor_compartido) IN (' . $placeholdersCompartidos . ')
+               AND mes = ?
+               AND anio = ?
+               AND rol = \'compartido\'
              ORDER BY fecha',
-            [$userId, $mes, $anio]
+            array_merge($codigosCompartidos, [$mes, $anio])
         );
         if (!$rows) {
             throw new RuntimeException('No hay folios asignados para confirmar en este período.', 404);

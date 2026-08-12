@@ -5,13 +5,37 @@ final class GerenciaService
 {
     use SharedServiceHelpers;
 
-    public function __construct(private Database $db)
+    public function __construct(private Database $db, private ?SoftlandBridgeClient $bridgeClient = null)
     {
+    }
+
+    private function bridgeConfigured(): bool
+    {
+        return $this->bridgeClient instanceof SoftlandBridgeClient
+            && $this->bridgeClient->isEnabled()
+            && $this->bridgeClient->isConfigured();
     }
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
         $this->assertGerenciaOrAdmin($payload);
+
+        if ($this->bridgeConfigured()) {
+            return match (true) {
+                $method === 'GET' && $path === '/comercial/resumen' => $this->bridgeClient->get('/gerencia/resumen', [
+                    'anio' => $this->validarAnio($query['anio'] ?? null),
+                ]),
+                $method === 'GET' && $path === '/comercial/mensual' => $this->bridgeClient->get('/gerencia/mensual', [
+                    'anio' => $this->validarAnio($query['anio'] ?? null),
+                    'mes' => $this->validarMes($query['mes'] ?? null),
+                ]),
+                $method === 'GET' && $path === '/comercial/estadisticas-ventas' => $this->bridgeClient->get('/gerencia/estadisticas-ventas', [
+                    'anio' => $this->validarAnio($query['anio'] ?? null),
+                    'mes' => $this->validarMes($query['mes'] ?? null),
+                ]),
+                default => throw new RuntimeException('Ruta de gerencia no encontrada', 404),
+            };
+        }
 
         return match (true) {
             $method === 'GET' && $path === '/comercial/resumen' => $this->resumenComercial($query),
@@ -665,6 +689,14 @@ final class GerenciaService
     private function resumenComercial(array $query): array
     {
         $anio = $this->validarAnio($query['anio'] ?? null);
+        if ($this->bridgeConfigured()) {
+            $response = $this->bridgeClient->get('/gerencia/resumen', ['anio' => $anio]);
+            if (!is_array($response) || !isset($response['ok'])) {
+                throw new RuntimeException('Respuesta invalida del bridge para resumen comercial.', 502);
+            }
+            return $response;
+        }
+
         if ($unavailable = $this->softlandUnavailable('el resumen comercial')) {
             return $unavailable;
         }

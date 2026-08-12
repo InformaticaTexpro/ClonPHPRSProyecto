@@ -7,8 +7,24 @@ final class VentasService
 
     public function __construct(
         private Database $db,
-        private AnalyticsService $analytics
+        private AnalyticsService $analytics,
+        private ?SoftlandBridgeClient $bridgeClient = null
     ) {
+    }
+
+    private function bridgeEnabled(): bool
+    {
+        return $this->bridgeClient instanceof SoftlandBridgeClient
+            && $this->bridgeClient->isEnabled();
+    }
+
+    private function bridgeGet(string $path, array $query): array
+    {
+        if (!$this->bridgeClient instanceof SoftlandBridgeClient) {
+            throw new RuntimeException('Softland bridge no disponible.', 503);
+        }
+        $this->bridgeClient->assertEnabledAndConfigured();
+        return $this->bridgeClient->get($path, $query);
     }
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
@@ -64,6 +80,23 @@ final class VentasService
             return ['ok' => true, 'totalVentas' => 0, 'metaMes' => (int)($meta['meta'] ?? 0), 'totalDescuento' => 0];
         }
 
+        if ($this->bridgeEnabled()) {
+            $bridge = $this->bridgeGet('/dashboard/resumen', [
+                'codigos' => implode(',', $codigos),
+                'mes' => $periodo['mes'],
+                'anio' => $periodo['anio'],
+            ]);
+            $totalVentas = (float)($bridge['totalVentasCobrado'] ?? 0);
+            $totalLista = (float)($bridge['totalVentasLista'] ?? 0);
+
+            return [
+                'ok' => true,
+                'totalVentas' => (int)round($totalVentas),
+                'metaMes' => (int)round((float)($meta['meta'] ?? 0)),
+                'totalDescuento' => (int)round($totalLista - $totalVentas),
+            ];
+        }
+
         $softland = $this->asSoftlandPool();
         $stmt = $softland->prepare(
             "SELECT
@@ -100,6 +133,16 @@ final class VentasService
             return ['ok' => true, 'total_ventas' => 0];
         }
         $periodo = $this->monthYear($query);
+
+        if ($this->bridgeEnabled()) {
+            $bridge = $this->bridgeGet('/dashboard/resumen', [
+                'codigos' => implode(',', $codigos),
+                'mes' => $periodo['mes'],
+                'anio' => $periodo['anio'],
+            ]);
+            return ['ok' => true, 'total_ventas' => (int)($bridge['totalVentasCobrado'] ?? 0)];
+        }
+
         $softland = $this->asSoftlandPool();
         $stmt = $softland->prepare(
             "SELECT SUM(m.TotLinea) AS total_ventas
@@ -171,6 +214,13 @@ final class VentasService
             return ['ok' => true, 'clientes' => []];
         }
 
+        if ($this->bridgeEnabled()) {
+            return $this->bridgeGet('/ventas/clientes', [
+                'q' => $q,
+                'codigos' => implode(',', $codigos),
+            ]);
+        }
+
         $softland = $this->asSoftlandPool();
         $params = [];
         $in = $this->buildInClause($codigos, $params);
@@ -201,6 +251,13 @@ final class VentasService
         $codigos = $this->vendorCodes($payload);
         if (!$codigos) {
             throw new RuntimeException('Sin permiso para este cliente', 403);
+        }
+
+        if ($this->bridgeEnabled()) {
+            return $this->bridgeGet('/ventas/cliente-info', [
+                'codAux' => $codAux,
+                'codigos' => implode(',', $codigos),
+            ]);
         }
 
         $softland = $this->asSoftlandPool();
@@ -253,6 +310,15 @@ final class VentasService
         $codigos = $this->vendorCodes($payload);
         if (!$codigos) {
             return ['ok' => true, 'historial' => []];
+        }
+
+        if ($this->bridgeEnabled()) {
+            return $this->bridgeGet('/ventas/historial-cliente', [
+                'codAux' => $codAux,
+                'desde' => $desde,
+                'hasta' => $hasta,
+                'codigos' => implode(',', $codigos),
+            ]);
         }
 
         $softland = $this->asSoftlandPool();
@@ -313,6 +379,15 @@ final class VentasService
     private function folio(array $payload, string $folio, array $query): array
     {
         $periodo = $this->monthYear($query);
+
+        if ($this->bridgeEnabled()) {
+            $bridge = $this->bridgeGet('/ventas/folio', [
+                'folio' => $folio,
+                'anio' => $periodo['anio'],
+            ]);
+            return ['ok' => true, ...((array)($bridge['data'] ?? []))];
+        }
+
         $stmt = $this->asSoftlandPool()->prepare(
             "SELECT SubTotal, COALESCE(TotDesc, 0) AS descuento
              FROM [PRODIN].[softland].[iw_gsaen]

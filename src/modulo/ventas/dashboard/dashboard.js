@@ -377,11 +377,12 @@
           <td style="text-align:right">${pctDescuento}</td>
         </tr>`;
       }).join('');
-      const sumVentas = data.vendedores.reduce((s, v) => s + Number(v.totalVentasCobrado || 0), 0);
-      const sumLista  = data.vendedores.reduce((s, v) => s + Number(v.ventaRealLista     || 0), 0);
-      const descuento = sumLista > 0
-        ? Math.round((1 - sumVentas / sumLista) * 10000) / 100
-        : null;
+      const totales = data.totales || {};
+      const sumVentas = Number(totales.totalVentasCobrado ?? data.vendedores.reduce((s, v) => s + Number(v.totalVentasCobrado || 0), 0));
+      const sumLista  = Number(totales.ventaRealLista ?? data.vendedores.reduce((s, v) => s + Number(v.ventaRealLista || 0), 0));
+      const descuento = totales.pctDescuento !== undefined && totales.pctDescuento !== null
+        ? Number(totales.pctDescuento)
+        : (sumLista > 0 ? Math.round((1 - sumVentas / sumLista) * 10000) / 100 : null);
       renderVendedoresFooter(sumVentas, sumLista, descuento);
     } catch (err) {
       console.error('[cargarVendedores]', err);
@@ -394,7 +395,9 @@
 
   async function cargarVentasMes() {
     try {
-      const res  = await fetch(`${API}/ventas-mes?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const params = new URLSearchParams(getParams());
+      params.set('include_compartidas', '1');
+      const res  = await fetch(`${API}/ventas-mes?${params.toString()}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
       ventasMesData = data.ventas || [];
@@ -851,4 +854,5 @@
   else init();
 
 })();
+
 

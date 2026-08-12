@@ -1,13 +1,13 @@
-﻿'use strict';
+'use strict';
 
 /**
  * routes/auth.js
  *
- * Endpoints de autenticación:
- *   POST /api/auth/login        — Inicio de sesión (email + password)
- *   GET  /api/auth/me           — Perfil del usuario autenticado
- *   POST /api/auth/logout       — Cierre de sesión (client-side)
- *   POST /api/auth/refresh      — Renovación silenciosa de token JWT
+ * Endpoints de autenticaci�n:
+ *   POST /api/auth/login        � Inicio de sesi�n (email + password)
+ *   GET  /api/auth/me           � Perfil del usuario autenticado
+ *   POST /api/auth/logout       � Cierre de sesi�n (client-side)
+ *   POST /api/auth/refresh      � Renovaci�n silenciosa de token JWT
  */
 
 const express                  = require('express');
@@ -21,14 +21,14 @@ const { requireAuth }          = require('../middlewares/requireAuth');
 const JWT_SECRET  = process.env.JWT_SECRET;
 const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '8h';
 
-// â”€â”€ POST /api/auth/login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── POST /api/auth/login ────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   // Acepta tanto { email } (frontend actual) como { usuario } (retrocompat)
   const { email, usuario, password } = req.body;
   const emailFinal = (email || usuario || '').trim().toLowerCase();
 
   if (!emailFinal || !password) {
-    return res.status(400).json({ ok: false, error: 'Email y contraseña requeridos' });
+    return res.status(400).json({ ok: false, error: 'Email y contrase�a requeridos' });
   }
 
   try {
@@ -42,16 +42,16 @@ router.post('/login', async (req, res) => {
 
     const user = rows[0];
     if (!user || !user.is_active) {
-      return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
+      return res.status(401).json({ ok: false, error: 'Usuario o contrase�a incorrectos' });
     }
 
-    // Las contraseÃ±as estÃ¡n en formato PBKDF2-SHA256 de Django (600.000 iter)
+    // Las contraseñas están en formato PBKDF2-SHA256 de Django (600.000 iter)
     const match = verifyPasswordDjango(password, user.password);
     if (!match) {
-      return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
+      return res.status(401).json({ ok: false, error: 'Usuario o contrase�a incorrectos' });
     }
 
-    // Registrar Ãºltimo acceso
+    // Registrar último acceso
     await updateLastLogin(user.id);
 
     // Cargar vendedores asociados
@@ -84,7 +84,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// â”€â”€ GET /api/auth/me â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── GET /api/auth/me ────────────────────────────────────────────────
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.pool.query(
@@ -94,7 +94,7 @@ router.get('/me', requireAuth, async (req, res) => {
     );
     const user = rows[0];
     if (!user || !user.is_active) {
-      return res.status(401).json({ ok: false, error: 'Sesión no válida' });
+      return res.status(401).json({ ok: false, error: 'Sesi�n no v�lida' });
     }
     const [vendedores] = await db.pool.query(
       `SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?`,
@@ -107,16 +107,16 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-// â”€â”€ POST /api/auth/logout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── POST /api/auth/logout ───────────────────────────────────────────
 // JWT es stateless; logout se gestiona borrando el token en el cliente.
 router.post('/logout', requireAuth, (_req, res) => {
-  res.json({ ok: true, message: 'Sesión cerrada' });
+  res.json({ ok: true, message: 'Sesi�n cerrada' });
 });
 
-// â”€â”€ POST /api/auth/refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── POST /api/auth/refresh ──────────────────────────────────────────
 /**
- * RenovaciÃ³n silenciosa de token JWT.
- * Acepta tokens expirados hace menos de 24h con firma vÃ¡lida.
+ * Renovación silenciosa de token JWT.
+ * Acepta tokens expirados hace menos de 24h con firma válida.
  * Verifica is_active en BD antes de emitir nuevo token.
  */
 router.post('/refresh', async (req, res) => {
@@ -131,7 +131,7 @@ router.post('/refresh', async (req, res) => {
   try {
     decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
   } catch {
-    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
   }
 
   const ahora       = Math.floor(Date.now() / 1000);
@@ -139,7 +139,7 @@ router.post('/refresh', async (req, res) => {
   const VENTANA_SEG = 24 * 60 * 60;
 
   if (ahora - expiracion > VENTANA_SEG) {
-    return res.status(401).json({ ok: false, error: 'Token demasiado antiguo para renovar. Inicia sesión nuevamente.' });
+    return res.status(401).json({ ok: false, error: 'Token demasiado antiguo para renovar. Inicia sesi�n nuevamente.' });
   }
 
   try {
@@ -173,7 +173,7 @@ router.post('/refresh', async (req, res) => {
 
   } catch (err) {
     console.error('[POST /api/auth/refresh]', err.message);
-    res.status(500).json({ ok: false, error: 'Error al renovar sesión' });
+    res.status(500).json({ ok: false, error: 'Error al renovar sesi�n' });
   }
 });
 

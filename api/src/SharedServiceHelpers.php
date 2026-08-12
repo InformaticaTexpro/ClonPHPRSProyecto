@@ -111,4 +111,31 @@ trait SharedServiceHelpers
     {
         return $this->buildInClause($values, $params);
     }
+
+    protected function normalizeVendorCodes(array $codes): array
+    {
+        $normalized = [];
+
+        foreach ($codes as $raw) {
+            $code = trim((string)$raw);
+            if ($code === '') {
+                continue;
+            }
+
+            $normalized[$code] = true;
+
+            if (preg_match('/^\d+$/', $code)) {
+                $unpad = ltrim($code, '0');
+                if ($unpad === '') {
+                    $unpad = '0';
+                }
+
+                $normalized[$unpad] = true;
+                $normalized[str_pad($unpad, 2, '0', STR_PAD_LEFT)] = true;
+                $normalized[str_pad($unpad, 4, '0', STR_PAD_LEFT)] = true;
+            }
+        }
+
+        return array_keys($normalized);
+    }
 }
