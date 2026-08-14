@@ -5,24 +5,8 @@ final class AnalyticsService
 {
     use SharedServiceHelpers;
 
-    public function __construct(private Database $db, private ?SoftlandBridgeClient $bridgeClient = null)
+    public function __construct(private Database $db)
     {
-    }
-
-    private function bridgeEnabled(): bool
-    {
-        return $this->bridgeClient instanceof SoftlandBridgeClient
-            && $this->bridgeClient->isEnabled();
-    }
-
-    private function bridgeGet(string $path, array $query = []): array
-    {
-        if (!$this->bridgeClient instanceof SoftlandBridgeClient) {
-            throw new RuntimeException('Softland bridge no disponible.', 503);
-        }
-
-        $this->bridgeClient->assertEnabledAndConfigured();
-        return $this->bridgeClient->get($path, $query);
     }
 
     private function normalizeVendorCodes(array $codes): array
@@ -197,6 +181,100 @@ final class AnalyticsService
         }, $rows);
     }
 
+    private function fetchSharedVendorBalances(array $vendCodes, int $mes, int $anio): array
+    {
+        $codes = $this->normalizeVendorCodes($vendCodes);
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $balances = [];
+
+        $outgoingRows = $this->db->fetchAll(
+            "SELECT
+                TRIM(fc.cod_vendedor_principal) AS codVendedor,
+                COUNT(DISTINCT fc.folio) AS totalFolios,
+                SUM(fc.monto_asignado) AS monto
+             FROM factura_compartida fc
+             WHERE TRIM(fc.cod_vendedor_principal) IN ($placeholders)
+               AND fc.mes = ?
+               AND fc.anio = ?
+               AND fc.rol = 'compartido'
+             GROUP BY TRIM(fc.cod_vendedor_principal)",
+            array_merge($codes, [$mes, $anio])
+        );
+
+        foreach ($outgoingRows as $row) {
+            $code = trim((string)($row['codVendedor'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $balances[$code]['outgoing'] = (float)($row['monto'] ?? 0);
+            $balances[$code]['outgoing_folios'] = (int)($row['totalFolios'] ?? 0);
+        }
+
+        $incomingRows = $this->db->fetchAll(
+            "SELECT
+                TRIM(fc.cod_vendedor_compartido) AS codVendedor,
+                COUNT(DISTINCT fc.folio) AS totalFolios,
+                SUM(fc.monto_asignado) AS monto
+             FROM factura_compartida fc
+             WHERE TRIM(fc.cod_vendedor_compartido) IN ($placeholders)
+               AND fc.mes = ?
+               AND fc.anio = ?
+               AND fc.rol = 'compartido'
+             GROUP BY TRIM(fc.cod_vendedor_compartido)",
+            array_merge($codes, [$mes, $anio])
+        );
+
+        foreach ($incomingRows as $row) {
+            $code = trim((string)($row['codVendedor'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $balances[$code]['incoming'] = (float)($row['monto'] ?? 0);
+            $balances[$code]['incoming_folios'] = (int)($row['totalFolios'] ?? 0);
+        }
+
+        return $balances;
+    }
+
+    private function fetchSharedMonthlyBalances(array $vendCodes, int $anio): array
+    {
+        $codes = $this->normalizeVendorCodes($vendCodes);
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT
+                fc.mes,
+                SUM(CASE WHEN TRIM(fc.cod_vendedor_compartido) IN ($placeholders) THEN fc.monto_asignado ELSE 0 END) AS incoming,
+                SUM(CASE WHEN TRIM(fc.cod_vendedor_principal) IN ($placeholders) THEN fc.monto_asignado ELSE 0 END) AS outgoing
+             FROM factura_compartida fc
+             WHERE fc.anio = ?
+               AND fc.rol = 'compartido'
+             GROUP BY fc.mes",
+            array_merge($codes, $codes, [$anio])
+        );
+
+        $balances = [];
+        foreach ($rows as $row) {
+            $mes = (int)($row['mes'] ?? 0);
+            if ($mes < 1 || $mes > 12) {
+                continue;
+            }
+
+            $balances[$mes] = (float)($row['incoming'] ?? 0) - (float)($row['outgoing'] ?? 0);
+        }
+
+        return $balances;
+    }
+
     private function sortMonthSalesRows(array $rows): array
     {
         usort($rows, static function (array $a, array $b): int {
@@ -326,30 +404,6 @@ final class AnalyticsService
         $anio = $params['anio'];
         $meta = $this->fetchMetaMes($userId, $anio, $mes);
 
-        if (!$this->db->softlandAvailable() && $this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/resumen', [
-                'codigos' => implode(',', $vendCodes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-
-            $ventas = (float)($bridge['totalVentasCobrado'] ?? 0);
-            $lista = (float)($bridge['totalVentasLista'] ?? 0);
-            foreach ($this->fetchSharedVendorRows($vendCodes, $mes, $anio) as $sharedRow) {
-                $ventas += (float)($sharedRow['totalVentasCobrado'] ?? 0);
-                $lista += (float)($sharedRow['ventaRealLista'] ?? 0);
-            }
-            $metaMes = (float)$meta['meta_mes'];
-
-            return [
-                'ok' => true,
-                'totalVentas' => (int)round($ventas),
-                'meta' => (int)round($metaMes),
-                'progreso' => $metaMes > 0 ? (int)round(($ventas / $metaMes) * 100) : 0,
-                'pctDescuentoGlobal' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
-            ];
-        }
-
         if ($unavailable = $this->softlandUnavailable('el resumen del dashboard')) {
             return $unavailable;
         }
@@ -382,9 +436,9 @@ final class AnalyticsService
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $ventas = (float)($row['totalVentasCobrado'] ?? 0);
         $lista = (float)($row['totalVentasLista'] ?? 0);
-        foreach ($this->fetchSharedVendorRows($vendCodes, $mes, $anio) as $sharedRow) {
-            $ventas += (float)($sharedRow['totalVentasCobrado'] ?? 0);
-            $lista += (float)($sharedRow['ventaRealLista'] ?? 0);
+        foreach ($this->fetchSharedVendorBalances($vendCodes, $mes, $anio) as $balance) {
+            $ventas += (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
+            $lista += (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
         }
 
         $metaMes = (float)$meta['meta_mes'];
@@ -447,27 +501,6 @@ final class AnalyticsService
         $anio = Security::validate_mes_anio($query['mes'] ?? 1, $query['anio'] ?? null)['anio'];
         $meta = $this->fetchMetaMes($userId, $anio, 1);
 
-        if ($this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/evolucion-mensual', [
-                'codigos' => implode(',', $vendCodes),
-                'anio' => $anio,
-            ]);
-
-            $rows = [];
-            foreach ((array)($bridge['evolucion'] ?? []) as $item) {
-                $rows[] = [
-                    'mes' => (int)($item['mes'] ?? 0),
-                    'ventas' => (int)($item['ventas'] ?? 0),
-                    'meta' => (float)$meta['meta_mes'],
-                    'meta_mes' => (float)$meta['meta_mes'],
-                    'tipo_meta' => $meta['tipo_periodo'],
-                    'prorrateada' => $meta['prorrateada'],
-                ];
-            }
-
-            return ['ok' => true, 'evolucion' => $rows];
-        }
-
         if ($unavailable = $this->softlandUnavailable('la evolución mensual')) {
             return $unavailable;
         }
@@ -507,20 +540,9 @@ final class AnalyticsService
             }
         }
 
-        $placeholders = implode(',', array_fill(0, count($vendCodes), '?'));
-        $sharedRows = $this->db->fetchAll(
-            "SELECT mes, SUM(monto_asignado) AS ventas
-             FROM factura_compartida
-             WHERE TRIM(cod_vendedor_compartido) IN ($placeholders)
-               AND anio = ?
-               AND rol = 'compartido'
-             GROUP BY mes",
-            array_merge($vendCodes, [$anio])
-        );
-        foreach ($sharedRows as $row) {
-            $mes = (int)($row['mes'] ?? 0);
+        foreach ($this->fetchSharedMonthlyBalances($vendCodes, $anio) as $mes => $balance) {
             if ($mes >= 1 && $mes <= 12) {
-                $evolucion[$mes - 1]['ventas'] += (int)round((float)($row['ventas'] ?? 0));
+                $evolucion[$mes - 1]['ventas'] += (int)round($balance);
             }
         }
 
@@ -535,74 +557,6 @@ final class AnalyticsService
         $mes = $params['mes'];
         $anio = $params['anio'];
 
-        if (!$this->db->softlandAvailable() && $this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/vendedores', [
-                'codigos' => implode(',', $vendCodes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-
-            $rows = [];
-            foreach ((array)($bridge['vendedores'] ?? []) as $row) {
-                $cod = trim((string)($row['codVendedor'] ?? ''));
-                $rows[] = [
-                    'codVendedor' => $cod,
-                    'nombreVendedor' => $this->getVendorName($cod),
-                    'totalFolios' => (int)($row['totalFolios'] ?? 0),
-                    'totalVentasCobrado' => (int)($row['totalVentasCobrado'] ?? 0),
-                    'ventaRealLista' => (int)($row['ventaRealLista'] ?? 0),
-                    'pctDescuento' => (float)($row['pctDescuento'] ?? 0),
-                ];
-            }
-
-            foreach ($this->fetchSharedVendorRows($vendCodes, $mes, $anio) as $sharedRow) {
-                $codigo = trim((string)($sharedRow['codVendedor'] ?? ''));
-                if ($codigo === '') {
-                    continue;
-                }
-                $sharedAssigners = $this->normalizeVendorCodes((array)($sharedRow['codigosAsignadores'] ?? []));
-
-                $found = false;
-                foreach ($rows as &$row) {
-                    if (trim((string)($row['codVendedor'] ?? '')) !== $codigo) {
-                        continue;
-                    }
-
-                    $row['totalFolios'] += (int)($sharedRow['totalFolios'] ?? 0);
-                    $row['totalVentasCobrado'] += (int)($sharedRow['totalVentasCobrado'] ?? 0);
-                    $row['ventaRealLista'] += (int)($sharedRow['ventaRealLista'] ?? 0);
-                    $baseLista = (float)($row['ventaRealLista'] ?? 0);
-                    $baseVentas = (float)($row['totalVentasCobrado'] ?? 0);
-                    $row['pctDescuento'] = $baseLista > 0 ? round((1 - $baseVentas / $baseLista) * 100, 2) : 0;
-                    $existingAssigners = $this->normalizeVendorCodes((array)($row['codigosAsignadores'] ?? []));
-                    $row['codigosAsignadores'] = array_values(array_unique(array_merge($existingAssigners, $sharedAssigners)));
-                    $found = true;
-                    break;
-                }
-                unset($row);
-
-                if (!$found) {
-                    $rows[] = [
-                        'codVendedor' => $codigo,
-                        'nombreVendedor' => $this->getVendorName($codigo),
-                        'totalFolios' => (int)($sharedRow['totalFolios'] ?? 0),
-                        'totalVentasCobrado' => (int)($sharedRow['totalVentasCobrado'] ?? 0),
-                        'ventaRealLista' => (int)($sharedRow['ventaRealLista'] ?? 0),
-                        'pctDescuento' => (float)($sharedRow['pctDescuento'] ?? 0),
-                        'codigosAsignadores' => $sharedAssigners,
-                    ];
-                }
-            }
-
-            usort(
-                $rows,
-                static fn(array $a, array $b): int => ($b['totalVentasCobrado'] <=> $a['totalVentasCobrado'])
-                    ?: strcasecmp((string)$a['codVendedor'], (string)$b['codVendedor'])
-            );
-
-            return ['ok' => true, 'vendedores' => $rows];
-        }
-
         if ($unavailable = $this->softlandUnavailable('los vendedores')) {
             return $unavailable;
         }
@@ -613,7 +567,7 @@ final class AnalyticsService
         $pool = $this->softland();
         $sql = sprintf(
             "SELECT
-                enc.CodVendedor AS codVendedor,
+                LTRIM(RTRIM(enc.CodVendedor)) AS codVendedor,
                 MIN(enc.NomAux) AS nombreVendedor,
                 COUNT(DISTINCT enc.Folio) AS totalFolios,
                 SUM(m.TotLinea) AS totalVentasCobrado,
@@ -625,7 +579,7 @@ final class AnalyticsService
                AND enc.Tipo = 'F'
                AND enc.Estado <> 'A'
                AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
-             GROUP BY enc.CodVendedor
+             GROUP BY LTRIM(RTRIM(enc.CodVendedor))
              ORDER BY totalVentasCobrado DESC",
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
@@ -633,51 +587,54 @@ final class AnalyticsService
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
         $rows = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $codigo = trim((string)$row['codVendedor']);
             $ventas = (float)($row['totalVentasCobrado'] ?? 0);
             $lista = (float)($row['ventaRealLista'] ?? 0);
             $rows[] = [
-                'codVendedor' => trim((string)$row['codVendedor']),
-                'nombreVendedor' => $this->getVendorName((string)$row['codVendedor']),
+                'codVendedor' => $codigo,
+                'nombreVendedor' => $this->getVendorName($codigo),
                 'totalFolios' => (int)($row['totalFolios'] ?? 0),
-                'totalVentasCobrado' => (int)round($ventas),
-                'ventaRealLista' => (int)round($lista),
-                'pctDescuento' => $lista > 0 ? round((1 - $ventas / $lista) * 100, 2) : 0,
+                'totalVentasCobrado' => $ventas,
+                'ventaRealLista' => $lista,
+                'pctDescuento' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
             ];
         }
 
-        foreach ($this->fetchSharedVendorRows($vendCodes, $mes, $anio) as $sharedRow) {
-            $codigo = trim((string)($sharedRow['codVendedor'] ?? ''));
-            if ($codigo === '') {
+        $balances = $this->fetchSharedVendorBalances($vendCodes, $mes, $anio);
+        foreach ($rows as &$row) {
+            $codigo = trim((string)($row['codVendedor'] ?? ''));
+            if ($codigo === '' || !isset($balances[$codigo])) {
                 continue;
             }
 
-            $found = false;
-            foreach ($rows as &$row) {
-                if (trim((string)($row['codVendedor'] ?? '')) !== $codigo) {
-                    continue;
-                }
+            $balance = $balances[$codigo];
+            $ajuste = (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
+            $ajusteFolios = (int)($balance['incoming_folios'] ?? 0) - (int)($balance['outgoing_folios'] ?? 0);
 
-                $row['totalFolios'] += (int)($sharedRow['totalFolios'] ?? 0);
-                $row['totalVentasCobrado'] += (int)($sharedRow['totalVentasCobrado'] ?? 0);
-                $row['ventaRealLista'] += (int)($sharedRow['ventaRealLista'] ?? 0);
-                $baseLista = (float)($row['ventaRealLista'] ?? 0);
-                $baseVentas = (float)($row['totalVentasCobrado'] ?? 0);
-                $row['pctDescuento'] = $baseLista > 0 ? round((1 - $baseVentas / $baseLista) * 100, 2) : 0;
-                $found = true;
-                break;
-            }
-            unset($row);
+            $row['totalFolios'] = (int)($row['totalFolios'] ?? 0) + $ajusteFolios;
+            $row['totalVentasCobrado'] = (float)($row['totalVentasCobrado'] ?? 0) + $ajuste;
+            $row['ventaRealLista'] = (float)($row['ventaRealLista'] ?? 0) + $ajuste;
+            $ventasAjustadas = (float)($row['totalVentasCobrado'] ?? 0);
+            $listaAjustada = (float)($row['ventaRealLista'] ?? 0);
+            $row['pctDescuento'] = $listaAjustada > 0 ? round((1 - ($ventasAjustadas / $listaAjustada)) * 100, 2) : 0;
 
-            if (!$found) {
-                $rows[] = [
-                    'codVendedor' => $codigo,
-                    'nombreVendedor' => $this->getVendorName($codigo),
-                    'totalFolios' => (int)($sharedRow['totalFolios'] ?? 0),
-                    'totalVentasCobrado' => (int)($sharedRow['totalVentasCobrado'] ?? 0),
-                    'ventaRealLista' => (int)($sharedRow['ventaRealLista'] ?? 0),
-                    'pctDescuento' => (float)($sharedRow['pctDescuento'] ?? 0),
-                ];
-            }
+            unset($balances[$codigo]);
+        }
+        unset($row);
+
+        foreach ($balances as $codigo => $balance) {
+            $ajuste = (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
+            $ajusteFolios = (int)($balance['incoming_folios'] ?? 0) - (int)($balance['outgoing_folios'] ?? 0);
+            $ventas = $ajuste;
+            $lista = $ajuste;
+            $rows[] = [
+                'codVendedor' => $codigo,
+                'nombreVendedor' => $this->getVendorName($codigo),
+                'totalFolios' => $ajusteFolios,
+                'totalVentasCobrado' => $ventas,
+                'ventaRealLista' => $lista,
+                'pctDescuento' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
+            ];
         }
 
         usort(
@@ -708,23 +665,6 @@ final class AnalyticsService
         $mes = $params['mes'];
         $anio = $params['anio'];
         $includeCompartidas = filter_var($query['include_compartidas'] ?? false, FILTER_VALIDATE_BOOL);
-
-        if (!$this->db->softlandAvailable() && $this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/ventas-mes', [
-                'codigos' => implode(',', $vendCodes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-
-            $ventas = array_values(array_filter((array)($bridge['ventas'] ?? []), static fn($row) => is_array($row)));
-            if ($includeCompartidas) {
-                $ventas = array_merge($ventas, $this->fetchSharedMonthRows($vendCodes, $mes, $anio));
-                $ventas = $this->uniqueMonthRows($ventas);
-                $ventas = $this->sortMonthSalesRows($ventas);
-            }
-
-            return ['ok' => true, 'ventas' => $ventas];
-        }
 
         if ($unavailable = $this->softlandUnavailable('las ventas del mes')) {
             return $unavailable;
@@ -826,10 +766,6 @@ final class AnalyticsService
     {
         $this->currentUserIdFromPayload($payload);
 
-        if (!$this->db->softlandAvailable() && $this->bridgeEnabled()) {
-            return $this->bridgeGet('/dashboard/detalle-folio', ['folio' => $folio]);
-        }
-
         if ($unavailable = $this->softlandUnavailable('el detalle del folio')) {
             return $unavailable;
         }
@@ -907,18 +843,16 @@ final class AnalyticsService
         @set_time_limit(120);
 
         $userId = $this->currentUserIdFromPayload($payload);
-        $vendCodes = $this->getVendorCodes($userId);
+        $vendCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
+        $codVendedorFiltro = trim((string)($query['cod_vendedor'] ?? ''));
+        if ($codVendedorFiltro !== '') {
+            $codVendedorFiltro = Security::validate_cod_vendedor($codVendedorFiltro);
+            $codFiltroNormalizado = $this->normalizeVendorCodes([$codVendedorFiltro]);
+            $vendCodes = array_values(array_intersect($vendCodes, $codFiltroNormalizado));
+        }
         $params = $this->monthYear($query);
         $mes = $params['mes'];
         $anio = $params['anio'];
-
-        if ($this->bridgeEnabled()) {
-            return $this->bridgeGet('/dashboard/cartera', [
-                'codigos' => implode(',', $vendCodes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-        }
 
         if ($unavailable = $this->softlandUnavailable('la cartera de clientes')) {
             return $unavailable;
@@ -1066,30 +1000,6 @@ final class AnalyticsService
         $periodoSolicitado = $this->monthYear($query);
         $mes = $periodoSolicitado['mes'];
         $anio = $periodoSolicitado['anio'];
-
-        if ($this->bridgeEnabled()) {
-            $foliosYaAsignados = $this->db->fetchAll(
-                "SELECT DISTINCT folio
-                 FROM factura_compartida
-                 WHERE cod_vendedor_principal IN (" . implode(',', array_fill(0, count($codigosCoord), '?')) . ")
-                   AND rol = 'compartido'",
-                $codigosCoord
-            );
-            $exclude = array_map(static fn(array $row): int => (int)$row['folio'], $foliosYaAsignados);
-
-            $bridge = $this->bridgeGet('/dashboard/compartir-lista', [
-                'codigos' => implode(',', $codigosCoord),
-                'mes' => $mes,
-                'anio' => $anio,
-                'excludeFolios' => implode(',', $exclude),
-            ]);
-
-            return [
-                'ok' => true,
-                'periodo_solicitado' => $periodoSolicitado,
-                'folios' => $bridge['folios'] ?? [],
-            ];
-        }
 
         $placeholders = implode(',', array_fill(0, count($codigosCoord), '?'));
         $foliosYaAsignados = $this->db->fetchAll(
@@ -1279,40 +1189,6 @@ final class AnalyticsService
             $catMap[(string)$row['Cta']] = (string)$row['Categoria'];
         }
 
-        if ($this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/categorias-vendedor', [
-                'codigos' => implode(',', $codes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-
-            $resultado = [];
-            foreach ((array)($bridge['vendedores'] ?? []) as $vendor) {
-                $agg = [];
-                foreach ((array)($vendor['categorias'] ?? []) as $row) {
-                    $cta = (string)($row['categoria'] ?? '');
-                    $cat = $catMap[$cta] ?? 'Otros';
-                    $agg[$cat] = ($agg[$cat] ?? 0) + (int)($row['total'] ?? 0);
-                }
-
-                $categorias = [];
-                foreach ($agg as $categoria => $total) {
-                    $categorias[] = ['categoria' => $categoria, 'total' => (int)$total];
-                }
-                usort($categorias, static fn(array $a, array $b): int => $b['total'] <=> $a['total']);
-
-                $resultado[] = [
-                    'codVendedor' => (string)($vendor['codVendedor'] ?? ''),
-                    'categorias' => $categorias,
-                ];
-            }
-
-            return [
-                'vendedores' => $resultado,
-                'todasLasCategorias' => array_values(array_unique(array_map(static fn(array $r): string => (string)$r['Categoria'], $catRows))),
-            ];
-        }
-
         $softland = $this->db->softland();
         $resultado = [];
         foreach ($codes as $cod) {
@@ -1360,16 +1236,6 @@ final class AnalyticsService
         $periodo = $this->monthYear($query);
         $mes = $periodo['mes'];
         $anio = $periodo['anio'];
-
-        if ($this->bridgeEnabled()) {
-            $bridge = $this->bridgeGet('/dashboard/clientes-resumen', [
-                'codigos' => implode(',', $codes),
-                'mes' => $mes,
-                'anio' => $anio,
-            ]);
-
-            return $bridge['clientes'] ?? [];
-        }
 
         $softland = $this->db->softland();
         $resultado = [];

@@ -341,6 +341,32 @@ img, svg, canvas, table { max-width: 100%; }
   margin-bottom: 28px;
 }
 
+.cartera-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 16px;
+}
+
+.cartera-toolbar__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cartera-toolbar__label {
+  font-family: var(--font-primary,'Montserrat',sans-serif);
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--color-black,#1A1D23);
+}
+
+.cartera-toolbar__help {
+  font-size: .76rem;
+  color: var(--color-gray-dark,#6B7280);
+}
+
 .cartera-header {
   display: flex;
   align-items: baseline;
@@ -745,6 +771,10 @@ img, svg, canvas, table { max-width: 100%; }
 }
 @media (max-width:600px) {
   .cartera-cards { grid-template-columns: 1fr; }
+  .cartera-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .grafico-torta-wrapper { max-width: 340px; height: 300px; }
 }
 @media (max-width:768px) {

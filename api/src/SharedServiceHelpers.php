@@ -25,7 +25,7 @@ trait SharedServiceHelpers
     protected function vendorCodesFromUserId(int $userId): array
     {
         $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows)));
+        return array_values(array_unique(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows))));
     }
 
     protected function coordinatorCodesFromUserId(int $userId): array

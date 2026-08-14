@@ -132,6 +132,15 @@
       <!-- Cartera de clientes -->
       <section class="seccion-cartera" aria-label="Cartera de Clientes">
         <h2 class="seccion-titulo">Cartera de Clientes</h2>
+        <div class="cartera-toolbar">
+          <div class="cartera-toolbar__texto">
+            <span class="cartera-toolbar__label">Filtro por vendedor</span>
+            <span class="cartera-toolbar__help">Muestra la cartera solo del código seleccionado.</span>
+          </div>
+          <select id="filtroVendedorCartera" class="filtro-select filtro-select--sm" aria-label="Filtrar cartera por vendedor">
+            <option value="">Todos mis códigos</option>
+          </select>
+        </div>
         <div class="cartera-grid" id="carteraGrid">
 
           <div class="cartera-card">

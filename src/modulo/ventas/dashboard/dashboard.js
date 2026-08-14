@@ -27,6 +27,7 @@
 
   let graficoEvolucion              = null;
   let graficoClientesDistribucion   = null;
+  let usuarioSesion                 = null;
 
   // Datos de cartera por segmento (arrays para las tablas expandibles)
   let carteraData = {
@@ -115,6 +116,15 @@
     mostrarEstadoDashboard(detalle ? `${contexto}. ${detalle}` : contexto);
   }
 
+  function normalizarCodigosVendedor(vendedores) {
+    const codigos = new Set();
+    (Array.isArray(vendedores) ? vendedores : []).forEach(item => {
+      const code = String(item?.cod_vendedor ?? item?.codVendedor ?? '').trim();
+      if (code) codigos.add(code);
+    });
+    return Array.from(codigos);
+  }
+
   if (window.Chart && window.ChartDataLabels) {
     window.Chart.register(window.ChartDataLabels);
   }
@@ -186,6 +196,7 @@
   ];
 
   function cargarSidebar(usuario) {
+    usuarioSesion = usuario || null;
     const ini = (usuario.nombre||'U').split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase();
     setText('userName',  usuario.nombre  || usuario.email);
     setText('userArea',  usuario.area    || '');
@@ -224,6 +235,21 @@
     if (headerMenuBtn) headerMenuBtn.addEventListener('click', () => {
       document.getElementById('sidebar').classList.toggle('mobile-open');
     });
+
+    const filtroCartera = document.getElementById('filtroVendedorCartera');
+    if (filtroCartera) {
+      const codigos = normalizarCodigosVendedor(usuario?.vendedores || []);
+      filtroCartera.innerHTML = [
+        '<option value="">Todos mis códigos</option>',
+        ...codigos.map(cod => `<option value="${escHtml(cod)}">${escHtml(cod)}</option>`)
+      ].join('');
+      filtroCartera.disabled = !codigos.length;
+      filtroCartera.value = '';
+      if (!filtroCartera.dataset.bound) {
+        filtroCartera.addEventListener('change', () => cargarCartera());
+        filtroCartera.dataset.bound = '1';
+      }
+    }
   }
 
   // ── Selectores mes/año ────────────────────────────────────────────────────────────────────
@@ -266,6 +292,15 @@
       mes,
       anio
     };
+  }
+
+  function getCarteraParams() {
+    const params = getParams();
+    const codVendedor = document.getElementById('filtroVendedorCartera')?.value?.trim() || '';
+    if (codVendedor) {
+      params.cod_vendedor = codVendedor;
+    }
+    return params;
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────────────────────
@@ -515,7 +550,7 @@
   // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────────────────────
   async function cargarCartera() {
     try {
-      const res  = await fetch(`${API_CART}?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const res  = await fetch(`${API_CART}?${new URLSearchParams(getCarteraParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error cartera');
 
