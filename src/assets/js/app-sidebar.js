@@ -59,6 +59,7 @@
     General: '🏠',
     Ventas: '💰',
     RRHH: '👥',
+    Laboratorio: '🧪',
     Gerencia: '📈',
   };
 

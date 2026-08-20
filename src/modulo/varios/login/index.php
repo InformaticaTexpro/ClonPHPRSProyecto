@@ -44,6 +44,7 @@ function resolve_login_route(array $user): string
         'servicio_tecnico' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'servicio' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'serv_tecnico' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
+        'laboratorio' => '/src/modulo/laboratorio/ingreso-muestras/index.html',
         'administracion' => '/src/modulo/gerencia/dashboard-comercial/index.html',
         'admin' => '/src/modulo/gerencia/dashboard-comercial/index.html',
     ];

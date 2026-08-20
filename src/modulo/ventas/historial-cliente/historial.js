@@ -100,7 +100,7 @@
     { nombre: 'Bodega',               icon: '\uD83C\uDFED', url: '../../bodega/bodega/index.html',                  area: ['bodega', 'produccion', 'gerencia'] },
     { nombre: 'Producci\u00f3n',      icon: '\u2699\uFE0F', url: '../../produccion/produccion/index.html',          area: ['produccion', 'gerencia'] },
     { nombre: 'Serv. TEC',            icon: '\uD83D\uDEE0\uFE0F', url: '../../servtecnico/servicio-tecnico/index.html', area: ['servicio-tecnico', 'servicio', 'gerencia'] },
-    { nombre: 'Laboratorio',          icon: '\uD83E\uDDEA', url: '../../laboratorio/laboratorio/index.html',       area: ['laboratorio', 'gerencia'] },
+    { nombre: 'Laboratorio',          icon: '\uD83E\uDDEA', url: '../../laboratorio/ingreso-muestras/index.html',   area: ['laboratorio', 'gerencia'] },
     { nombre: 'Cobranza',             icon: '\uD83D\uDCB0', url: '../../cobranza/cobranza/index.html',              area: ['cobranza', 'contabilidad', 'gerencia'] },
     { nombre: 'RRHH',                 icon: '\uD83D\uDC65', url: '../../rrhh/rrhh/index.html',                      area: ['rrhh', 'gerencia'] },
     { nombre: 'Contabilidad',         icon: '\uD83D\uDCDC', url: '../../contabilidad/contabilidad/index.html',      area: ['contabilidad', 'gerencia'] },

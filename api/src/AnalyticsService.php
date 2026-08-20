@@ -84,6 +84,60 @@ final class AnalyticsService
         return $cantidad !== 0.0 ? $netoCobrado / $cantidad : 0.0;
     }
 
+    private function softlandVentaTiposSql(string $alias = 'enc'): string
+    {
+        return sprintf("%s.Tipo IN ('F','N','D')", $alias);
+    }
+
+    private function softlandDocumentBreakdown(array $vendCodes, int $mes, int $anio): array
+    {
+        $codes = $this->normalizeVendorCodes($vendCodes);
+        if (!$codes) {
+            return [
+                'F' => ['folios' => 0, 'total' => 0],
+                'N' => ['folios' => 0, 'total' => 0],
+                'D' => ['folios' => 0, 'total' => 0],
+            ];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $rows = $this->db->fetchAll(
+            "SELECT
+                enc.Tipo AS tipo,
+                COUNT(DISTINCT enc.Folio) AS folios,
+                SUM(m.TotLinea) AS total
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+             WHERE enc.CodVendedor IN ($placeholders)
+               AND enc.Estado <> 'A'
+               AND MONTH(enc.Fecha) = ?
+               AND YEAR(enc.Fecha) = ?
+               AND {$this->softlandVentaTiposSql('enc')}
+             GROUP BY enc.Tipo",
+            array_merge($codes, [$mes, $anio])
+        );
+
+        $breakdown = [
+            'F' => ['folios' => 0, 'total' => 0],
+            'N' => ['folios' => 0, 'total' => 0],
+            'D' => ['folios' => 0, 'total' => 0],
+        ];
+
+        foreach ($rows as $row) {
+            $tipo = strtoupper(trim((string)($row['tipo'] ?? '')));
+            if (!isset($breakdown[$tipo])) {
+                continue;
+            }
+
+            $breakdown[$tipo] = [
+                'folios' => (int)($row['folios'] ?? 0),
+                'total' => (int)round((float)($row['total'] ?? 0)),
+            ];
+        }
+
+        return $breakdown;
+    }
+
     private function discountPercent(float $lista, float $cobrado): float
     {
         $base = abs($lista);
@@ -425,10 +479,11 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-             WHERE enc.Tipo = 'F'
+             WHERE %s
                AND enc.Estado <> 'A'
                AND enc.CodVendedor IN (%s)
                AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?",
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -465,6 +520,14 @@ final class AnalyticsService
             $combinedResumen = $this->summarizeSalesRows($combined);
             $totalSinDedupe = (int)round((float)$ventasPropiasResumen['total_ventas'] + (float)$ventasAsignadasResumen['total_ventas']);
 
+            $tipoBreakdown = $this->softlandDocumentBreakdown($vendCodes, $mes, $anio);
+            $ventasCompartidasRecibidas = 0;
+            $ventasCompartidasEntregadas = 0;
+            foreach ($this->fetchSharedVendorBalances($vendCodes, $mes, $anio) as $balance) {
+                $ventasCompartidasRecibidas += (float)($balance['incoming'] ?? 0);
+                $ventasCompartidasEntregadas += (float)($balance['outgoing'] ?? 0);
+            }
+
             $result['debug'] = [
                 'periodo' => [
                     'anio' => $anio,
@@ -473,6 +536,10 @@ final class AnalyticsService
                     'fecha_fin' => (new DateTimeImmutable($this->monthStart($anio, $mes)))->modify('+1 month')->format('Y-m-d'),
                 ],
                 'codigos_vendedor' => array_values($vendCodes),
+                'documentos_por_tipo' => $tipoBreakdown,
+                'ventas_softland_netas' => (int)$ventasPropiasResumen['total_ventas'],
+                'ventas_compartidas_recibidas' => (int)round($ventasCompartidasRecibidas),
+                'ventas_compartidas_entregadas' => (int)round($ventasCompartidasEntregadas),
                 'ventas_propias_softland' => [
                     'folios' => (int)$ventasPropiasResumen['folios'],
                     'total_ventas' => (int)$ventasPropiasResumen['total_ventas'],
@@ -523,12 +590,13 @@ final class AnalyticsService
             "SELECT MONTH(enc.Fecha) AS mes, SUM(m.TotLinea) AS ventas
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
-             WHERE enc.CodVendedor IN (%s)
+             WHERE %s
+               AND enc.CodVendedor IN (%s)
                AND YEAR(enc.Fecha) = ?
-               AND enc.Tipo = 'F'
                AND enc.Estado <> 'A'
              GROUP BY MONTH(enc.Fecha)
              ORDER BY mes",
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -575,12 +643,13 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-             WHERE enc.CodVendedor IN (%s)
-               AND enc.Tipo = 'F'
+             WHERE %s
+               AND enc.CodVendedor IN (%s)
                AND enc.Estado <> 'A'
                AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
              GROUP BY LTRIM(RTRIM(enc.CodVendedor))
              ORDER BY totalVentasCobrado DESC",
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -694,12 +763,13 @@ final class AnalyticsService
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              LEFT JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
              LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = enc.CodAux
-             WHERE enc.CodVendedor IN (%s)
-                AND enc.Tipo = 'F'
+             WHERE %s
+                AND enc.CodVendedor IN (%s)
                 AND enc.Estado <> 'A'
                 AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
              GROUP BY enc.Folio, enc.Fecha, enc.CodAux, CONVERT(varchar(max), enc.NomAux), CONVERT(varchar(max), c.NomAux), enc.CodVendedor, enc.Tipo
              ORDER BY enc.Fecha DESC, enc.Folio DESC",
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -843,12 +913,20 @@ final class AnalyticsService
         @set_time_limit(120);
 
         $userId = $this->currentUserIdFromPayload($payload);
-        $vendCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
+        $vendCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $value): string => trim((string)$value),
+            $this->getVendorCodes($userId)
+        ))));
         $codVendedorFiltro = trim((string)($query['cod_vendedor'] ?? ''));
+        $codVendedorFiltroValido = null;
         if ($codVendedorFiltro !== '') {
             $codVendedorFiltro = Security::validate_cod_vendedor($codVendedorFiltro);
-            $codFiltroNormalizado = $this->normalizeVendorCodes([$codVendedorFiltro]);
-            $vendCodes = array_values(array_intersect($vendCodes, $codFiltroNormalizado));
+            if (in_array($codVendedorFiltro, $vendCodes, true)) {
+                $codVendedorFiltroValido = $codVendedorFiltro;
+                $vendCodes = [$codVendedorFiltro];
+            } else {
+                $vendCodes = [];
+            }
         }
         $params = $this->monthYear($query);
         $mes = $params['mes'];
@@ -889,7 +967,7 @@ final class AnalyticsService
             return trim((string)($row['CodAux'] ?? ''));
         }, $clients)));
         if (!$clientCodes) {
-            return [
+            $empty = [
                 'ok' => true,
                 'TotalClientes' => 0,
                 'ClientesActivos' => 0,
@@ -898,6 +976,17 @@ final class AnalyticsService
                 'ClientesRecuperados' => 0,
                 'total' => [], 'activos' => [], 'inactivos' => [], 'nuevos' => [], 'recuperados' => [], 'activosMesActual' => [],
             ];
+
+            if (filter_var($query['debug'] ?? false, FILTER_VALIDATE_BOOL)) {
+                $empty['debug'] = [
+                    'usuario_id' => $userId,
+                    'codigos_usuario_vendedor_exactos' => $vendCodes,
+                    'cod_vendedor_filtro' => $codVendedorFiltroValido,
+                    'clientes_devueltos_por_cwtauxven' => [],
+                ];
+            }
+
+            return $empty;
         }
 
                 $paramsPurchases = [];
@@ -974,7 +1063,7 @@ final class AnalyticsService
         $recuperados = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsRecuperado'] ?? 0) === 1));
         $activosMesActual = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivoMesActual'] ?? 0) === 1));
 
-        return [
+        $result = [
             'ok' => true,
             'TotalClientes' => count($total),
             'ClientesActivos' => count($activos),
@@ -988,6 +1077,17 @@ final class AnalyticsService
             'recuperados' => $recuperados,
             'activosMesActual' => $activosMesActual,
         ];
+
+        if (filter_var($query['debug'] ?? false, FILTER_VALIDATE_BOOL)) {
+            $result['debug'] = [
+                'usuario_id' => $userId,
+                'codigos_usuario_vendedor_exactos' => array_values($vendCodes),
+                'cod_vendedor_filtro' => $codVendedorFiltroValido,
+                'clientes_devueltos_por_cwtauxven' => array_values(array_unique($clientCodes)),
+            ];
+        }
+
+        return $result;
     }
 
     public function compartirLista(array $payload, array $query): array

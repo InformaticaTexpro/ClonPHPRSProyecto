@@ -141,6 +141,7 @@
       servicio: ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
       'serv-tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
       'servicio tecnico': ['/src/modulo/servtecnico/servicio-tecnico/index.html', 'servicio_tecnico'],
+      laboratorio: ['/src/modulo/laboratorio/ingreso-muestras/index.html', 'laboratorio_ingreso_muestras'],
       administracion: ['/src/modulo/gerencia/dashboard-comercial/index.html', 'gerencia'],
       admin: ['/src/modulo/gerencia/dashboard-comercial/index.html', 'gerencia'],
     };

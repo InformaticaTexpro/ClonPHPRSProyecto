@@ -219,6 +219,51 @@ final class AuthService
                 ]
             );
         }
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'laboratorio_ingreso_muestras',
+                'Ingreso de Muestras',
+                'Laboratorio',
+                '/src/modulo/laboratorio/ingreso-muestras/index.html',
+                '🧪',
+                1,
+            ]
+        );
+
+        $this->ensure_menu_profile_access('laboratorio_ingreso_muestras', ['laboratorio', 'gerencia', 'administracion', 'admin']);
+    }
+
+    private function ensure_menu_profile_access(string $menuCode, array $profileCodes): void
+    {
+        $menu = $this->db->fetchOne('SELECT id FROM menu WHERE codigo = ? LIMIT 1', [$menuCode]);
+        if (!$menu) {
+            return;
+        }
+
+        $profileCodes = array_values(array_filter(array_map('trim', $profileCodes)));
+        if (!$profileCodes) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($profileCodes), '?'));
+        $sql = 'INSERT INTO perfil_menu (perfil_id, menu_id, activo)
+                SELECT p.id, m.id, 1
+                FROM perfil p
+                INNER JOIN menu m ON m.id = ?
+                WHERE p.codigo IN (' . $placeholders . ')
+                ON DUPLICATE KEY UPDATE activo = VALUES(activo)';
+        $params = array_merge([(int)$menu['id']], $profileCodes);
+        $this->db->execute($sql, $params);
     }
 
     private static function normalize_menu(array $menu): array
