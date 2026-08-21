@@ -643,12 +643,11 @@ final class AdminService
 
         return array_map(function (array $user) use ($vendorsByUser, $menusByUser, $profilesByUser): array {
             $id = (int)$user['id'];
-            return $this->mapUserRow([
-                ...$user,
+            return $this->mapUserRow(array_merge($user, [
                 'vendedores' => $vendorsByUser[$id] ?? [],
                 'menus' => $menusByUser[$id] ?? [],
                 'perfiles' => $profilesByUser[$id] ?? [],
-            ]);
+            ]));
         }, $users);
     }
 
@@ -1339,11 +1338,11 @@ final class AdminService
 
             if ($hasAssignments) {
                 $pdo->prepare('UPDATE menu SET activo = 0 WHERE id = ?')->execute([$menuId]);
-                return [...$current, 'activo' => false, 'deleted' => false];
+                return array_merge($current, ['activo' => false, 'deleted' => false]);
             }
 
             $pdo->prepare('DELETE FROM menu WHERE id = ?')->execute([$menuId]);
-            return [...$current, 'deleted' => true];
+            return array_merge($current, ['deleted' => true]);
         });
 
         return ['ok' => true, 'data' => $menu];
@@ -1468,11 +1467,11 @@ final class AdminService
 
             if ($refsMenus > 0 || $refsUsers > 0) {
                 $pdo->prepare('UPDATE perfil SET activo = 0 WHERE id = ?')->execute([$profileId]);
-                return [...$current, 'activo' => false, 'deleted' => false];
+                return array_merge($current, ['activo' => false, 'deleted' => false]);
             }
 
             $pdo->prepare('DELETE FROM perfil WHERE id = ?')->execute([$profileId]);
-            return [...$current, 'deleted' => true];
+            return array_merge($current, ['deleted' => true]);
         });
         return ['ok' => true, 'data' => $perfil];
     }

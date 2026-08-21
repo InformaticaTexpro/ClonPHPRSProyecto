@@ -38,18 +38,7 @@
     extra: true,
   };
 
-  const RRHH_REVIEW_ITEM = {
-    id: 'extra-rrhh-reportes-compartidos',
-    codigo: 'rrhh_reportes_compartidos',
-    nombre: 'Revisión ventas compartidas',
-    url: '/src/modulo/rrhh/reportes-compartidos/index.html',
-    icono: '📄',
-    grupo: 'RRHH',
-    orden: 1,
-    extra: true,
-  };
-
-  [RRHH_HOME_ITEM, RRHH_REVIEW_ITEM].forEach(item => {
+  [RRHH_HOME_ITEM].forEach(item => {
     const url = normalizarUrl(item.url);
     const exists = EXTRA_ITEMS.some(extra => normalizarUrl(extra.url) === url);
     if (!exists) EXTRA_ITEMS.push(item);

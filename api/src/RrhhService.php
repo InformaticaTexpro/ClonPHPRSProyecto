@@ -130,8 +130,7 @@ final class RrhhService
     {
         $json = $this->parseReporteJson($row['reporte_json'] ?? null);
         $vendedorNombre = trim((string)($row['vendedor_nombre'] ?? ''));
-        return [
-            ...$row,
+        return array_merge($row, [
             'id' => (int)($row['id'] ?? 0),
             'vendedor_usuario_id' => isset($row['vendedor_usuario_id']) ? (int)$row['vendedor_usuario_id'] : null,
             'anio' => isset($row['anio']) ? (int)$row['anio'] : null,
@@ -147,7 +146,7 @@ final class RrhhService
             'folios_asignados' => $this->extractSnapshotFolios($json),
             'tiene_diferencias' => $json ? $this->hasDifferences($json) : false,
             'vendedor_nombre' => $vendedorNombre !== '' ? $vendedorNombre : ('Vendedor #' . (int)($row['vendedor_usuario_id'] ?? 0)),
-        ];
+        ]);
     }
 
     private function withTransaction(callable $work): mixed
@@ -440,7 +439,7 @@ final class RrhhService
         $fechaInicio = sprintf('%04d-%02d-01 00:00:00', $anio, $mes);
         $next = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));
         $fechaFin = $next->modify('+1 month')->format('Y-m-d 00:00:00');
-        $stmt->execute([...$codes, $fechaInicio, $fechaFin]);
+        $stmt->execute(array_merge($codes, [$fechaInicio, $fechaFin]));
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         return array_map(static function (array $row): array {
             $cliente = trim((string)($row['cliente'] ?? ''));
@@ -698,10 +697,9 @@ final class RrhhService
                 'label' => $this->formatPeriodoLabel($periodo['anio'], $periodo['mes']),
             ],
             'codigos_compartidos' => $this->softlandCodes(),
-            'resumen' => [
-                ...$comparacion['resumen'],
+            'resumen' => array_merge($comparacion['resumen'], [
                 'folios_softland' => $comparacion['resumen']['folios_softland_compartidos'],
-            ],
+            ]),
             'folios_softland_compartidos' => $foliosSoftland,
             'folios_softland' => $foliosSoftland,
             'folios_tipo_c' => $foliosSoftland,
