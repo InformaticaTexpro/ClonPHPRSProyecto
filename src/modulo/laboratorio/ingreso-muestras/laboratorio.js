@@ -14,6 +14,7 @@
     resumen: null,
     solicitudes: [],
     parametros: [],
+    parametrosCatalogo: [],
     filtros: {
       mes: new Date().getMonth() + 1,
       anio: new Date().getFullYear(),
@@ -70,11 +71,16 @@
     btnGuardarSolicitud: document.getElementById('btnGuardarSolicitud'),
     panelParametros: document.getElementById('panelParametros'),
     btnNuevoParametro: document.getElementById('btnNuevoParametro'),
+    modalParametro: document.getElementById('modalParametro'),
+    modalParametroTitulo: document.getElementById('modalParametroTitulo'),
+    btnCerrarModalParametro: document.getElementById('btnCerrarModalParametro'),
+    btnCancelarModalParametro: document.getElementById('btnCancelarModalParametro'),
     formParametro: document.getElementById('formParametro'),
     parametroId: document.getElementById('parametroId'),
     parametroNombre: document.getElementById('parametroNombre'),
     parametroValor: document.getElementById('parametroValor'),
     parametroActivo: document.getElementById('parametroActivo'),
+    btnGuardarParametro: document.getElementById('btnGuardarParametro'),
     tbodyParametros: document.getElementById('tbodyParametros'),
   };
 
@@ -198,6 +204,7 @@
   function setLoadingState(isLoading) {
     if (el.btnActualizar) el.btnActualizar.disabled = isLoading;
     if (el.btnGuardarSolicitud) el.btnGuardarSolicitud.disabled = isLoading;
+    if (el.btnGuardarParametro) el.btnGuardarParametro.disabled = isLoading;
   }
 
   function setUserHeader() {
@@ -399,6 +406,39 @@
     if (el.btnGuardarSolicitud) el.btnGuardarSolicitud.textContent = 'Guardar solicitud';
   }
 
+  function resetParametroForm() {
+    state.editandoParametroId = null;
+    if (el.formParametro) el.formParametro.reset();
+    if (el.parametroId) el.parametroId.value = '';
+    if (el.parametroNombre) el.parametroNombre.value = '';
+    if (el.parametroValor) el.parametroValor.value = '';
+    if (el.parametroActivo) el.parametroActivo.checked = true;
+    if (el.modalParametroTitulo) el.modalParametroTitulo.textContent = 'Nuevo parametro';
+    if (el.btnGuardarParametro) el.btnGuardarParametro.textContent = 'Guardar parametro';
+  }
+
+  function openParametroModal(parametro = null) {
+    resetParametroForm();
+    if (parametro) {
+      state.editandoParametroId = parametro.id || null;
+      if (el.parametroId) el.parametroId.value = String(parametro.id || '');
+      if (el.parametroNombre) el.parametroNombre.value = parametro.nombre || '';
+      if (el.parametroValor) el.parametroValor.value = parametro.valor_ensayo != null ? String(parametro.valor_ensayo) : '';
+      if (el.parametroActivo) el.parametroActivo.checked = Boolean(parametro.activo);
+      if (el.modalParametroTitulo) el.modalParametroTitulo.textContent = 'Editar parametro';
+      if (el.btnGuardarParametro) el.btnGuardarParametro.textContent = 'Actualizar parametro';
+    }
+    if (el.modalParametro) el.modalParametro.hidden = false;
+    document.body.classList.add('modal-open');
+    window.setTimeout(() => el.parametroNombre?.focus(), 0);
+  }
+
+  function closeParametroModal() {
+    if (el.modalParametro) el.modalParametro.hidden = true;
+    document.body.classList.remove('modal-open');
+    resetParametroForm();
+  }
+
   function renderResumen(data) {
     const periodo = data?.periodo?.etiqueta || `${MESES[state.filtros.mes - 1] || 'Mes'} ${state.filtros.anio}`;
     const resumen = data?.resumen || {};
@@ -502,10 +542,6 @@
       el.panelParametros.hidden = !state.config?.puede_administrar;
     }
     if (el.numeroSolicitud) el.numeroSolicitud.value = state.config?.siguiente_numero_solicitud || '';
-    if (el.parametroId) el.parametroId.value = '';
-    if (el.parametroNombre) el.parametroNombre.value = '';
-    if (el.parametroValor) el.parametroValor.value = '';
-    if (el.parametroActivo) el.parametroActivo.checked = true;
     resetSolicitudForm();
   }
 
@@ -533,11 +569,16 @@
     renderSolicitudes(state.solicitudes);
   }
 
-  async function loadParametros() {
-    const payload = await fetchJson(`/parametros?mes=${state.filtros.mes}&anio=${state.filtros.anio}`);
+  async function loadParametrosDisponibles() {
+    const payload = await fetchJson(`/parametros?mes=${state.filtros.mes}&anio=${state.filtros.anio}&activo=1`);
     state.parametros = Array.isArray(payload.data) ? payload.data : [];
-    renderParametros(state.parametros);
     refreshLineaParamSelects();
+  }
+
+  async function loadCatalogoParametros() {
+    const payload = await fetchJson(`/parametros?mes=${state.filtros.mes}&anio=${state.filtros.anio}`);
+    state.parametrosCatalogo = Array.isArray(payload.data) ? payload.data : [];
+    renderParametros(state.parametrosCatalogo);
   }
 
   function refreshLineaParamSelects() {
@@ -557,8 +598,10 @@
         loadConfig(),
         loadResumen(),
         loadSolicitudes(),
-        loadParametros(),
+        loadParametrosDisponibles(),
+        loadCatalogoParametros(),
       ]);
+      refreshLineaParamSelects();
       setBanner(`Periodo ${MESES[state.filtros.mes - 1] || 'Mes'} ${state.filtros.anio} cargado correctamente.`, 'success');
     } catch (error) {
       setBanner(error?.message || 'No se pudo cargar la informacion del laboratorio.', 'error');
@@ -674,15 +717,31 @@
 
   async function saveParametro(event) {
     event.preventDefault();
-    const body = {
-      nombre: normalizeText(el.parametroNombre?.value || ''),
-      valor_ensayo: Number(el.parametroValor?.value || 0),
-      activo: Boolean(el.parametroActivo?.checked),
-    };
-    if (!body.nombre) {
-      setBanner('El nombre del parametro es obligatorio.', 'error');
+    const nombre = normalizeText(el.parametroNombre?.value || '');
+    const valorRaw = normalizeText(el.parametroValor?.value || '');
+    const valor = Number(valorRaw.replace(',', '.'));
+    if (!nombre) {
+      setBanner('El nombre del parámetro es obligatorio.', 'error');
       return;
     }
+    if (!valorRaw) {
+      setBanner('Debes ingresar el valor del ensayo.', 'error');
+      return;
+    }
+    if (!Number.isFinite(valor)) {
+      setBanner('Debes ingresar un valor numérico válido.', 'error');
+      return;
+    }
+    if (valor < 0) {
+      setBanner('El valor del ensayo no puede ser negativo.', 'error');
+      return;
+    }
+
+    const body = {
+      nombre,
+      valor_ensayo: valor,
+      activo: Boolean(el.parametroActivo?.checked),
+    };
     const id = state.editandoParametroId;
     const method = id ? 'PUT' : 'POST';
     const path = id ? `/parametros/${id}` : '/parametros';
@@ -693,37 +752,30 @@
         method,
         body: JSON.stringify(body),
       });
-      setBanner(id ? 'Parametro actualizado correctamente.' : 'Parametro creado correctamente.', 'success');
-      state.editandoParametroId = null;
-      resetParametroForm();
-      await reloadData();
+      closeParametroModal();
+      setBanner(id ? 'Parámetro actualizado correctamente.' : 'Parámetro creado correctamente.', 'success');
+      await Promise.all([
+        loadParametrosDisponibles(),
+        loadCatalogoParametros(),
+      ]);
+      refreshLineaParamSelects();
     } catch (error) {
-      setBanner(error?.message || 'No se pudo guardar el parametro.', 'error');
+      setBanner(error?.message || 'No se pudo guardar el parámetro.', 'error');
     } finally {
       setLoadingState(false);
     }
   }
 
-  function resetParametroForm() {
-    state.editandoParametroId = null;
-    if (el.parametroId) el.parametroId.value = '';
-    if (el.parametroNombre) el.parametroNombre.value = '';
-    if (el.parametroValor) el.parametroValor.value = '';
-    if (el.parametroActivo) el.parametroActivo.checked = true;
-    if (el.btnNuevoParametro) el.btnNuevoParametro.textContent = 'Nuevo parametro';
-  }
-
   async function editParametro(id) {
     try {
-      const payload = await fetchJson('/parametros?mes=' + state.filtros.mes + '&anio=' + state.filtros.anio + '&activo=1');
-      const parametro = (payload.data || []).find(item => String(item.id) === String(id));
+      let parametro = (state.parametrosCatalogo || []).find(item => String(item.id) === String(id));
+      if (!parametro) {
+        const payload = await fetchJson('/parametros?mes=' + state.filtros.mes + '&anio=' + state.filtros.anio);
+        state.parametrosCatalogo = Array.isArray(payload.data) ? payload.data : [];
+        parametro = state.parametrosCatalogo.find(item => String(item.id) === String(id));
+      }
       if (!parametro) throw new Error('Parametro no encontrado.');
-      state.editandoParametroId = parametro.id;
-      if (el.parametroId) el.parametroId.value = String(parametro.id);
-      if (el.parametroNombre) el.parametroNombre.value = parametro.nombre || '';
-      if (el.parametroValor) el.parametroValor.value = String(parametro.valor_ensayo || 0);
-      if (el.parametroActivo) el.parametroActivo.checked = Boolean(parametro.activo);
-      if (el.btnNuevoParametro) el.btnNuevoParametro.textContent = 'Editando parametro';
+      openParametroModal(parametro);
       setBanner(`Parametro ${parametro.nombre} listo para editar.`, 'info');
     } catch (error) {
       setBanner(error?.message || 'No se pudo cargar el parametro.', 'error');
@@ -736,10 +788,14 @@
       await fetchJson(`/parametros/${id}/${activar ? 'activar' : 'desactivar'}`, {
         method: 'PATCH',
       });
-      setBanner(activar ? 'Parametro activado.' : 'Parametro desactivado.', 'success');
-      await reloadData();
+      setBanner(activar ? 'Parámetro activado.' : 'Parámetro desactivado.', 'success');
+      await Promise.all([
+        loadParametrosDisponibles(),
+        loadCatalogoParametros(),
+      ]);
+      refreshLineaParamSelects();
     } catch (error) {
-      setBanner(error?.message || 'No se pudo cambiar el estado del parametro.', 'error');
+      setBanner(error?.message || 'No se pudo cambiar el estado del parámetro.', 'error');
     }
   }
 
@@ -747,10 +803,14 @@
     if (!window.confirm('Eliminar este parametro?')) return;
     try {
       await fetchJson(`/parametros/${id}`, { method: 'DELETE' });
-      setBanner('Parametro eliminado.', 'success');
-      await reloadData();
+      setBanner('Parámetro eliminado.', 'success');
+      await Promise.all([
+        loadParametrosDisponibles(),
+        loadCatalogoParametros(),
+      ]);
+      refreshLineaParamSelects();
     } catch (error) {
-      setBanner(error?.message || 'No se pudo eliminar el parametro.', 'error');
+      setBanner(error?.message || 'No se pudo eliminar el parámetro.', 'error');
     }
   }
 
@@ -839,7 +899,17 @@
     el.btnLimpiarSolicitud?.addEventListener('click', resetSolicitudForm);
     el.formSolicitud?.addEventListener('submit', saveSolicitud);
     el.formParametro?.addEventListener('submit', saveParametro);
-    el.btnNuevoParametro?.addEventListener('click', resetParametroForm);
+    el.btnNuevoParametro?.addEventListener('click', () => openParametroModal());
+    el.btnCerrarModalParametro?.addEventListener('click', closeParametroModal);
+    el.btnCancelarModalParametro?.addEventListener('click', closeParametroModal);
+    el.modalParametro?.addEventListener('click', event => {
+      if (event.target === el.modalParametro) closeParametroModal();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !el.modalParametro?.hidden) {
+        closeParametroModal();
+      }
+    });
     el.solicitudLineas?.addEventListener('input', recalcularTotalSolicitud);
 
     el.tbodySolicitudes?.addEventListener('click', event => {
