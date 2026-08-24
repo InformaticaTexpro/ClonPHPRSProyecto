@@ -41,6 +41,9 @@ final class LaboratorioService
         if ($method === 'GET' && preg_match('#^/solicitudes/(\d+)$#', $path, $m)) {
             return $this->verSolicitud((int)$m[1]);
         }
+        if ($method === 'GET' && preg_match('#^/solicitudes/(\d+)/pdf$#', $path, $m)) {
+            throw new RuntimeException('La funcion PDF de laboratorio esta temporalmente deshabilitada.', 410);
+        }
         if ($method === 'POST' && $path === '/solicitudes') {
             return $this->guardarSolicitud($payload, $body);
         }
@@ -350,14 +353,22 @@ final class LaboratorioService
         }
     }
 
+    private function sanitizePdfFilename(string $value): string
+    {
+        $value = preg_replace('/[^A-Za-z0-9._-]+/', '_', $value) ?? $value;
+        $value = trim($value, '._-');
+        return $value !== '' ? $value : 'solicitud_laboratorio';
+    }
+
     private function loadVendorName(PDO $pdo, string $codigo, array $payload): string
     {
         $row = $this->db->fetchOne(
-            'SELECT u.nombre
-             FROM usuario_vendedor uv
-             INNER JOIN usuario u ON u.id = uv.usuario_id
-             WHERE TRIM(uv.cod_vendedor) = ?
-             ORDER BY uv.tipo ASC, u.nombre ASC
+            'SELECT COALESCE(NULLIF(TRIM(nombre), ""), TRIM(codigo)) AS nombre
+             FROM usuario
+             WHERE is_active = 1
+               AND LOWER(TRIM(COALESCE(area, ""))) = "ventas"
+               AND TRIM(COALESCE(codigo, "")) = ?
+             ORDER BY nombre ASC, codigo ASC
              LIMIT 1',
             [$codigo]
         );
@@ -369,6 +380,39 @@ final class LaboratorioService
 
         $fallback = $this->currentUserName($payload);
         return $fallback !== '' ? $fallback : $codigo;
+    }
+
+    private function listarVendedoresLaboratorio(): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT
+                u.id AS usuario_id,
+                TRIM(u.nombre) AS nombre,
+                TRIM(u.codigo) AS cod_vendedor,
+                "P" AS tipo
+             FROM usuario u
+             WHERE u.is_active = 1
+               AND LOWER(TRIM(COALESCE(u.area, ""))) = "ventas"
+               AND TRIM(COALESCE(u.codigo, "")) <> ""
+             ORDER BY u.nombre ASC, LENGTH(TRIM(u.codigo)) ASC, TRIM(u.codigo) ASC',
+            []
+        );
+
+        return array_values(array_filter(array_map(static function (array $row): array {
+            $usuarioId = isset($row['usuario_id']) ? (int)$row['usuario_id'] : 0;
+            $codigo = trim((string)($row['cod_vendedor'] ?? ''));
+            $nombre = trim((string)($row['nombre'] ?? ''));
+            if ($usuarioId <= 0 || $codigo === '' || $nombre === '') {
+                return [];
+            }
+
+            return [
+                'usuario_id' => $usuarioId,
+                'cod_vendedor' => $codigo,
+                'nombre' => $nombre,
+                'tipo' => strtoupper(trim((string)($row['tipo'] ?? ''))),
+            ];
+        }, $rows)));
     }
 
     private function ensureSolicitudNumero(PDO $pdo, string $numero, string $fechaIngreso): string
@@ -437,26 +481,28 @@ final class LaboratorioService
 
     private function loadSolicitud(PDO $pdo, int $id): ?array
     {
-        $row = $this->db->fetchOne(
+        $stmt = $pdo->prepare(
             'SELECT id, numero_solicitud, fecha_ingreso, vendedor_nombre, vendedor_codigo, numero_muestras, valor_unitario, total, estado, observacion, registrado_por, registrado_por_nombre, created_at, updated_at
              FROM laboratorio_solicitud
              WHERE id = ?
-             LIMIT 1',
-            [$id]
+             LIMIT 1'
         );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
         if (!$row) {
             return null;
         }
 
         $solicitud = $this->mapSolicitud($row);
-        $lineas = $this->db->fetchAll(
+        $stmt = $pdo->prepare(
             'SELECT id, solicitud_id, parametro_id, parametro_nombre, valor_ensayo, cantidad_muestras, subtotal, created_at, updated_at
              FROM laboratorio_solicitud_parametro
              WHERE solicitud_id = ?
-             ORDER BY id ASC',
-            [$id]
+             ORDER BY id ASC'
         );
+        $stmt->execute([$id]);
+        $lineas = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $solicitud['parametros'] = array_map(fn(array $linea): array => $this->mapSolicitudLinea($linea), $lineas);
         $solicitud['parametros_count'] = count($solicitud['parametros']);
         $solicitud['parametros_texto'] = implode(' · ', array_map(static fn(array $linea): string => $linea['parametro_nombre'], $solicitud['parametros']));
@@ -594,6 +640,14 @@ final class LaboratorioService
     {
         $periodo = $this->parsePeriod($query);
         [$desde, $hasta] = $this->monthRange($periodo['anio'], $periodo['mes']);
+        $codVendedor = $this->normalizeCode($query['cod_vendedor'] ?? '');
+
+        $vendorClause = '';
+        $vendorParams = [];
+        if ($codVendedor !== '') {
+            $vendorClause = ' AND vendedor_codigo = ?';
+            $vendorParams = [$codVendedor];
+        }
 
         $totales = $this->db->fetchOne(
             'SELECT
@@ -604,8 +658,8 @@ final class LaboratorioService
              FROM laboratorio_solicitud
              WHERE fecha_ingreso >= ?
                AND fecha_ingreso < ?
-               AND estado <> "ANULADA"',
-            [$desde, $hasta]
+               AND estado <> "ANULADA"' . $vendorClause,
+            array_merge([$desde, $hasta], $vendorParams)
         ) ?: [];
 
         $anuladas = $this->db->fetchOne(
@@ -613,8 +667,8 @@ final class LaboratorioService
              FROM laboratorio_solicitud
              WHERE fecha_ingreso >= ?
                AND fecha_ingreso < ?
-               AND estado = "ANULADA"',
-            [$desde, $hasta]
+               AND estado = "ANULADA"' . $vendorClause,
+            array_merge([$desde, $hasta], $vendorParams)
         ) ?: [];
 
         $vendedores = $this->db->fetchAll(
@@ -628,10 +682,10 @@ final class LaboratorioService
              FROM laboratorio_solicitud
              WHERE fecha_ingreso >= ?
                AND fecha_ingreso < ?
-               AND estado <> "ANULADA"
+               AND estado <> "ANULADA"' . $vendorClause . '
              GROUP BY vendedor_codigo, vendedor_nombre
              ORDER BY total DESC, vendedor_nombre ASC',
-            [$desde, $hasta]
+            array_merge([$desde, $hasta], $vendorParams)
         );
 
         $parametros = $this->db->fetchAll(
@@ -645,10 +699,10 @@ final class LaboratorioService
              INNER JOIN laboratorio_solicitud s ON s.id = sp.solicitud_id
              WHERE s.fecha_ingreso >= ?
                AND s.fecha_ingreso < ?
-               AND s.estado <> "ANULADA"
+               AND s.estado <> "ANULADA"' . ($codVendedor !== '' ? ' AND s.vendedor_codigo = ?' : '') . '
              GROUP BY sp.parametro_nombre
              ORDER BY total DESC, sp.parametro_nombre ASC',
-            [$desde, $hasta]
+            $codVendedor !== '' ? [$desde, $hasta, $codVendedor] : [$desde, $hasta]
         );
 
         return [
@@ -705,12 +759,7 @@ final class LaboratorioService
                 'area' => $this->normalizeText($payload['area'] ?? ''),
                 'is_admin' => (bool)($payload['is_admin'] ?? false),
             ],
-            'vendedores' => array_values(array_map(static function (array $item): array {
-                return [
-                    'cod_vendedor' => trim((string)($item['cod_vendedor'] ?? '')),
-                    'tipo' => strtoupper(trim((string)($item['tipo'] ?? ''))),
-                ];
-            }, is_array($payload['vendedores'] ?? null) ? $payload['vendedores'] : [])),
+            'vendedores' => $this->listarVendedoresLaboratorio(),
             'parametros' => $this->listarParametrosInternos(false, $query),
             'siguiente_numero_solicitud' => sprintf(
                 'LAB-%04d%02d-%04d',
@@ -852,6 +901,149 @@ final class LaboratorioService
         }
 
         return ['ok' => true, 'data' => $solicitud];
+    }
+
+    public function solicitudPdf(array $payload, int $id): array
+    {
+        $solicitud = $this->loadSolicitud($this->db->mysql(), $id);
+        if (!$solicitud) {
+            throw new RuntimeException('Solicitud no encontrada.', 404);
+        }
+
+        $templatePdf = $this->generateSolicitudPdfFromTemplate($solicitud);
+        if ($templatePdf !== null) {
+            return $templatePdf;
+        }
+
+        $lineas = [
+            'TEXPRO - Solicitud de laboratorio',
+            'Folio: ' . ($solicitud['numero_solicitud'] ?? '-'),
+            'Fecha ingreso: ' . ($solicitud['fecha_formato'] ?? $this->formatDate($solicitud['fecha_ingreso'] ?? '')),
+            'Vendedor: ' . ($solicitud['vendedor_nombre'] ?? '-'),
+            'Codigo vendedor: ' . ($solicitud['vendedor_codigo'] ?? '-'),
+            'Estado: ' . ($solicitud['estado'] ?? '-'),
+            'Numero de muestras: ' . number_format((int)($solicitud['numero_muestras'] ?? 0), 0, ',', '.'),
+            'Total: ' . number_format((float)($solicitud['total'] ?? 0), 0, ',', '.'),
+        ];
+
+        if (!empty($solicitud['observacion'])) {
+            $lineas[] = 'Observacion: ' . (string)$solicitud['observacion'];
+        }
+
+        $lineas[] = '';
+        $lineas[] = 'ANÁLISIS';
+
+        foreach (array_values($solicitud['parametros'] ?? []) as $parametro) {
+            $nombre = $this->normalizeText($parametro['parametro_nombre'] ?? '');
+            if ($nombre === '') {
+                continue;
+            }
+            $lineas[] = '[x] ' . $nombre;
+        }
+
+        if (count($lineas) <= 10) {
+            $lineas[] = '[x] Sin parametros asociados';
+        }
+
+        $pdf = build_paginated_pdf($lineas, 'Solicitud ' . ($solicitud['numero_solicitud'] ?? 'laboratorio'));
+        $filename = $this->sanitizePdfFilename('solicitud_' . ($solicitud['numero_solicitud'] ?? ('laboratorio_' . $id))) . '.pdf';
+
+        return [
+            'ok' => true,
+            'filename' => $filename,
+            'bytes' => $pdf,
+        ];
+    }
+
+    private function generateSolicitudPdfFromTemplate(array $solicitud): ?array
+    {
+        $templatePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'templates' . DIRECTORY_SEPARATOR . 'laboratorio_solicitud_analisis.xlsx';
+        $scriptPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'generate_laboratorio_pdf.ps1';
+
+        if (!is_file($templatePath) || !is_file($scriptPath)) {
+            return null;
+        }
+
+        if (stripos(PHP_OS_FAMILY, 'Windows') === false) {
+            return null;
+        }
+
+        $payload = [
+            'numero_solicitud' => (string)($solicitud['numero_solicitud'] ?? ''),
+            'fecha_formato' => (string)($solicitud['fecha_formato'] ?? $this->formatDate($solicitud['fecha_ingreso'] ?? '')),
+            'vendedor_nombre' => (string)($solicitud['vendedor_nombre'] ?? ''),
+            'vendedor_codigo' => (string)($solicitud['vendedor_codigo'] ?? ''),
+            'estado' => (string)($solicitud['estado'] ?? ''),
+            'numero_muestras' => (int)($solicitud['numero_muestras'] ?? 0),
+            'total' => (float)($solicitud['total'] ?? 0),
+            'observacion' => (string)($solicitud['observacion'] ?? ''),
+            'parametros' => array_map(static fn(array $row): array => [
+                'parametro_nombre' => (string)($row['parametro_nombre'] ?? ''),
+                'valor_ensayo' => (float)($row['valor_ensayo'] ?? 0),
+            ], array_values(is_array($solicitud['parametros'] ?? null) ? $solicitud['parametros'] : [])),
+        ];
+
+        $tmpBase = tempnam(sys_get_temp_dir(), 'lab_pdf_');
+        if ($tmpBase === false) {
+            return null;
+        }
+
+        $jsonPath = $tmpBase . '.json';
+        $outputPath = $tmpBase . '.pdf';
+        @unlink($tmpBase);
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false || file_put_contents($jsonPath, $json) === false) {
+            @unlink($jsonPath);
+            return null;
+        }
+
+        $command = sprintf(
+            'powershell.exe -NoProfile -ExecutionPolicy Bypass -File %s -TemplatePath %s -OutputPath %s -PayloadPath %s',
+            escapeshellarg($scriptPath),
+            escapeshellarg($templatePath),
+            escapeshellarg($outputPath),
+            escapeshellarg($jsonPath)
+        );
+
+        $descriptorSpec = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $process = @proc_open($command, $descriptorSpec, $pipes, null, null);
+        if (!is_resource($process)) {
+            @unlink($jsonPath);
+            @unlink($outputPath);
+            return null;
+        }
+
+        $stdout = stream_get_contents($pipes[1]) ?: '';
+        $stderr = stream_get_contents($pipes[2]) ?: '';
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        @unlink($jsonPath);
+
+        if ($exitCode !== 0 || !is_file($outputPath)) {
+            @unlink($outputPath);
+            return null;
+        }
+
+        $bytes = file_get_contents($outputPath);
+        @unlink($outputPath);
+
+        if ($bytes === false || $bytes === '') {
+            return null;
+        }
+
+        $filename = $this->sanitizePdfFilename('solicitud_' . ($solicitud['numero_solicitud'] ?? ('laboratorio_' . (int)($solicitud['id'] ?? 0)))) . '.pdf';
+
+        return [
+            'ok' => true,
+            'filename' => $filename,
+            'bytes' => $bytes,
+        ];
     }
 
     public function guardarSolicitud(array $payload, array $body, ?int $id = null): array

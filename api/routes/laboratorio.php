@@ -10,5 +10,11 @@ return static function (
 ): bool {
     /** @var LaboratorioService $laboratorioService */
     $laboratorioService = $services['laboratorio'];
-    json_response($laboratorioService->route(require_auth_payload(), $method, $path, $query, $body));
+    $payload = require_auth_payload();
+
+    if ($method === 'GET' && preg_match('#^/solicitudes/(\d+)/pdf$#', $path, $matches)) {
+        throw new RuntimeException('La funcion PDF de laboratorio esta temporalmente deshabilitada.', 410);
+    }
+
+    json_response($laboratorioService->route($payload, $method, $path, $query, $body));
 };

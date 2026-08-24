@@ -14,7 +14,6 @@
     resumen: null,
     solicitudes: [],
     parametros: [],
-    auditoria: [],
     filtros: {
       mes: new Date().getMonth() + 1,
       anio: new Date().getFullYear(),
@@ -36,13 +35,10 @@
     userAvatar: document.getElementById('userAvatar'),
     userName: document.getElementById('userName'),
     userArea: document.getElementById('userArea'),
-    chipAvatar: document.getElementById('chipAvatar'),
-    chipName: document.getElementById('chipName'),
-    welcomeTitle: document.getElementById('welcomeTitle'),
-    welcomeSubtitle: document.getElementById('welcomeSubtitle'),
     filtroMes: document.getElementById('filtroMes'),
     filtroAnio: document.getElementById('filtroAnio'),
     filtroVendedor: document.getElementById('filtroVendedor'),
+    filtroVendedorResumen: document.getElementById('filtroVendedorResumen'),
     btnActualizar: document.getElementById('btnActualizar'),
     statusBanner: document.getElementById('statusBanner'),
     kpiSolicitudes: document.getElementById('kpiSolicitudes'),
@@ -80,7 +76,6 @@
     parametroValor: document.getElementById('parametroValor'),
     parametroActivo: document.getElementById('parametroActivo'),
     tbodyParametros: document.getElementById('tbodyParametros'),
-    auditList: document.getElementById('auditList'),
   };
 
   function formatCLP(value) {
@@ -102,10 +97,7 @@
   }
 
   function normalizeCode(value) {
-    return String(value ?? '')
-      .trim()
-      .replace(/\s+/g, '')
-      .toUpperCase();
+    return String(value ?? '').trim();
   }
 
   function normalizeText(value) {
@@ -220,8 +212,6 @@
     if (el.userAvatar) el.userAvatar.textContent = iniciales || 'T';
     if (el.userName) el.userName.textContent = nombre;
     if (el.userArea) el.userArea.textContent = normalizeText(state.user?.area || '');
-    if (el.chipAvatar) el.chipAvatar.textContent = iniciales || 'T';
-    if (el.chipName) el.chipName.textContent = nombre.split(' ')[0] || 'Usuario';
     if (el.headerDate) {
       el.headerDate.textContent = new Date().toLocaleDateString('es-CL', {
         weekday: 'long',
@@ -230,36 +220,67 @@
         day: 'numeric',
       });
     }
-    if (el.welcomeTitle) el.welcomeTitle.textContent = `Hola, ${nombre.split(' ')[0] || 'Usuario'}!`;
-    if (el.welcomeSubtitle) {
-      el.welcomeSubtitle.textContent = `Area: ${normalizeText(state.user?.area || 'Laboratorio')} - Texpro`;
-    }
   }
 
   function syncFilterControls() {
     if (el.filtroMes) el.filtroMes.value = String(state.filtros.mes);
     if (el.filtroAnio) el.filtroAnio.value = String(state.filtros.anio);
-    if (el.filtroVendedor) el.filtroVendedor.value = state.filtros.vendedor;
+    if (el.filtroVendedorResumen) el.filtroVendedorResumen.value = state.filtros.vendedor;
     if (el.filtroEstado) el.filtroEstado.value = state.filtros.estado;
     if (el.busquedaSolicitudes) el.busquedaSolicitudes.value = state.filtros.search;
   }
 
   function fillVendorSelects(vendedores) {
     const items = Array.isArray(vendedores) ? vendedores : [];
-    const seen = new Set();
     const options = [];
 
     items.forEach(item => {
       const codigo = normalizeCode(item?.cod_vendedor);
-      if (!codigo || seen.has(codigo)) return;
-      seen.add(codigo);
+      const nombre = normalizeText(item?.nombre);
+      if (!codigo || !nombre) return;
       const tipo = normalizeText(item?.tipo);
-      options.push(`<option value="${codigo}">${codigo}${tipo ? ` - ${escapeHtml(tipo)}` : ''}</option>`);
+      const label = `${nombre} — ${codigo}${tipo ? ` (${tipo})` : ''}`;
+      options.push(`<option value="${escapeHtml(codigo)}" data-nombre="${escapeHtml(nombre)}" data-tipo="${escapeHtml(tipo)}">${escapeHtml(label)}</option>`);
     });
 
     const html = `<option value="">Todos mis codigos</option>${options.join('')}`;
     if (el.filtroVendedor) el.filtroVendedor.innerHTML = html;
-    if (el.vendedorCodigo) el.vendedorCodigo.innerHTML = `<option value="">Selecciona un codigo</option>${options.join('')}`;
+    if (el.filtroVendedorResumen) el.filtroVendedorResumen.innerHTML = html;
+    if (el.vendedorNombre) el.vendedorNombre.innerHTML = `<option value="">Selecciona un vendedor</option>${options.join('')}`;
+  }
+
+  function getSelectedVendor() {
+    const option = el.vendedorNombre?.selectedOptions?.[0] || null;
+    const codigo = normalizeCode(option?.value || el.vendedorCodigo?.value || '');
+    const nombre = normalizeText(option?.dataset?.nombre || option?.textContent || '');
+    const tipo = normalizeText(option?.dataset?.tipo || '');
+    return { option, codigo, nombre, tipo };
+  }
+
+  function syncVendorFields(codigo = '', nombre = '', tipo = '') {
+    if (el.vendedorCodigo) el.vendedorCodigo.value = normalizeCode(codigo);
+    if (!el.vendedorNombre) return;
+
+    const currentCodigo = normalizeCode(codigo);
+    let option = currentCodigo ? Array.from(el.vendedorNombre.options).find(opt => normalizeCode(opt.value) === currentCodigo) : null;
+    if (!option && currentCodigo) {
+      option = document.createElement('option');
+      option.value = currentCodigo;
+      option.dataset.nombre = normalizeText(nombre);
+      option.dataset.tipo = normalizeText(tipo);
+      option.textContent = `${normalizeText(nombre) || currentCodigo} — ${currentCodigo}${tipo ? ` (${normalizeText(tipo)})` : ''}`;
+      el.vendedorNombre.appendChild(option);
+    }
+
+    if (option) {
+      el.vendedorNombre.value = currentCodigo;
+      if (el.vendedorCodigo) {
+        el.vendedorCodigo.value = currentCodigo;
+      }
+    } else if (!currentCodigo) {
+      el.vendedorNombre.value = '';
+      if (el.vendedorCodigo) el.vendedorCodigo.value = '';
+    }
   }
 
   function fillParamSelect(select, selected = '') {
@@ -349,11 +370,13 @@
       }
     });
 
+    const vendedor = getSelectedVendor();
+
     return {
       numero_solicitud: normalizeText(el.numeroSolicitud?.value || ''),
       fecha_ingreso: normalizeText(el.fechaIngreso?.value || ''),
-      vendedor_codigo: normalizeCode(el.vendedorCodigo?.value || ''),
-      vendedor_nombre: normalizeText(el.vendedorNombre?.value || ''),
+      vendedor_codigo: vendedor.codigo,
+      vendedor_nombre: vendedor.nombre,
       numero_muestras: Math.max(1, Number(el.numeroMuestras?.value || 1) || 1),
       estado: normalizeEstado(el.estadoSolicitud?.value || 'INGRESADA'),
       observacion: normalizeText(el.observacion?.value || ''),
@@ -367,8 +390,7 @@
     if (el.numeroSolicitud) el.numeroSolicitud.value = state.config?.siguiente_numero_solicitud || '';
     if (el.fechaIngreso) el.fechaIngreso.value = new Date().toISOString().slice(0, 10);
     if (el.estadoSolicitud) el.estadoSolicitud.value = 'INGRESADA';
-    if (el.vendedorCodigo) el.vendedorCodigo.value = state.config?.vendedores?.[0]?.cod_vendedor || '';
-    if (el.vendedorNombre) el.vendedorNombre.value = '';
+    syncVendorFields('', '', '');
     if (el.numeroMuestras) el.numeroMuestras.value = '1';
     if (el.observacion) el.observacion.value = '';
     if (el.solicitudLineas) el.solicitudLineas.innerHTML = '';
@@ -379,14 +401,15 @@
 
   function renderResumen(data) {
     const periodo = data?.periodo?.etiqueta || `${MESES[state.filtros.mes - 1] || 'Mes'} ${state.filtros.anio}`;
+    const resumen = data?.resumen || {};
     if (el.resumenPeriodo) el.resumenPeriodo.textContent = periodo;
     if (el.solicitudesSubtitulo) {
-      el.solicitudesSubtitulo.textContent = `${data?.totales?.total_solicitudes || 0} solicitudes activas en ${periodo}`;
+      el.solicitudesSubtitulo.textContent = `${resumen.total_solicitudes || 0} solicitudes activas en ${periodo}`;
     }
-    if (el.kpiSolicitudes) el.kpiSolicitudes.textContent = formatNumber(data?.totales?.total_solicitudes || 0);
-    if (el.kpiMuestras) el.kpiMuestras.textContent = formatNumber(data?.totales?.total_muestras || 0);
-    if (el.kpiMonto) el.kpiMonto.textContent = formatCLP(data?.totales?.total_monto || 0);
-    if (el.kpiParametros) el.kpiParametros.textContent = formatNumber(data?.totales?.parametros_distintos || 0);
+    if (el.kpiSolicitudes) el.kpiSolicitudes.textContent = formatNumber(resumen.total_solicitudes || 0);
+    if (el.kpiMuestras) el.kpiMuestras.textContent = formatNumber(resumen.total_muestras || 0);
+    if (el.kpiMonto) el.kpiMonto.textContent = formatCLP(resumen.total_monto || 0);
+    if (el.kpiParametros) el.kpiParametros.textContent = formatNumber(resumen.parametros_distintos || 0);
 
     const vendedores = Array.isArray(data?.por_vendedor) ? data.por_vendedor : [];
     const parametros = Array.isArray(data?.por_parametro) ? data.por_parametro : [];
@@ -468,34 +491,17 @@
     `).join('');
   }
 
-  function renderAudit(rows) {
-    if (!el.auditList) return;
-    if (!rows.length) {
-      el.auditList.innerHTML = '<div class="table-empty">Sin auditoria</div>';
-      return;
-    }
-    el.auditList.innerHTML = rows.map(row => `
-      <div class="audit-item">
-        <strong>${escapeHtml(row.accion || '-')} - ${escapeHtml(row.entidad || '-')}</strong>
-        <div class="audit-meta">${escapeHtml(row.usuario_nombre || '-')} | ${escapeHtml(row.fecha_formato || row.creado_en || '-')}</div>
-        <div class="audit-meta">${escapeHtml(row.detalle || '')}</div>
-      </div>
-    `).join('');
-  }
-
   async function loadConfig() {
     const payload = await fetchJson(`/config?mes=${state.filtros.mes}&anio=${state.filtros.anio}`);
     state.config = payload.data || null;
     state.parametros = Array.isArray(state.config?.parametros) ? state.config.parametros : [];
     fillVendorSelects(state.config?.vendedores || []);
+    syncFilterControls();
     if (el.folioSiguiente) el.folioSiguiente.textContent = state.config?.siguiente_numero_solicitud || '-';
     if (el.panelParametros) {
       el.panelParametros.hidden = !state.config?.puede_administrar;
     }
     if (el.numeroSolicitud) el.numeroSolicitud.value = state.config?.siguiente_numero_solicitud || '';
-    if (el.vendedorCodigo && !el.vendedorCodigo.value) {
-      el.vendedorCodigo.value = state.config?.vendedores?.[0]?.cod_vendedor || '';
-    }
     if (el.parametroId) el.parametroId.value = '';
     if (el.parametroNombre) el.parametroNombre.value = '';
     if (el.parametroValor) el.parametroValor.value = '';
@@ -504,7 +510,12 @@
   }
 
   async function loadResumen() {
-    const payload = await fetchJson(`/resumen?mes=${state.filtros.mes}&anio=${state.filtros.anio}`);
+    const resumenParams = new URLSearchParams({
+      mes: String(state.filtros.mes),
+      anio: String(state.filtros.anio),
+    });
+    if (state.filtros.vendedor) resumenParams.set('cod_vendedor', state.filtros.vendedor);
+    const payload = await fetchJson(`/resumen?${resumenParams.toString()}`);
     state.resumen = payload;
     renderResumen(payload);
   }
@@ -529,12 +540,6 @@
     refreshLineaParamSelects();
   }
 
-  async function loadAuditoria() {
-    const payload = await fetchJson('/auditoria?limit=12');
-    state.auditoria = Array.isArray(payload.data) ? payload.data : [];
-    renderAudit(state.auditoria);
-  }
-
   function refreshLineaParamSelects() {
     el.solicitudLineas?.querySelectorAll('.linea-param').forEach(row => {
       const select = row.querySelector('.linea-parametro');
@@ -553,7 +558,6 @@
         loadResumen(),
         loadSolicitudes(),
         loadParametros(),
-        loadAuditoria(),
       ]);
       setBanner(`Periodo ${MESES[state.filtros.mes - 1] || 'Mes'} ${state.filtros.anio} cargado correctamente.`, 'success');
     } catch (error) {
@@ -566,8 +570,8 @@
   async function saveSolicitud(event) {
     event.preventDefault();
     const body = buildSolicitudBody();
-    if (!body.vendedor_codigo) {
-      setBanner('Debes seleccionar un codigo de vendedor.', 'error');
+    if (!body.vendedor_codigo || !body.vendedor_nombre) {
+      setBanner('Debes seleccionar un vendedor.', 'error');
       return;
     }
     if (!body.parametros.length) {
@@ -607,8 +611,7 @@
       if (el.numeroSolicitud) el.numeroSolicitud.value = solicitud.numero_solicitud || '';
       if (el.fechaIngreso) el.fechaIngreso.value = solicitud.fecha_ingreso || new Date().toISOString().slice(0, 10);
       if (el.estadoSolicitud) el.estadoSolicitud.value = normalizeEstado(solicitud.estado) || 'INGRESADA';
-      if (el.vendedorCodigo) el.vendedorCodigo.value = solicitud.vendedor_codigo || '';
-      if (el.vendedorNombre) el.vendedorNombre.value = solicitud.vendedor_nombre || '';
+      syncVendorFields(solicitud.vendedor_codigo || '', solicitud.vendedor_nombre || '', '');
       if (el.numeroMuestras) el.numeroMuestras.value = String(solicitud.numero_muestras || 1);
       if (el.observacion) el.observacion.value = solicitud.observacion || '';
       if (el.solicitudLineas) el.solicitudLineas.innerHTML = '';
@@ -648,6 +651,11 @@
     } catch (error) {
       setBanner(error?.message || 'No se pudo abrir la solicitud.', 'error');
     }
+  }
+
+  function abrirPdfSolicitud(id) {
+    const url = `/api/laboratorio/solicitudes/${encodeURIComponent(id)}/pdf`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   async function anularSolicitud(id) {
@@ -793,7 +801,7 @@
     el.btnActualizar?.addEventListener('click', async () => {
       state.filtros.mes = Number(el.filtroMes?.value || state.filtros.mes);
       state.filtros.anio = Number(el.filtroAnio?.value || state.filtros.anio);
-      state.filtros.vendedor = normalizeCode(el.filtroVendedor?.value || '');
+      state.filtros.vendedor = normalizeCode(el.filtroVendedorResumen?.value || '');
       state.filtros.estado = normalizeText(el.filtroEstado?.value || 'todos');
       state.filtros.search = normalizeText(el.busquedaSolicitudes?.value || '');
       await reloadData();
@@ -807,8 +815,14 @@
       state.filtros.anio = Number(el.filtroAnio.value || state.filtros.anio);
     });
 
-    el.filtroVendedor?.addEventListener('change', () => {
-      state.filtros.vendedor = normalizeCode(el.filtroVendedor?.value || '');
+    el.vendedorNombre?.addEventListener('change', () => {
+      const selected = getSelectedVendor();
+      syncVendorFields(selected.codigo, selected.nombre, selected.tipo);
+    });
+
+    el.filtroVendedorResumen?.addEventListener('change', async () => {
+      state.filtros.vendedor = normalizeCode(el.filtroVendedorResumen?.value || '');
+      await reloadData();
     });
 
     el.filtroEstado?.addEventListener('change', () => {
