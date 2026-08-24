@@ -51,20 +51,11 @@
           <span class="hind-sep" aria-hidden="true">|</span>
           <span class="hind-label">UF</span><span class="hind-valor">-</span>
         </span>
-        <div class="header-user-chip">
-          <div class="chip-avatar" id="chipAvatar">T</div>
-          <span class="chip-name" id="chipName">...</span>
-        </div>
       </div>
     </header>
 
     <main class="main-content">
       <section class="hero-panel">
-        <div class="hero-copy">
-          <p class="hero-kicker">Laboratorio / Ingreso de muestras</p>
-          <h2 id="welcomeTitle">Hola</h2>
-          <p id="welcomeSubtitle">Cargando contexto de laboratorio...</p>
-        </div>
         <div class="hero-filters">
           <div class="field-group field-group--compact">
             <label for="filtroMes">Mes</label>
@@ -73,12 +64,6 @@
           <div class="field-group field-group--compact">
             <label for="filtroAnio">Ano</label>
             <select id="filtroAnio" class="control-select"></select>
-          </div>
-          <div class="field-group field-group--compact">
-            <label for="filtroVendedor">Codigo vendedor</label>
-            <select id="filtroVendedor" class="control-select">
-              <option value="">Todos mis codigos</option>
-            </select>
           </div>
           <button type="button" class="btn-primary" id="btnActualizar">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
@@ -154,14 +139,14 @@
 
             <div class="form-grid form-grid--two">
               <div class="field-group">
-                <label for="vendedorCodigo">Codigo vendedor</label>
-                <select id="vendedorCodigo" class="control-select">
-                  <option value="">Selecciona un codigo</option>
+                <label for="vendedorNombre">Nombre vendedor</label>
+                <select id="vendedorNombre" class="control-select">
+                  <option value="">Selecciona un vendedor</option>
                 </select>
               </div>
               <div class="field-group">
-                <label for="vendedorNombre">Nombre vendedor</label>
-                <input id="vendedorNombre" class="control-input" type="text" placeholder="Nombre del vendedor" />
+                <label for="vendedorCodigo">Codigo vendedor</label>
+                <input id="vendedorCodigo" class="control-input" type="text" placeholder="Codigo del vendedor" readonly />
               </div>
             </div>
 
@@ -199,43 +184,53 @@
         </article>
 
         <article class="panel panel--summary">
-          <div class="panel-head">
+          <div class="panel-head panel-head--toolbar">
             <div>
               <h3 class="panel-title">Resumen del periodo</h3>
               <p class="panel-subtitle" id="resumenPeriodo">-</p>
             </div>
+            <div class="toolbar-actions">
+              <div class="field-group field-group--compact">
+                <label for="filtroVendedorResumen">Vendedor</label>
+                <select id="filtroVendedorResumen" class="control-select">
+                  <option value="">Todos los vendedores</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div class="mini-table-wrap">
-            <table class="mini-table">
-              <thead>
-                <tr>
-                  <th>Vendedor</th>
-                  <th>Solicitudes</th>
-                  <th>Muestras</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyResumenVendedores">
-                <tr><td colspan="4" class="table-empty">Sin datos</td></tr>
-              </tbody>
-            </table>
-          </div>
+          <div class="summary-scroll">
+            <div class="mini-table-wrap">
+              <table class="mini-table">
+                <thead>
+                  <tr>
+                    <th>Vendedor</th>
+                    <th>Solicitudes</th>
+                    <th>Muestras</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyResumenVendedores">
+                  <tr><td colspan="4" class="table-empty">Sin datos</td></tr>
+                </tbody>
+              </table>
+            </div>
 
-          <div class="mini-table-wrap">
-            <table class="mini-table">
-              <thead>
-                <tr>
-                  <th>Parametro</th>
-                  <th>Solicitudes</th>
-                  <th>Muestras</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyResumenParametros">
-                <tr><td colspan="4" class="table-empty">Sin datos</td></tr>
-              </tbody>
-            </table>
+            <div class="mini-table-wrap">
+              <table class="mini-table">
+                <thead>
+                  <tr>
+                    <th>Parametro</th>
+                    <th>Solicitudes</th>
+                    <th>Muestras</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyResumenParametros">
+                  <tr><td colspan="4" class="table-empty">Sin datos</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </article>
       </section>
@@ -246,7 +241,7 @@
             <h3 class="panel-title">Solicitudes del mes</h3>
             <p class="panel-subtitle" id="solicitudesSubtitulo">-</p>
           </div>
-          <div class="toolbar-actions">
+          <div class="toolbar-actions toolbar-actions--single">
             <input type="search" id="busquedaSolicitudes" class="control-input control-input--search" placeholder="Buscar por folio, cliente o vendedor" />
             <select id="filtroEstado" class="control-select">
               <option value="todos">Todos los estados</option>
@@ -325,21 +320,9 @@
               </thead>
               <tbody id="tbodyParametros">
                 <tr><td colspan="5" class="table-empty">Sin datos</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article class="panel panel--audit">
-          <div class="panel-head">
-            <div>
-              <h3 class="panel-title">Auditoria reciente</h3>
-              <p class="panel-subtitle">Ultimos movimientos del modulo.</p>
-            </div>
-          </div>
-          <div class="audit-list" id="auditList">
-            <div class="table-empty">Cargando...</div>
-          </div>
+            </tbody>
+          </table>
+        </div>
         </article>
       </section>
     </main>

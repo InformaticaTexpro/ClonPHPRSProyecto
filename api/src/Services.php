@@ -240,7 +240,28 @@ final class AuthService
             ]
         );
 
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'ventas_cotizaciones',
+                'Cotizaciones',
+                'Ventas',
+                '/src/modulo/ventas/cotizaciones/index.html',
+                '💼',
+                8,
+            ]
+        );
+
         $this->ensure_menu_profile_access('laboratorio_ingreso_muestras', ['laboratorio', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('ventas_cotizaciones', ['ventas', 'gerencia', 'administracion', 'admin']);
     }
 
     private function ensure_menu_profile_access(string $menuCode, array $profileCodes): void

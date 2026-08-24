@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
-  <link rel="stylesheet" href="dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="dashboard.css?v=2.3.8" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
@@ -75,19 +75,11 @@
             </ul>
           </div>
         </div>
-        <div class="header-user-chip">
-          <div class="chip-avatar" id="chipAvatar">T</div>
-          <span class="chip-name" id="chipName">...</span>
-        </div>
       </div>
     </header>
 
     <main class="main-content">
       <div class="welcome-bar">
-        <div class="welcome-text">
-          <h2 id="welcomeTitle">Hola 👋</h2>
-          <p id="welcomeSubtitle">Cargando...</p>
-        </div>
         <div class="welcome-filtros">
           <select class="filtro-select" id="filtroMes"></select>
           <select class="filtro-select" id="filtroAnio"></select>
@@ -130,6 +122,44 @@
           <div class="grafico-wrapper"><canvas id="graficoEvolucion"></canvas></div>
         </div>
       </section>
+
+      <div class="cotizaciones-modal" id="modalCotizacionDashboard" aria-hidden="true">
+        <div class="cotizaciones-modal__backdrop" data-close="true"></div>
+        <div class="cotizaciones-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalCotizacionDashboardTitulo">
+          <div class="cotizaciones-modal__header">
+            <div>
+              <h3 class="tabla-titulo" id="modalCotizacionDashboardTitulo">Detalle de cotización</h3>
+              <p class="tabla-subtitulo" id="modalCotizacionDashboardSubtitulo">—</p>
+            </div>
+            <button class="cotizaciones-modal__close" type="button" data-close="true">×</button>
+          </div>
+          <div class="cotizaciones-modal__summary">
+            <div><span class="summary-label">Cliente</span><strong id="modalCotizacionDashboardCliente">—</strong></div>
+            <div><span class="summary-label">Vendedor</span><strong id="modalCotizacionDashboardVendedor">—</strong></div>
+            <div><span class="summary-label">Estado</span><strong id="modalCotizacionDashboardEstado">—</strong></div>
+            <div><span class="summary-label">Total</span><strong id="modalCotizacionDashboardTotal">—</strong></div>
+          </div>
+          <div class="tabla-wrapper cotizaciones-modal__table">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Línea</th>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th style="text-align:right">Cantidad</th>
+                  <th style="text-align:right">Precio</th>
+                  <th style="text-align:right">Subtotal</th>
+                  <th style="text-align:right">Descuento</th>
+                  <th style="text-align:right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyDetalleCotizacionDashboard">
+                <tr class="tabla-empty"><td colspan="8">Selecciona una cotización</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
       <section class="cartera-seccion" id="seccionCartera">
         <div class="cartera-header">
@@ -317,7 +347,7 @@
   </div>
 
   <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="dashboard.js?v=2.3.6"></script>
+  <script src="dashboard.js?v=2.3.8"></script>
   <script src="notificaciones-ui.js?v=2.0.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
   <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>

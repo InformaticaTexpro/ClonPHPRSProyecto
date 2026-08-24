@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Cotizaciones</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="cotizaciones.css?v=1.0.1" />
+</head>
+<body class="cotizaciones-page">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+        <span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" x2="20" y1="6" y2="6"/>
+            <line x1="4" x2="20" y1="12" y2="12"/>
+            <line x1="4" x2="20" y1="18" y2="18"/>
+          </svg>
+        </button>
+        <h1 class="header-title">Cotizaciones</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep" aria-hidden="true">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+          </button>
+          <div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 6 9 17l-5-5"/>
+                </svg>
+                Marcar todo leído
+              </button>
+            </div>
+            <ul class="notif-lista" id="notifLista" role="list">
+              <li class="notif-empty">Sin notificaciones nuevas</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="welcome-bar cotizaciones-welcome">
+        <div class="welcome-text">
+          <h2 class="cotizaciones-titulo">Cotizaciones</h2>
+          <p class="cotizaciones-subtitulo">Consulta el detalle de cotizaciones Web con filtros por período, vendedor, cliente y estado.</p>
+        </div>
+        <div class="welcome-filtros cotizaciones-filtros">
+          <select class="filtro-select" id="filtroMes" aria-label="Mes"></select>
+          <select class="filtro-select" id="filtroAnio" aria-label="Año"></select>
+          <select class="filtro-select" id="filtroScope" aria-label="Alcance">
+            <option value="month">Mes seleccionado</option>
+            <option value="all">Históricas</option>
+          </select>
+          <select class="filtro-select" id="filtroVendedor" aria-label="Vendedor">
+            <option value="">Todos los vendedores</option>
+          </select>
+          <select class="filtro-select" id="filtroEstado" aria-label="Estado">
+            <option value="">Todos los estados</option>
+          </select>
+          <input class="tabla-busqueda" id="filtroCliente" type="search" placeholder="Buscar cliente..." aria-label="Cliente" />
+          <input class="tabla-busqueda" id="filtroNumero" type="search" placeholder="N° cotización..." aria-label="Número de cotización" />
+          <button class="btn-buscar" id="btnActualizar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            Actualizar
+          </button>
+          <button class="btn-buscar btn-buscar--ghost" id="btnLimpiarFiltros" type="button">
+            Limpiar
+          </button>
+        </div>
+      </div>
+
+      <div class="dashboard-status" id="dashboardStatus" role="status" aria-live="polite" hidden></div>
+
+      <section class="kpis-grid cotizaciones-kpis">
+        <button class="kpi-card kpi-card--clickable" type="button" data-preview="month" id="cardMes">
+          <div class="kpi-icono kpi-icono--verde">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Cotizaciones del mes</span>
+            <span class="kpi-valor" id="kpiMesCount">—</span>
+            <span class="kpi-caption" id="kpiMesMonto">Monto cotizado: —</span>
+          </div>
+        </button>
+
+        <button class="kpi-card kpi-card--clickable" type="button" data-preview="total" id="cardTotal">
+          <div class="kpi-icono kpi-icono--azul">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v20M5 5h14M5 19h14"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Total cotizaciones</span>
+            <span class="kpi-valor" id="kpiTotalCount">—</span>
+            <span class="kpi-caption" id="kpiTotalMonto">Monto histórico: —</span>
+          </div>
+        </button>
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--naranja">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 4h18v16H3z"/>
+              <path d="M7 8h10M7 12h6"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Monto cotizado del mes</span>
+            <span class="kpi-valor" id="kpiMontoMes">—</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icono kpi-icono--rojo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h18"/>
+              <path d="m12 3 9 9-9 9-9-9z"/>
+            </svg>
+          </div>
+          <div class="kpi-info">
+            <span class="kpi-label">Monto histórico cotizado</span>
+            <span class="kpi-valor" id="kpiMontoTotal">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="tabla-seccion">
+        <div class="tabla-card tabla-card--preview">
+          <div class="tabla-header cotizaciones-header">
+            <div>
+              <h3 class="tabla-titulo" id="previewTitulo">Detalle básico de cotizaciones del mes</h3>
+              <span class="tabla-subtitulo" id="previewSubtitulo">N° cotización, fecha, cliente, vendedor y total.</span>
+            </div>
+              <span class="tabla-badge" id="previewBadge">Mes seleccionado</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>N° Cotización</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Vendedor</th>
+                  <th style="text-align:right">Total</th>
+                  <th style="text-align:center">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyPreviewCotizaciones">
+                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="tabla-seccion">
+        <div class="tabla-card tabla-card--listado">
+          <div class="tabla-header">
+            <div>
+              <h3 class="tabla-titulo">Listado de cotizaciones</h3>
+              <span class="tabla-subtitulo">Aplicando los filtros actuales y el alcance seleccionado.</span>
+            </div>
+            <span class="tabla-badge" id="contadorCotizaciones">0 registros</span>
+          </div>
+          <div class="tabla-wrapper tabla-wrapper--scroll">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>N° Cotización</th>
+                  <th>Fecha</th>
+                  <th>Código cliente</th>
+                  <th>Cliente</th>
+                  <th>Código vendedor</th>
+                  <th>Estado</th>
+                  <th style="text-align:right">Subtotal</th>
+                  <th style="text-align:right">Descuento</th>
+                  <th style="text-align:right">Total</th>
+                  <th style="text-align:center">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyCotizaciones">
+                <tr class="tabla-empty"><td colspan="10">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="cotizaciones-loading" id="cotizacionesLoading" aria-hidden="true">
+    <div class="cotizaciones-loading__panel" role="status" aria-live="polite" aria-label="Cargando cotizaciones">
+      <div class="cotizaciones-loading__spinner" aria-hidden="true"></div>
+      <strong>Cargando cotizaciones</strong>
+      <span>Aplicando filtros y sincronizando información...</span>
+    </div>
+  </div>
+
+  <div class="cotizaciones-modal" id="modalCotizacion" aria-hidden="true">
+    <div class="cotizaciones-modal__backdrop" data-close="true"></div>
+    <div class="cotizaciones-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalCotizacionTitulo">
+      <div class="cotizaciones-modal__header">
+        <div>
+          <h3 class="tabla-titulo" id="modalCotizacionTitulo">Detalle de cotización</h3>
+          <p class="tabla-subtitulo" id="modalCotizacionSubtitulo">—</p>
+        </div>
+        <button class="cotizaciones-modal__close" type="button" data-close="true">×</button>
+      </div>
+      <div class="cotizaciones-modal__summary">
+        <div><span class="summary-label">Cliente</span><strong id="modalCliente">—</strong></div>
+        <div><span class="summary-label">Vendedor</span><strong id="modalVendedor">—</strong></div>
+        <div><span class="summary-label">Estado</span><strong id="modalEstado">—</strong></div>
+        <div><span class="summary-label">Total</span><strong id="modalTotal">—</strong></div>
+      </div>
+      <div class="tabla-wrapper cotizaciones-modal__table">
+        <table class="dash-tabla">
+          <thead>
+            <tr>
+              <th>Línea</th>
+              <th>Código</th>
+              <th>Producto</th>
+              <th style="text-align:right">Cantidad</th>
+              <th style="text-align:right">Precio</th>
+              <th style="text-align:right">Subtotal</th>
+              <th style="text-align:right">Descuento</th>
+              <th style="text-align:right">Total</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyDetalleCotizacion">
+            <tr class="tabla-empty"><td colspan="8">Selecciona una cotización</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="cotizaciones.js?v=1.0.1"></script>
+  <script src="../dashboard/notificaciones-ui.js?v=2.0.1"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+</body>
+</html>

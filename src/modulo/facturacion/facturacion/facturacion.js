@@ -153,6 +153,7 @@
   const MODULOS = [
     { nombre:'Dashboard',      icon:'🏠', url:'../../ventas/dashboard/index.html',                   area: null },
     { nombre:'Ventas',         icon:'📊', url:'../../ventas/ventas/index.html',                      area:['ventas','gerencia'] },
+    { nombre:'Cotizaciones',   icon:'💼', url:'../../ventas/cotizaciones/index.html',                area:['ventas','gerencia','administracion','admin'] },
     { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
     { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
     { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                      area:['bodega','produccion','gerencia'] },
