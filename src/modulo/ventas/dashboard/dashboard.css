@@ -945,6 +945,22 @@ img, svg, canvas, table { max-width: 100%; }
 .tabla-wrapper--ventas-mes::-webkit-scrollbar-track { background:transparent; }
 .tabla-wrapper--ventas-mes::-webkit-scrollbar-thumb { background:var(--color-gray-mid,#C7CBD6); border-radius:10px; }
 .tabla-wrapper--ventas-mes::-webkit-scrollbar-thumb:hover { background:#9CA3AF; }
+.tabla-card--compartidas .tabla-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(37px * 8 + 41px);
+  scrollbar-gutter: stable;
+}
+.tabla-card--compartidas .tabla-wrapper .dash-tabla thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-gray-light, #F4F6FA);
+}
+.tabla-card--compartidas .tabla-wrapper::-webkit-scrollbar { width: 6px; height: 6px; }
+.tabla-card--compartidas .tabla-wrapper::-webkit-scrollbar-track { background: transparent; }
+.tabla-card--compartidas .tabla-wrapper::-webkit-scrollbar-thumb { background: var(--color-gray-mid, #C7CBD6); border-radius: 10px; }
+.tabla-card--compartidas .tabla-wrapper::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 .tabla-footer { padding:10px 20px; border-top:1px solid var(--color-gray-light,#E8EAF0); }
 .tabla-total { font-size:.78rem; color:var(--color-gray-dark,#6B7280); }
 
