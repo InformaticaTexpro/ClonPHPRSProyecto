@@ -32,6 +32,7 @@
   let cotizacionesResumen           = null;
   let cotizacionesPreviewActivo     = 'month';
   let ventasCompartidasRecibidas    = { rows: [], totales: { folios: 0, monto: 0 } };
+  let ventasCompartidasEntregadas   = { rows: [], totales: { folios: 0, monto: 0 } };
 
   // Datos de cartera por segmento (arrays para las tablas expandibles)
   let carteraData = {
@@ -151,6 +152,66 @@
     renderVentasCompartidasRecibidasFooter(totales.folios ?? 0, totales.monto ?? 0);
   }
 
+  function renderVentasCompartidasEntregadasFooter(totalFolios = 0, totalMonto = 0) {
+    const tfoot = document.getElementById('tfootVentasCompartidasEntregadas');
+    if (!tfoot) return;
+    tfoot.innerHTML = `<tr>
+      <td colspan="5"><strong>Total</strong></td>
+      <td style="text-align:right"><strong>${Number(totalFolios || 0).toLocaleString('es-CL')}</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(totalMonto)}</strong></td>
+    </tr>`;
+  }
+
+  function renderVentasCompartidasEntregadasEmpty(mensaje = 'Sin ventas compartidas entregadas para el período seleccionado.') {
+    const tbody = document.getElementById('tbodyVentasCompartidasEntregadas');
+    const badge = document.getElementById('badgeVentasCompartidasEntregadas');
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    if (tbody) {
+      tbody.innerHTML = `<tr class="tabla-empty"><td colspan="7">${escHtml(mensaje)}</td></tr>`;
+    }
+    if (badge) badge.textContent = '0 registros';
+    if (section) section.hidden = true;
+    renderVentasCompartidasEntregadasFooter(0, 0);
+  }
+
+  function renderVentasCompartidasEntregadas() {
+    const tbody = document.getElementById('tbodyVentasCompartidasEntregadas');
+    const badge = document.getElementById('badgeVentasCompartidasEntregadas');
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    if (!tbody) return;
+
+    const rows = Array.isArray(ventasCompartidasEntregadas.rows) ? ventasCompartidasEntregadas.rows : [];
+    const totales = ventasCompartidasEntregadas.totales || {};
+
+    if (!rows.length) {
+      renderVentasCompartidasEntregadasEmpty();
+      return;
+    }
+
+    if (section) section.hidden = false;
+
+    tbody.innerHTML = rows.map(row => {
+      const codAsignado = String(row.CodigoAsignado || '').trim();
+      const nombreAsignado = String(row.NombreAsignado || '').trim();
+      return `
+        <tr>
+          <td><strong>${escHtml(row.folio) || '—'}</strong></td>
+          <td>${escHtml(String(row.fecha || '').slice(0, 10)) || '—'}</td>
+          <td>${escHtml(row.cliente || '—')}</td>
+          <td>${escHtml(codAsignado) || '—'}</td>
+          <td>${escHtml(nombreAsignado) || escHtml(codAsignado) || '—'}</td>
+          <td style="text-align:right">${Number(row.porcentaje || 0).toFixed(2)}%</td>
+          <td style="text-align:right">${formatCLP(row.MontoAsignado || 0)}</td>
+        </tr>`;
+    }).join('');
+
+    if (badge) {
+      badge.textContent = `${rows.length.toLocaleString('es-CL')} registros`;
+    }
+
+    renderVentasCompartidasEntregadasFooter(totales.folios ?? 0, totales.monto ?? 0);
+  }
+
   function mostrarEstadoDashboard(mensaje, tipo = 'error') {
     const el = document.getElementById('dashboardStatus');
     if (!el) return;
@@ -179,6 +240,10 @@
       if (code) codigos.add(code);
     });
     return Array.from(codigos);
+  }
+
+  function codigosCoordinadorUsuario(usuario = usuarioSesion) {
+    return normalizarCodigosVendedor((Array.isArray(usuario?.vendedores) ? usuario.vendedores : []).filter(v => String(v?.tipo || '').toUpperCase() === 'C'));
   }
 
   if (window.Chart && window.ChartDataLabels) {
@@ -727,6 +792,32 @@
     }
   }
 
+  async function cargarVentasCompartidasEntregadas() {
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    const coordCodes = codigosCoordinadorUsuario();
+    if (!coordCodes.length && !usuarioSesion?.is_admin) {
+      if (section) section.hidden = true;
+      return;
+    }
+
+    try {
+      renderVentasCompartidasEntregadasEmpty('Cargando...');
+      const res = await fetch(`${API}/ventas-compartidas-entregadas-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar las ventas compartidas entregadas');
+      ventasCompartidasEntregadas = {
+        rows: Array.isArray(data.ventasCompartidasEntregadas) ? data.ventasCompartidasEntregadas : [],
+        totales: data.totales || { folios: 0, monto: 0 },
+      };
+      renderVentasCompartidasEntregadas();
+    } catch (err) {
+      console.error('[cargarVentasCompartidasEntregadas]', err);
+      ventasCompartidasEntregadas = { rows: [], totales: { folios: 0, monto: 0 } };
+      renderVentasCompartidasEntregadasEmpty('No se pudieron cargar las ventas compartidas entregadas.');
+      reportarFalloDashboard('No se pudieron cargar las ventas compartidas entregadas', err);
+    }
+  }
+
   let ventasMesData = [];
 
   async function cargarVentasMes() {
@@ -1157,6 +1248,7 @@
         cargarCartera(),
         cargarVendedores(),
         cargarVentasCompartidasRecibidas(),
+        cargarVentasCompartidasEntregadas(),
         cargarVentasMes(),
         cargarGraficoClientes(),
         cargarClientesResumen()

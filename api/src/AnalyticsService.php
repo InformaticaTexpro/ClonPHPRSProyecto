@@ -989,6 +989,89 @@ final class AnalyticsService
         ];
     }
 
+    public function ventasCompartidasEntregadasResumen(array $payload, array $query): array
+    {
+        $coordinatorCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $this->coordinatorCodes($payload)
+        ))));
+        if (!$coordinatorCodes) {
+            return [
+                'ok' => true,
+                'ventasCompartidasEntregadas' => [],
+                'totales' => ['folios' => 0, 'monto' => 0],
+            ];
+        }
+
+        $periodo = $this->monthYear($query);
+        $mes = $periodo['mes'];
+        $anio = $periodo['anio'];
+        $placeholders = implode(',', array_fill(0, count($coordinatorCodes), '?'));
+
+        $rows = $this->db->fetchAll(
+            "SELECT
+                fc.id,
+                fc.folio,
+                fc.fecha,
+                COALESCE(
+                    NULLIF(TRIM(fc.cliente), ''),
+                    CAST(fc.folio AS CHAR)
+                ) AS cliente,
+                TRIM(fc.cod_vendedor_principal) AS CodigoAsignador,
+                COALESCE(
+                    NULLIF(TRIM(u_principal.nombre), ''),
+                    TRIM(fc.cod_vendedor_principal)
+                ) AS NombreAsignador,
+                TRIM(fc.cod_vendedor_compartido) AS CodigoAsignado,
+                COALESCE(
+                    NULLIF(TRIM(u_comp.nombre), ''),
+                    NULLIF(TRIM(fc.nombre_vendedor_compartido), ''),
+                    TRIM(fc.cod_vendedor_compartido)
+                ) AS NombreAsignado,
+                fc.porcentaje,
+                fc.monto_asignado
+             FROM factura_compartida fc
+             LEFT JOIN usuario_vendedor uv_principal
+                ON TRIM(uv_principal.cod_vendedor) = TRIM(fc.cod_vendedor_principal)
+             LEFT JOIN usuario u_principal
+                ON u_principal.id = uv_principal.usuario_id
+             LEFT JOIN usuario_vendedor uv_comp
+                ON TRIM(uv_comp.cod_vendedor) = TRIM(fc.cod_vendedor_compartido)
+             LEFT JOIN usuario u_comp
+                ON u_comp.id = uv_comp.usuario_id
+             WHERE TRIM(fc.cod_vendedor_principal) IN ($placeholders)
+               AND fc.mes = ?
+               AND fc.anio = ?
+               AND fc.rol = 'compartido'
+             ORDER BY fc.fecha DESC, fc.folio DESC",
+            array_merge($coordinatorCodes, [$mes, $anio])
+        );
+
+        $rows = array_map(static function (array $row): array {
+            return [
+                'id' => (int)($row['id'] ?? 0),
+                'folio' => (string)($row['folio'] ?? ''),
+                'fecha' => (string)($row['fecha'] ?? ''),
+                'cliente' => trim((string)($row['cliente'] ?? '')),
+                'CodigoAsignador' => trim((string)($row['CodigoAsignador'] ?? '')),
+                'NombreAsignador' => trim((string)($row['NombreAsignador'] ?? '')),
+                'CodigoAsignado' => trim((string)($row['CodigoAsignado'] ?? '')),
+                'NombreAsignado' => trim((string)($row['NombreAsignado'] ?? '')),
+                'porcentaje' => (float)($row['porcentaje'] ?? 0),
+                'MontoAsignado' => (float)($row['monto_asignado'] ?? 0),
+            ];
+        }, $rows);
+
+        return [
+            'ok' => true,
+            'ventasCompartidasEntregadas' => $rows,
+            'totales' => [
+                'folios' => count($rows),
+                'monto' => array_sum(array_map(static fn(array $row): float => (float)($row['MontoAsignado'] ?? 0), $rows)),
+            ],
+        ];
+    }
+
     public function ventasMes(array $payload, array $query): array
     {
         $userId = $this->currentUserIdFromPayload($payload);
