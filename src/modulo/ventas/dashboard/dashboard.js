@@ -1,11 +1,11 @@
-﻿'use strict';
+'use strict';
 
 /**
  * dashboard.js â€” RSProyecto Texpro
  *
  * 2026-04-23: filtros client-side en tabla Ventas del Mes
- * 2026-04-24: mÃ³dulo Alertas agregado al sidebar
- * 2026-04-24: fix(lint) â€” eliminada funciÃ³n setHTML no utilizada
+ * 2026-04-24: módulo Alertas agregado al sidebar
+ * 2026-04-24: fix(lint) — eliminada función setHTML no utilizada
  * 2026-06-04: fix â€” ruta alertas corregida a ../../alertas/index.html
  * 2026-06-08: fix â€” todas las rutas del sidebar corregidas a nueva estructura anidada
  * 2026-06-08: fix â€” eliminadas funciones del Panel Coordinador
@@ -31,6 +31,7 @@
   let usuarioSesion                 = null;
   let cotizacionesResumen           = null;
   let cotizacionesPreviewActivo     = 'month';
+  let ventasCompartidasRecibidas    = { rows: [], totales: { folios: 0, monto: 0 } };
 
   // Datos de cartera por segmento (arrays para las tablas expandibles)
   let carteraData = {
@@ -96,6 +97,58 @@
       tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin datos</td></tr>';
     }
     renderVendedoresFooter(0, 0, null);
+  }
+
+  function renderVentasCompartidasRecibidasFooter(totalFolios = 0, totalMonto = 0) {
+    const tfoot = document.getElementById('tfootVentasCompartidasRecibidas');
+    if (!tfoot) return;
+    tfoot.innerHTML = `<tr>
+      <td colspan="2"><strong>Total</strong></td>
+      <td style="text-align:right"><strong>${Number(totalFolios || 0).toLocaleString('es-CL')}</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(totalMonto)}</strong></td>
+    </tr>`;
+  }
+
+  function renderVentasCompartidasRecibidasEmpty(mensaje = 'Sin ventas compartidas recibidas para el período seleccionado.') {
+    const tbody = document.getElementById('tbodyVentasCompartidasRecibidas');
+    const badge = document.getElementById('badgeVentasCompartidasRecibidas');
+    if (tbody) {
+      tbody.innerHTML = `<tr class="tabla-empty"><td colspan="4">${escHtml(mensaje)}</td></tr>`;
+    }
+    if (badge) badge.textContent = '0 registros';
+    renderVentasCompartidasRecibidasFooter(0, 0);
+  }
+
+  function renderVentasCompartidasRecibidas() {
+    const tbody = document.getElementById('tbodyVentasCompartidasRecibidas');
+    const badge = document.getElementById('badgeVentasCompartidasRecibidas');
+    if (!tbody) return;
+
+    const rows = Array.isArray(ventasCompartidasRecibidas.rows) ? ventasCompartidasRecibidas.rows : [];
+    const totales = ventasCompartidasRecibidas.totales || {};
+
+    if (!rows.length) {
+      renderVentasCompartidasRecibidasEmpty();
+      return;
+    }
+
+    tbody.innerHTML = rows.map(row => {
+      const codigo = String(row.CodigoAsignador || '').trim();
+      const nombre = String(row.NombreAsignador || '').trim();
+      return `
+        <tr>
+          <td><strong>${escHtml(codigo) || '—'}</strong></td>
+          <td>${escHtml(nombre) || escHtml(codigo) || '—'}</td>
+          <td>${Number(row.FoliosAsignados || 0).toLocaleString('es-CL')}</td>
+          <td style="text-align:right">${formatCLP(row.MontoAsignado || 0)}</td>
+        </tr>`;
+    }).join('');
+
+    if (badge) {
+      badge.textContent = `${rows.length.toLocaleString('es-CL')} registros`;
+    }
+
+    renderVentasCompartidasRecibidasFooter(totales.folios ?? 0, totales.monto ?? 0);
   }
 
   function mostrarEstadoDashboard(mensaje, tipo = 'error') {
@@ -182,21 +235,21 @@
   }
 
   // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Nombres estÃ¡ndar en todos los mÃ³dulos del Ã¡rea ventas:
+  // Nombres estándar en todos los módulos del área ventas:
   //   Dashboard (activo) | Ventas Asignadas | Historial Cliente | Alertas
   const MODULOS = [
-    { nombre:'Ventas Asignadas', icon:'ðŸ“Š', url:'../ventas/index.html',                              area:['ventas','gerencia'] },
-    { nombre:'Cotizaciones',     icon:'ðŸ’¼', url:'../cotizaciones/index.html',                       area:['ventas','gerencia','administracion','admin'] },
-    { nombre:'Historial Cliente',icon:'ðŸ“‹', url:'../historial-cliente/index.html',                   area:['ventas','gerencia'] },
-    { nombre:'FacturaciÃ³n',    icon:'ðŸ§¾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',         icon:'ðŸ­', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
-    { nombre:'ProducciÃ³n',     icon:'âš™ï¸', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',      icon:'ðŸ› ï¸', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',    icon:'ðŸ§ª', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',       icon:'ðŸ’°', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',           icon:'ðŸ‘¥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',   icon:'ðŸ“œ', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
-    { nombre:'AdministraciÃ³n', icon:'ðŸ”§', url:'../../admin/admin/index.html',                      area:['admin'] },
+    { nombre:'Ventas Asignadas', icon:'&#128202;', url:'../ventas/index.html',                        area:['ventas','gerencia'] },
+    { nombre:'Cotizaciones',     icon:'&#128188;', url:'../cotizaciones/index.html',                  area:['ventas','gerencia','administracion','admin'] },
+    { nombre:'Historial Cliente',icon:'&#128203;', url:'../historial-cliente/index.html',             area:['ventas','gerencia'] },
+    { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
+    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
+    { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
+    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',   icon:'📝', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
+    { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                      area:['admin'] },
   ];
 
   function cargarSidebar(usuario) {
@@ -214,7 +267,7 @@
       if (usuario.is_admin) return true;
       return m.area.includes(usuario.area);
     });
-    if (!window.__APP_SIDEBAR_LOADED__ && nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÃ“N</span>
+    if (!window.__APP_SIDEBAR_LOADED__ && nav) nav.innerHTML = `<span class="nav-section-title">NAVEGACIÓN</span>
       <a class="nav-item active" href="#">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <span class="nav-label">Dashboard</span>
@@ -240,7 +293,7 @@
     if (filtroCartera) {
       const codigos = normalizarCodigosVendedor(usuario?.vendedores || []);
       filtroCartera.innerHTML = [
-        '<option value="">Todos mis cÃ³digos</option>',
+        '<option value="">Todos mis códigos</option>',
         ...codigos.map(cod => `<option value="${escHtml(cod)}">${escHtml(cod)}</option>`)
       ].join('');
       filtroCartera.disabled = !codigos.length;
@@ -252,7 +305,7 @@
     }
   }
 
-  // â”€â”€ Selectores mes/aÃ±o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Selectores mes/año
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -359,8 +412,8 @@
       ? 'Cotizaciones históricas'
       : 'Cotizaciones del mes');
     setText('cotizacionesPreviewSubtitulo', cotizacionesPreviewActivo === 'total'
-      ? 'Resumen general y detalle histórico de cotizaciones.'
-      : 'Resumen general y detalle del período seleccionado.');
+      ? 'Resumen general, estado y detalle histórico de cotizaciones.'
+      : 'Resumen general, estado y detalle del período seleccionado.');
     setText('cotizacionesPreviewBadge', cotizacionesPreviewActivo === 'total' ? 'Históricas' : 'Mes seleccionado');
     renderCotizacionesPreview();
   }
@@ -405,14 +458,15 @@
                   <tr>
                     <th>N° Cotización</th>
                     <th>Fecha</th>
-                    <th>Cliente</th>
+                    <th>Cliente / Razón social</th>
                     <th>Vendedor</th>
+                    <th style="text-align:center">Estado</th>
                     <th style="text-align:right">Total</th>
                     <th style="text-align:center">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tbodyCotizacionesPreviewMonth">
-                  <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+                  <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -440,14 +494,15 @@
                   <tr>
                     <th>N° Cotización</th>
                     <th>Fecha</th>
-                    <th>Cliente</th>
+                    <th>Cliente / Razón social</th>
                     <th>Vendedor</th>
+                    <th style="text-align:center">Estado</th>
                     <th style="text-align:right">Total</th>
                     <th style="text-align:center">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tbodyCotizacionesPreviewTotal">
-                  <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
+                  <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -472,7 +527,7 @@
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
       if (!Array.isArray(lista) || !lista.length) {
-        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin cotizaciones para mostrar</td></tr>';
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin cotizaciones para mostrar</td></tr>';
         return;
       }
 
@@ -480,8 +535,9 @@
         <tr>
           <td><strong>N° ${escHtml(item.CotNum) || '—'}</strong></td>
           <td>${escHtml(item.fecha_formato) || '—'}</td>
-          <td>${escHtml(item.NomCon || item.cliente) || '—'}</td>
+          <td>${escHtml(item.Cliente || item.cliente || item.CodAux) || '—'}</td>
           <td>${escHtml(item.vendedor_nombre || item.VenCod) || '—'}</td>
+          <td style="text-align:center">${escHtml(item.CtEstado || '—')}</td>
           <td style="text-align:right">${formatCLP(item.CtMonto || 0)}</td>
           <td style="text-align:center">
             <button class="btn-buscar btn-buscar--ghost" type="button" data-cot-detalle="${escHtml(item.CotNum)}">Ver detalle</button>
@@ -523,11 +579,12 @@
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el detalle');
       const cot = data.cotizacion || {};
-      setText('modalCotizacionDashboardTitulo', `CotizaciÃ³n ${cot.CotNum || cotNum}`);
-      setText('modalCotizacionDashboardSubtitulo', cot.fecha_formato ? `Emitida el ${cot.fecha_formato}` : 'Detalle de cotizaciÃ³n');
-      setText('modalCotizacionDashboardCliente', cot.NomCon || cot.CodAux || 'Ã¢â‚¬â€');
-      setText('modalCotizacionDashboardVendedor', cot.VenCod || 'Ã¢â‚¬â€');
-      setText('modalCotizacionDashboardEstado', cot.CtEstado || 'Ã¢â‚¬â€');
+      setText('modalCotizacionDashboardTitulo', `Cotización ${cot.CotNum || cotNum}`);
+      setText('modalCotizacionDashboardSubtitulo', cot.fecha_formato ? `Emitida el ${cot.fecha_formato}` : 'Detalle de cotización');
+      setText('modalCotizacionDashboardCliente', cot.Cliente || cot.cliente || cot.CodAux || '—');
+      setText('modalCotizacionDashboardContacto', cot.Contacto || cot.NomCon || '—');
+      setText('modalCotizacionDashboardVendedor', cot.VenCod || '—');
+      setText('modalCotizacionDashboardEstado', cot.CtEstado || '—');
       setText('modalCotizacionDashboardTotal', formatCLP(cot.CtMonto || 0));
       const detalle = Array.isArray(cot.detalle) ? cot.detalle : [];
       if (!detalle.length) {
@@ -536,9 +593,9 @@
       }
       tbody.innerHTML = detalle.map(row => `
         <tr>
-          <td>${escHtml(row.CtLinea || 'Ã¢â‚¬â€')}</td>
-          <td>${escHtml(row.CodProd || 'Ã¢â‚¬â€')}</td>
-          <td>${escHtml(row.DetProd || 'Ã¢â‚¬â€')}</td>
+          <td>${escHtml(row.CtLinea || '—')}</td>
+          <td>${escHtml(row.CodProd || '—')}</td>
+          <td>${escHtml(row.DetProd || '—')}</td>
           <td style="text-align:right">${Number(row.CtCant || 0).toLocaleString('es-CL')}</td>
           <td style="text-align:right">${formatCLP(row.CtPrecio || 0)}</td>
           <td style="text-align:right">${formatCLP(row.CtSubTotal || 0)}</td>
@@ -552,13 +609,13 @@
     }
   }
 
-  // â”€â”€ GrÃ¡fico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Gráfico
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function cargarGrafico() {
     try {
       const { mes, anio } = getParams();
-      setText('graficoTitulo', `EvoluciÃ³n Mensual â€” ${MESES_NOMBRE[Number(mes) - 1]} ${anio}`);
+      setText('graficoTitulo', `Evolución Mensual — ${MESES_NOMBRE[Number(mes) - 1]} ${anio}`);
       const res  = await fetch(`${API}/evolucion?${new URLSearchParams({ mes, anio })}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
@@ -567,7 +624,7 @@
       const meta   = data.evolucion.map(e => Number(e.meta_mes ?? e.meta ?? 0));
       const metaOrigen = data.evolucion.map(e => {
         if (e.prorrateada) return 'Meta anual';
-        if (e.tipo_meta === 'mensual') return 'Meta mensual especÃ­fica';
+        if (e.tipo_meta === 'mensual') return 'Meta mensual específica';
         if (e.tipo_meta === 'anual') return 'Meta anual';
         return 'Meta';
       });
@@ -607,7 +664,7 @@
       });
     } catch (err) {
       console.error('[cargarGrafico]', err);
-      reportarFalloDashboard('No se pudo cargar la evoluciÃ³n mensual', err);
+      reportarFalloDashboard('No se pudo cargar la evolución mensual', err);
     }
   }
 
@@ -651,6 +708,25 @@
   }
 
   // â”€â”€ Tabla ventas del mes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function cargarVentasCompartidasRecibidas() {
+    try {
+      renderVentasCompartidasRecibidasEmpty('Cargando...');
+      const res = await fetch(`${API}/ventas-compartidas-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar el resumen de ventas compartidas');
+      ventasCompartidasRecibidas = {
+        rows: Array.isArray(data.ventasCompartidasRecibidas) ? data.ventasCompartidasRecibidas : [],
+        totales: data.totales || { folios: 0, monto: 0 },
+      };
+      renderVentasCompartidasRecibidas();
+    } catch (err) {
+      console.error('[cargarVentasCompartidasRecibidas]', err);
+      ventasCompartidasRecibidas = { rows: [], totales: { folios: 0, monto: 0 } };
+      renderVentasCompartidasRecibidasEmpty('No se pudieron cargar las ventas compartidas recibidas.');
+      reportarFalloDashboard('No se pudieron cargar las ventas compartidas recibidas', err);
+    }
+  }
+
   let ventasMesData = [];
 
   async function cargarVentasMes() {
@@ -731,7 +807,7 @@
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
     if (!overlay || !tbody) return;
-    setText('modalTitulo', `Folio NÂ° ${folio}`);
+    setText('modalTitulo', `Folio N° ${folio}`);
     const venta = ventasMesData.find(v => String(v.Folio) === String(folio));
     setText('modalSubtitulo', venta ? `${venta.cliente||''} â€¢ ${venta.fecha_formato||''}` : '');
     setText('modalTotalValor', 'â€”');
@@ -743,11 +819,11 @@
       const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">âš ï¸ Error</td></tr>'; return; }
-      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin lÃ­neas</td></tr>'; return; }
+      if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin líneas</td></tr>'; return; }
       const d0 = data.detalle[0] || {};
       setText('modalSubtitulo', venta
-        ? `${venta.cliente || ''} â€¢ ${venta.fecha_formato || ''} â€¢ CÃ³d. Cliente: ${d0.CodAux || 'â€”'} â€¢ CanCod: ${d0.CanCod || 'â€”'}`
-        : `CÃ³d. Cliente: ${d0.CodAux || 'â€”'} â€¢ CanCod: ${d0.CanCod || 'â€”'}`);
+        ? `${venta.cliente || ''} • ${venta.fecha_formato || ''} • Cód. Cliente: ${d0.CodAux || '—'} • CanCod: ${d0.CanCod || '—'}`
+        : `Cód. Cliente: ${d0.CodAux || '—'} • CanCod: ${d0.CanCod || '—'}`);
       const total = data.detalle.reduce((s,l)=>s+(Number(l.neto_total ?? l.TotLinea ?? 0)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
@@ -924,22 +1000,51 @@
     });
   }
 
-  // â”€â”€ GrÃ¡fico DistribuciÃ³n por CategorÃ­a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Gráfico
   const COLORES_TORTA = ['#00E2A7','#4ECDC4','#45B7D1','#96CEB4','#F5A623','#DDA0DD','#F06543','#00B4D8'];
+
+  function renderGraficoClientesLeyenda(datos) {
+    const tbody = document.getElementById('tbodyGraficoClientesDistribucionLeyenda');
+    const panel = document.getElementById('graficoClientesDistribucionLeyenda');
+    if (!tbody || !panel) return;
+
+    if (!datos || !datos.length) {
+      tbody.innerHTML = '';
+      panel.hidden = true;
+      return;
+    }
+
+    const total = datos.reduce((s, item) => s + (Number(item.valor) || 0), 0);
+    tbody.innerHTML = datos.map(item => {
+      const valor = Number(item.valor) || 0;
+      const pct = total > 0 ? (valor / total) * 100 : 0;
+      return `
+        <tr class="grafico-categoria-leyenda-item">
+          <td class="grafico-categoria-leyenda-nombre">
+            <span class="grafico-categoria-swatch" style="background:${escHtml(item.color)}"></span>
+            <span title="${escHtml(item.label)}">${escHtml(item.label)}</span>
+          </td>
+          <td class="grafico-categoria-leyenda-valor">${formatCLP(valor)}</td>
+          <td class="grafico-categoria-leyenda-pct">${pct.toFixed(1)}%</td>
+        </tr>`;
+    }).join('');
+    panel.hidden = false;
+  }
 
   function renderGraficoClientesDistribucion(datos) {
     const canvas = document.getElementById('graficoClientesDistribucion');
+    const panel = document.getElementById('graficoClientesDistribucionLeyenda');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (graficoClientesDistribucion) graficoClientesDistribucion.destroy();
     if (!datos || !datos.length) {
-      graficoClientesDistribucion = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels: ['Sin datos'], datasets: [{ data: [1], backgroundColor: ['#E8EAF0'], borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '60%' }
-      });
+      canvas.hidden = true;
+      if (panel) panel.hidden = true;
+      renderGraficoClientesLeyenda([]);
       return;
     }
+    canvas.hidden = false;
+    renderGraficoClientesLeyenda(datos);
     graficoClientesDistribucion = new Chart(ctx, {
       type: 'doughnut',
       data: {
@@ -954,19 +1059,7 @@
             color: '#fff', font: { family: 'Montserrat', size: 11, weight: '700' },
             formatter: (value, ctx2) => { const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0); if (!total) return ''; return ((value / total) * 100).toFixed(1) + '%'; }
           },
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: 'Montserrat', size: 12 }, usePointStyle: true, pointStyle: 'circle', boxWidth: 10, padding: 14,
-              generateLabels: (chart) => {
-                const dataset = chart.data.datasets[0];
-                return chart.data.labels.map((label, i) => {
-                  const valor = dataset.data[i] || 0;
-                  return { text: label, fillStyle: dataset.backgroundColor[i], strokeStyle: dataset.backgroundColor[i], hidden: false, index: i, fontColor: valor === 0 ? '#B0B8C1' : undefined };
-                });
-              }
-            }
-          },
+          legend: { display: false },
           tooltip: { callbacks: { label: (ctx2) => { const total = ctx2.dataset.data.reduce((sum, v) => sum + (v || 0), 0); const pct = total > 0 ? ((ctx2.parsed / total) * 100).toFixed(1) : '0.0'; return ` ${ctx2.label}: ${ctx2.parsed.toLocaleString('es-CL')}  (${pct}%)`; } } }
         },
         cutout: '55%'
@@ -988,18 +1081,21 @@
       const todasLasCategorias = data.todasLasCategorias || [];
       const aggMap = {};
       for (const v of vendedores) { for (const c of v.categorias) { aggMap[c.categoria] = (aggMap[c.categoria] || 0) + c.total; } }
-      const maestro = [
-        ...Object.entries(aggMap).sort((a, b) => b[1] - a[1]).map(([label]) => label),
-        ...todasLasCategorias.filter(cat => !aggMap[cat])
-      ].map((label, i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
+      const maestro = Object.entries(aggMap)
+        .sort((a, b) => b[1] - a[1])
+        .map(([label], i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
       function padear(categorias) {
-        const mapa = Object.fromEntries(categorias.map(c => [c.categoria, c.total]));
-        return maestro.map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }));
+        const mapa = Object.fromEntries(categorias.map(c => [c.categoria, Number(c.total || 0)]));
+        return maestro
+          .map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }))
+          .filter(item => Number(item.valor) > 0);
       }
-      const datosTotal = maestro.map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }));
+      const datosTotal = maestro
+        .map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }))
+        .filter(item => Number(item.valor) > 0);
       if (vendedores.length === 1) {
         if (tabsEl) tabsEl.style.display = 'none';
-        renderGraficoClientesDistribucion(padear(vendedores[0].categorias));
+        renderGraficoClientesDistribucion(padear(vendedores[0].categorias || []));
       } else {
         if (tabsEl) {
           tabsEl.style.display = 'flex';
@@ -1011,7 +1107,7 @@
               tabsEl.querySelectorAll('.torta-tab').forEach(b => b.classList.remove('torta-tab--activo'));
               btn.classList.add('torta-tab--activo');
               const idx = Number(btn.dataset.idx);
-              renderGraficoClientesDistribucion(idx === -1 ? datosTotal : padear(vendedores[idx].categorias));
+              renderGraficoClientesDistribucion(idx === -1 ? datosTotal : padear(vendedores[idx].categorias || []));
             });
           });
         }
@@ -1019,7 +1115,7 @@
       }
     } catch (err) {
       console.error('[cargarGraficoClientes]', err);
-      reportarFalloDashboard('No se pudo cargar la distribuciÃ³n por categorÃ­a', err);
+      reportarFalloDashboard('No se pudo cargar la distribución por categoría', err);
     }
   }
 
@@ -1060,6 +1156,7 @@
         cargarGrafico(),
         cargarCartera(),
         cargarVendedores(),
+        cargarVentasCompartidasRecibidas(),
         cargarVentasMes(),
         cargarGraficoClientes(),
         cargarClientesResumen()

@@ -25,7 +25,31 @@ trait SharedServiceHelpers
     protected function vendorCodesFromUserId(int $userId): array
     {
         $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
-        return array_values(array_unique(array_filter(array_map(static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')), $rows))));
+        $codes = array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')),
+            $rows
+        ))));
+
+        if ($codes) {
+            return $codes;
+        }
+
+        $user = $this->db->fetchOne('SELECT is_admin FROM usuario WHERE id = ? LIMIT 1', [$userId]);
+        if (!(bool)($user['is_admin'] ?? false)) {
+            return [];
+        }
+
+        $fallbackRows = $this->db->fetchAll(
+            "SELECT DISTINCT TRIM(cod_vendedor) AS cod_vendedor
+             FROM usuario_vendedor
+             WHERE cod_vendedor IS NOT NULL
+               AND TRIM(cod_vendedor) <> ''"
+        );
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')),
+            $fallbackRows
+        ))));
     }
 
     protected function coordinatorCodesFromUserId(int $userId): array

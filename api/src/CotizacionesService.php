@@ -159,7 +159,8 @@ final class CotizacionesService
         $cliente = trim((string)($query['cliente'] ?? $query['q'] ?? ''));
         if ($cliente !== '') {
             $like = '%' . $this->escapedLike($cliente) . '%';
-            $conditions[] = '(c.CodAux LIKE ? OR c.NomCon LIKE ?)';
+            $conditions[] = '(c.CodAux LIKE ? OR a.NomAux LIKE ? OR c.NomCon LIKE ?)';
+            $params[] = $like;
             $params[] = $like;
             $params[] = $like;
         }
@@ -170,7 +171,8 @@ final class CotizacionesService
     private function baseFromClause(): string
     {
         return "FROM [PRODIN].[softland].[nwcotiza] c
-                LEFT JOIN [PRODIN].[softland].[cwtvend] v ON v.VenCod = c.VenCod";
+                LEFT JOIN [PRODIN].[softland].[cwtvend] v ON v.VenCod = c.VenCod
+                LEFT JOIN [PRODIN].[softland].[cwtauxi] a ON LTRIM(RTRIM(a.CodAux)) = LTRIM(RTRIM(c.CodAux))";
     }
 
     private function itemsSubquery(): string
@@ -182,11 +184,19 @@ final class CotizacionesService
 
     private function mapRow(array $row): array
     {
+        $codigoCliente = trim((string)($row['CodAux'] ?? ''));
+        $cliente = trim((string)($row['Cliente'] ?? ''));
+        $contacto = trim((string)($row['Contacto'] ?? ''));
+        $nomCon = trim((string)($row['NomCon'] ?? ''));
+
         return [
             'CotNum' => (int)($row['CotNum'] ?? 0),
             'fecha_formato' => substr((string)($row['fecha_formato'] ?? ''), 0, 10),
-            'CodAux' => trim((string)($row['CodAux'] ?? '')),
-            'NomCon' => trim((string)($row['NomCon'] ?? '')),
+            'CodAux' => $codigoCliente,
+            'Cliente' => $cliente !== '' ? $cliente : ($codigoCliente !== '' ? $codigoCliente : ''),
+            'cliente' => $cliente !== '' ? $cliente : ($codigoCliente !== '' ? $codigoCliente : ''),
+            'Contacto' => $contacto !== '' ? $contacto : $nomCon,
+            'NomCon' => $contacto !== '' ? $contacto : $nomCon,
             'VenCod' => trim((string)($row['VenCod'] ?? '')),
             'vendedor_nombre' => trim((string)($row['vendedor_nombre'] ?? '')),
             'CtEstado' => trim((string)($row['CtEstado'] ?? '')),
@@ -222,8 +232,10 @@ final class CotizacionesService
         $rowSql = "SELECT
                     c.CotNum,
                     CONVERT(varchar(10), c.CtFem, 120) AS fecha_formato,
-                    LTRIM(RTRIM(COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.CodAux))), ''), ''))) AS CodAux,
-                    COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), LTRIM(RTRIM(c.CodAux))) AS NomCon,
+                    LTRIM(RTRIM(c.CodAux)) AS CodAux,
+                    COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), ''), LTRIM(RTRIM(c.CodAux))) AS Cliente,
+                    COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), '') AS Contacto,
+                    COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), '') AS NomCon,
                     LTRIM(RTRIM(COALESCE(c.VenCod, ''))) AS VenCod,
                     COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), v.VenDes))), ''), LTRIM(RTRIM(c.VenCod))) AS vendedor_nombre,
                     LTRIM(RTRIM(COALESCE(c.CtEstado, ''))) AS CtEstado,
@@ -236,7 +248,7 @@ final class CotizacionesService
                  " . $this->baseFromClause() . "
                  LEFT JOIN " . $this->itemsSubquery() . " ON d.CotNum = c.CotNum
                  WHERE {$where}
-                 GROUP BY c.CotNum, c.CtFem, c.CodAux, c.NomCon, c.VenCod, v.VenDes, c.CtEstado, c.CtSubTotal, c.CtTotalDesc, c.CtNetoExento, c.CtNetoAfecto, c.CtMonto, d.items
+                 GROUP BY c.CotNum, c.CtFem, c.CodAux, a.NomAux, c.NomCon, c.VenCod, v.VenDes, c.CtEstado, c.CtSubTotal, c.CtTotalDesc, c.CtNetoExento, c.CtNetoAfecto, c.CtMonto, d.items
                  ORDER BY c.CtFem DESC, c.CotNum DESC";
         $rowsParams = $params;
         if ($limit > 0) {
@@ -373,7 +385,9 @@ final class CotizacionesService
                 c.CotNum,
                 CONVERT(varchar(10), c.CtFem, 120) AS fecha_formato,
                 LTRIM(RTRIM(c.CodAux)) AS CodAux,
-                COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), LTRIM(RTRIM(c.CodAux))) AS NomCon,
+                COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), ''), LTRIM(RTRIM(c.CodAux))) AS Cliente,
+                COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), '') AS Contacto,
+                COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomCon))), ''), '') AS NomCon,
                 LTRIM(RTRIM(c.VenCod)) AS VenCod,
                 COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), v.VenDes))), ''), LTRIM(RTRIM(c.VenCod))) AS vendedor_nombre,
                 LTRIM(RTRIM(COALESCE(c.CtEstado, ''))) AS CtEstado,

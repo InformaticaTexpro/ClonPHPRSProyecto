@@ -89,6 +89,209 @@ final class AnalyticsService
         return sprintf("%s.Tipo IN ('F','N','D')", $alias);
     }
 
+    private function fetchCategoriaCatalogo(): array
+    {
+        $catRows = $this->db->fetchAll('SELECT Cta, Categoria FROM categoriasproducto');
+        $catMap = [];
+        $categorias = [];
+
+        foreach ($catRows as $row) {
+            $cta = trim((string)($row['Cta'] ?? ''));
+            $categoria = trim((string)($row['Categoria'] ?? ''));
+            if ($cta === '' || $categoria === '') {
+                continue;
+            }
+
+            $catMap[$cta] = $categoria;
+            $categorias[$categoria] = true;
+        }
+
+        return [
+            'mapa' => $catMap,
+            'categorias' => array_keys($categorias),
+        ];
+    }
+
+    private function fetchDirectCategoryTotals(array $vendCodes, int $mes, int $anio): array
+    {
+        $codes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $vendCodes
+        ))));
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $inicioMes = $this->monthStart($anio, $mes);
+        $finMes = (new DateTimeImmutable($inicioMes))->modify('+1 month')->format('Y-m-d');
+        $pdo = $this->db->softland();
+        $stmt = $pdo->prepare(
+            "SELECT
+                LTRIM(RTRIM(enc.CodVendedor)) AS codVendedor,
+                LTRIM(RTRIM(t.CtaVentas)) AS ctaVentas,
+                SUM(m.TotLinea) AS totalVentas
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+             WHERE LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)
+               AND enc.Estado <> 'A'
+               AND enc.Tipo IN ('F','N','D')
+               AND enc.Fecha >= ?
+               AND enc.Fecha < ?
+               AND t.CtaVentas IS NOT NULL
+               AND LTRIM(RTRIM(t.CtaVentas)) <> ''
+             GROUP BY LTRIM(RTRIM(enc.CodVendedor)), LTRIM(RTRIM(t.CtaVentas))
+             ORDER BY codVendedor ASC, totalVentas DESC"
+        );
+        $stmt->execute(array_merge($codes, [$inicioMes, $finMes]));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $totals = [];
+        foreach ($rows as $row) {
+            $cod = trim((string)($row['codVendedor'] ?? ''));
+            $cta = trim((string)($row['ctaVentas'] ?? ''));
+            if ($cod === '' || $cta === '') {
+                continue;
+            }
+
+            $totals[$cod][$cta] = ($totals[$cod][$cta] ?? 0.0) + (float)($row['totalVentas'] ?? 0);
+        }
+
+        return $totals;
+    }
+
+    private function fetchSharedFolioCategoryTotals(array $folios, int $mes, int $anio): array
+    {
+        $folios = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $folio): string => trim((string)$folio),
+            $folios
+        ))));
+        if (!$folios) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($folios), '?'));
+        $inicioMes = $this->monthStart($anio, $mes);
+        $finMes = (new DateTimeImmutable($inicioMes))->modify('+1 month')->format('Y-m-d');
+        $pdo = $this->db->softland();
+        $stmt = $pdo->prepare(
+            "SELECT
+                CONVERT(varchar(20), enc.Folio) AS folio,
+                LTRIM(RTRIM(t.CtaVentas)) AS ctaVentas,
+                SUM(m.TotLinea) AS totalVentas
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+             WHERE CONVERT(varchar(20), enc.Folio) IN ($placeholders)
+               AND enc.Estado <> 'A'
+               AND enc.Tipo IN ('F','N','D')
+               AND enc.Fecha >= ?
+               AND enc.Fecha < ?
+               AND t.CtaVentas IS NOT NULL
+               AND LTRIM(RTRIM(t.CtaVentas)) <> ''
+             GROUP BY CONVERT(varchar(20), enc.Folio), LTRIM(RTRIM(t.CtaVentas))
+             ORDER BY folio ASC, totalVentas DESC"
+        );
+        $stmt->execute(array_merge($folios, [$inicioMes, $finMes]));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $totals = [];
+        foreach ($rows as $row) {
+            $folio = trim((string)($row['folio'] ?? ''));
+            $cta = trim((string)($row['ctaVentas'] ?? ''));
+            if ($folio === '' || $cta === '') {
+                continue;
+            }
+
+            $totals[$folio][$cta] = ($totals[$folio][$cta] ?? 0.0) + (float)($row['totalVentas'] ?? 0);
+        }
+
+        return $totals;
+    }
+
+    private function fetchSharedCategoryAdjustments(array $vendCodes, int $mes, int $anio): array
+    {
+        $codes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $vendCodes
+        ))));
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $inicioMes = $this->monthStart($anio, $mes);
+        $finMes = (new DateTimeImmutable($inicioMes))->modify('+1 month')->format('Y-m-d');
+        $rows = $this->db->fetchAll(
+            "SELECT
+                CAST(fc.folio AS CHAR) AS folio,
+                LTRIM(RTRIM(fc.cod_vendedor_principal)) AS codVendedorPrincipal,
+                LTRIM(RTRIM(fc.cod_vendedor_compartido)) AS codVendedorCompartido,
+                fc.porcentaje,
+                fc.monto_neto,
+                fc.monto_asignado
+             FROM factura_compartida fc
+             WHERE fc.rol = 'compartido'
+               AND fc.fecha >= ?
+               AND fc.fecha < ?
+               AND (
+                 LTRIM(RTRIM(fc.cod_vendedor_principal)) IN ($placeholders)
+                 OR LTRIM(RTRIM(fc.cod_vendedor_compartido)) IN ($placeholders)
+               )",
+            array_merge([$inicioMes, $finMes], $codes, $codes)
+        );
+
+        $folios = array_values(array_unique(array_filter(array_map(
+            static fn(array $row): string => trim((string)($row['folio'] ?? '')),
+            $rows
+        ))));
+        if (!$folios) {
+            return [];
+        }
+
+        $folioTotals = $this->fetchSharedFolioCategoryTotals($folios, $mes, $anio);
+        $adjustments = [];
+
+        foreach ($rows as $row) {
+            $folio = trim((string)($row['folio'] ?? ''));
+            if ($folio === '' || !isset($folioTotals[$folio])) {
+                continue;
+            }
+
+            $factor = ((float)($row['porcentaje'] ?? 0)) / 100.0;
+            if ($factor <= 0.0) {
+                $montoNeto = (float)($row['monto_neto'] ?? 0);
+                $montoAsignado = (float)($row['monto_asignado'] ?? 0);
+                if ($montoNeto > 0.0) {
+                    $factor = $montoAsignado > 0.0 ? ($montoAsignado / $montoNeto) : 0.0;
+                }
+            }
+            $factor = max(0.0, min(1.0, $factor));
+            if ($factor <= 0.0) {
+                continue;
+            }
+
+            $principal = trim((string)($row['codVendedorPrincipal'] ?? ''));
+            $compartido = trim((string)($row['codVendedorCompartido'] ?? ''));
+            $categoriasFolio = $folioTotals[$folio];
+
+            if ($principal !== '' && in_array($principal, $codes, true)) {
+                foreach ($categoriasFolio as $cta => $total) {
+                    $adjustments[$principal][$cta] = ($adjustments[$principal][$cta] ?? 0.0) - ((float)$total * $factor);
+                }
+            }
+
+            if ($compartido !== '' && in_array($compartido, $codes, true)) {
+                foreach ($categoriasFolio as $cta => $total) {
+                    $adjustments[$compartido][$cta] = ($adjustments[$compartido][$cta] ?? 0.0) + ((float)$total * $factor);
+                }
+            }
+        }
+
+        return $adjustments;
+    }
+
     private function softlandDocumentBreakdown(array $vendCodes, int $mes, int $anio): array
     {
         $codes = $this->normalizeVendorCodes($vendCodes);
@@ -104,7 +307,7 @@ final class AnalyticsService
         $rows = $this->db->fetchAll(
             "SELECT
                 enc.Tipo AS tipo,
-                COUNT(DISTINCT enc.Folio) AS folios,
+                COUNT(DISTINCT CONCAT(LTRIM(RTRIM(enc.Tipo)), '-', CAST(enc.Folio AS VARCHAR(50)))) AS folios,
                 SUM(m.TotLinea) AS total
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
@@ -637,7 +840,7 @@ final class AnalyticsService
             "SELECT
                 LTRIM(RTRIM(enc.CodVendedor)) AS codVendedor,
                 MIN(enc.NomAux) AS nombreVendedor,
-                COUNT(DISTINCT enc.Folio) AS totalFolios,
+                COUNT(DISTINCT CONCAT(LTRIM(RTRIM(enc.Tipo)), '-', CAST(enc.Folio AS VARCHAR(50)))) AS totalFolios,
                 SUM(m.TotLinea) AS totalVentasCobrado,
                 SUM(m.CantFacturada * ISNULL(t.PrecioVta, 0)) AS ventaRealLista
              FROM [PRODIN].[softland].[iw_gsaen] enc
@@ -678,9 +881,7 @@ final class AnalyticsService
 
             $balance = $balances[$codigo];
             $ajuste = (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
-            $ajusteFolios = (int)($balance['incoming_folios'] ?? 0) - (int)($balance['outgoing_folios'] ?? 0);
 
-            $row['totalFolios'] = (int)($row['totalFolios'] ?? 0) + $ajusteFolios;
             $row['totalVentasCobrado'] = (float)($row['totalVentasCobrado'] ?? 0) + $ajuste;
             $row['ventaRealLista'] = (float)($row['ventaRealLista'] ?? 0) + $ajuste;
             $ventasAjustadas = (float)($row['totalVentasCobrado'] ?? 0);
@@ -693,13 +894,12 @@ final class AnalyticsService
 
         foreach ($balances as $codigo => $balance) {
             $ajuste = (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
-            $ajusteFolios = (int)($balance['incoming_folios'] ?? 0) - (int)($balance['outgoing_folios'] ?? 0);
             $ventas = $ajuste;
             $lista = $ajuste;
             $rows[] = [
                 'codVendedor' => $codigo,
                 'nombreVendedor' => $this->getVendorName($codigo),
-                'totalFolios' => $ajusteFolios,
+                'totalFolios' => 0,
                 'totalVentasCobrado' => $ventas,
                 'ventaRealLista' => $lista,
                 'pctDescuento' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
@@ -722,6 +922,69 @@ final class AnalyticsService
                 'totalVentasCobrado' => (int)round($totalVentas),
                 'ventaRealLista' => (int)round($ventaReal),
                 'pctDescuento' => $ventaReal > 0 ? round((1 - ($totalVentas / $ventaReal)) * 100, 2) : 0,
+            ],
+        ];
+    }
+
+    public function ventasCompartidasRecibidasResumen(array $payload, array $query): array
+    {
+        $vendCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $this->vendorCodes($payload)
+        ))));
+        if (!$vendCodes) {
+            return [
+                'ok' => true,
+                'ventasCompartidasRecibidas' => [],
+                'totales' => ['folios' => 0, 'monto' => 0],
+            ];
+        }
+
+        $periodo = $this->monthYear($query);
+        $mes = $periodo['mes'];
+        $anio = $periodo['anio'];
+        $placeholders = implode(',', array_fill(0, count($vendCodes), '?'));
+
+        $rows = $this->db->fetchAll(
+            "SELECT
+                TRIM(fc.cod_vendedor_principal) AS CodigoAsignador,
+                COALESCE(
+                    NULLIF(TRIM(u.nombre), ''),
+                    TRIM(fc.cod_vendedor_principal)
+                ) AS NombreAsignador,
+                COUNT(DISTINCT fc.folio) AS FoliosAsignados,
+                SUM(fc.monto_asignado) AS MontoAsignado
+             FROM factura_compartida fc
+             LEFT JOIN usuario_vendedor uv
+                ON TRIM(uv.cod_vendedor) = TRIM(fc.cod_vendedor_principal)
+             LEFT JOIN usuario u
+                ON u.id = uv.usuario_id
+             WHERE TRIM(fc.cod_vendedor_compartido) IN ($placeholders)
+               AND fc.mes = ?
+               AND fc.anio = ?
+               AND fc.rol = 'compartido'
+             GROUP BY
+                TRIM(fc.cod_vendedor_principal),
+                u.nombre
+             ORDER BY MontoAsignado DESC, CodigoAsignador ASC",
+            array_merge($vendCodes, [$mes, $anio])
+        );
+
+        $rows = array_map(static function (array $row): array {
+            return [
+                'CodigoAsignador' => trim((string)($row['CodigoAsignador'] ?? '')),
+                'NombreAsignador' => trim((string)($row['NombreAsignador'] ?? '')),
+                'FoliosAsignados' => (int)($row['FoliosAsignados'] ?? 0),
+                'MontoAsignado' => (float)($row['MontoAsignado'] ?? 0),
+            ];
+        }, $rows);
+
+        return [
+            'ok' => true,
+            'ventasCompartidasRecibidas' => $rows,
+            'totales' => [
+                'folios' => array_sum(array_map(static fn(array $row): int => (int)($row['FoliosAsignados'] ?? 0), $rows)),
+                'monto' => array_sum(array_map(static fn(array $row): float => (float)($row['MontoAsignado'] ?? 0), $rows)),
             ],
         ];
     }
@@ -1275,54 +1538,63 @@ final class AnalyticsService
 
     public function categoriasVendedor(array $payload, array $query): array
     {
-        $codes = $this->vendorCodes($payload);
-        if (!$codes) {
+        $rawCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $this->vendorCodes($payload)
+        ))));
+        if (!$rawCodes) {
             return ['vendedores' => [], 'todasLasCategorias' => []];
         }
 
         $periodo = $this->monthYear($query);
         $mes = $periodo['mes'];
         $anio = $periodo['anio'];
-        $catRows = $this->db->fetchAll('SELECT Cta, Categoria FROM categoriasproducto');
-        $catMap = [];
-        foreach ($catRows as $row) {
-            $catMap[(string)$row['Cta']] = (string)$row['Categoria'];
-        }
+        $catalogo = $this->fetchCategoriaCatalogo();
+        $catMap = $catalogo['mapa'];
+        $todasLasCategorias = $catalogo['categorias'];
 
-        $softland = $this->db->softland();
+        $directTotals = $this->fetchDirectCategoryTotals($rawCodes, $mes, $anio);
+        $sharedAdjustments = $this->fetchSharedCategoryAdjustments($rawCodes, $mes, $anio);
+
         $resultado = [];
-        foreach ($codes as $cod) {
-            $stmt = $softland->prepare("
-                SELECT t.CtaVentas, SUM(m.TotLinea) AS TotalVentas
-                FROM [PRODIN].[softland].[iw_gsaen] h
-                INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
-                INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-                WHERE h.CodVendedor = ?
-                  AND h.Tipo IN ('F','N','D')
-                  AND h.Estado <> 'A'
-                  AND h.Fecha >= ?
-                  AND h.Fecha < DATEADD(MONTH, 1, ?)
-                  AND t.CtaVentas IS NOT NULL
-                GROUP BY t.CtaVentas
-                ORDER BY TotalVentas DESC
-            ");
-            $stmt->execute([$cod, $this->monthStart($anio, $mes), $this->monthStart($anio, $mes)]);
-            $agg = [];
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $cat = $catMap[(string)($row['CtaVentas'] ?? '')] ?? 'Otros';
-                $agg[$cat] = ($agg[$cat] ?? 0) + (float)($row['TotalVentas'] ?? 0);
+        foreach ($rawCodes as $cod) {
+            $totalesPorCategoria = [];
+
+            foreach (($directTotals[$cod] ?? []) as $cta => $total) {
+                $categoria = $catMap[$cta] ?? 'Otros';
+                $totalesPorCategoria[$categoria] = ($totalesPorCategoria[$categoria] ?? 0.0) + (float)$total;
             }
+
+            foreach (($sharedAdjustments[$cod] ?? []) as $cta => $ajuste) {
+                $categoria = $catMap[$cta] ?? 'Otros';
+                $totalesPorCategoria[$categoria] = ($totalesPorCategoria[$categoria] ?? 0.0) + (float)$ajuste;
+            }
+
             $categorias = [];
-            foreach ($agg as $categoria => $total) {
+            foreach ($totalesPorCategoria as $categoria => $total) {
+                if ($total <= 0) {
+                    continue;
+                }
                 $categorias[] = ['categoria' => $categoria, 'total' => (int)round($total)];
             }
+
             usort($categorias, static fn(array $a, array $b): int => $b['total'] <=> $a['total']);
             $resultado[] = ['codVendedor' => $cod, 'categorias' => $categorias];
+
+            foreach ($categorias as $item) {
+                $todasLasCategorias[] = (string)($item['categoria'] ?? '');
+            }
         }
 
         return [
             'vendedores' => $resultado,
-            'todasLasCategorias' => array_values(array_unique(array_map(static fn(array $r): string => (string)$r['Categoria'], $catRows))),
+            'todasLasCategorias' => array_values(array_unique(array_filter($todasLasCategorias))),
+            'debug' => filter_var($query['debug'] ?? false, FILTER_VALIDATE_BOOL) ? [
+                'codes' => $rawCodes,
+                'directTotals' => $directTotals,
+                'sharedAdjustments' => $sharedAdjustments,
+                'categoriaMapCount' => count($catMap),
+            ] : null,
         ];
     }
 

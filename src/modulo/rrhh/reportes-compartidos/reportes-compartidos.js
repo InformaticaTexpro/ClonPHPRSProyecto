@@ -1105,7 +1105,7 @@
     if (badgeCodigos) {
       const codigos = Array.isArray(view.codigosCompartidos) && view.codigosCompartidos.length
         ? view.codigosCompartidos.join(' · ')
-        : '437 · 630 · 446 · 447';
+        : '—';
       badgeCodigos.textContent = codigos;
     }
   }

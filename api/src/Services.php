@@ -11,7 +11,7 @@ final class AuthService
     {
         $loginFinal = Security::normalize_login($login);
         if ($loginFinal === '' || $password === '') {
-            throw new RuntimeException('Email y contraseÃ±a requeridos', 400);
+            throw new RuntimeException('Email y contraseña requeridos', 400);
         }
 
         $user = $this->db->fetchOne(
@@ -25,11 +25,11 @@ final class AuthService
         );
 
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
         }
 
         if (!Security::verify_password_django($password, (string)$user['password'])) {
-            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
         }
 
         $this->db->execute('UPDATE usuario SET last_login = NOW() WHERE id = ?', [$user['id']]);
@@ -51,7 +51,7 @@ final class AuthService
         $payload = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
         $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token invÃ¡lido.', 401);
+            throw new RuntimeException('Token inválido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -60,7 +60,7 @@ final class AuthService
             [$userId]
         );
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('SesiÃ³n no vÃ¡lida', 401);
+            throw new RuntimeException('Sesión no válida', 401);
         }
 
         $vendedores = $this->load_vendedores($userId);
@@ -84,12 +84,12 @@ final class AuthService
         $exp = (int)($decoded['exp'] ?? 0);
         $window = 24 * 3600;
         if ($exp > 0 && ($now - $exp) > $window) {
-            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesiÃ³n nuevamente.', 401);
+            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesión nuevamente.', 401);
         }
 
         $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token invÃ¡lido.', 401);
+            throw new RuntimeException('Token inválido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -342,7 +342,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'Si el correo estÃ¡ registrado, recibirÃ¡s el cÃ³digo en breve.',
+            'message' => 'Si el correo está registrado, recibirás el código en breve.',
         ];
     }
 
@@ -350,7 +350,7 @@ final class RecoveryService
     {
         $email = Security::validate_email($email);
         if (!preg_match('/^\d{6}$/', trim($otp))) {
-            throw new RuntimeException('Email y cÃ³digo de 6 dÃ­gitos son requeridos.', 400);
+            throw new RuntimeException('Email y código de 6 dígitos son requeridos.', 400);
         }
 
         $row = $this->db->fetchOne(
@@ -365,7 +365,7 @@ final class RecoveryService
         );
 
         if (!$row) {
-            throw new RuntimeException('CÃ³digo incorrecto o expirado.', 401);
+            throw new RuntimeException('Código incorrecto o expirado.', 401);
         }
 
         $this->db->execute('UPDATE otp_tokens SET usado = 1 WHERE id = ?', [$row['id']]);
@@ -373,7 +373,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'CÃ³digo verificado correctamente.',
+            'message' => 'Código verificado correctamente.',
             'resetToken' => $token,
         ];
     }
@@ -382,15 +382,15 @@ final class RecoveryService
     {
         $resetToken = trim($resetToken);
         if ($resetToken === '' || $password === '') {
-            throw new RuntimeException('Token y contraseÃ±a son requeridos.', 400);
+            throw new RuntimeException('Token y contraseña son requeridos.', 400);
         }
         if (mb_strlen($password) < 8) {
-            throw new RuntimeException('La contraseÃ±a debe tener mÃ­nimo 8 caracteres.', 400);
+            throw new RuntimeException('La contraseña debe tener mínimo 8 caracteres.', 400);
         }
 
         $payload = Security::jwt_decode($resetToken, (string)env('JWT_SECRET', ''));
         if (($payload['purpose'] ?? '') !== 'password_reset') {
-            throw new RuntimeException('Token de restablecimiento invÃ¡lido o expirado.', 401);
+            throw new RuntimeException('Token de restablecimiento inválido o expirado.', 401);
         }
 
         $email = Security::validate_email((string)($payload['email'] ?? ''));
@@ -406,7 +406,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'ContraseÃ±a actualizada correctamente. Ya puedes iniciar sesiÃ³n.',
+            'message' => 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
         ];
     }
 
@@ -561,7 +561,7 @@ final class RecoveryService
 
     private function build_otp_html(string $code): string
     {
-        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">RecuperaciÃ³n de contraseÃ±a</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseÃ±a en el sistema TEXPRO.<br>Usa el siguiente cÃ³digo. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este cÃ³digo, ignora este correo.<br>Tu contraseÃ±a actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos QuÃ­micos y Tratamiento de Aguas</p></div></body></html>';
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">Recuperación de contraseña</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseña en el sistema TEXPRO.<br>Usa el siguiente código. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este código, ignora este correo.<br>Tu contraseña actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos Químicos y Tratamiento de Aguas</p></div></body></html>';
     }
 }
 

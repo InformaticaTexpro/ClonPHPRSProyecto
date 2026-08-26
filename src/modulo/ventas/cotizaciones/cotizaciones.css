@@ -294,7 +294,7 @@
 
 .cotizaciones-modal__summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--color-gray-light, #E8EAF0);

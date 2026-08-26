@@ -316,6 +316,20 @@ img, svg, canvas, table { max-width: 100%; }
 .grafico-header { margin-bottom:16px; }
 .grafico-titulo { font-family:var(--font-primary,'Montserrat',sans-serif); font-size:.95rem; font-weight:700; color:var(--color-black,#1A1D23); }
 .grafico-wrapper { height:280px; position:relative; }
+.grafico-torta-wrapper { height:280px; position:relative; }
+.grafico-torta-empty {
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-gray-dark, #6B7280);
+  font-size: .92rem;
+  font-weight: 600;
+  border: 1px dashed rgba(148, 163, 184, .35);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(248,250,252,.82), rgba(241,245,249,.72));
+}
 
 .tabla-subtitulo {
   display:block;
@@ -598,7 +612,7 @@ img, svg, canvas, table { max-width: 100%; }
 
 .cotizaciones-modal__summary {
   display:grid;
-  grid-template-columns:repeat(4, minmax(0, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
   gap:12px;
   padding:14px 20px;
   border-bottom:1px solid var(--color-gray-light,#E8EAF0);
@@ -1061,6 +1075,22 @@ img, svg, canvas, table { max-width: 100%; }
   gap: 14px;
 }
 
+.grafico-categoria-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(320px, 1.15fr) minmax(280px, 0.85fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.grafico-torta-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .torta-vendedor-tabs {
   display: flex;
   gap: 6px;
@@ -1086,7 +1116,93 @@ img, svg, canvas, table { max-width: 100%; }
   position: relative;
   width: 100%;
   max-width: 480px;
-  height: 380px;
+  height: 360px;
+}
+
+.grafico-categoria-leyenda {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,250,252,.96));
+  border: 1px solid rgba(148,163,184,.22);
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  align-self: center;
+}
+
+.grafico-categoria-leyenda-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 0 8px 10px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--color-gray-dark,#6B7280);
+  border-bottom: 1px solid rgba(148,163,184,.18);
+}
+
+.grafico-categoria-leyenda-scroll {
+  margin-top: 8px;
+  max-height: 340px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.grafico-categoria-leyenda-scroll::-webkit-scrollbar { width: 4px; }
+.grafico-categoria-leyenda-scroll::-webkit-scrollbar-thumb { background: var(--color-gray-mid,#C7CBD6); border-radius: 4px; }
+
+.grafico-categoria-leyenda-tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.grafico-categoria-leyenda-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 8px;
+}
+
+.grafico-categoria-leyenda-item + .grafico-categoria-leyenda-item {
+  border-top: 1px solid rgba(148,163,184,.12);
+}
+
+.grafico-categoria-leyenda-nombre {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--color-black,#1A1D23);
+}
+
+.grafico-categoria-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(15,23,42,.12);
+}
+
+.grafico-categoria-leyenda-valor,
+.grafico-categoria-leyenda-pct {
+  white-space: nowrap;
+  font-size: .86rem;
+  font-weight: 700;
+  color: var(--color-black,#1A1D23);
+  text-align: right;
+}
+
+.grafico-categoria-leyenda-pct {
+  color: var(--color-gray-dark,#6B7280);
+}
+
+.grafico-torta-empty {
+  display: none !important;
 }
 
 /* ── Toggle tipo factura ── */
@@ -1107,6 +1223,12 @@ img, svg, canvas, table { max-width: 100%; }
     align-items: stretch;
   }
   .grafico-torta-wrapper { max-width: 340px; height: 300px; }
+  .grafico-categoria-layout {
+    grid-template-columns: 1fr;
+  }
+  .grafico-categoria-leyenda {
+    max-width: 100%;
+  }
 }
 @media (max-width:768px) {
   .sidebar { transform:translateX(-100%); transition:transform .25s; width:min(86vw, 280px); }
@@ -1131,6 +1253,8 @@ img, svg, canvas, table { max-width: 100%; }
   .main-content { padding:18px 16px 20px; }
   .tabla-header,
   .main-footer { gap:12px; flex-wrap:wrap; }
+  .grafico-categoria-layout { grid-template-columns: 1fr; }
+  .grafico-categoria-leyenda-scroll { max-height: 240px; }
 }
 @media (max-width:480px) {
   .kpis-grid { grid-template-columns:1fr; }

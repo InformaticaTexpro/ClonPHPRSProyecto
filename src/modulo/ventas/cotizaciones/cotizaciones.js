@@ -190,7 +190,7 @@
       <tr>
         <td><strong>${escHtml(row.CotNum)}</strong></td>
         <td>${escHtml(row.fecha_formato || '—')}</td>
-        <td>${escHtml(row.NomCon || '—')}</td>
+        <td>${escHtml(row.Cliente || row.cliente || row.CodAux || '—')}</td>
         <td>${escHtml(row.VenCod || '—')}</td>
         <td style="text-align:right">${formatCLP(row.CtMonto || 0)}</td>
         <td style="text-align:center">
@@ -217,7 +217,7 @@
         <td><strong>${escHtml(row.CotNum)}</strong></td>
         <td>${escHtml(row.fecha_formato || '—')}</td>
         <td>${escHtml(row.CodAux || '—')}</td>
-        <td>${escHtml(row.NomCon || '—')}</td>
+        <td>${escHtml(row.Cliente || row.cliente || row.CodAux || '—')}</td>
         <td>${escHtml(row.VenCod || '—')}</td>
         <td>${escHtml(row.CtEstado || '—')}</td>
         <td style="text-align:right">${formatCLP(row.CtSubTotal || 0)}</td>
@@ -327,7 +327,8 @@
       const cot = data.cotizacion || {};
       setText('modalCotizacionTitulo', `Cotización ${cot.CotNum || cotNum}`);
       setText('modalCotizacionSubtitulo', cot.fecha_formato ? `Emitida el ${cot.fecha_formato}` : 'Detalle de cotización');
-      setText('modalCliente', cot.NomCon || cot.CodAux || '—');
+      setText('modalCliente', cot.Cliente || cot.cliente || cot.CodAux || '—');
+      setText('modalContacto', cot.Contacto || cot.NomCon || '—');
       setText('modalVendedor', cot.VenCod || '—');
       setText('modalEstado', cot.CtEstado || '—');
       setText('modalTotal', formatCLP(cot.CtMonto || 0));

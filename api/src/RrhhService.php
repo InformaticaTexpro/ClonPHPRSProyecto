@@ -401,9 +401,18 @@ final class RrhhService
 
     private function softlandCodes(): array
     {
-        return [
-            'C001', 'C002', 'C003',
-        ];
+        $rows = $this->db->fetchAll(
+            'SELECT DISTINCT TRIM(cod_vendedor) AS cod_vendedor
+             FROM usuario_vendedor
+             WHERE cod_vendedor IS NOT NULL
+               AND TRIM(cod_vendedor) <> ""
+             ORDER BY TRIM(cod_vendedor) ASC'
+        );
+
+        return array_values(array_filter(array_map(
+            static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')),
+            $rows
+        )));
     }
 
     private function listarFoliosSoftlandCompartidos(int $anio, int $mes, array $codigosCompartidos = []): array

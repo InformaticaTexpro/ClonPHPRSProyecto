@@ -45,13 +45,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
     }
 
-    // Las contraseÃ±as estÃ¡n en formato PBKDF2-SHA256 de Django (600.000 iter)
+    // Las contraseñas están en formato PBKDF2-SHA256 de Django (600.000 iter)
     const match = verifyPasswordDjango(password, user.password);
     if (!match) {
       return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
     }
 
-    // Registrar Ãºltimo acceso
+    // Registrar último acceso
     await updateLastLogin(user.id);
 
     // Cargar vendedores asociados
@@ -115,8 +115,8 @@ router.post('/logout', requireAuth, (_req, res) => {
 
 // â”€â”€ POST /api/auth/refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /**
- * RenovaciÃ³n silenciosa de token JWT.
- * Acepta tokens expirados hace menos de 24h con firma vÃ¡lida.
+ * Renovación silenciosa de token JWT.
+ * Acepta tokens expirados hace menos de 24h con firma válida.
  * Verifica is_active en BD antes de emitir nuevo token.
  */
 router.post('/refresh', async (req, res) => {
@@ -131,7 +131,7 @@ router.post('/refresh', async (req, res) => {
   try {
     decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
   } catch {
-    return res.status(401).json({ ok: false, error: 'Token invÃ¡lido' });
+    return res.status(401).json({ ok: false, error: 'Token inválido' });
   }
 
   const ahora       = Math.floor(Date.now() / 1000);
