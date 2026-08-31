@@ -168,13 +168,17 @@
   }
 
   function renderUsuarioSidebar(usuario) {
+    return renderUsuarioSidebarConEstado(usuario, 'Sin sesión activa');
+  }
+
+  function renderUsuarioSidebarConEstado(usuario, estadoFallback = 'Sin sesión activa') {
     const avatar = document.getElementById('userAvatar');
     const nombreEl = document.getElementById('userName');
     const areaEl = document.getElementById('userArea');
 
     if (!usuario) {
       if (avatar) avatar.textContent = '?';
-      if (nombreEl) nombreEl.textContent = 'Sin sesión activa';
+      if (nombreEl) nombreEl.textContent = estadoFallback || 'Sin sesión activa';
       if (areaEl) areaEl.textContent = '';
       return;
     }
@@ -357,7 +361,7 @@
   }
 
   function obtenerTokenSesion() {
-    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    return localStorage.getItem('token') || '';
   }
 
   function extraerCatalogo(data) {
@@ -2017,9 +2021,36 @@
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => null);
-      return data || null;
+      const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+      const raw = await res.text().catch(() => '');
+      let data = null;
+      if (raw.trim()) {
+        if (contentType.includes('application/json') || /^[\[{]/.test(raw.trim())) {
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            data = null;
+          }
+        }
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: data?.error || `HTTP ${res.status}`,
+          data,
+        };
+      }
+
+      if (!data || typeof data !== 'object') {
+        return {
+          ok: false,
+          error: 'Respuesta no JSON desde /api/auth/me',
+          data: null,
+        };
+      }
+
+      return data;
     } catch (err) {
       console.warn('[app-sidebar] No se pudo obtener usuario:', err.message);
       return null;
@@ -2028,25 +2059,37 @@
 
   async function cargarSidebarDesdeSesion() {
     const nav = document.getElementById('sidebarNav');
+    const token = obtenerTokenSesion();
+    const cachedUser = obtenerUsuarioLocal();
     if (nav) {
       inyectarEstilos();
       nav.innerHTML = '<div class="nav-loading">Cargando menús...</div>';
     }
 
-    renderUsuarioSidebar(obtenerUsuarioLocal());
+    renderUsuarioSidebarConEstado(cachedUser, token ? 'Cargando...' : 'Sin sesión activa');
+
+    let fallbackTimer = window.setTimeout(() => {
+      const nombreEl = document.getElementById('userName');
+      const current = normalizeText(nombreEl?.textContent || '');
+      if (current === 'Cargando...' || current === 'Cargando…') {
+        renderUsuarioSidebarConEstado(cachedUser, token ? 'Sesión no disponible' : 'Sin sesión activa');
+      }
+    }, 1200);
 
     const data = await obtenerContextoSidebar();
-    if (!data?.user) {
+    window.clearTimeout(fallbackTimer);
+
+    const usuario = extraerUsuario(data);
+    if (!usuario) {
       if (nav) nav.innerHTML = '<div class="nav-empty">Sin sesión activa</div>';
-      renderUsuarioSidebar(null);
+      renderUsuarioSidebarConEstado(cachedUser, token ? 'Sesión no disponible' : 'Sin sesión activa');
       return;
     }
 
-    const usuario = extraerUsuario(data);
     const catalogo = construirCatalogo(extraerCatalogo(data));
     const indicePermisos = crearIndicePermisos(usuario?.menus);
     validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
-    renderUsuarioSidebar(usuario);
+    renderUsuarioSidebarConEstado(usuario);
     renderSidebar(data);
     crearWidgetMensajeriaGlobal(data);
     ensureRealtimeClientLoaded();
@@ -2064,8 +2107,23 @@
   }
 
   async function init() {
-    await cargarSidebarDesdeSesion();
+    try {
+      await cargarSidebarDesdeSesion();
+    } catch (err) {
+      console.warn('[app-sidebar] Error al inicializar el sidebar:', err?.message || err);
+      renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
+    }
   }
+
+  window.addEventListener('load', () => {
+    window.setTimeout(() => {
+      const nombreEl = document.getElementById('userName');
+      const current = normalizeText(nombreEl?.textContent || '');
+      if (current === 'Cargando...' || current === 'Cargando…') {
+        renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
+      }
+    }, 400);
+  });
 
   window.addEventListener('texpro:auth-updated', () => {
     cargarSidebarDesdeSesion().catch(err => {
