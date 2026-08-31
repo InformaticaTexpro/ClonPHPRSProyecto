@@ -22,6 +22,7 @@ require_once __DIR__ . '/src/VentasService.php';
 require_once __DIR__ . '/src/IndicadoresService.php';
 require_once __DIR__ . '/src/LaboratorioService.php';
 require_once __DIR__ . '/src/CotizacionesService.php';
+require_once __DIR__ . '/src/SoporteTiService.php';
 require_once __DIR__ . '/src/ApiApplication.php';
 
 $envPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env';

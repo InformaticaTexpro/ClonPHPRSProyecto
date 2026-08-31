@@ -45,8 +45,8 @@ function resolve_login_route(array $user): string
         'servicio' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'serv_tecnico' => '/src/modulo/servtecnico/servicio-tecnico/index.html',
         'laboratorio' => '/src/modulo/laboratorio/ingreso-muestras/index.html',
-        'administracion' => '/src/modulo/gerencia/dashboard-comercial/index.html',
-        'admin' => '/src/modulo/gerencia/dashboard-comercial/index.html',
+        'administracion' => '/src/modulo/admin/admin/index.html',
+        'admin' => '/src/modulo/admin/admin/index.html',
     ];
 
     $area = normalize_login_area((string)($user['area'] ?? ''));
@@ -212,15 +212,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Contrasena
             </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              class="form-input"
-              placeholder="Ingresa tu contrasena"
-              autocomplete="current-password"
-              required
-            />
+            <div class="input-password-wrapper">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="form-input"
+                placeholder="Ingresa tu contrasena"
+                autocomplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                id="togglePassword"
+                class="btn-toggle-password"
+                aria-label="Mostrar contrasena"
+                aria-pressed="false"
+              >
+                <svg class="toggle-password-icon toggle-password-icon--show" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.5 10.5 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.5 10.5 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="toggle-password-icon toggle-password-icon--hide" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="m3 3 18 18"/><path d="M10.585 10.585A2 2 0 1 0 13.414 13.414"/><path d="M9.88 4.24A10.45 10.45 0 0 1 12 4c7 0 10 8 10 8a19.6 19.6 0 0 1-4.23 5.19"/><path d="M6.61 6.61A19.8 19.8 0 0 0 2 12s3 8 10 8c1.4 0 2.67-.25 3.83-.68"/></svg>
+              </button>
+            </div>
           </div>
 
           <div class="form-options">
@@ -244,5 +256,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </div>
   </div>
+
+  <script>
+    (function () {
+      const input = document.getElementById('password');
+      const button = document.getElementById('togglePassword');
+      if (!input || !button) return;
+
+      const iconShow = button.querySelector('.toggle-password-icon--show');
+      const iconHide = button.querySelector('.toggle-password-icon--hide');
+
+      function setVisible(visible) {
+        input.type = visible ? 'text' : 'password';
+        button.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        button.setAttribute('aria-label', visible ? 'Ocultar contrasena' : 'Mostrar contrasena');
+        if (iconShow) iconShow.hidden = visible;
+        if (iconHide) iconHide.hidden = !visible;
+      }
+
+      button.addEventListener('click', () => {
+        setVisible(input.type === 'password');
+        input.focus({ preventScroll: true });
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -124,7 +124,7 @@
       <div class="dashboard-status" id="dashboardStatus" role="status" aria-live="polite" hidden></div>
 
       <section class="kpis-grid cotizaciones-kpis">
-        <button class="kpi-card kpi-card--clickable" type="button" data-preview="month" id="cardMes">
+        <div class="kpi-card kpi-card--clickable" id="cardMes">
           <div class="kpi-icono kpi-icono--verde">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 6h16M4 12h16M4 18h16"/>
@@ -135,9 +135,9 @@
             <span class="kpi-valor" id="kpiMesCount">—</span>
             <span class="kpi-caption" id="kpiMesMonto">Monto cotizado: —</span>
           </div>
-        </button>
+        </div>
 
-        <button class="kpi-card kpi-card--clickable" type="button" data-preview="total" id="cardTotal">
+        <div class="kpi-card kpi-card--clickable" id="cardTotal">
           <div class="kpi-icono kpi-icono--azul">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2v20M5 5h14M5 19h14"/>
@@ -148,7 +148,7 @@
             <span class="kpi-valor" id="kpiTotalCount">—</span>
             <span class="kpi-caption" id="kpiTotalMonto">Monto histórico: —</span>
           </div>
-        </button>
+        </div>
 
         <div class="kpi-card">
           <div class="kpi-icono kpi-icono--naranja">
@@ -177,36 +177,7 @@
         </div>
       </section>
 
-      <section class="tabla-seccion">
-        <div class="tabla-card tabla-card--preview">
-          <div class="tabla-header cotizaciones-header">
-            <div>
-              <h3 class="tabla-titulo" id="previewTitulo">Detalle básico de cotizaciones del mes</h3>
-              <span class="tabla-subtitulo" id="previewSubtitulo">N° cotización, fecha, cliente, vendedor y total.</span>
-            </div>
-              <span class="tabla-badge" id="previewBadge">Mes seleccionado</span>
-          </div>
-          <div class="tabla-wrapper">
-            <table class="dash-tabla">
-              <thead>
-                <tr>
-                  <th>N° Cotización</th>
-                  <th>Fecha</th>
-                  <th>Cliente / Razón social</th>
-                  <th>Vendedor</th>
-                  <th style="text-align:right">Total</th>
-                  <th style="text-align:center">Acción</th>
-                </tr>
-              </thead>
-              <tbody id="tbodyPreviewCotizaciones">
-                <tr class="tabla-empty"><td colspan="6">Cargando...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="tabla-seccion">
+            <section class="tabla-seccion">
         <div class="tabla-card tabla-card--listado">
           <div class="tabla-header">
             <div>
@@ -260,11 +231,16 @@
         <button class="cotizaciones-modal__close" type="button" data-close="true">×</button>
       </div>
       <div class="cotizaciones-modal__summary">
-          <div><span class="summary-label">Cliente</span><strong id="modalCliente">—</strong></div>
+        <div><span class="summary-label">Cliente</span><strong id="modalCliente">—</strong></div>
         <div><span class="summary-label">Contacto</span><strong id="modalContacto">—</strong></div>
         <div><span class="summary-label">Vendedor</span><strong id="modalVendedor">—</strong></div>
         <div><span class="summary-label">Estado</span><strong id="modalEstado">—</strong></div>
-        <div><span class="summary-label">Total</span><strong id="modalTotal">—</strong></div>
+        <div class="cotizaciones-modal__summary-total">
+          <span class="summary-label">TOTAL + IVA</span>
+          <strong id="modalTotal">—</strong>
+          <span class="summary-label summary-label--secondary">TOTAL NETO</span>
+          <strong id="modalTotalNeto">—</strong>
+        </div>
       </div>
       <div class="tabla-wrapper cotizaciones-modal__table">
         <table class="dash-tabla">

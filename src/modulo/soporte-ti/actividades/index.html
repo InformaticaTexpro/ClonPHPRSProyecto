@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Soporte TI / Actividades</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../soporte-ti.css?v=1.0.0" />
+</head>
+<body data-view="actividades">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-header"><img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" /><span class="sidebar-brand">TEXPRO</span><button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button></div><nav class="sidebar-nav" id="sidebarNav"></nav><div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar" id="userAvatar">T</div><div class="user-info"><span class="user-name" id="userName">Cargando...</span><span class="user-area" id="userArea"></span></div></div><button class="btn-logout" id="btnLogout" title="Cerrar sesión">Cerrar sesión</button></div></aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header"><div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button><h1 class="header-title">Soporte TI</h1></div><div class="header-right"><span class="header-date" id="headerDate"></span><span class="header-indicadores" id="headerIndicadores"><span class="hind-label">USD</span><span class="hind-valor">-</span><span class="hind-sep">|</span><span class="hind-label">UF</span><span class="hind-valor">-</span></span></div></header>
+    <main class="main-content">
+      <section class="page-hero">
+        <span class="page-kicker">Módulo / Soporte TI</span>
+        <h2 class="page-title">Actividades y solicitudes</h2>
+        <p class="page-subtitle">Gestiona tickets, comentarios, responsables, prioridades y estados del equipo TI.</p>
+        <div class="filters-wrap">
+          <div class="field-group"><label for="busquedaActividad">Buscar</label><input id="busquedaActividad" class="control-input" placeholder="Número, título o solicitante" /></div>
+          <div class="field-group"><label for="filtroEstadoActividad">Estado</label><select id="filtroEstadoActividad" class="control-select"><option value="">Todos</option><option value="PENDIENTE">Pendiente</option><option value="EN_PROCESO">En proceso</option><option value="EN_ESPERA">En espera</option><option value="FINALIZADA">Finalizada</option><option value="CANCELADA">Cancelada</option></select></div>
+          <div class="field-group"><label for="filtroPrioridadActividad">Prioridad</label><select id="filtroPrioridadActividad" class="control-select"><option value="">Todas</option><option value="BAJA">Baja</option><option value="MEDIA">Media</option><option value="ALTA">Alta</option><option value="CRITICA">Crítica</option></select></div>
+          <button type="button" class="btn-primary" id="btnActualizarActividades">Actualizar</button>
+          <button type="button" class="btn-secondary" id="btnNuevaActividad">Nueva actividad</button>
+        </div>
+      </section>
+      <div class="status-banner" id="soporteTiStatus" hidden></div>
+      <section class="split-layout">
+        <article class="table-card">
+          <div class="table-head"><div><h3 class="table-title">Listado de actividades</h3><p class="table-subtitle">Tickets y solicitudes del módulo.</p></div><span class="badge badge--info" id="badgeActividades">0 registros</span></div>
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table"><thead><tr><th>Número</th><th>Título</th><th>Estado</th><th>Prioridad</th><th>Equipo</th><th>Responsable</th><th>Vence</th><th>Acciones</th></tr></thead><tbody id="tbodyActividades"><tr><td colspan="8" class="table-empty">Cargando...</td></tr></tbody></table>
+          </div>
+        </article>
+        <article class="form-card">
+          <div class="table-head"><div><h3 class="table-title">Ficha de actividad</h3><p class="table-subtitle">Crea, actualiza y comenta solicitudes TI.</p></div><span class="badge badge--gray" id="badgeActividadEdicion">Nueva</span></div>
+          <form id="formActividad" class="form-grid">
+            <input type="hidden" id="actividadId" />
+            <div class="form-grid form-grid--2">
+              <div class="field-group"><label for="actividadNumero">Número</label><input id="actividadNumero" class="control-input" readonly /></div>
+              <div class="field-group"><label for="actividadEstado">Estado</label><select id="actividadEstado" class="control-select"><option value="PENDIENTE">Pendiente</option><option value="EN_PROCESO">En proceso</option><option value="EN_ESPERA">En espera</option><option value="FINALIZADA">Finalizada</option><option value="CANCELADA">Cancelada</option></select></div>
+              <div class="field-group"><label for="actividadTitulo">Título</label><input id="actividadTitulo" class="control-input" /></div>
+              <div class="field-group"><label for="actividadTipo">Tipo</label><input id="actividadTipo" class="control-input" /></div>
+              <div class="field-group"><label for="actividadSolicitante">Solicitante</label><input id="actividadSolicitante" class="control-input" /></div>
+              <div class="field-group"><label for="actividadArea">Área</label><input id="actividadArea" class="control-input" /></div>
+              <div class="field-group"><label for="actividadPrioridad">Prioridad</label><select id="actividadPrioridad" class="control-select"><option value="BAJA">Baja</option><option value="MEDIA">Media</option><option value="ALTA">Alta</option><option value="CRITICA">Crítica</option></select></div>
+              <div class="field-group"><label for="actividadEquipo">Equipo relacionado</label><select id="actividadEquipo" class="control-select"><option value="">Seleccione...</option></select></div>
+              <div class="field-group"><label for="actividadFechaSolicitud">Fecha solicitud</label><input id="actividadFechaSolicitud" type="datetime-local" class="control-input" /></div>
+              <div class="field-group"><label for="actividadFechaObjetivo">Fecha objetivo</label><input id="actividadFechaObjetivo" type="datetime-local" class="control-input" /></div>
+              <div class="field-group"><label for="actividadFechaInicio">Fecha inicio</label><input id="actividadFechaInicio" type="datetime-local" class="control-input" /></div>
+              <div class="field-group"><label for="actividadFechaCierre">Fecha cierre</label><input id="actividadFechaCierre" type="datetime-local" class="control-input" /></div>
+              <div class="field-group"><label for="actividadResponsable">Responsable</label><select id="actividadResponsable" class="control-select"><option value="">Seleccione...</option></select></div>
+              <div class="field-group"><label for="actividadDescripcion">Descripción</label><textarea id="actividadDescripcion" class="control-textarea"></textarea></div>
+              <div class="field-group"><label for="actividadObservaciones">Observaciones</label><textarea id="actividadObservaciones" class="control-textarea"></textarea></div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" id="btnLimpiarActividad">Limpiar</button>
+              <button type="submit" class="btn-primary" id="btnGuardarActividad">Guardar actividad</button>
+            </div>
+          </form>
+          <div class="form-section">
+            <h4 class="form-section-title">Comentarios e historial</h4>
+            <div class="comment-box">
+              <div class="field-group"><label for="actividadNuevoComentario">Nuevo comentario</label><textarea id="actividadNuevoComentario" class="control-textarea" placeholder="Escribe un comentario..."></textarea></div>
+              <div class="form-actions">
+                <button type="button" class="btn-secondary" id="btnAgregarComentario">Agregar comentario</button>
+                <button type="button" class="btn-ghost" id="btnCambiarEstado">Actualizar estado</button>
+              </div>
+              <div id="actividadComentariosLista" class="comment-box"></div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=1.0.0"></script>
+  <script src="../soporte-ti.js?v=1.0.0"></script>
+</body>
+</html>

@@ -25,6 +25,7 @@ final class ApiApplication
         $vendedoresService = new VendedoresService($database);
         $laboratorioService = new LaboratorioService($database);
         $cotizacionesService = new CotizacionesService($database);
+        $soporteTiService = new SoporteTiService($database);
         $dashboardService = new DashboardService($database);
         $gerenciaService = new GerenciaService($database);
         $ventasService = new VentasService($database, $analyticsService);
@@ -43,6 +44,7 @@ final class ApiApplication
             'vendedores' => $vendedoresService,
             'laboratorio' => $laboratorioService,
             'cotizaciones' => $cotizacionesService,
+            'soporte_ti' => $soporteTiService,
             'dashboard' => $dashboardService,
             'gerencia' => $gerenciaService,
             'ventas' => $ventasService,
@@ -61,6 +63,7 @@ final class ApiApplication
             '/vendedores' => require dirname(__DIR__) . '/routes/vendedores.php',
             '/laboratorio' => require dirname(__DIR__) . '/routes/laboratorio.php',
             '/cotizaciones' => require dirname(__DIR__) . '/routes/cotizaciones.php',
+            '/soporte-ti' => require dirname(__DIR__) . '/routes/soporte-ti.php',
             '/indicadores' => require dirname(__DIR__) . '/routes/indicadores.php',
             '/cartera' => require dirname(__DIR__) . '/routes/cartera.php',
             '/gerencia' => require dirname(__DIR__) . '/routes/gerencia.php',

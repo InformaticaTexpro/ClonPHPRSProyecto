@@ -261,6 +261,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
+  height: 34px;
   padding: var(--space-1);
   border-radius: var(--radius-sm);
   transition: color var(--transition-fast);
@@ -268,6 +270,11 @@ body {
 
 .btn-toggle-password:hover {
   color: var(--color-primary);
+}
+
+.toggle-password-icon {
+  display: block;
+  flex-shrink: 0;
 }
 
 /* ── OPCIONES ── */

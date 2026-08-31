@@ -175,13 +175,6 @@ final class CotizacionesService
                 LEFT JOIN [PRODIN].[softland].[cwtauxi] a ON LTRIM(RTRIM(a.CodAux)) = LTRIM(RTRIM(c.CodAux))";
     }
 
-    private function itemsSubquery(): string
-    {
-        return "(SELECT CotNum, COUNT(*) AS items
-                   FROM [PRODIN].[softland].[nwdetcot]
-                  GROUP BY CotNum) d";
-    }
-
     private function mapRow(array $row): array
     {
         $codigoCliente = trim((string)($row['CodAux'] ?? ''));
@@ -204,8 +197,8 @@ final class CotizacionesService
             'CtTotalDesc' => (float)($row['CtTotalDesc'] ?? 0),
             'CtNetoExento' => (float)($row['CtNetoExento'] ?? 0),
             'CtNetoAfecto' => (float)($row['CtNetoAfecto'] ?? 0),
+            'TotalNeto' => (float)($row['TotalNeto'] ?? (($row['CtNetoExento'] ?? 0) + ($row['CtNetoAfecto'] ?? 0))),
             'CtMonto' => (float)($row['CtMonto'] ?? 0),
-            'items' => (int)($row['items'] ?? 0),
         ];
     }
 
@@ -243,12 +236,10 @@ final class CotizacionesService
                     CAST(ISNULL(c.CtTotalDesc, 0) AS FLOAT) AS CtTotalDesc,
                     CAST(ISNULL(c.CtNetoExento, 0) AS FLOAT) AS CtNetoExento,
                     CAST(ISNULL(c.CtNetoAfecto, 0) AS FLOAT) AS CtNetoAfecto,
-                    CAST(ISNULL(c.CtMonto, 0) AS FLOAT) AS CtMonto,
-                    ISNULL(d.items, 0) AS items
+                    CAST(ISNULL(c.CtMonto, 0) AS FLOAT) AS CtMonto
                  " . $this->baseFromClause() . "
-                 LEFT JOIN " . $this->itemsSubquery() . " ON d.CotNum = c.CotNum
                  WHERE {$where}
-                 GROUP BY c.CotNum, c.CtFem, c.CodAux, a.NomAux, c.NomCon, c.VenCod, v.VenDes, c.CtEstado, c.CtSubTotal, c.CtTotalDesc, c.CtNetoExento, c.CtNetoAfecto, c.CtMonto, d.items
+                 GROUP BY c.CotNum, c.CtFem, c.CodAux, a.NomAux, c.NomCon, c.VenCod, v.VenDes, c.CtEstado, c.CtSubTotal, c.CtTotalDesc, c.CtNetoExento, c.CtNetoAfecto, c.CtMonto
                  ORDER BY c.CtFem DESC, c.CotNum DESC";
         $rowsParams = $params;
         if ($limit > 0) {
@@ -303,8 +294,12 @@ final class CotizacionesService
     {
         $scope = $this->currentScope($query);
         $page = max(1, (int)($query['page'] ?? $query['pagina'] ?? 1));
-        $limit = (int)($query['limit'] ?? $query['por_pagina'] ?? 20);
-        $limit = $limit <= 0 ? 20 : min($limit, 100);
+        if (array_key_exists('limit', $query) || array_key_exists('por_pagina', $query)) {
+            $limit = (int)($query['limit'] ?? $query['por_pagina'] ?? 20);
+            $limit = $limit < 0 ? 20 : $limit;
+        } else {
+            $limit = 20;
+        }
         $offset = ($page - 1) * $limit;
 
         $data = $this->fetchPage($payload, $query, $scope, $limit, $offset);
@@ -395,6 +390,7 @@ final class CotizacionesService
                 CAST(ISNULL(c.CtTotalDesc, 0) AS FLOAT) AS CtTotalDesc,
                 CAST(ISNULL(c.CtNetoExento, 0) AS FLOAT) AS CtNetoExento,
                 CAST(ISNULL(c.CtNetoAfecto, 0) AS FLOAT) AS CtNetoAfecto,
+                CAST(ISNULL(c.CtNetoExento, 0) + ISNULL(c.CtNetoAfecto, 0) AS FLOAT) AS TotalNeto,
                 CAST(ISNULL(c.CtMonto, 0) AS FLOAT) AS CtMonto
              " . $this->baseFromClause() . "
              WHERE {$where}",

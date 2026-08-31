@@ -310,6 +310,26 @@
   background: #fafbff;
 }
 
+.cotizaciones-modal__summary-total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 226, 167, .18);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(0, 226, 167, .08), #fafbff);
+}
+
+.cotizaciones-modal__summary-total strong {
+  font-size: 1.18rem;
+  line-height: 1.15;
+  color: var(--color-black, #1A1D23);
+}
+
+.summary-label--secondary {
+  margin-top: 6px;
+}
+
 .summary-label {
   font-size: .7rem;
   text-transform: uppercase;
@@ -329,6 +349,10 @@
 @media (max-width: 1100px) {
   .cotizaciones-modal__summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cotizaciones-modal__summary-total {
+    grid-column: 1 / -1;
   }
 }
 

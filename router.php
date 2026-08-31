@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+$host = (string)($_SERVER['HTTP_HOST'] ?? '');
+if ($host !== '' && preg_match('/^localhost(?::(?P<port>\d+))?$/i', $host, $m)) {
+    $port = isset($m['port']) && $m['port'] !== '' ? ':' . $m['port'] : '';
+    $target = '127.0.0.1' . $port;
+    $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+    header('Location: http://' . $target . $uri, true, 302);
+    return true;
+}
+
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $path = is_string($path) && $path !== '' ? rawurldecode($path) : '/';
 

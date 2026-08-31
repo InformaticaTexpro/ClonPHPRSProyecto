@@ -11,7 +11,6 @@
     total: 0,
     page: 1,
     limit: 20,
-    activePreview: 'month',
   };
 
   function formatCLP(value) {
@@ -153,56 +152,6 @@
     setText('kpiMontoTotal', formatCLP(total.montoCotizado || 0));
   }
 
-  function previewData(tipo) {
-    if (!estado.resumen) return [];
-    return tipo === 'total'
-      ? (estado.resumen.total?.preview || [])
-      : (estado.resumen.mes?.preview || []);
-  }
-
-  function setPreviewTipo(tipo) {
-    estado.activePreview = tipo === 'total' ? 'total' : 'month';
-    document.querySelectorAll('[data-preview]').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.preview === estado.activePreview);
-    });
-    const titulo = estado.activePreview === 'total'
-      ? 'Detalle básico de cotizaciones históricas'
-      : 'Detalle básico de cotizaciones del mes';
-    const badge = estado.activePreview === 'total' ? 'Históricas' : 'Mes seleccionado';
-    const subtitulo = estado.activePreview === 'total'
-      ? 'Últimos registros visibles del histórico de cotizaciones.'
-      : 'Últimos registros visibles del período seleccionado.';
-    setText('previewTitulo', titulo);
-    setText('previewSubtitulo', subtitulo);
-    setText('previewBadge', badge);
-    renderPreview();
-  }
-
-  function renderPreview() {
-    const tbody = document.getElementById('tbodyPreviewCotizaciones');
-    if (!tbody) return;
-    const data = previewData(estado.activePreview);
-    if (!data.length) {
-      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin cotizaciones para mostrar</td></tr>';
-      return;
-    }
-    tbody.innerHTML = data.map(row => `
-      <tr>
-        <td><strong>${escHtml(row.CotNum)}</strong></td>
-        <td>${escHtml(row.fecha_formato || '—')}</td>
-        <td>${escHtml(row.Cliente || row.cliente || row.CodAux || '—')}</td>
-        <td>${escHtml(row.VenCod || '—')}</td>
-        <td style="text-align:right">${formatCLP(row.CtMonto || 0)}</td>
-        <td style="text-align:center">
-          <button class="btn-buscar btn-buscar--ghost" type="button" data-detalle="${escHtml(row.CotNum)}">Ver detalle</button>
-        </td>
-      </tr>
-    `).join('');
-    tbody.querySelectorAll('[data-detalle]').forEach(btn => {
-      btn.addEventListener('click', () => abrirDetalle(btn.dataset.detalle));
-    });
-  }
-
   function renderListado() {
     const tbody = document.getElementById('tbodyCotizaciones');
     if (!tbody) return;
@@ -270,7 +219,6 @@
     const data = await fetchJson(`${API}/resumen?${new URLSearchParams(getFilters())}`);
     estado.resumen = data;
     renderResumenCards();
-    renderPreview();
   }
 
   async function cargarListado() {
@@ -332,6 +280,7 @@
       setText('modalVendedor', cot.VenCod || '—');
       setText('modalEstado', cot.CtEstado || '—');
       setText('modalTotal', formatCLP(cot.CtMonto || 0));
+      setText('modalTotalNeto', formatCLP(cot.TotalNeto || cot.totalNeto || 0));
       const detalle = Array.isArray(cot.detalle) ? cot.detalle : [];
       if (!detalle.length) {
         tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin detalle disponible</td></tr>';
@@ -384,9 +333,6 @@
       });
     });
 
-    document.querySelectorAll('[data-preview]').forEach(btn => {
-      btn.addEventListener('click', () => setPreviewTipo(btn.dataset.preview));
-    });
     document.getElementById('modalCotizacion')?.addEventListener('click', event => {
       if (event.target instanceof HTMLElement && event.target.dataset.close === 'true') {
         cerrarModal();
@@ -412,7 +358,6 @@
     initSelectores();
     initHeader();
     bindEvents();
-    setPreviewTipo('month');
     cargarTodo();
   }
 

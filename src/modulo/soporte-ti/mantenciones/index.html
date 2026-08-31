@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Soporte TI / Mantenciones</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../soporte-ti.css?v=1.0.0" />
+</head>
+<body data-view="mantenciones">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-header"><img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" /><span class="sidebar-brand">TEXPRO</span><button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button></div><nav class="sidebar-nav" id="sidebarNav"></nav><div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar" id="userAvatar">T</div><div class="user-info"><span class="user-name" id="userName">Cargando...</span><span class="user-area" id="userArea"></span></div></div><button class="btn-logout" id="btnLogout" title="Cerrar sesión">Cerrar sesión</button></div></aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header"><div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button><h1 class="header-title">Soporte TI</h1></div><div class="header-right"><span class="header-date" id="headerDate"></span><span class="header-indicadores" id="headerIndicadores"><span class="hind-label">USD</span><span class="hind-valor">-</span><span class="hind-sep">|</span><span class="hind-label">UF</span><span class="hind-valor">-</span></span></div></header>
+    <main class="main-content">
+      <section class="page-hero">
+        <span class="page-kicker">Módulo / Soporte TI</span>
+        <h2 class="page-title">Mantenciones</h2>
+        <p class="page-subtitle">Registra mantenciones correctivas y preventivas asociadas a equipos del inventario.</p>
+        <div class="filters-wrap">
+          <div class="field-group"><label for="busquedaMantencion">Buscar</label><input id="busquedaMantencion" class="control-input" placeholder="Equipo, técnico o motivo" /></div>
+          <button type="button" class="btn-primary" id="btnActualizarMantenciones">Actualizar</button>
+          <button type="button" class="btn-secondary" id="btnNuevaMantencion">Nueva mantención</button>
+        </div>
+      </section>
+      <div class="status-banner" id="soporteTiStatus" hidden></div>
+      <section class="split-layout">
+        <article class="table-card">
+          <div class="table-head"><div><h3 class="table-title">Listado de mantenciones</h3><p class="table-subtitle">Intervenciones asociadas a equipos.</p></div><span class="badge badge--info" id="badgeMantenciones">0 registros</span></div>
+          <div class="table-wrap table-wrap--tall table-wrap--mantenciones">
+            <table class="data-table data-table--mantenciones">
+              <thead>
+                <tr>
+                  <th>Equipo</th>
+                  <th>Tipo</th>
+                  <th>Motivo</th>
+                  <th>Fecha inicio</th>
+                  <th>Fecha mantención</th>
+                  <th>Técnico</th>
+                  <th>Resultado</th>
+                  <th>Mantención</th>
+                  <th>SO reinstalado</th>
+                  <th>Drivers OK</th>
+                  <th>Disco revisado</th>
+                  <th>Observaciones</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyMantenciones"><tr><td colspan="13" class="table-empty">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="form-card">
+          <div class="table-head"><div><h3 class="table-title">Registrar mantención</h3><p class="table-subtitle">Formulario simple para crear o editar una mantención.</p></div><span class="badge badge--gray" id="badgeMantencionEdicion">Nueva</span></div>
+          <form id="formMantencion" class="form-grid">
+            <input type="hidden" id="mantencionId" />
+            <div class="form-grid form-grid--2">
+              <div class="field-group"><label for="mantencionEquipo">Equipo</label><select id="mantencionEquipo" class="control-select"><option value="">Seleccione...</option></select></div>
+              <div class="field-group"><label for="mantencionTipo">Tipo mantención</label><input id="mantencionTipo" class="control-input" /></div>
+              <div class="field-group field-group--full"><label for="mantencionMotivo">Motivo</label><input id="mantencionMotivo" class="control-input" /></div>
+              <div class="field-group"><label for="mantencionTecnico">Técnico responsable</label><input id="mantencionTecnico" class="control-input" /></div>
+              <div class="field-group"><label for="mantencionFechaInicio">Fecha inicio</label><input id="mantencionFechaInicio" type="date" class="control-input" /></div>
+              <div class="field-group"><label for="mantencionFechaMantencion">Fecha mantención</label><input id="mantencionFechaMantencion" type="date" class="control-input" /></div>
+              <div class="field-group"><label for="mantencionResultado">Resultado</label><select id="mantencionResultado" name="resultado" class="control-select">
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="COMPLETADA">Completada</option>
+                <option value="REQUIERE SEGUIMIENTO">Requiere seguimiento</option>
+                <option value="NO RESUELTA">No resuelta</option>
+              </select></div>
+              <div class="field-group"><label for="mantencionDescripcion">Mantención</label><select id="mantencionDescripcion" class="control-select"><option value="">-</option><option value="1">Sí</option><option value="0">No</option></select></div>
+              <label class="field-group"><span class="field-label">SO reinstalado</span><select id="mantencionSo" class="control-select"><option value="">-</option><option value="1">Sí</option><option value="0">No</option></select></label>
+              <label class="field-group"><span class="field-label">Drivers OK</span><select id="mantencionDrivers" class="control-select"><option value="">-</option><option value="1">Sí</option><option value="0">No</option></select></label>
+              <label class="field-group"><span class="field-label">Disco revisado</span><select id="mantencionDisco" class="control-select"><option value="">-</option><option value="1">Sí</option><option value="0">No</option></select></label>
+              <div class="field-group field-group--full"><label for="mantencionObs">Observaciones</label><textarea id="mantencionObs" class="control-textarea"></textarea></div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" id="btnLimpiarMantencion">Limpiar</button>
+              <button type="submit" class="btn-primary" id="btnGuardarMantencion">Guardar mantención</button>
+            </div>
+          </form>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=1.0.0"></script>
+  <script src="../soporte-ti.js?v=1.0.0"></script>
+</body>
+</html>

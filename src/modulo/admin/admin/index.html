@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -44,7 +44,7 @@
         </button>
         <div class="header-copy">
           <h1 class="header-title">Panel de Administración</h1>
-          <p class="header-subtitle">Gestión centralizada de usuarios, menús, perfiles y accesos heredados.</p>
+          <p class="header-subtitle">Gestión centralizada de usuarios, menús, perfiles y trazabilidad de accesos.</p>
         </div>
       </div>
       <div class="header-right">
@@ -74,19 +74,42 @@
 
       <section class="admin-kpis-grid" id="adminKpis"></section>
 
-      <nav class="admin-tabs" id="adminTabs" aria-label="Secciones de administración">
-        <button class="admin-tab is-active" data-tab="resumen" type="button">Resumen</button>
-        <button class="admin-tab" data-tab="usuarios" type="button">Usuarios</button>
-        <button class="admin-tab" data-tab="permisos" type="button">Accesos por usuario</button>
-        <button class="admin-tab" data-tab="perfiles" type="button">Perfiles</button>
-        <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
-        <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
-        <button class="admin-tab" data-tab="asignaciones" type="button">Asignación vendedores</button>
-        <button class="admin-tab" data-tab="metas" type="button">Metas vendedores</button>
-        <button class="admin-tab" data-tab="auditoria" type="button">Auditoría</button>
-      </nav>
+      <section class="admin-shell">
+        <aside class="admin-nav" aria-label="Navegación interna de administración">
+          <div class="admin-nav__header">
+            <span class="admin-nav__kicker">Navegación interna</span>
+            <h3>Administración</h3>
+            <p>Accede por bloques para mantener una vista más limpia y rápida.</p>
+          </div>
+          <nav class="admin-tabs admin-tabs--stacked" id="adminTabs" aria-label="Secciones de administración">
+            <div class="admin-nav-group">
+              <span class="admin-nav-group__label">GENERAL</span>
+              <button class="admin-tab is-active" data-tab="resumen" type="button">Resumen</button>
+            </div>
+            <div class="admin-nav-group">
+              <span class="admin-nav-group__label">USUARIOS Y ACCESOS</span>
+              <button class="admin-tab" data-tab="usuarios" type="button">Usuarios</button>
+              <button class="admin-tab" data-tab="permisos" type="button">Accesos por usuario</button>
+              <button class="admin-tab" data-tab="perfiles" type="button">Perfiles</button>
+            </div>
+            <div class="admin-nav-group">
+              <span class="admin-nav-group__label">CONFIGURACIÓN DEL SISTEMA</span>
+              <button class="admin-tab" data-tab="menus" type="button">Menús y módulos</button>
+              <button class="admin-tab" data-tab="areas" type="button">Áreas</button>
+            </div>
+            <div class="admin-nav-group">
+              <span class="admin-nav-group__label">VENTAS</span>
+              <button class="admin-tab" data-tab="asignaciones" type="button">Asignación vendedores</button>
+              <button class="admin-tab" data-tab="metas" type="button">Metas vendedores</button>
+            </div>
+            <div class="admin-nav-group">
+              <span class="admin-nav-group__label">CONTROL</span>
+              <button class="admin-tab" data-tab="auditoria" type="button">Auditoría</button>
+            </div>
+          </nav>
+        </aside>
 
-      <section class="admin-panels">
+        <section class="admin-panels">
         <section class="admin-panel is-active" data-panel="resumen">
           <div class="panel-card panel-card--split admin-summary-card">
             <div class="panel-card__header">
@@ -149,7 +172,7 @@
               </select>
             </div>
             <div class="form-section-note admin-explainer">
-              Aquí administras datos operativos del usuario y sus relaciones comerciales. La autorización efectiva se revisa en <strong>Accesos por usuario</strong> y la fuente principal siempre es <strong>Perfiles</strong>.
+              Aquí administras datos operativos del usuario y sus relaciones comerciales. La autorización efectiva combina <strong>Perfiles</strong> con accesos directos trazados y la sesión se refresca automáticamente.
             </div>
             <div class="table-scroll">
               <table class="admin-table">
@@ -182,23 +205,18 @@
               </div>
             </div>
             <div class="form-section-note admin-explainer">
-              La autorización real se define desde perfiles. Esta vista sirve para revisar qué recibe cada usuario por herencia y qué queda bloqueado.
+              La autorización efectiva se calcula en backend y esta vista solo consulta el estado real de cada menú.
             </div>
             <div class="permission-topbar">
               <select class="input-control" id="permUserSelect"></select>
               <div class="permission-summary">
-                <span class="summary-chip">Heredados: <strong id="permAllowedCount">0</strong></span>
+                <span class="summary-chip">Efectivos: <strong id="permAllowedCount">0</strong></span>
+                <span class="summary-chip">Heredados: <strong id="permInheritedCount">0</strong></span>
+                <span class="summary-chip">Directos: <strong id="permDirectCount">0</strong></span>
                 <span class="summary-chip">Bloqueados: <strong id="permBlockedCount">0</strong></span>
               </div>
             </div>
-            <div class="permission-actions">
-              <button class="btn-secondary" id="permSelectAll" type="button">Seleccionar todos</button>
-              <button class="btn-secondary" id="permClearAll" type="button">Quitar todos</button>
-              <select class="input-control" id="permAreaSelect"></select>
-              <button class="btn-secondary" id="permRestoreArea" type="button">Aplicar sugeridos por área</button>
-              <button class="btn-primary" id="permSave" type="button">Guardar cambios</button>
-            </div>
-            <div class="inline-help">Busca por nombre, correo o área. La edición quedó deshabilitada porque los accesos ahora se administran desde perfiles.</div>
+            <div class="inline-help">Vista de consulta. Los permisos se editan en perfiles; aquí solo se muestra el resultado efectivo.</div>
             <div class="permission-grid" id="permGroups"></div>
           </div>
         </section>
@@ -494,9 +512,9 @@
           </div>
         </section>
       </section>
+      </section>
     </main>
   </div>
-
   <div class="drawer-overlay" id="drawerOverlay" aria-hidden="true">
     <div class="drawer">
       <div class="drawer__header">
@@ -505,7 +523,7 @@
           <h3 id="drawerTitle">Nuevo usuario</h3>
           <p id="drawerSubtitle">Formulario conectado a la API real.</p>
         </div>
-        <button class="drawer__close" id="drawerClose" type="button" aria-label="Cerrar">✖</button>
+        <button class="drawer__close" id="drawerClose" type="button" aria-label="Cerrar">✕</button>
       </div>
       <div class="drawer__body" id="drawerBody"></div>
       <div class="drawer__footer">
@@ -519,11 +537,9 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="admin.js?v=1.0.0"></script>
-  <script src="vendedor-metas.js?v=1.0.0"></script>
+<script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+<script src="admin.js?v=1.0.0"></script>
+<script src="vendedor-metas.js?v=1.0.0"></script>
 </body>
 </html>
-
-
 

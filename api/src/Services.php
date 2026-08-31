@@ -35,7 +35,7 @@ final class AuthService
         $this->db->execute('UPDATE usuario SET last_login = NOW() WHERE id = ?', [$user['id']]);
         $vendedores = $this->load_vendedores((int)$user['id']);
         $menusData = $this->load_user_menus((int)$user['id']);
-        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus']);
+        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
         $token = Security::jwt_encode($payload, (string)env('JWT_SECRET', ''), env('JWT_EXPIRES_IN', '8h'));
 
         return [
@@ -72,6 +72,7 @@ final class AuthService
                 'vendedores' => $vendedores,
                 'perfiles' => $menusData['perfiles'],
                 'menus' => $menusData['menus'],
+                'menus_directos' => $menusData['menusDirectos'] ?? [],
             ]),
             'allMenus' => $menusData['allMenus'],
         ];
@@ -103,7 +104,7 @@ final class AuthService
 
         $vendedores = $this->load_vendedores($userId);
         $menusData = $this->load_user_menus($userId);
-        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus']);
+        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
 
         return [
             'ok' => true,
@@ -130,7 +131,19 @@ final class AuthService
     private function load_user_menus(int $userId): array
     {
         $this->ensure_common_menus();
-        $menus = $this->db->fetchAll(
+        $menusDirectos = $this->db->fetchAll(
+            'SELECT DISTINCT
+                m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
+             FROM usuario_menu um
+             INNER JOIN menu m ON m.id = um.menu_id
+             WHERE um.usuario_id = ?
+               AND um.activo = 1
+               AND m.activo = 1
+             ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC',
+            [$userId]
+        );
+
+        $menusHeredados = $this->db->fetchAll(
             'SELECT DISTINCT
                 m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
              FROM menu m
@@ -148,6 +161,17 @@ final class AuthService
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC',
             [$userId]
         );
+
+        $menus = array_values(array_filter(
+            array_map([self::class, 'normalize_menu'], array_merge($menusHeredados, $menusDirectos)),
+            static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''
+        ));
+        $menus = self::unique_menus($menus);
+        usort($menus, static function (array $left, array $right): int {
+            return ($left['orden'] <=> $right['orden'])
+                ?: strcmp((string)$left['grupo'], (string)$right['grupo'])
+                ?: strcmp((string)$left['nombre'], (string)$right['nombre']);
+        });
 
         $perfiles = $this->db->fetchAll(
             'SELECT DISTINCT
@@ -169,10 +193,7 @@ final class AuthService
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC'
         );
 
-        $menus = array_values(array_filter(
-            array_map([self::class, 'normalize_menu'], $menus),
-            static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''
-        ));
+        $menusDirectos = array_values(array_filter(array_map([self::class, 'normalize_menu'], $menusDirectos), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
         $allMenus = array_values(array_filter(array_map([self::class, 'normalize_menu'], $allMenus), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
         $perfiles = array_values(array_filter(array_map(static function (array $perfil): array {
             return [
@@ -184,7 +205,7 @@ final class AuthService
             ];
         }, $perfiles), static fn ($perfil) => $perfil['id'] !== null));
 
-        return compact('menus', 'perfiles', 'allMenus');
+        return compact('menus', 'menusDirectos', 'perfiles', 'allMenus');
     }
 
     private function ensure_common_menus(): void
@@ -260,8 +281,130 @@ final class AuthService
             ]
         );
 
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_dashboard',
+                'Dashboard',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/dashboard/index.html',
+                'TI',
+                1,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_equipos',
+                'Equipos',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/equipos/index.html',
+                'EQ',
+                2,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_actividades',
+                'Actividades',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/actividades/index.html',
+                'AC',
+                3,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_mantenciones',
+                'Mantenciones',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/mantenciones/index.html',
+                'MT',
+                4,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_bodega',
+                'Bodega TI',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/bodega/index.html',
+                'BD',
+                5,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO perfil (codigo, nombre, descripcion, area, es_base, activo)
+             VALUES (?, ?, ?, ?, 1, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               descripcion = VALUES(descripcion),
+               area = VALUES(area),
+               es_base = VALUES(es_base),
+               activo = VALUES(activo)',
+            [
+                'soporte-ti',
+                'Soporte TI',
+                'Perfil base para Soporte TI',
+                'soporte-ti',
+            ]
+        );
+
         $this->ensure_menu_profile_access('laboratorio_ingreso_muestras', ['laboratorio', 'gerencia', 'administracion', 'admin']);
         $this->ensure_menu_profile_access('ventas_cotizaciones', ['ventas', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_dashboard', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_equipos', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_actividades', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_mantenciones', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_bodega', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
     }
 
     private function ensure_menu_profile_access(string $menuCode, array $profileCodes): void
@@ -306,7 +449,20 @@ final class AuthService
         ];
     }
 
-    private function build_payload(array $user, array $vendedores, array $perfiles, array $menus): array
+    private static function unique_menus(array $menus): array
+    {
+        $indexed = [];
+        foreach ($menus as $menu) {
+            $id = isset($menu['id']) ? (int)$menu['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $indexed[$id] = $menu;
+        }
+        return array_values($indexed);
+    }
+
+    private function build_payload(array $user, array $vendedores, array $perfiles, array $menus, array $menusDirectos = []): array
     {
         return [
             'id' => (int)$user['id'],
@@ -318,6 +474,7 @@ final class AuthService
             'vendedores' => $vendedores,
             'perfiles' => $perfiles,
             'menus' => $menus,
+            'menus_directos' => $menusDirectos,
         ];
     }
 }

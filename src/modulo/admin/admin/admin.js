@@ -38,6 +38,7 @@
     selectedAreaId: null,
     selectedAreaProfileId: null,
     permissionsDraft: new Set(),
+    permissionAccess: null,
     profileMenuDraft: new Set(),
     profileUserDraft: new Set(),
     vendorEditCode: '',
@@ -73,10 +74,16 @@
     return Number(user?.id || user?.sub || user?.usuario_id || 0) || null;
   }
 
-  async function verificarAccesoAdmin() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  function getAuthToken() {
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  }
+
+  async function syncAuthContext({ redirectOnFail = false } = {}) {
+    const token = getAuthToken();
     if (!token) {
-      window.location.href = '/src/modulo/varios/login/index.html';
+      if (redirectOnFail) {
+        window.location.href = '/src/modulo/varios/login/index.html';
+      }
       return null;
     }
 
@@ -103,12 +110,25 @@
       sessionStorage.setItem('texpro_user', payload);
       localStorage.setItem('user', payload);
       localStorage.setItem('usuario', payload);
+      window.dispatchEvent(new CustomEvent('texpro:auth-updated', { detail: { user } }));
 
       return user;
     } catch (error) {
+      if (redirectOnFail) {
+        window.location.href = '/src/modulo/varios/login/index.html';
+      }
+      return null;
+    }
+  }
+
+  async function verificarAccesoAdmin() {
+    const token = getAuthToken();
+    if (!token) {
       window.location.href = '/src/modulo/varios/login/index.html';
       return null;
     }
+
+    return syncAuthContext({ redirectOnFail: true });
   }
 
   function normalizeText(value) {
@@ -1140,8 +1160,10 @@
 
     try {
       const response = await apiFetch(`/usuarios/${userId}/menus`);
-      const assigned = Array.isArray(response.data) ? response.data : [];
-      state.permissionsDraft = new Set(assigned.map(menu => Number(menu.id)));
+      const access = response.data || {};
+      const menus = Array.isArray(access.menus) ? access.menus : [];
+      state.permissionAccess = access;
+      state.permissionsDraft = new Set(menus.filter(menu => menu.permitido).map(menu => Number(menu.id)));
       state.selectedPermUserId = Number(userId);
       renderPermissionSelects();
       renderPermissionSummary();
@@ -1152,11 +1174,18 @@
   }
 
   function renderPermissionSummary() {
-    const allowed = state.permissionsDraft.size;
-    const blocked = state.menus.length - allowed;
+    const summary = state.permissionAccess?.resumen || {};
+    const allowed = Number(summary.efectivos ?? state.permissionsDraft.size ?? 0);
+    const direct = Number(summary.directos ?? 0);
+    const inherited = Number(summary.heredados ?? Math.max(allowed - direct, 0));
+    const blocked = Number(summary.bloqueados ?? Math.max(state.menus.length - allowed, 0));
     const allowedCount = document.getElementById('permAllowedCount');
+    const directCount = document.getElementById('permDirectCount');
+    const inheritedCount = document.getElementById('permInheritedCount');
     const blockedCount = document.getElementById('permBlockedCount');
     if (allowedCount) allowedCount.textContent = String(allowed);
+    if (directCount) directCount.textContent = String(direct);
+    if (inheritedCount) inheritedCount.textContent = String(inherited);
     if (blockedCount) blockedCount.textContent = String(Math.max(blocked, 0));
   }
 
@@ -1164,8 +1193,17 @@
     const container = document.getElementById('permGroups');
     if (!container) return;
 
-    const selected = selectedPermissionUser();
-    const grouped = groupMenus(state.menus);
+    const sourceMenus = Array.isArray(state.permissionAccess?.menus) && state.permissionAccess.menus.length
+      ? state.permissionAccess.menus
+      : state.menus.map(menu => ({
+          ...menu,
+          permitido: false,
+          origen: 'ninguno',
+          perfiles: [],
+          directo: false,
+        }));
+
+    const grouped = groupMenus(sourceMenus);
     if (!grouped.length) {
       container.innerHTML = '<div class="mini-empty">Sin menús para mostrar.</div>';
       return;
@@ -1179,16 +1217,23 @@
         </div>
         <div class="permission-list">
           ${group.items.map(menu => {
-            const checked = state.permissionsDraft.has(Number(menu.id));
-            const inheritedWarning = renderMenuStatusHint(menu.codigo, selected);
+            const checked = Boolean(menu.permitido);
+            const badgeLabel = !checked
+              ? 'Bloqueado'
+              : menu.origen === 'directo'
+                ? 'Asignado'
+                : 'Heredado';
+            const perfiles = Array.isArray(menu.perfiles) && menu.perfiles.length
+              ? menu.perfiles.map(perfil => perfil.nombre || perfil.codigo).filter(Boolean).join(', ')
+              : '';
             return `
               <label class="permission-item">
                 <span class="permission-item__label">
                   <input type="checkbox" data-permission-id="${escHtml(menu.id)}" ${checked ? 'checked' : ''} disabled />
                   <strong>${escHtml(menu.nombre)}</strong>
                 </span>
-                <span class="badge ${checked ? 'badge--ok' : 'badge--blocked'}">${checked ? 'Heredado' : 'Bloqueado'}</span>
-                ${inheritedWarning}
+                <span class="badge ${checked ? (menu.origen === 'directo' ? 'badge--info' : 'badge--ok') : 'badge--blocked'}">${escHtml(badgeLabel)}</span>
+                ${perfiles ? `<small class="field-help">Perfil(es): ${escHtml(perfiles)}</small>` : ''}
               </label>
             `;
           }).join('')}
@@ -1204,13 +1249,6 @@
     renderPermissionSelects();
     renderPermissionSummary();
     renderPermissionGroups();
-    ['permSelectAll', 'permClearAll', 'permRestoreArea', 'permSave'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.disabled = true;
-        el.title = 'Los accesos se gestionan desde perfiles.';
-      }
-    });
     const selected = selectedPermissionUser();
     if (selected) {
       await syncPermissionDraft(selected.id);
@@ -1785,6 +1823,7 @@
       state.loading = false;
       state.error = '';
 
+      await syncAuthContext();
       renderAll();
       if (state.selectedPermUserId) {
         await syncPermissionDraft(state.selectedPermUserId);

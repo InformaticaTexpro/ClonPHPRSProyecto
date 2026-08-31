@@ -16,6 +16,46 @@
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
   const EXTRA_ITEMS = [];
 
+  const ICON_SVGS = {
+    dashboard: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="3" y="4" width="7" height="7" rx="1.6"></rect>
+        <rect x="14" y="4" width="7" height="4" rx="1.6"></rect>
+        <rect x="14" y="10" width="7" height="10" rx="1.6"></rect>
+        <rect x="3" y="13" width="7" height="7" rx="1.6"></rect>
+      </svg>`,
+    monitor: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="3" y="5" width="18" height="12" rx="2"></rect>
+        <path d="M8 21h8"></path>
+        <path d="M12 17v4"></path>
+      </svg>`,
+    clipboard: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="5" y="4" width="14" height="16" rx="2"></rect>
+        <path d="M9 4.5h6"></path>
+        <path d="M9 11l2.2 2.2L16 8.4"></path>
+      </svg>`,
+    tools: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M14.7 3.5a4.5 4.5 0 0 0-4.2 6L4 16l-1 4 4-1 6.5-6.5a4.5 4.5 0 0 0 6-4.2l-2.7 1-2.1-2.1 1-2.7z"></path>
+        <path d="M16.8 13.2 20.5 17"></path>
+      </svg>`,
+    boxes: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Z"></path>
+        <path d="M3 7.5V17l9 4.5 9-4.5V7.5"></path>
+        <path d="M12 12v9"></path>
+      </svg>`,
+    headset: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 13a8 8 0 0 1 16 0"></path>
+        <rect x="3" y="13" width="4" height="6" rx="1.2"></rect>
+        <rect x="17" y="13" width="4" height="6" rx="1.2"></rect>
+        <path d="M7 17v2.5A2.5 2.5 0 0 0 9.5 22h2.5"></path>
+      </svg>`,
+  };
+
   const GENERAL_ITEM = {
     id: 'extra-general',
     codigo: 'general',
@@ -49,6 +89,7 @@
     Ventas: '💰',
     RRHH: '👥',
     Laboratorio: '🧪',
+    'Soporte TI': 'headset',
     Gerencia: '📈',
   };
 
@@ -66,6 +107,96 @@
       .trim()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function parseJSONSafe(raw) {
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function obtenerUsuarioLocal() {
+    const fuentes = [
+      sessionStorage.getItem('texpro_user'),
+      localStorage.getItem('user'),
+      localStorage.getItem('usuario'),
+    ];
+
+    for (const raw of fuentes) {
+      const usuario = parseJSONSafe(raw);
+      if (usuario) return usuario;
+    }
+
+    return null;
+  }
+
+  function obtenerNombreUsuario(usuario) {
+    return String(
+      usuario?.nombre
+      || usuario?.name
+      || usuario?.usuario
+      || usuario?.email
+      || 'Usuario'
+    ).trim();
+  }
+
+  function obtenerAreaUsuario(usuario) {
+    return String(
+      usuario?.area
+      || usuario?.perfil_nombre
+      || usuario?.perfil
+      || ''
+    ).trim();
+  }
+
+  function obtenerInicialUsuario(usuario) {
+    const fuente = obtenerNombreUsuario(usuario) || String(usuario?.email || usuario?.usuario || 'U');
+    const partes = fuente.split(/\s+/).filter(Boolean);
+    const inicial = partes.slice(0, 2).map(parte => parte.charAt(0).toUpperCase()).join('');
+    return inicial || 'U';
+  }
+
+  function renderUsuarioSidebar(usuario) {
+    const avatar = document.getElementById('userAvatar');
+    const nombreEl = document.getElementById('userName');
+    const areaEl = document.getElementById('userArea');
+
+    if (!usuario) {
+      if (avatar) avatar.textContent = '?';
+      if (nombreEl) nombreEl.textContent = 'Sin sesión activa';
+      if (areaEl) areaEl.textContent = '';
+      return;
+    }
+
+    const nombre = obtenerNombreUsuario(usuario);
+    const area = obtenerAreaUsuario(usuario);
+    const inicial = obtenerInicialUsuario(usuario);
+
+    if (avatar) avatar.textContent = inicial;
+    if (nombreEl) nombreEl.textContent = nombre;
+    if (areaEl) areaEl.textContent = area;
+  }
+
+  function renderIconMarkup(icono, fallback = '•', className = 'nav-icon') {
+    const key = normalizarTexto(icono).toLowerCase();
+    const svg = ICON_SVGS[key];
+    if (svg) {
+      return `<span class="${className} nav-icon--svg nav-icon--${key}" aria-hidden="true">${svg}</span>`;
+    }
+
+    const text = String(icono || fallback).trim() || fallback;
+    return `<span class="${className} nav-icon--text" aria-hidden="true">${escapeHtml(text)}</span>`;
   }
 
   function normalizarUrl(url) {
@@ -223,6 +354,10 @@
     const objetivo = normalizarTexto(codigo);
     if (!objetivo) return false;
     return (Array.isArray(usuario?.menus) ? usuario.menus : []).some(menu => normalizarTexto(menu?.codigo) === objetivo);
+  }
+
+  function obtenerTokenSesion() {
+    return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   }
 
   function extraerCatalogo(data) {
@@ -401,8 +536,30 @@
       .nav-module-icon {
         width: 20px !important;
         min-width: 20px !important;
-        text-align: center !important;
-        font-size: 1rem !important;
+        height: 20px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 20px !important;
+      }
+      .nav-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 20px !important;
+        height: 20px !important;
+        color: currentColor !important;
+        flex: 0 0 20px !important;
+      }
+      .nav-icon svg {
+        width: 20px !important;
+        height: 20px !important;
+        display: block !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 2 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
       }
       .nav-module-label {
         flex: 1 !important;
@@ -460,6 +617,25 @@
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+      }
+      .nav-subitem .nav-item-icon {
+        width: 18px !important;
+        min-width: 18px !important;
+        height: 18px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 18px !important;
+      }
+      .nav-subitem .nav-item-icon svg {
+        width: 18px !important;
+        height: 18px !important;
+        display: block !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 2 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
       }
       .nav-extra-badge {
         display: inline-flex !important;
@@ -593,6 +769,7 @@
         margin-left: 0 !important;
       }
       .sidebar--collapsed .nav-module-icon,
+      .sidebar--collapsed .nav-icon,
       .sidebar--collapsed .nav-item > span:first-child,
       .sidebar--collapsed .sidebar-nav a > span:first-child {
         width: 28px !important;
@@ -869,7 +1046,7 @@
     return `
       <div class="nav-module ${abierto ? 'is-open' : ''}">
         <button class="nav-module-btn ${abierto ? 'is-open' : ''}" type="button" aria-expanded="${abierto ? 'true' : 'false'}">
-          <span class="nav-module-icon">${grupo.icono || '📁'}</span>
+          ${renderIconMarkup(grupo.icono || 'folder', '•', 'nav-module-icon')}
           <span class="nav-module-label">${grupo.nombre}</span>
           <span class="nav-module-chevron">▶</span>
         </button>
@@ -879,7 +1056,7 @@
             const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
             return `
               <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
-                <span>${item.icono}</span>
+                ${renderIconMarkup(item.icono, '•', 'nav-item-icon')}
                 <span class="nav-label">${item.nombre}</span>
                 ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
               </a>
@@ -1833,7 +2010,7 @@
 
   async function obtenerContextoSidebar() {
     try {
-      const token = localStorage.getItem('token');
+      const token = obtenerTokenSesion();
       if (!token) return null;
 
       const res = await fetch('/api/auth/me', {
@@ -1849,16 +2026,19 @@
     }
   }
 
-  async function init() {
+  async function cargarSidebarDesdeSesion() {
     const nav = document.getElementById('sidebarNav');
     if (nav) {
       inyectarEstilos();
       nav.innerHTML = '<div class="nav-loading">Cargando menús...</div>';
     }
 
+    renderUsuarioSidebar(obtenerUsuarioLocal());
+
     const data = await obtenerContextoSidebar();
     if (!data?.user) {
       if (nav) nav.innerHTML = '<div class="nav-empty">Sin sesión activa</div>';
+      renderUsuarioSidebar(null);
       return;
     }
 
@@ -1866,15 +2046,32 @@
     const catalogo = construirCatalogo(extraerCatalogo(data));
     const indicePermisos = crearIndicePermisos(usuario?.menus);
     validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
+    renderUsuarioSidebar(usuario);
     renderSidebar(data);
     crearWidgetMensajeriaGlobal(data);
     ensureRealtimeClientLoaded();
 
-    document.getElementById('btnLogout')?.addEventListener('click', event => {
-      event.preventDefault();
-      cerrarSesion();
-    });
+    const logoutBtn = document.getElementById('btnLogout');
+    if (logoutBtn && !logoutBtn.dataset.bound) {
+      logoutBtn.addEventListener('click', event => {
+        event.preventDefault();
+        cerrarSesion();
+      });
+      logoutBtn.dataset.bound = '1';
+    }
+
+    return data;
   }
+
+  async function init() {
+    await cargarSidebarDesdeSesion();
+  }
+
+  window.addEventListener('texpro:auth-updated', () => {
+    cargarSidebarDesdeSesion().catch(err => {
+      console.warn('[app-sidebar] No se pudo refrescar el sidebar:', err.message);
+    });
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
