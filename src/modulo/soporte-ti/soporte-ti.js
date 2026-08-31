@@ -358,7 +358,14 @@
     }
   }
 
-  function resetFormEquipo() {
+  function scrollEquipoFormIntoView() {
+    const form = el('formEquipo');
+    if (form && typeof form.scrollIntoView === 'function') {
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function resetFormEquipo(shouldScroll = false) {
     closeCredentialModal();
     ['equipoId', 'equipoCodigo', 'equipoTipo', 'equipoArea', 'equipoUsuario', 'equipoRol', 'equipoIp', 'equipoFechaAlta', 'equipoFechaBaja', 'equipoLicencias', 'equipoAccesosIp', 'equipoObservaciones', 'hwCpuGen', 'hwCpuDesc', 'hwRam', 'hwRamGen', 'hwTipoFisico', 'hwDiscoP', 'hwDiscoS', 'hwEstadoDisco', 'hwPlaca', 'hwRed', 'hwWifi', 'hwSO', 'hwLicencia', 'secTipoCuenta', 'secAntivirus', 'secAntivirusActivo', 'secFirewall', 'secUltimaSO', 'secEstado', 'secObservaciones', 'credDescripcion', 'credSecreto'].forEach(id => {
       const node = el(id);
@@ -369,6 +376,7 @@
     const badge = el('badgeEquipoEdicion');
     if (badge) badge.textContent = 'Nuevo';
     state.equipoActual = null;
+    if (shouldScroll) scrollEquipoFormIntoView();
   }
 
   function resetFormActividad() {
@@ -641,9 +649,9 @@
     setBadge('badgeEquipos', `${rows.length.toLocaleString('es-CL')} registros`);
   }
 
-  function fillEquipoForm(equipo) {
+  function fillEquipoForm(equipo, shouldScroll = true) {
     if (!equipo) {
-      resetFormEquipo();
+      resetFormEquipo(shouldScroll);
       return;
     }
     closeCredentialModal();
@@ -686,11 +694,12 @@
     set('credSecreto', '');
     const badge = el('badgeEquipoEdicion');
     if (badge) badge.textContent = equipo.codigo_equipo || 'Edición';
+    if (shouldScroll) scrollEquipoFormIntoView();
   }
 
   async function loadEquipoDetalle(id) {
     const payload = await fetchJson(`/equipos/${id}`);
-    fillEquipoForm(payload.equipo);
+    fillEquipoForm(payload.equipo, true);
   }
 
   async function saveEquipo(ev) {
@@ -748,7 +757,7 @@
         method: id ? 'PUT' : 'POST',
         body: JSON.stringify(payload),
       });
-      fillEquipoForm(response.equipo);
+      fillEquipoForm(response.equipo, false);
       await loadEquipos();
       statusBanner(id ? 'Equipo actualizado correctamente' : 'Equipo creado correctamente', 'success');
     } catch (error) {
@@ -1286,9 +1295,9 @@
     const btn = el('btnActualizarEquipos');
     if (btn) btn.addEventListener('click', loadEquipos);
     const nuevo = el('btnNuevoEquipo');
-    if (nuevo) nuevo.addEventListener('click', resetFormEquipo);
+    if (nuevo) nuevo.addEventListener('click', () => resetFormEquipo(true));
     const limpiar = el('btnLimpiarEquipo');
-    if (limpiar) limpiar.addEventListener('click', resetFormEquipo);
+    if (limpiar) limpiar.addEventListener('click', () => resetFormEquipo(false));
     const form = el('formEquipo');
     if (form) form.addEventListener('submit', saveEquipo);
     const cred = el('btnCargarCredencial');
@@ -1319,7 +1328,7 @@
         if (evt.key === 'Enter') loadEquipos();
       });
     });
-    resetFormEquipo();
+    resetFormEquipo(false);
     await loadEquipos();
   }
 

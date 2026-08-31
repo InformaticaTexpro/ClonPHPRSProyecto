@@ -62,23 +62,7 @@
 
       <div class="status-banner" id="soporteTiStatus" hidden></div>
 
-      <section class="split-layout split-layout--stack">
-        <article class="table-card">
-          <div class="table-head">
-            <div>
-              <h3 class="table-title">Listado de equipos</h3>
-              <p class="table-subtitle">Selecciona un equipo para editar su ficha completa.</p>
-            </div>
-            <span class="badge badge--info" id="badgeEquipos">0 registros</span>
-          </div>
-          <div class="table-wrap table-wrap--tall">
-            <table class="data-table">
-              <thead><tr><th>Código</th><th>Tipo</th><th>Área</th><th>Usuario</th><th>IP</th><th>Estado</th><th>Estándar</th><th>Acciones</th></tr></thead>
-              <tbody id="tbodyEquipos"><tr><td colspan="8" class="table-empty">Cargando...</td></tr></tbody>
-            </table>
-          </div>
-        </article>
-
+      <section class="split-layout">
         <article class="form-card">
           <div class="table-head">
             <div>
@@ -91,7 +75,7 @@
             <input type="hidden" id="equipoId" />
             <div class="form-section">
               <h4 class="form-section-title">General</h4>
-              <div class="form-grid form-grid--2">
+              <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="equipoCodigo">Código</label><input id="equipoCodigo" class="control-input" /></div>
                 <div class="field-group"><label for="equipoTipo">Tipo</label><input id="equipoTipo" class="control-input" /></div>
                 <div class="field-group"><label for="equipoArea">Área</label><input id="equipoArea" class="control-input" /></div>
@@ -108,7 +92,7 @@
             </div>
             <div class="form-section">
               <h4 class="form-section-title">Hardware</h4>
-              <div class="form-grid form-grid--2">
+              <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="hwCpuGen">Generación procesador</label><input id="hwCpuGen" class="control-input" /></div>
                 <div class="field-group"><label for="hwCpuDesc">Descripción procesador</label><input id="hwCpuDesc" class="control-input" /></div>
                 <div class="field-group"><label for="hwRam">RAM GB</label><input id="hwRam" class="control-input" type="number" min="0" step="0.01" /></div>
@@ -126,7 +110,7 @@
             </div>
             <div class="form-section">
               <h4 class="form-section-title">Seguridad</h4>
-              <div class="form-grid form-grid--2">
+              <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="secTipoCuenta">Tipo cuenta</label><input id="secTipoCuenta" class="control-input" /></div>
                 <div class="field-group"><label for="secAntivirus">Antivirus</label><input id="secAntivirus" class="control-input" /></div>
                 <div class="field-group"><label for="secAntivirusActivo">Antivirus activo</label><select id="secAntivirusActivo" class="control-select"><option value="">-</option><option value="1">Sí</option><option value="0">No</option></select></div>
@@ -151,6 +135,22 @@
               <button type="submit" class="btn-primary" id="btnGuardarEquipo">Guardar equipo</button>
             </div>
           </form>
+        </article>
+
+        <article class="table-card">
+          <div class="table-head">
+            <div>
+              <h3 class="table-title">Listado de equipos</h3>
+              <p class="table-subtitle">Selecciona un equipo para editar su ficha completa.</p>
+            </div>
+            <span class="badge badge--info" id="badgeEquipos">0 registros</span>
+          </div>
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table">
+              <thead><tr><th>Código</th><th>Tipo</th><th>Área</th><th>Usuario</th><th>IP</th><th>Estado</th><th>Estándar</th><th>Acciones</th></tr></thead>
+              <tbody id="tbodyEquipos"><tr><td colspan="8" class="table-empty">Cargando...</td></tr></tbody>
+            </table>
+          </div>
         </article>
       </section>
     </main>
