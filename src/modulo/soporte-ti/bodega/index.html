@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Soporte TI / Bodega</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../soporte-ti.css?v=1.0.0" />
+</head>
+<body data-view="bodega">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-header"><img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" /><span class="sidebar-brand">TEXPRO</span><button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button></div><nav class="sidebar-nav" id="sidebarNav"></nav><div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar" id="userAvatar">T</div><div class="user-info"><span class="user-name" id="userName">Cargando...</span><span class="user-area" id="userArea"></span></div></div><button class="btn-logout" id="btnLogout" title="Cerrar sesión">Cerrar sesión</button></div></aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header"><div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button><h1 class="header-title">Soporte TI</h1></div><div class="header-right"><span class="header-date" id="headerDate"></span><span class="header-indicadores" id="headerIndicadores"><span class="hind-label">USD</span><span class="hind-valor">-</span><span class="hind-sep">|</span><span class="hind-label">UF</span><span class="hind-valor">-</span></span></div></header>
+    <main class="main-content">
+      <section class="page-hero">
+        <span class="page-kicker">Módulo / Soporte TI</span>
+        <h2 class="page-title">Bodega TI</h2>
+        <p class="page-subtitle">Control de productos, stock mínimo y movimientos de entrada/salida/ajuste.</p>
+        <div class="filters-wrap">
+          <div class="field-group"><label for="busquedaProducto">Buscar producto</label><input id="busquedaProducto" class="control-input" placeholder="Código, categoría o descripción" /></div>
+          <button type="button" class="btn-primary" id="btnActualizarBodega">Actualizar</button>
+          <button type="button" class="btn-secondary" id="btnNuevoProducto">Nuevo producto</button>
+        </div>
+      </section>
+      <div class="status-banner" id="soporteTiStatus" hidden></div>
+      <section class="stack-grid">
+        <article class="table-card">
+          <div class="table-head"><div><h3 class="table-title">Productos</h3><p class="table-subtitle">Inventario y estado de stock.</p></div><span class="badge badge--info" id="badgeProductos">0 registros</span></div>
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table"><thead><tr><th>Código</th><th>Categoría</th><th>Descripción</th><th>Stock actual</th><th>Mínimo</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tbodyProductos"><tr><td colspan="8" class="table-empty">Cargando...</td></tr></tbody></table>
+          </div>
+        </article>
+        <article class="table-card">
+          <div class="table-head"><div><h3 class="table-title">Movimientos de bodega</h3><p class="table-subtitle">Últimos ingresos, salidas y ajustes.</p></div><span class="badge badge--info" id="badgeMovimientos">0 registros</span></div>
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table"><thead><tr><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Equipo</th><th>Entregado a</th><th>Fecha</th></tr></thead><tbody id="tbodyMovimientos"><tr><td colspan="7" class="table-empty">Cargando...</td></tr></tbody></table>
+          </div>
+        </article>
+      </section>
+      <section class="stack-grid">
+        <article class="form-card">
+          <div class="table-head"><div><h3 class="table-title">Producto</h3><p class="table-subtitle">Alta o edición de insumos TI.</p></div><span class="badge badge--gray" id="badgeProductoEdicion">Nuevo</span></div>
+          <form id="formProducto" class="form-grid">
+            <input type="hidden" id="productoId" />
+            <div class="form-grid form-grid--2">
+              <div class="field-group"><label for="productoCodigo">Código</label><input id="productoCodigo" class="control-input" /></div>
+              <div class="field-group"><label for="productoCategoria">Categoría</label><input id="productoCategoria" class="control-input" /></div>
+              <div class="field-group"><label for="productoDescripcion">Descripción</label><input id="productoDescripcion" class="control-input" /></div>
+              <div class="field-group"><label for="productoStockInicial">Stock inicial</label><input id="productoStockInicial" type="number" min="0" step="0.01" class="control-input" /></div>
+              <div class="field-group"><label for="productoStockMinimo">Stock mínimo</label><input id="productoStockMinimo" type="number" min="0" step="0.01" class="control-input" /></div>
+              <div class="field-group"><label for="productoUbicacion">Ubicación</label><input id="productoUbicacion" class="control-input" /></div>
+              <label class="field-group"><span class="field-label">Activo</span><select id="productoActivo" class="control-select"><option value="1">Sí</option><option value="0">No</option></select></label>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" id="btnLimpiarProducto">Limpiar</button>
+              <button type="submit" class="btn-primary" id="btnGuardarProducto">Guardar producto</button>
+            </div>
+          </form>
+        </article>
+        <article class="form-card">
+          <div class="table-head"><div><h3 class="table-title">Movimiento</h3><p class="table-subtitle">Registrar entrada, salida o ajuste.</p></div></div>
+          <form id="formMovimiento" class="form-grid">
+            <div class="form-grid form-grid--2">
+              <div class="field-group"><label for="movProducto">Producto</label><select id="movProducto" class="control-select"></select></div>
+              <div class="field-group"><label for="movTipo">Tipo</label><select id="movTipo" class="control-select"><option value="ENTRADA">Entrada</option><option value="SALIDA">Salida</option><option value="AJUSTE_POSITIVO">Ajuste positivo</option><option value="AJUSTE_NEGATIVO">Ajuste negativo</option></select></div>
+              <div class="field-group"><label for="movCantidad">Cantidad</label><input id="movCantidad" type="number" min="1" step="0.01" class="control-input" /></div>
+              <div class="field-group"><label for="movMotivo">Motivo</label><input id="movMotivo" class="control-input" /></div>
+              <div class="field-group"><label for="movEquipo">Equipo relacionado</label><select id="movEquipo" class="control-select"><option value="">Seleccione...</option></select></div>
+              <div class="field-group"><label for="movEntregadoA">Entregado a</label><select id="movEntregadoA" class="control-select"><option value="">Seleccione...</option></select></div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary" id="btnRegistrarMovimiento">Registrar movimiento</button>
+            </div>
+          </form>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=1.0.0"></script>
+  <script src="../soporte-ti.js?v=1.0.0"></script>
+</body>
+</html>
