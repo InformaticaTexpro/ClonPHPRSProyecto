@@ -32,6 +32,12 @@ return static function (
     if ($method === 'GET' && $path === '/ventas-mes') {
         json_response($analyticsService->ventasMes($payload, $query));
     }
+    if ($method === 'GET' && $path === '/guias-despacho') {
+        json_response($analyticsService->guiasDespacho($payload, $query));
+    }
+    if ($method === 'GET' && preg_match('#^/guias-despacho/detalle/(\d+)$#', $path, $matches)) {
+        json_response($analyticsService->guiasDespachoDetalle($payload, $query, (int)$matches[1]));
+    }
     if ($method === 'GET' && $path === '/vendedores-todos') {
         json_response($analyticsService->vendedoresTodos($payload));
     }

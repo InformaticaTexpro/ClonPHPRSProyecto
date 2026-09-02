@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * app-sidebar.js
@@ -117,6 +117,128 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+
+  const TEXPRO_TEXT_EMPTY_MARKERS = new Set(['-', '\u2013', '\u2014']);
+  const TEXPRO_TEXT_MARKER_REGEX = /[\u00C3\u00C2\u00E2\uFFFD]/;
+
+  function texproMojibakeScore(value) {
+    const text = String(value ?? '');
+    return (text.match(/[\u00C3\u00C2\u00E2]/g) || []).length + (text.includes('\uFFFD') ? 1 : 0);
+  }
+
+  function texproRecoverText(value) {
+    if (value === null || value === undefined) return '';
+
+    const text = String(value).trim();
+    if (!text) return '';
+    if (!TEXPRO_TEXT_MARKER_REGEX.test(text)) return text;
+
+    let best = text;
+    let bestScore = texproMojibakeScore(text);
+    let current = text;
+
+    for (let i = 0; i < 3; i += 1) {
+      let next = current;
+
+      try {
+        if (typeof TextDecoder !== 'undefined') {
+          const bytes = Uint8Array.from(current, ch => ch.charCodeAt(0) & 0xff);
+          next = new TextDecoder('utf-8').decode(bytes);
+        }
+      } catch {
+        next = current;
+      }
+
+      if (!next || next === current) break;
+
+      const score = texproMojibakeScore(next);
+      if (score < bestScore) {
+        best = next;
+        bestScore = score;
+      }
+
+      current = next;
+      if (score === 0) break;
+    }
+
+    return best.trim();
+  }
+
+  function texproDisplayText(value, fallback = '') {
+    const text = texproRecoverText(value);
+    if (!text) return fallback;
+    if (TEXPRO_TEXT_EMPTY_MARKERS.has(text)) return '-';
+    return text;
+  }
+
+  function texproDisplayValue(value, fallback = '-') {
+    const text = texproDisplayText(value, fallback);
+    return text === '' ? fallback : text;
+  }
+
+  function normalizeTexproTextNode(node) {
+    if (!node) return;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const next = texproDisplayValue(node.nodeValue, '');
+      if (next !== node.nodeValue) {
+        node.nodeValue = next;
+      }
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+
+    ['title', 'placeholder', 'aria-label', 'alt'].forEach(attr => {
+      if (!node.hasAttribute || !node.hasAttribute(attr)) return;
+      const current = node.getAttribute(attr);
+      const next = texproDisplayText(current, '');
+      if (next !== current) {
+        node.setAttribute(attr, next);
+      }
+    });
+
+    node.childNodes.forEach(normalizeTexproTextNode);
+  }
+
+  function installTexproTextNormalizer() {
+    if (window.__TEXPRO_TEXT_NORMALIZER_INSTALLED__) return;
+    window.__TEXPRO_TEXT_NORMALIZER_INSTALLED__ = true;
+    window.TexproText = Object.freeze({
+      normalize: texproRecoverText,
+      displayText: texproDisplayText,
+      displayValue: texproDisplayValue,
+      escapeHtml,
+    });
+
+    const run = () => {
+      if (!document.body) return;
+      normalizeTexproTextNode(document.body);
+
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          if (mutation.type === 'characterData') {
+            normalizeTexproTextNode(mutation.target);
+            return;
+          }
+
+          mutation.addedNodes.forEach(normalizeTexproTextNode);
+        });
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', run, { once: true });
+    } else {
+      run();
+    }
+  }
+
+  installTexproTextNormalizer();
 
   function parseJSONSafe(raw) {
     try {

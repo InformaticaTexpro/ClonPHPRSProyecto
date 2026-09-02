@@ -1149,6 +1149,246 @@ final class AnalyticsService
         return ['ok' => true, 'ventas' => $ventas];
     }
 
+    public function guiasDespacho(array $payload, array $query): array
+    {
+        $userId = $this->currentUserIdFromPayload($payload);
+        $vendCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $this->getVendorCodes($userId)
+        ))));
+
+        if ($unavailable = $this->softlandUnavailable('las guias de despacho')) {
+            return $unavailable;
+        }
+
+        if (!$vendCodes) {
+            return [
+                'ok' => true,
+                'periodo' => null,
+                'vendedor' => null,
+                'resumen' => [
+                    'total_folios' => 0,
+                    'total_monto' => 0,
+                ],
+                'guias' => [],
+            ];
+        }
+
+        $periodo = $this->monthYear($query);
+        $vendedorSolicitado = trim((string)($query['vendedor'] ?? $query['cod_vendedor'] ?? ''));
+        if ($vendedorSolicitado !== '') {
+            $vendedorSolicitado = Security::validate_cod_vendedor($vendedorSolicitado);
+            if (!in_array($vendedorSolicitado, $vendCodes, true)) {
+                return [
+                    'ok' => true,
+                    'periodo' => $periodo,
+                    'vendedor' => $vendedorSolicitado,
+                    'resumen' => [
+                        'total_folios' => 0,
+                        'total_monto' => 0,
+                    ],
+                    'guias' => [],
+                ];
+            }
+            $vendCodes = [$vendedorSolicitado];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($vendCodes), '?'));
+        $pool = $this->softland();
+        $sql = "
+            SELECT
+                enc.NroInt,
+                enc.Folio,
+                CONVERT(varchar(10), enc.Fecha, 120) AS fecha_formato,
+                RTRIM(enc.CodAux) AS CodAux,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), ''),
+                    RTRIM(enc.CodAux)
+                ) AS cliente,
+                RTRIM(enc.CodVendedor) AS CodVendedor,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), v.VenDes))), ''),
+                    RTRIM(enc.CodVendedor)
+                ) AS vendedor_nombre,
+                COUNT_BIG(*) AS lineas,
+                SUM(m.TotLinea) AS monto
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = enc.CodAux
+             LEFT JOIN [PRODIN].[softland].[cwtvend] v ON v.VenCod = enc.CodVendedor
+             WHERE enc.Concepto = 01
+               AND MONTH(enc.Fecha) = ?
+               AND YEAR(enc.Fecha) = ?
+               AND enc.Tipo = 'S'
+               AND enc.Factura = 0
+               AND enc.Estado = 'V'
+               AND LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)
+             GROUP BY
+                enc.NroInt,
+                enc.Folio,
+                enc.Fecha,
+                enc.CodAux,
+                enc.CodVendedor,
+                a.NomAux,
+                v.VenDes
+             ORDER BY enc.Folio ASC
+        ";
+        $stmt = $pool->prepare($sql);
+        $stmt->execute(array_merge([$periodo['mes'], $periodo['anio']], $vendCodes));
+        $rows = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $rows[] = [
+                'NroInt' => (int)($row['NroInt'] ?? 0),
+                'Folio' => (int)($row['Folio'] ?? 0),
+                'fecha_formato' => (string)($row['fecha_formato'] ?? ''),
+                'CodAux' => trim((string)($row['CodAux'] ?? '')),
+                'cliente' => trim((string)($row['cliente'] ?? '')),
+                'CodVendedor' => trim((string)($row['CodVendedor'] ?? '')),
+                'vendedor_nombre' => trim((string)($row['vendedor_nombre'] ?? '')),
+                'lineas' => (int)($row['lineas'] ?? 0),
+                'monto' => (int)round((float)($row['monto'] ?? 0)),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'periodo' => $periodo,
+            'vendedor' => $vendedorSolicitado !== '' ? $vendedorSolicitado : null,
+            'resumen' => [
+                'total_folios' => count($rows),
+                'total_monto' => array_sum(array_map(static fn(array $row): int => (int)($row['monto'] ?? 0), $rows)),
+            ],
+            'guias' => $rows,
+        ];
+    }
+
+    public function guiasDespachoDetalle(array $payload, array $query, int $folio): array
+    {
+        $userId = $this->currentUserIdFromPayload($payload);
+        $vendCodes = array_values(array_unique(array_filter(array_map(
+            static fn(mixed $code): string => trim((string)$code),
+            $this->getVendorCodes($userId)
+        ))));
+
+        if ($unavailable = $this->softlandUnavailable('el detalle de las guias de despacho')) {
+            return $unavailable;
+        }
+
+        if (!$vendCodes) {
+            return [
+                'ok' => true,
+                'guia' => null,
+                'detalle' => [],
+            ];
+        }
+
+        $periodo = $this->monthYear($query);
+        $vendedorSolicitado = trim((string)($query['vendedor'] ?? $query['cod_vendedor'] ?? ''));
+        if ($vendedorSolicitado !== '') {
+            $vendedorSolicitado = Security::validate_cod_vendedor($vendedorSolicitado);
+            if (!in_array($vendedorSolicitado, $vendCodes, true)) {
+                throw new RuntimeException('No autorizado para esta guía', 403);
+            }
+            $vendCodes = [$vendedorSolicitado];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($vendCodes), '?'));
+        $pool = $this->softland();
+
+        $stmtCabecera = $pool->prepare(
+            "SELECT TOP 1
+                h.NroInt,
+                h.Folio,
+                CONVERT(varchar(10), h.Fecha, 120) AS fecha_formato,
+                RTRIM(h.CodAux) AS CodAux,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomAux))), ''),
+                    RTRIM(h.CodAux)
+                ) AS cliente,
+                RTRIM(h.CodVendedor) AS CodVendedor,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), v.VenDes))), ''),
+                    RTRIM(h.CodVendedor)
+                ) AS vendedor_nombre
+             FROM [PRODIN].[softland].[iw_gsaen] h
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
+             LEFT JOIN [PRODIN].[softland].[cwtvend] v ON v.VenCod = h.CodVendedor
+             WHERE h.Concepto = 01
+               AND MONTH(h.Fecha) = ?
+               AND YEAR(h.Fecha) = ?
+               AND h.Tipo = 'S'
+               AND h.Factura = 0
+               AND h.Estado = 'V'
+               AND h.Folio = ?
+               AND LTRIM(RTRIM(h.CodVendedor)) IN ($placeholders)
+             ORDER BY h.Fecha DESC, h.NroInt DESC"
+        );
+        $stmtCabecera->execute(array_merge([$periodo['mes'], $periodo['anio'], $folio], $vendCodes));
+        $cabecera = $stmtCabecera->fetch(PDO::FETCH_ASSOC);
+        if (!$cabecera) {
+            throw new RuntimeException('Guía no encontrada', 404);
+        }
+
+        $nroInt = (int)($cabecera['NroInt'] ?? 0);
+        if ($nroInt <= 0) {
+            throw new RuntimeException('Guía no encontrada', 404);
+        }
+
+        $stmtDetalle = $pool->prepare(
+            "SELECT
+                m.CodProd,
+                COALESCE(
+                    NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), m.DetProd))), ''),
+                    RTRIM(m.CodProd)
+                ) AS DesProd,
+                CAST(ISNULL(m.CantFacturada, 0) AS float) AS Cantidad,
+                CAST(ISNULL(m.TotLinea, 0) AS float) AS TotLinea,
+                CASE
+                    WHEN ISNULL(m.CantFacturada, 0) <> 0
+                    THEN CAST(m.TotLinea AS float) / NULLIF(CAST(m.CantFacturada AS float), 0)
+                    ELSE 0
+                END AS PrecioUnitario
+             FROM [PRODIN].[softland].[iw_gmovi] m
+             WHERE m.NroInt = ?
+               AND m.Tipo = 'S'
+             ORDER BY m.CodProd ASC"
+        );
+        $stmtDetalle->execute([$nroInt]);
+
+        $detalle = [];
+        $montoTotal = 0.0;
+        while ($row = $stmtDetalle->fetch(PDO::FETCH_ASSOC)) {
+            $cantidad = $this->asFloat($row['Cantidad'] ?? 0);
+            $precioUnitario = $this->asFloat($row['PrecioUnitario'] ?? 0);
+            $totalLinea = $this->asFloat($row['TotLinea'] ?? 0);
+            $montoTotal += $totalLinea;
+
+            $detalle[] = [
+                'CodProd' => trim((string)($row['CodProd'] ?? '')),
+                'DesProd' => trim((string)($row['DesProd'] ?? '')),
+                'Cantidad' => $cantidad,
+                'PrecioUnitario' => $precioUnitario,
+                'TotLinea' => (int)round($totalLinea),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'guia' => [
+                'NroInt' => $nroInt,
+                'Folio' => (int)($cabecera['Folio'] ?? $folio),
+                'fecha_formato' => trim((string)($cabecera['fecha_formato'] ?? '')),
+                'CodAux' => trim((string)($cabecera['CodAux'] ?? '')),
+                'cliente' => trim((string)($cabecera['cliente'] ?? '')),
+                'CodVendedor' => trim((string)($cabecera['CodVendedor'] ?? '')),
+                'vendedor_nombre' => trim((string)($cabecera['vendedor_nombre'] ?? '')),
+                'monto' => (int)round($montoTotal),
+                'lineas' => count($detalle),
+            ],
+            'detalle' => $detalle,
+        ];
+    }
+
     public function vendedoresTodos(array $payload): array
     {
         $this->currentUserIdFromPayload($payload);

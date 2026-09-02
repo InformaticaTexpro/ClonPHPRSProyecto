@@ -1,22 +1,22 @@
 'use strict';
 
 /**
- * dashboard.js â€” RSProyecto Texpro
+ * dashboard.js — RSProyecto Texpro
  *
  * 2026-04-23: filtros client-side en tabla Ventas del Mes
  * 2026-04-24: módulo Alertas agregado al sidebar
  * 2026-04-24: fix(lint) — eliminada función setHTML no utilizada
- * 2026-06-04: fix â€” ruta alertas corregida a ../../alertas/index.html
- * 2026-06-08: fix â€” todas las rutas del sidebar corregidas a nueva estructura anidada
- * 2026-06-08: fix â€” eliminadas funciones del Panel Coordinador
- * 2026-06-08: feat â€” cartera: eliminadas cards Activos/Recuperados/SinCompras;
+ * 2026-06-04: fix — ruta alertas corregida a ../../alertas/index.html
+ * 2026-06-08: fix — todas las rutas del sidebar corregidas a nueva estructura anidada
+ * 2026-06-08: fix — eliminadas funciones del Panel Coordinador
+ * 2026-06-08: feat — cartera: eliminadas cards Activos/Recuperados/SinCompras;
  *                    agregada card Activos Mes Actual (fija al mes real del servidor)
- * 2026-06-09: fix â€” agrega enlace Historial Cliente al sidebar
- * 2026-06-10: feat â€” cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
+ * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
+ * 2026-06-10: feat — cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
  *                    Recuperados); elimina lista-KPI redundante del HTML
- * 2026-06-11: fix â€” descuentos redondeados (sin decimales) en KPI global,
+ * 2026-06-11: fix — descuentos redondeados (sin decimales) en KPI global,
  *                    tabla vendedores y tabla ventas del mes
- * 2026-06-15: fix â€” sidebar estandarizado: Ventas â†’ Ventas Asignadas, Historial â†’ Historial Cliente
+ * 2026-06-15: fix — sidebar estandarizado: Ventas → Ventas Asignadas, Historial → Historial Cliente
  */
 
 (function () {
@@ -31,6 +31,10 @@
   let usuarioSesion                 = null;
   let cotizacionesResumen           = null;
   let cotizacionesPreviewActivo     = 'month';
+  let guiasDespachoResumen          = null;
+  let guiasDespachoPreviewAbierto    = false;
+  let guiasDespachoDetalleCache     = new Map();
+  let guiasDespachoDetalleActivo    = null;
   let ventasCompartidasRecibidas    = { rows: [], totales: { folios: 0, monto: 0 } };
   let ventasCompartidasEntregadas   = { rows: [], totales: { folios: 0, monto: 0 } };
 
@@ -49,18 +53,78 @@
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   function formatCLP(v) {
-    if (v == null || v === '') return 'â€”';
+    if (v == null || v === '') return '-';
     return new Intl.NumberFormat('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(Number(v));
   }
 
   function setText(id, value) {
     const el = document.getElementById(id);
-    if (el) el.textContent = value;
+    if (!el) return;
+    if (window.TexproText?.displayText) {
+      el.textContent = window.TexproText.displayText(value, '');
+      return;
+    }
+    el.textContent = value;
   }
 
   function escHtml(s) {
     if (s == null) return '';
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+  }
+
+  const DATO_VACIO_MARCADORES = new Set([
+    '-',
+    'undefined',
+    'null',
+  ]);
+
+  function normalizarDatoVisual(valor) {
+    if (window.TexproText?.displayValue) {
+      return window.TexproText.displayValue(valor, '-');
+    }
+    if (valor === null || valor === undefined) return '-';
+    const texto = String(valor);
+    const limpio = texto.trim();
+    if (!limpio) return '-';
+    if (DATO_VACIO_MARCADORES.has(limpio)) return '-';
+    return texto;
+  }
+
+  function formatFechaCorta(valor) {
+    const texto = normalizarDatoVisual(valor);
+    if (texto === '-') return '-';
+    const partes = String(texto).split('-');
+    if (partes.length === 3 && /^\d{4}$/.test(partes[0])) {
+      return `${partes[2]}-${partes[1]}-${partes[0]}`;
+    }
+    const fecha = new Date(texto);
+    if (!Number.isNaN(fecha.getTime())) {
+      return fecha.toLocaleDateString('es-CL');
+    }
+    return texto;
+  }
+
+  function formatNumeroSeguro(valor, fallback = '-') {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero.toLocaleString('es-CL') : fallback;
+  }
+
+  function renderDatoTexto(valor) {
+    return escHtml(normalizarDatoVisual(valor));
+  }
+
+  function renderDatoEnlace(valor, tipo = 'texto') {
+    const limpio = normalizarDatoVisual(valor);
+    if (limpio === '-') return '-';
+
+    const safe = escHtml(limpio);
+    if (tipo === 'email') {
+      return `<a href="mailto:${safe}" style="color:var(--color-primary);text-decoration:none" title="${safe}">${safe}</a>`;
+    }
+    if (tipo === 'tel') {
+      return `<a href="tel:${safe}" style="color:var(--color-primary);text-decoration:none">${safe}</a>`;
+    }
+    return safe;
   }
 
   function periodoActual() {
@@ -250,7 +314,7 @@
     window.Chart.register(window.ChartDataLabels);
   }
 
-  // â”€â”€ Spinner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Spinner ───────────────────────────────────────────────────────────────────────────────────
   let cargaOverlay = null;
 
   function crearSpinner() {
@@ -299,7 +363,7 @@
     } catch { window.location.href = '../../varios/login/index.html'; return null; }
   }
 
-  // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Sidebar ──────────────────────────────────────────────────────────────────────────────────
   // Nombres estándar en todos los módulos del área ventas:
   //   Dashboard (activo) | Ventas Asignadas | Historial Cliente | Alertas
   const MODULOS = [
@@ -307,13 +371,13 @@
     { nombre:'Cotizaciones',     icon:'&#128188;', url:'../cotizaciones/index.html',                  area:['ventas','gerencia','administracion','admin'] },
     { nombre:'Historial Cliente',icon:'&#128203;', url:'../historial-cliente/index.html',             area:['ventas','gerencia'] },
     { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
-    { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
+    { nombre:'Bodega',         icon:'ðŸ­', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
     { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
-    { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
-    { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
-    { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',   icon:'📝', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
+    { nombre:'Serv. TEC',      icon:'ðŸ› ï¸', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'ðŸ§ª', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
+    { nombre:'Cobranza',       icon:'ðŸ’°', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
+    { nombre:'RRHH',           icon:'ðŸ‘¥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
+    { nombre:'Contabilidad',   icon:'ðŸ“', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
     { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                      area:['admin'] },
   ];
 
@@ -364,7 +428,7 @@
       filtroCartera.disabled = !codigos.length;
       filtroCartera.value = '';
       if (!filtroCartera.dataset.bound) {
-        filtroCartera.addEventListener('change', () => cargarCartera());
+        filtroCartera.addEventListener('change', () => cargarTodo());
         filtroCartera.dataset.bound = '1';
       }
     }
@@ -421,7 +485,7 @@
     return params;
   }
 
-  // â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── KPIs ──────────────────────────────────────────────────────────────────────────────────
   async function cargarResumen() {
     try {
       const res  = await fetch(`${API}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -632,6 +696,350 @@
     }
   }
 
+  function guiasDespachoLista() {
+    return Array.isArray(guiasDespachoResumen?.guias) ? guiasDespachoResumen.guias : [];
+  }
+
+  function renderGuiasDespachoPreview() {
+    const tbody = document.getElementById('tbodyGuiasDespacho');
+    const badge = document.getElementById('guiasDespachoBadge');
+    const totalBadge = document.getElementById('guiasDespachoTotalBadge');
+    const count = document.getElementById('guiasDespachoCount');
+    const monto = document.getElementById('guiasDespachoMonto');
+    const totalGuias = document.getElementById('kpiTotalGuias');
+    if (!tbody) return;
+
+    const resumen = guiasDespachoResumen?.resumen || {};
+    const guias = guiasDespachoLista();
+
+    if (count) {
+      count.textContent = Number(resumen.total_folios || 0).toLocaleString('es-CL');
+    }
+    if (monto) {
+      monto.textContent = formatCLP(resumen.total_monto || 0);
+    }
+    if (totalGuias) {
+      totalGuias.textContent = formatCLP(resumen.total_monto || 0);
+    }
+    if (badge) {
+      const periodo = guiasDespachoResumen?.periodo || {};
+      const nombreMes = MESES_NOMBRE[(Number(periodo.mes || 0) - 1)] || 'Mes';
+      badge.textContent = periodo.mes && periodo.anio
+        ? `${nombreMes} ${periodo.anio}`
+        : 'Periodo seleccionado';
+    }
+    if (totalBadge) {
+      totalBadge.textContent = `${Number(resumen.total_folios || 0).toLocaleString('es-CL')} registros`;
+    }
+
+    if (!guias.length) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin guías de despacho para mostrar</td></tr>';
+      if (totalGuias) {
+        totalGuias.textContent = formatCLP(0);
+      }
+      return;
+    }
+
+    tbody.innerHTML = guias.map(row => `
+      <tr>
+        <td><strong>${escHtml(row.Folio) || '—'}</strong></td>
+        <td>${escHtml(row.fecha_formato || '—')}</td>
+        <td><code>${escHtml(row.CodAux || '—')}</code></td>
+        <td>${escHtml(row.cliente || '—')}</td>
+        <td>${escHtml(row.vendedor_nombre || row.CodVendedor || '—')}</td>
+        <td style="text-align:right">${formatCLP(row.monto || 0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderGuiasDespachoPreview() {
+    const tbody = document.getElementById('tbodyGuiasDespacho');
+    const badge = document.getElementById('guiasDespachoBadge');
+    const totalBadge = document.getElementById('guiasDespachoTotalBadge');
+    const count = document.getElementById('guiasDespachoCount');
+    const monto = document.getElementById('guiasDespachoMonto');
+    const totalGuias = document.getElementById('kpiTotalGuias');
+    if (!tbody) return;
+
+    const resumen = guiasDespachoResumen?.resumen || {};
+    const guias = guiasDespachoLista();
+
+    if (count) {
+      count.textContent = Number(resumen.total_folios || 0).toLocaleString('es-CL');
+    }
+    if (monto) {
+      monto.textContent = formatCLP(resumen.total_monto || 0);
+    }
+    if (totalGuias) {
+      totalGuias.textContent = formatCLP(resumen.total_monto || 0);
+    }
+    if (badge) {
+      const periodo = guiasDespachoResumen?.periodo || {};
+      const nombreMes = MESES_NOMBRE[(Number(periodo.mes || 0) - 1)] || 'Mes';
+      badge.textContent = periodo.mes && periodo.anio
+        ? `${nombreMes} ${periodo.anio}`
+        : 'Periodo seleccionado';
+    }
+    if (totalBadge) {
+      totalBadge.textContent = `${Number(resumen.total_folios || 0).toLocaleString('es-CL')} registros`;
+    }
+
+    if (!guias.length) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin guias de despacho para mostrar</td></tr>';
+      if (totalGuias) {
+        totalGuias.textContent = formatCLP(0);
+      }
+      return;
+    }
+
+    tbody.innerHTML = guias.map(row => `
+      <tr class="guias-row">
+        <td><strong>${renderDatoTexto(row.Folio)}</strong></td>
+        <td>${renderDatoTexto(formatFechaCorta(row.fecha_formato || row.Fecha))}</td>
+        <td><code>${renderDatoTexto(row.CodAux)}</code></td>
+        <td>${renderDatoTexto(row.cliente)}</td>
+        <td>${renderDatoTexto(row.vendedor_nombre || row.CodVendedor)}</td>
+        <td style="text-align:right">${formatCLP(row.monto || 0)}</td>
+        <td class="guias-accion-cell" style="text-align:center">
+          <button class="btn-buscar btn-buscar--ghost guias-accion-btn" type="button" data-guias-detalle="${escHtml(row.Folio)}">Ver detalle</button>
+        </td>
+      </tr>
+    `).join('');
+
+    tbody.querySelectorAll('[data-guias-detalle]').forEach(btn => {
+      btn.addEventListener('click', event => {
+        event.stopPropagation();
+        abrirDetalleGuia(btn.dataset.guiasDetalle);
+      });
+    });
+  }
+
+  function guiasDespachoDetalleKey(folio) {
+    const params = getCarteraParams();
+    const codVendedor = String(params.cod_vendedor || params.vendedor || '').trim();
+    return [Number(params.mes || 0), Number(params.anio || 0), codVendedor, String(folio || '')].join('|');
+  }
+
+  function renderGuiasDespachoDetalleModal(data, folio) {
+    const modal = document.getElementById('modalGuiaDespachoDashboard');
+    const tbody = document.getElementById('tbodyDetalleGuiaDespachoDashboard');
+    if (!modal || !tbody) return;
+
+    const guia = data?.guia || {};
+    const detalle = Array.isArray(data?.detalle) ? data.detalle : [];
+    const monto = Number(guia.monto || 0);
+
+    setText('modalGuiaDespachoDashboardTitulo', `Detalle de guia Nro ${guia.Folio || folio || '-'}`);
+    setText('modalGuiaDespachoDashboardSubtitulo', guia.fecha_formato
+      ? `Fecha ${formatFechaCorta(guia.fecha_formato)}`
+      : 'Detalle de guia de despacho');
+    setText('modalGuiaDespachoDashboardFolio', normalizarDatoVisual(guia.Folio || folio));
+    setText('modalGuiaDespachoDashboardFecha', formatFechaCorta(guia.fecha_formato));
+    setText('modalGuiaDespachoDashboardCliente', normalizarDatoVisual(guia.CodAux));
+    setText('modalGuiaDespachoDashboardRazonSocial', normalizarDatoVisual(guia.cliente));
+    setText('modalGuiaDespachoDashboardVendedor', normalizarDatoVisual(guia.vendedor_nombre || guia.CodVendedor));
+    setText('modalGuiaDespachoDashboardTotal', formatCLP(monto));
+    setText('modalGuiaDespachoDashboardFooter', formatCLP(monto));
+
+    if (!detalle.length) {
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="5">Esta guia no posee lineas de detalle disponibles.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = detalle.map(row => `
+      <tr>
+        <td><code>${renderDatoTexto(row.CodProd)}</code></td>
+        <td>${renderDatoTexto(row.DesProd)}</td>
+        <td style="text-align:right">${formatNumeroSeguro(row.Cantidad, '0')}</td>
+        <td style="text-align:right">${formatCLP(row.PrecioUnitario || 0)}</td>
+        <td style="text-align:right"><strong>${formatCLP(row.TotLinea || 0)}</strong></td>
+      </tr>
+    `).join('');
+  }
+
+  async function abrirDetalleGuia(folio) {
+    const modal = document.getElementById('modalGuiaDespachoDashboard');
+    const tbody = document.getElementById('tbodyDetalleGuiaDespachoDashboard');
+    if (!modal || !tbody || !folio) return;
+
+    const key = guiasDespachoDetalleKey(folio);
+    guiasDespachoDetalleActivo = key;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    setText('modalGuiaDespachoDashboardTitulo', `Detalle guia Nro ${folio}`);
+    setText('modalGuiaDespachoDashboardSubtitulo', 'Cargando detalle...');
+    setText('modalGuiaDespachoDashboardFolio', renderDatoTexto(folio));
+    setText('modalGuiaDespachoDashboardFecha', '-');
+    setText('modalGuiaDespachoDashboardCliente', '-');
+    setText('modalGuiaDespachoDashboardRazonSocial', '-');
+    setText('modalGuiaDespachoDashboardVendedor', '-');
+    setText('modalGuiaDespachoDashboardTotal', formatCLP(0));
+    setText('modalGuiaDespachoDashboardFooter', formatCLP(0));
+    tbody.innerHTML = '<tr class="tabla-empty"><td colspan="5">Cargando detalle...</td></tr>';
+
+    const cached = guiasDespachoDetalleCache.get(key);
+    if (cached) {
+      renderGuiasDespachoDetalleModal(cached, folio);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/guias-despacho/detalle/${encodeURIComponent(folio)}?${new URLSearchParams(getCarteraParams())}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'No se pudo cargar el detalle de la guia');
+      }
+      guiasDespachoDetalleCache.set(key, data);
+      if (guiasDespachoDetalleActivo === key) {
+        renderGuiasDespachoDetalleModal(data, folio);
+      }
+    } catch (err) {
+      console.error('[abrirDetalleGuia]', err);
+      if (guiasDespachoDetalleActivo !== key) return;
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="5">No fue posible cargar el detalle de la guia.</td></tr>';
+      setText('modalGuiaDespachoDashboardSubtitulo', 'No fue posible cargar el detalle de la guia.');
+    }
+  }
+
+  function cerrarDetalleGuia() {
+    const modal = document.getElementById('modalGuiaDespachoDashboard');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    guiasDespachoDetalleActivo = null;
+  }
+
+  function setGuiasDespachoPreview(abrir = true) {
+    guiasDespachoPreviewAbierto = !!abrir;
+    const card = document.querySelector('[data-guias-preview="month"]');
+    if (!card) return;
+
+    const btn = card.querySelector('[data-guias-toggle]');
+    const body = card.querySelector('[data-guias-body]');
+    card.classList.toggle('is-open', guiasDespachoPreviewAbierto);
+    if (btn) btn.setAttribute('aria-expanded', guiasDespachoPreviewAbierto ? 'true' : 'false');
+    if (body) body.hidden = !guiasDespachoPreviewAbierto;
+  }
+
+  function ensureGuiasSection() {
+    if (document.getElementById('seccionGuiasDespachoDashboard')) return;
+
+    const cotizacionesSection = document.getElementById('seccionCotizacionesDashboard');
+    const anchor = cotizacionesSection || document.getElementById('seccionCartera');
+    if (!anchor) return;
+
+    const section = document.createElement('section');
+    section.className = 'tabla-seccion guias-panel';
+    section.id = 'seccionGuiasDespachoDashboard';
+    section.innerHTML = `
+      <div class="cartera-header guias-preview-header">
+        <div>
+          <h3 class="cartera-titulo">Guias de despacho</h3>
+          <span class="cartera-subtitulo">Resumen y detalle del periodo seleccionado.</span>
+        </div>
+        <span class="tabla-badge" id="guiasDespachoBadge">Periodo seleccionado</span>
+      </div>
+
+      <div class="cartera-cards guias-summary-cards">
+        <div class="cartera-card cartera-card--guias" data-guias-preview="month">
+          <button class="cartera-card-btn" type="button" data-guias-toggle aria-expanded="false">
+            <div class="cartera-card-icono">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 3h6l4 4v14H5V3z"/>
+                <path d="M9 3v4h8"/>
+                <path d="M8 13h8"/>
+                <path d="M8 17h8"/>
+              </svg>
+            </div>
+            <div class="cartera-card-info">
+              <span class="cartera-card-label">GUIAS DE DESPACHO</span>
+              <span class="cartera-card-count" id="guiasDespachoCount">0</span>
+              <span class="cartera-card-desc">Monto total: <strong id="guiasDespachoMonto">$0</strong></span>
+            </div>
+            <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="cartera-lista guias-card__body" data-guias-body hidden>
+            <div class="tabla-header guias-detail-card__header">
+              <div>
+                <h3 class="tabla-titulo">Detalle de guias de despacho</h3>
+                <span class="tabla-subtitulo">Se actualiza al cambiar mes, anio o vendedor.</span>
+              </div>
+              <span class="tabla-badge" id="guiasDespachoTotalBadge">0 registros</span>
+            </div>
+            <div class="tabla-wrapper guias-tabla-wrapper">
+              <table class="dash-tabla">
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Fecha</th>
+                    <th>Cod. cliente</th>
+                    <th>Cliente / Razon social</th>
+                    <th>Vendedor</th>
+                    <th style="text-align:right">Monto</th>
+                    <th style="text-align:center">Accion</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyGuiasDespacho">
+                  <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    anchor.insertAdjacentElement('afterend', section);
+    section.querySelector('[data-guias-toggle]')?.addEventListener('click', () => {
+      setGuiasDespachoPreview(!guiasDespachoPreviewAbierto);
+    });
+    setGuiasDespachoPreview(false);
+  }
+
+  async function cargarGuiasDespachoDashboard() {
+    const tbody = document.getElementById('tbodyGuiasDespacho');
+    const totalBadge = document.getElementById('guiasDespachoTotalBadge');
+    const count = document.getElementById('guiasDespachoCount');
+    const monto = document.getElementById('guiasDespachoMonto');
+    guiasDespachoResumen = null;
+    if (tbody) tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>';
+    if (totalBadge) totalBadge.textContent = 'Cargando...';
+    if (count) count.textContent = '—';
+    if (monto) monto.textContent = '—';
+
+    try {
+      const res = await fetch(`${API}/guias-despacho?${new URLSearchParams(getCarteraParams())}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'No se pudieron cargar las guías de despacho');
+      }
+      guiasDespachoResumen = data;
+      renderGuiasDespachoPreview();
+      setGuiasDespachoPreview(guiasDespachoPreviewAbierto);
+      if (totalBadge) {
+        totalBadge.textContent = `${Number(data.resumen?.total_folios || 0).toLocaleString('es-CL')} registros`;
+      }
+      const guias = guiasDespachoLista();
+      if (!guias.length && tbody) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">Sin guías de despacho para el período seleccionado</td></tr>';
+      }
+    } catch (err) {
+      console.error('[cargarGuiasDespachoDashboard]', err);
+      guiasDespachoResumen = { periodo: getCarteraParams(), resumen: { total_folios: 0, total_monto: 0 }, guias: [] };
+      if (tbody) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="6">No se pudo cargar las guías de despacho</td></tr>';
+      }
+      if (totalBadge) totalBadge.textContent = 'Error al cargar';
+      if (count) count.textContent = '0';
+      if (monto) monto.textContent = formatCLP(0);
+      reportarFalloDashboard('No se pudieron cargar las guías de despacho', err);
+    }
+  }
+
   async function abrirDetalleCotizacion(cotNum) {
     const modal = document.getElementById('modalCotizacionDashboard');
     const tbody = document.getElementById('tbodyDetalleCotizacionDashboard');
@@ -733,7 +1141,7 @@
     }
   }
 
-  // â”€â”€ Tabla vendedores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tabla vendedores ──────────────────────────────────────────────────────────────────────
   async function cargarVendedores() {
     try {
       renderVendedoresVacios();
@@ -752,7 +1160,7 @@
         return `
         <tr>
           <td><strong>${escHtml(v.codVendedor)}</strong></td>
-          <td>${escHtml(v.nombreVendedor) || 'â€”'}</td>
+          <td>${escHtml(v.nombreVendedor) || '—'}</td>
           <td>${v.totalFolios}</td>
           <td style="text-align:right">${formatCLP(totalVentasCobrado)}</td>
           <td style="text-align:right">${formatCLP(ventaRealLista)}</td>
@@ -772,7 +1180,7 @@
     }
   }
 
-  // â”€â”€ Tabla ventas del mes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tabla ventas del mes ──────────────────────────────────────────────────────────────────
   async function cargarVentasCompartidasRecibidas() {
     try {
       renderVentasCompartidasRecibidasEmpty('Cargando...');
@@ -869,15 +1277,15 @@
       const pctDesc      = formatPctDescuento(v.pct_descuento ?? v.pctDescuento ?? v.dcto ?? v.Dcto ?? (pctDescRedondeado || null));
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
-      const cliente      = v.cliente || v.CodAux || 'â€”';
+      const cliente      = v.cliente || v.CodAux || '—';
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
       return `<tr data-folio="${v.Folio}">
-        <td><strong>${escHtml(v.Folio) || 'â€”'}</strong>${badgeComp}</td>
-        <td>${escHtml(v.fecha_formato) || 'â€”'}</td>
-        <td>${escHtml(cliente) || 'â€”'}</td>
-        <td>${escHtml(v.CodVendedor) || 'â€”'}</td>
+        <td><strong>${escHtml(v.Folio) || '—'}</strong>${badgeComp}</td>
+        <td>${escHtml(v.fecha_formato) || '—'}</td>
+        <td>${escHtml(cliente) || '—'}</td>
+        <td>${escHtml(v.CodVendedor) || '—'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
         <td style="text-align:right">${formatCLP(totLineaReal)}</td>
         <td style="text-align:right">${pctDesc}</td>
@@ -893,15 +1301,15 @@
     );
   }
 
-  // â”€â”€ Modal detalle folio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Modal detalle folio ───────────────────────────────────────────────────────────────────
   async function abrirDetalle(folio) {
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
     if (!overlay || !tbody) return;
     setText('modalTitulo', `Folio N° ${folio}`);
     const venta = ventasMesData.find(v => String(v.Folio) === String(folio));
-    setText('modalSubtitulo', venta ? `${venta.cliente||''} â€¢ ${venta.fecha_formato||''}` : '');
-    setText('modalTotalValor', 'â€”');
+    setText('modalSubtitulo', venta ? `${venta.cliente||''} • ${venta.fecha_formato||''}` : '');
+    setText('modalTotalValor', '—');
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem">Cargando...</td></tr>';
     overlay.classList.add('modal-overlay--visible');
     overlay.setAttribute('aria-hidden','false');
@@ -909,7 +1317,7 @@
     try {
       const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">âš ï¸ Error</td></tr>'; return; }
+      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
       if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin líneas</td></tr>'; return; }
       const d0 = data.detalle[0] || {};
       setText('modalSubtitulo', venta
@@ -918,9 +1326,9 @@
       const total = data.detalle.reduce((s,l)=>s+(Number(l.neto_total ?? l.TotLinea ?? 0)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
-          <td><code>${escHtml(l.CodProd) || 'â€”'}</code></td>
-          <td>${escHtml(l.DesProd) || 'â€”'}</td>
-          <td style="text-align:center">${l.CantFacturada ?? 'â€”'}</td>
+          <td><code>${escHtml(l.CodProd) || '—'}</code></td>
+          <td>${escHtml(l.DesProd) || '—'}</td>
+          <td style="text-align:center">${l.CantFacturada ?? '—'}</td>
           <td style="text-align:right">${formatCLP(l.precio_real)}</td>
           <td style="text-align:right">${formatCLP(l.precio_vta ?? l.PrecioVta)}</td>
           <td style="text-align:right">${formatCLP(l.neto_real)}</td>
@@ -939,7 +1347,7 @@
     document.body.style.overflow = '';
   }
 
-  // â”€â”€ CARTERA DE CLIENTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────────────────────
   async function cargarCartera() {
     try {
       const res  = await fetch(`${API_CART}?${new URLSearchParams(getCarteraParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -952,11 +1360,11 @@
       const nuevos     = data.ClientesNuevos     ?? data.clientesNuevos     ?? null;
       const recuperados= data.ClientesRecuperados?? data.clientesRecuperados?? null;
 
-      setText('countTotal',      total       !== null ? String(total)       : 'â€”');
-      setText('countActivo',     activos     !== null ? String(activos)     : 'â€”');
-      setText('countInactivo',   inactivos   !== null ? String(inactivos)   : 'â€”');
-      setText('countNuevo',      nuevos      !== null ? String(nuevos)      : 'â€”');
-      setText('countRecuperado', recuperados !== null ? String(recuperados) : 'â€”');
+      setText('countTotal',      total       !== null ? String(total)       : '—');
+      setText('countActivo',     activos     !== null ? String(activos)     : '—');
+      setText('countInactivo',   inactivos   !== null ? String(inactivos)   : '—');
+      setText('countNuevo',      nuevos      !== null ? String(nuevos)      : '—');
+      setText('countRecuperado', recuperados !== null ? String(recuperados) : '—');
 
       carteraData.total      = data.total         || [];
       carteraData.activos    = data.activos        || [];
@@ -980,7 +1388,7 @@
       console.error('[cargarCartera]', err);
       reportarFalloDashboard('No se pudo cargar la cartera de clientes', err);
       ['countTotal','countActivo','countInactivo','countNuevo','countRecuperado','countActivoMes']
-        .forEach(id => setText(id, 'â€”'));
+        .forEach(id => setText(id, '—'));
     }
   }
 
@@ -1033,18 +1441,14 @@
       return;
     }
     tbody.innerHTML = lista.map(c => {
-      const emailHtml = c.EMail
-        ? `<a href="mailto:${escHtml(c.EMail)}" style="color:var(--color-primary);text-decoration:none" title="${escHtml(c.EMail)}">${escHtml(c.EMail)}</a>`
-        : 'â€”';
-      const tel1Html = c.FONAUX1
-        ? `<a href="tel:${escHtml(c.FONAUX1)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FONAUX1)}</a>`
-        : 'â€”';
-      const tel2Html = c.FonAux2
-        ? `<a href="tel:${escHtml(c.FonAux2)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FonAux2)}</a>`
-        : 'â€”';
+      const codigoHtml = renderDatoTexto(c.CodAux);
+      const nombreHtml = renderDatoTexto(c.NomAux);
+      const tel1Html = renderDatoEnlace(c.FONAUX1, 'tel');
+      const tel2Html = renderDatoEnlace(c.FonAux2, 'tel');
+      const emailHtml = renderDatoEnlace(c.EMail, 'email');
       return `<tr>
-          <td><code>${escHtml(c.CodAux) || 'â€”'}</code></td>
-          <td>${escHtml(c.NomAux) || 'â€”'}</td>
+          <td><code>${codigoHtml}</code></td>
+          <td>${nombreHtml}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
@@ -1210,7 +1614,7 @@
     }
   }
 
-  // â”€â”€ Clientes por vendedor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Clientes por vendedor ─────────────────────────────────────────────────────────────────
   async function cargarClientesResumen() {
     try {
       const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -1236,7 +1640,7 @@
     }
   }
 
-  // â”€â”€ Cargar todo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cargar todo ───────────────────────────────────────────────────────────────────────────
   async function cargarTodo() {
     mostrarCarga();
     ocultarEstadoDashboard();
@@ -1244,6 +1648,7 @@
       await Promise.all([
         cargarResumen(),
         cargarCotizacionesDashboard(),
+        cargarGuiasDespachoDashboard(),
         cargarGrafico(),
         cargarCartera(),
         cargarVendedores(),
@@ -1260,7 +1665,7 @@
     }
   }
 
-  // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Init ──────────────────────────────────────────────────────────────────────────────────
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
@@ -1268,7 +1673,16 @@
     initSelectores();
     initCarteraCards();
     ensureCotizacionesSection();
+    ensureGuiasSection();
     setCotizacionesPreview('month', false);
+
+    ['filtroMes', 'filtroAnio'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.boundDashboard) {
+        el.addEventListener('change', () => cargarTodo());
+        el.dataset.boundDashboard = '1';
+      }
+    });
 
     const bVentas = document.getElementById('busquedaVentas');
     if (bVentas) bVentas.addEventListener('input', aplicarFiltrosVentasMes);
@@ -1305,6 +1719,11 @@
         }
       }
     });
+    document.getElementById('modalGuiaDespachoDashboard')?.addEventListener('click', event => {
+      if (event.target instanceof HTMLElement && event.target.dataset.guiaClose === 'true') {
+        cerrarDetalleGuia();
+      }
+    });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
         const modal = document.getElementById('modalCotizacionDashboard');
@@ -1312,6 +1731,7 @@
           modal.classList.remove('is-open');
           modal.setAttribute('aria-hidden', 'true');
         }
+        cerrarDetalleGuia();
       }
     });
     const btnAct = document.getElementById('btnActualizar');

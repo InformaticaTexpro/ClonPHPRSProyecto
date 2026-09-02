@@ -23,6 +23,120 @@ function send_cors_headers(): void
     header('Content-Type: application/json; charset=utf-8');
 }
 
+function text_looks_corrupted(string $text): bool
+{
+    return str_contains($text, 'Ã')
+        || str_contains($text, 'Â')
+        || str_contains($text, 'â')
+        || str_contains($text, "\xEF\xBF\xBD");
+}
+
+function text_mojibake_score(string $text): int
+{
+    return substr_count($text, 'Ã')
+        + substr_count($text, 'Â')
+        + substr_count($text, 'â')
+        + substr_count($text, "\xEF\xBF\xBD");
+}
+
+function recover_mojibake_once(string $text): string
+{
+    $candidates = [];
+
+    $converted = @iconv('Windows-1252', 'UTF-8//IGNORE', $text);
+    if (is_string($converted) && $converted !== '') {
+        $candidates[] = $converted;
+    }
+
+    if (function_exists('mb_convert_encoding')) {
+        $converted = @mb_convert_encoding($text, 'UTF-8', 'Windows-1252');
+        if (is_string($converted) && $converted !== '') {
+            $candidates[] = $converted;
+        }
+    }
+
+    $best = $text;
+    $bestScore = text_mojibake_score($text);
+
+    foreach ($candidates as $candidate) {
+        $score = text_mojibake_score($candidate);
+        if ($score < $bestScore) {
+            $best = $candidate;
+            $bestScore = $score;
+        }
+    }
+
+    return $best;
+}
+
+function normalize_display_text(mixed $value, string $fallback = ''): string
+{
+    if ($value === null) {
+        return $fallback;
+    }
+
+    if (is_bool($value)) {
+        $value = $value ? 'true' : 'false';
+    } elseif (is_int($value) || is_float($value)) {
+        return (string)$value;
+    }
+
+    $text = trim((string)$value);
+    if ($text === '') {
+        return $fallback;
+    }
+
+    if (!text_looks_corrupted($text)) {
+        return in_array($text, ['-', '–', '—'], true) ? '-' : $text;
+    }
+
+    $best = $text;
+    $bestScore = text_mojibake_score($text);
+    $current = $text;
+
+    for ($i = 0; $i < 3; $i++) {
+        $next = recover_mojibake_once($current);
+        if ($next === '' || $next === $current) {
+            break;
+        }
+
+        $score = text_mojibake_score($next);
+        if ($score < $bestScore) {
+            $best = $next;
+            $bestScore = $score;
+        }
+
+        $current = $next;
+        if ($score === 0) {
+            break;
+        }
+    }
+
+    $best = trim($best);
+    if ($best === '') {
+        return $fallback;
+    }
+
+    return in_array($best, ['-', '–', '—'], true) ? '-' : $best;
+}
+
+function normalize_json_payload(mixed $value): mixed
+{
+    if (is_array($value)) {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[$key] = normalize_json_payload($item);
+        }
+        return $normalized;
+    }
+
+    if (is_string($value)) {
+        return normalize_display_text($value);
+    }
+
+    return $value;
+}
+
 function read_json_body(): array
 {
     $raw = file_get_contents('php://input');
@@ -41,7 +155,10 @@ function read_json_body(): array
 function json_response(array $payload, int $status = 200): never
 {
     http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo json_encode(
+        normalize_json_payload($payload),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+    );
     exit;
 }
 

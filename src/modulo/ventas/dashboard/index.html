@@ -112,6 +112,10 @@
           <div class="kpi-icono kpi-icono--rojo"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg></div>
           <div class="kpi-info"><span class="kpi-label">Total Descuentos</span><span class="kpi-valor" id="kpiDescuento">—</span></div>
         </div>
+        <div class="kpi-card kpi-card--guias">
+          <div class="kpi-icono kpi-icono--guias"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l4 4v14H5V3z"/><path d="M9 3v4h8"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
+          <div class="kpi-info"><span class="kpi-label">Total Guía de Despacho</span><span class="kpi-valor" id="kpiTotalGuias">$0</span></div>
+        </div>
       </section>
 
       <section class="grafico-seccion">
@@ -158,6 +162,46 @@
                 <tr class="tabla-empty"><td colspan="8">Selecciona una cotización</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="cotizaciones-modal" id="modalGuiaDespachoDashboard" aria-hidden="true">
+        <div class="cotizaciones-modal__backdrop" data-guia-close="true"></div>
+        <div class="cotizaciones-modal__panel guias-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalGuiaDespachoDashboardTitulo">
+          <div class="cotizaciones-modal__header">
+            <div>
+              <h3 class="tabla-titulo" id="modalGuiaDespachoDashboardTitulo">Detalle guia Nro -</h3>
+              <p class="tabla-subtitulo" id="modalGuiaDespachoDashboardSubtitulo">-</p>
+            </div>
+            <button class="cotizaciones-modal__close" type="button" data-guia-close="true">x</button>
+          </div>
+          <div class="guias-modal__summary">
+            <div><span class="summary-label">Folio</span><strong id="modalGuiaDespachoDashboardFolio">-</strong></div>
+            <div><span class="summary-label">Fecha</span><strong id="modalGuiaDespachoDashboardFecha">-</strong></div>
+            <div><span class="summary-label">Codigo cliente</span><strong id="modalGuiaDespachoDashboardCliente">-</strong></div>
+            <div><span class="summary-label">Cliente / razon social</span><strong id="modalGuiaDespachoDashboardRazonSocial">-</strong></div>
+            <div><span class="summary-label">Vendedor</span><strong id="modalGuiaDespachoDashboardVendedor">-</strong></div>
+            <div><span class="summary-label">Monto total</span><strong id="modalGuiaDespachoDashboardTotal">$0</strong></div>
+          </div>
+          <div class="tabla-wrapper guias-modal__table">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Descripcion</th>
+                  <th style="text-align:right">Cantidad</th>
+                  <th style="text-align:right">Precio</th>
+                  <th style="text-align:right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyDetalleGuiaDespachoDashboard">
+                <tr class="tabla-empty"><td colspan="5">Selecciona una guia</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="cotizaciones-modal__summary" style="margin-top:0;border-top:1px solid var(--color-gray-light,#E8EAF0);border-bottom:0;border-radius:0 0 20px 20px;">
+            <div><span class="summary-label">Monto total</span><strong id="modalGuiaDespachoDashboardFooter">$0</strong></div>
           </div>
         </div>
       </div>
