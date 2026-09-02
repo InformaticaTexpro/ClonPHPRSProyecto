@@ -4,10 +4,10 @@
   const API_BASE = '/api/gerencia/comercial';
   const token = () => localStorage.getItem('token') || '';
   const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const colores = ['#13c7a0', '#49b7db', '#f5a623', '#8b5cf6', '#f97359', '#64748b', '#22c55e', '#0ea5e9', '#f43f5e', '#84cc16'];
 
-  let chartCategory = null;
   let cargaSecuencia = 0;
+  let datosActuales = null;
+  let ultimoFoco = null;
 
   function formatCLP(valor) {
     const numero = Number(valor ?? 0);
@@ -23,6 +23,11 @@
     const numero = Number(valor ?? 0);
     if (!Number.isFinite(numero)) return '—';
     return `${numero.toFixed(2)} %`;
+  }
+
+  function formatCount(valor) {
+    const numero = Number(valor ?? 0);
+    return Number.isFinite(numero) ? new Intl.NumberFormat('es-CL').format(numero) : '0';
   }
 
   function escHtml(value) {
@@ -42,7 +47,6 @@
         Accept: 'application/json',
       },
     });
-
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) {
       throw new Error(data.error || `Error HTTP ${response.status}`);
@@ -51,26 +55,22 @@
   }
 
   function setText(id, value) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value;
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
   }
 
   function setLoadingState(visible, message) {
     const overlay = document.getElementById('gerenciaLoadingOverlay');
     const wrapper = document.getElementById('mainWrapper');
     const label = overlay?.querySelector('[data-loading-text]');
-    if (label && message) {
-      label.textContent = message;
-    }
+    if (label && message) label.textContent = message;
     if (overlay) {
-      overlay.classList.toggle('is-visible', !!visible);
+      overlay.classList.toggle('is-visible', Boolean(visible));
       overlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
     }
-    if (wrapper) {
-      wrapper.setAttribute('aria-busy', visible ? 'true' : 'false');
-    }
-    document.querySelectorAll('.gerencia-filtros .filtro-select, .gerencia-filtros .btn-buscar').forEach(control => {
-      control.disabled = !!visible;
+    if (wrapper) wrapper.setAttribute('aria-busy', visible ? 'true' : 'false');
+    document.querySelectorAll('.gerencia-filtros .filtro-select, .gerencia-filtros .btn-buscar, .gerencia-filtros .btn-exportar').forEach(control => {
+      control.disabled = Boolean(visible) || (control.id === 'btnExportarPdf' && !datosActuales);
     });
   }
 
@@ -78,7 +78,7 @@
     const select = document.getElementById('monthFilter');
     if (!select) return;
     const current = new Date().getMonth() + 1;
-    select.innerHTML = mesesNombres.map((nombre, idx) => `<option value="${idx + 1}">${nombre}</option>`).join('');
+    select.innerHTML = mesesNombres.map((nombre, index) => `<option value="${index + 1}">${nombre}</option>`).join('');
     select.value = String(current);
   }
 
@@ -91,172 +91,303 @@
     select.value = String(current);
   }
 
-  function destroyChart() {
-    if (chartCategory) {
-      chartCategory.destroy();
-      chartCategory = null;
-    }
+  function closeVendorCodes() {
+    const modal = document.getElementById('vendorCodesModal');
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('ventas-modal-open');
+    if (ultimoFoco instanceof HTMLElement) ultimoFoco.focus();
+    ultimoFoco = null;
+  }
+
+  function resetView() {
+    datosActuales = null;
+    closeVendorCodes();
+    setText('kpiVentaTotal', formatCLP(0));
+    setText('kpiCantidadUnidades', '0');
+    setText('kpiCantidadVendedores', '0');
+    setText('kpiCantidadCodigos', '0');
+    const summaryBody = document.getElementById('unitsSummaryBody');
+    const summaryFoot = document.getElementById('unitsSummaryFoot');
+    const detail = document.getElementById('unitsDetail');
+    const modalBody = document.getElementById('vendorCodesBody');
+    if (summaryBody) summaryBody.innerHTML = '<tr><td colspan="3" class="gerencia-empty">No hay unidades para mostrar.</td></tr>';
+    if (summaryFoot) summaryFoot.innerHTML = '';
+    if (detail) detail.innerHTML = '<p class="gerencia-empty">No existen ventas para el período seleccionado.</p>';
+    if (modalBody) modalBody.innerHTML = '';
+    setText('vendorCodesTotal', formatCLP(0));
   }
 
   function renderSummary(data) {
-    setText('kpiVentaMes', formatCLP(data?.ventaMes ?? 0));
-    const metaMes = Number(data?.metaMes ?? data?.meta ?? 0);
-    const ventaMes = Number(data?.ventaMes ?? 0);
-    const cumplimiento = data?.cumplimiento ?? (metaMes > 0 ? (ventaMes / metaMes) * 100 : null);
-
-    if (metaMes > 0) {
-      setText('kpiMetaMes', formatCLP(metaMes));
-      setText('metaMesAyuda', 'Meta mensual cargada');
-    } else {
-      setText('kpiMetaMes', 'Sin meta');
-      setText('metaMesAyuda', data?.metaDisponible === false ? 'Meta no disponible en MySQL' : 'Sin meta mensual configurada');
-    }
-
-    setText('kpiCumplimiento', cumplimiento === null || cumplimiento === undefined ? '—' : formatPct(cumplimiento));
-    setText('kpiDescuentoMes', formatPct(data?.porcentajeDescuento ?? 0));
-    setText('descripcionCategorias', `${mesesNombres[(Number(data?.mes || 1) - 1)] || 'Mes'} ${data?.anio || ''}.`);
+    const resumen = data?.resumen || {};
+    setText('kpiVentaTotal', formatCLP(resumen.ventaTotal ?? 0));
+    setText('kpiCantidadUnidades', formatCount(resumen.cantidadUnidades ?? 0));
+    setText('kpiCantidadVendedores', formatCount(resumen.cantidadVendedores ?? 0));
+    setText('kpiCantidadCodigos', formatCount(resumen.cantidadCodigos ?? 0));
     setText('headerIndicadores', `${mesesNombres[(Number(data?.mes || 1) - 1)] || 'Mes'} ${data?.anio || ''}`);
   }
 
-  function renderCategoryChart(data) {
-    const categorias = Array.isArray(data?.categorias) ? data.categorias : [];
-    const canvas = document.getElementById('categoryChart');
-    if (!canvas) return;
-
-    destroyChart();
-    chartCategory = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        labels: categorias.map(item => item.categoria),
-        datasets: [{
-          data: categorias.map(item => Number(item.venta || 0)),
-          backgroundColor: categorias.map((_, idx) => colores[idx % colores.length]),
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '62%',
-        plugins: {
-          legend: { position: 'bottom' },
-        },
-      },
-    });
-  }
-
-  function renderCategoriesTable(data) {
-    const body = document.getElementById('categoryTableBody');
-    const foot = document.getElementById('categoryTableFoot');
+  function renderUnitsSummary(data) {
+    const body = document.getElementById('unitsSummaryBody');
+    const foot = document.getElementById('unitsSummaryFoot');
     if (!body || !foot) return;
+    const units = Array.isArray(data?.resumenUnidades) ? data.resumenUnidades : [];
+    if (!units.length) return;
 
-    const categorias = Array.isArray(data?.categorias) ? data.categorias.slice() : [];
-    if (!categorias.length) {
-      body.innerHTML = '<tr><td colspan="3" class="gerencia-empty">No hay categorías para mostrar.</td></tr>';
-      foot.innerHTML = '';
-      return;
-    }
-
-    body.innerHTML = categorias.map(item => `
+    body.innerHTML = units.map(unit => `
       <tr>
-        <td>${escHtml(item.categoria || '-')}</td>
-        <td class="numero">${formatCLP(item.venta ?? 0)}</td>
-        <td class="numero">${formatPct(item.participacion ?? 0)}</td>
+        <td><strong>${escHtml(unit.unidad || 'Sin unidad')}</strong></td>
+        <td class="numero">${formatCLP(unit.venta ?? 0)}</td>
+        <td class="numero">${formatPct(unit.participacion ?? 0)}</td>
       </tr>
     `).join('');
-
     foot.innerHTML = `
       <tr>
         <th>Total</th>
-        <th class="numero">${formatCLP(data?.totalCategorias ?? 0)}</th>
-        <th class="numero">100 %</th>
+        <th class="numero">${formatCLP(data?.resumen?.ventaTotal ?? 0)}</th>
+        <th class="numero">${units.length ? '100,00 %' : '0,00 %'}</th>
       </tr>
     `;
   }
 
-  function renderTopClientes(data) {
-    const body = document.getElementById('clientsTableBody');
-    if (!body) return;
+  function renderUnitsDetail(data) {
+    const container = document.getElementById('unitsDetail');
+    if (!container) return;
+    const groups = Array.isArray(data?.grupos) ? data.grupos : [];
+    if (!groups.length) return;
 
-    const clientes = Array.isArray(data?.clientes) ? data.clientes.slice(0, 10) : [];
-    if (!clientes.length) {
-      body.innerHTML = '<tr><td colspan="4" class="gerencia-empty">No hay clientes para mostrar.</td></tr>';
-      return;
-    }
+    container.innerHTML = groups.map((group, groupIndex) => {
+      const sellers = Array.isArray(group.vendedores) ? group.vendedores : [];
+      const rows = sellers.map((seller, sellerIndex) => `
+        <tr>
+          <td>
+            <button class="vendedor-detalle" type="button" data-group-index="${groupIndex}" data-seller-index="${sellerIndex}">
+              <strong>${escHtml(seller.vendedor || seller.codigoPrincipal || '-')}</strong>
+              <small>${escHtml(seller.codigoPrincipal || '')}</small>
+            </button>
+          </td>
+          <td class="numero">${formatCount(seller.cantidadCodigos ?? 0)}</td>
+          <td class="numero">${formatCLP(seller.neto ?? 0)}</td>
+          <td class="numero">${formatPct(seller.participacion ?? 0)}</td>
+        </tr>
+      `).join('');
 
-    body.innerHTML = clientes.map((item, index) => `
-      <tr>
-        <td class="numero">${index + 1}</td>
-        <td>
-          <strong>${escHtml(item.cliente || '-')}</strong><br />
-          <small>${escHtml(item.codigoCliente || '')}</small>
-        </td>
-        <td class="numero">${formatCLP(item.venta ?? 0)}</td>
-        <td class="numero">${formatPct(item.participacion ?? 0)}</td>
-      </tr>
-    `).join('');
+      return `
+        <article class="unidad-card">
+          <header class="unidad-card__header">
+            <h4>${escHtml(group.grupo || 'Sin unidad')}</h4>
+            <div><strong>${formatCLP(group.total ?? 0)}</strong><span>${formatPct(group.participacion ?? 0)} del total general</span></div>
+          </header>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead><tr><th>Vendedor</th><th class="numero">Códigos</th><th class="numero">Venta</th><th class="numero">Participación</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan="4" class="gerencia-empty">No hay vendedores para mostrar.</td></tr>'}</tbody>
+              <tfoot><tr><th>Total unidad</th><th></th><th class="numero">${formatCLP(group.total ?? 0)}</th><th class="numero">${sellers.length ? '100,00 %' : '0,00 %'}</th></tr></tfoot>
+            </table>
+          </div>
+        </article>
+      `;
+    }).join('');
   }
 
-  function renderTopProductos(data) {
-    const body = document.getElementById('productsTableBody');
-    if (!body) return;
-
-    const productos = Array.isArray(data?.productos) ? data.productos.slice(0, 10) : [];
-    if (!productos.length) {
-      body.innerHTML = '<tr><td colspan="5" class="gerencia-empty">No hay productos para mostrar.</td></tr>';
-      return;
-    }
-
-    body.innerHTML = productos.map((item, index) => `
-      <tr>
-        <td class="numero">${index + 1}</td>
-        <td>
-          <strong>${escHtml(item.producto || '-')}</strong><br />
-          <small>${escHtml(item.codigoProducto || '')}</small>
-        </td>
-        <td>${escHtml(item.categoria || '-')}</td>
-        <td class="numero">${formatCLP(item.venta ?? 0)}</td>
-        <td class="numero">${formatPct(item.participacion ?? 0)}</td>
-      </tr>
-    `).join('');
-  }
-
-  async function cargarDatos() {
-    const cargaActual = ++cargaSecuencia;
-    const anio = Number(document.getElementById('yearFilter')?.value || new Date().getFullYear());
-    const mes = Number(document.getElementById('monthFilter')?.value || (new Date().getMonth() + 1));
-    setLoadingState(true, 'Cargando estadisticas de ventas...');
-
-    try {
-      const data = await apiGet(`/mensual?anio=${encodeURIComponent(anio)}&mes=${encodeURIComponent(mes)}`);
-      if (cargaActual !== cargaSecuencia) {
+  function cargarScript(src, id) {
+    return new Promise((resolve, reject) => {
+      const existente = document.getElementById(id);
+      if (existente) {
+        if (existente.dataset.loaded === 'true') resolve();
+        else existente.addEventListener('load', resolve, { once: true });
         return;
       }
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = src;
+      script.onload = () => { script.dataset.loaded = 'true'; resolve(); };
+      script.onerror = () => reject(new Error('No fue posible cargar la librería de PDF.'));
+      document.head.appendChild(script);
+    });
+  }
 
-      renderSummary(data);
-      renderCategoryChart(data);
-      renderCategoriesTable(data);
-      renderTopClientes(data);
-      renderTopProductos(data);
-      setText('mensajeMensual', '');
-    } finally {
-      if (cargaActual === cargaSecuencia) {
-        setLoadingState(false);
+  async function cargarLibreriaPDF() {
+    if (window.jspdf?.jsPDF && window.jspdf.jsPDF.API.autoTable) return window.jspdf.jsPDF;
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdfScript');
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js', 'jspdfAutoTableScript');
+    return window.jspdf.jsPDF;
+  }
+
+  function pdfTableOptions(overrides = {}) {
+    return {
+      theme: 'grid',
+      margin: { left: 9, right: 9 },
+      styles: { font: 'helvetica', fontSize: 7.2, cellPadding: 1.35, overflow: 'linebreak' },
+      headStyles: { fillColor: [32, 49, 47], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [246, 249, 248] },
+      ...overrides,
+    };
+  }
+
+  async function exportarPdf() {
+    if (!datosActuales) {
+      setText('mensajeEstadisticas', 'Primero debe cargar un período para exportarlo.');
+      return;
+    }
+
+    const button = document.getElementById('btnExportarPdf');
+    button.disabled = true;
+    setText('mensajeEstadisticas', 'Generando PDF...');
+    try {
+      const JsPDF = await cargarLibreriaPDF();
+      const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+      const data = datosActuales;
+      const resumen = data.resumen || {};
+      const periodo = `${mesesNombres[Number(data.mes || 1) - 1] || 'Mes'} ${data.anio || ''}`;
+      const generado = new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
+
+      doc.setTextColor(32, 49, 47);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('Estadísticas de Ventas', 9, 12);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(90, 100, 110);
+      doc.text(`Período: ${periodo}`, 9, 17);
+      doc.text(`Generado: ${generado}`, 288, 17, { align: 'right' });
+
+      doc.autoTable(pdfTableOptions({
+        startY: 21,
+        head: [['Venta total', 'Unidades', 'Vendedores principales', 'Códigos asociados']],
+        body: [[formatCLP(resumen.ventaTotal), formatCount(resumen.cantidadUnidades), formatCount(resumen.cantidadVendedores), formatCount(resumen.cantidadCodigos)]],
+        bodyStyles: { fontSize: 9, fontStyle: 'bold', textColor: [15, 118, 110] },
+      }));
+
+      const unidades = Array.isArray(data.resumenUnidades) ? data.resumenUnidades : [];
+      doc.autoTable(pdfTableOptions({
+        startY: doc.lastAutoTable.finalY + 4,
+        head: [['Resumen por unidad', 'Venta', 'Participación']],
+        body: unidades.map(item => [item.unidad || 'Sin unidad', formatCLP(item.venta), formatPct(item.participacion)]),
+        foot: [['TOTAL GENERAL', formatCLP(resumen.ventaTotal), unidades.length ? '100,00 %' : '0,00 %']],
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
+        footStyles: { fillColor: [237, 248, 245], textColor: [23, 75, 67], fontStyle: 'bold' },
+      }));
+
+      (data.grupos || []).forEach(grupo => {
+        const vendedores = Array.isArray(grupo.vendedores) ? grupo.vendedores : [];
+        let startY = doc.lastAutoTable.finalY + 5;
+        if (startY > 178) {
+          doc.addPage();
+          startY = 12;
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(23, 75, 67);
+        doc.text(String(grupo.grupo || 'Sin unidad'), 9, startY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(90, 100, 110);
+        doc.text(`Total unidad: ${formatCLP(grupo.total)} · Participación general: ${formatPct(grupo.participacion)}`, 288, startY, { align: 'right' });
+        doc.autoTable(pdfTableOptions({
+          startY: startY + 2,
+          head: [['Vendedor principal', 'Código principal', 'Cantidad códigos', 'Venta', 'Participación unidad']],
+          body: vendedores.map(vendedor => [
+            vendedor.vendedor || vendedor.codigoPrincipal || '-',
+            vendedor.codigoPrincipal || '-',
+            formatCount(vendedor.cantidadCodigos),
+            formatCLP(vendedor.neto),
+            formatPct(vendedor.participacion),
+          ]),
+          foot: [['TOTAL UNIDAD', '', '', formatCLP(grupo.total), vendedores.length ? '100,00 %' : '0,00 %']],
+          columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+          footStyles: { fillColor: [237, 248, 245], textColor: [23, 75, 67], fontStyle: 'bold' },
+          rowPageBreak: 'avoid',
+        }));
+      });
+
+      const paginas = doc.getNumberOfPages();
+      for (let pagina = 1; pagina <= paginas; pagina += 1) {
+        doc.setPage(pagina);
+        doc.setFontSize(7);
+        doc.setTextColor(110, 120, 128);
+        doc.text(`Texpro · Estadísticas de Ventas · ${periodo}`, 9, 205);
+        doc.text(`Página ${pagina} de ${paginas}`, 288, 205, { align: 'right' });
       }
+      doc.save(`estadisticas-ventas-${data.anio}-${String(data.mes).padStart(2, '0')}.pdf`);
+      setText('mensajeEstadisticas', `PDF generado correctamente (${paginas} página${paginas === 1 ? '' : 's'}).`);
+    } catch (error) {
+      setText('mensajeEstadisticas', `No se pudo generar el PDF. ${error.message}`);
+      console.error('[gerencia-estadisticas-pdf]', error);
+    } finally {
+      button.disabled = !datosActuales;
+    }
+  }
+
+  function openVendorCodes(groupIndex, sellerIndex, trigger) {
+    const group = datosActuales?.grupos?.[groupIndex];
+    const seller = group?.vendedores?.[sellerIndex];
+    const modal = document.getElementById('vendorCodesModal');
+    const body = document.getElementById('vendorCodesBody');
+    if (!group || !seller || !modal || !body) return;
+    const codes = Array.isArray(seller.codigos) ? seller.codigos : [];
+
+    setText('vendorCodesTitle', seller.vendedor || seller.codigoPrincipal || 'Detalle del vendedor');
+    setText('vendorCodesSubtitle', `${group.grupo || 'Sin unidad'} · Principal ${seller.codigoPrincipal || '-'}`);
+    setText('vendorCodesTotal', formatCLP(seller.neto ?? 0));
+    body.innerHTML = codes.length ? codes.map(code => `
+      <tr>
+        <td><code>${escHtml(code.codigo || '-')}</code></td>
+        <td>${escHtml(code.descripcion || '-')}</td>
+        <td class="numero">${formatCLP(code.neto ?? 0)}</td>
+        <td class="numero">${formatPct(code.participacion ?? 0)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" class="gerencia-empty">No hay códigos asociados para mostrar.</td></tr>';
+
+    ultimoFoco = trigger || document.activeElement;
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ventas-modal-open');
+    document.getElementById('btnCloseVendorCodes')?.focus();
+  }
+
+  async function loadData() {
+    const currentLoad = ++cargaSecuencia;
+    const year = Number(document.getElementById('yearFilter')?.value || new Date().getFullYear());
+    const month = Number(document.getElementById('monthFilter')?.value || (new Date().getMonth() + 1));
+    setLoadingState(true, 'Cargando estadísticas de ventas...');
+    resetView();
+    setText('mensajeEstadisticas', 'Actualizando información...');
+
+    try {
+      const data = await apiGet(`/estadisticas-ventas?anio=${encodeURIComponent(year)}&mes=${encodeURIComponent(month)}`);
+      if (currentLoad !== cargaSecuencia) return;
+      datosActuales = data;
+      renderSummary(data);
+      renderUnitsSummary(data);
+      renderUnitsDetail(data);
+      setText('mensajeEstadisticas', '');
+    } catch (error) {
+      if (currentLoad === cargaSecuencia) {
+        setText('mensajeEstadisticas', `No se pudieron cargar las estadísticas. ${error.message}`);
+      }
+      throw error;
+    } finally {
+      if (currentLoad === cargaSecuencia) setLoadingState(false);
     }
   }
 
   function bindEvents() {
-    const reload = () => {
-      cargarDatos().catch(err => {
-        console.error('[gerencia-estadisticas-ventas]', err);
-        alert(`No se pudieron cargar las estadísticas de ventas. ${err.message}`);
-      });
-    };
-
-    document.getElementById('btnActualizar')?.addEventListener('click', reload);
-    document.getElementById('yearFilter')?.addEventListener('change', reload);
-    document.getElementById('monthFilter')?.addEventListener('change', reload);
+    document.getElementById('btnActualizar')?.addEventListener('click', () => {
+      loadData().catch(error => console.error('[gerencia-estadisticas-ventas]', error));
+    });
+    document.getElementById('btnExportarPdf')?.addEventListener('click', exportarPdf);
+    document.getElementById('unitsDetail')?.addEventListener('click', event => {
+      const trigger = event.target.closest('.vendedor-detalle');
+      if (!trigger) return;
+      openVendorCodes(Number(trigger.dataset.groupIndex), Number(trigger.dataset.sellerIndex), trigger);
+    });
+    document.getElementById('btnCloseVendorCodes')?.addEventListener('click', closeVendorCodes);
+    document.querySelector('[data-modal-close]')?.addEventListener('click', closeVendorCodes);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeVendorCodes();
+    });
   }
 
   async function init() {
@@ -264,21 +395,13 @@
       window.location.href = '/src/modulo/varios/login/index.html';
       return;
     }
-
-    if (window.Chart?.getChart) {
-      const existing = window.Chart.getChart('categoryChart');
-      if (existing) existing.destroy();
-    }
-
     renderMonths();
     renderYears();
     bindEvents();
-
     try {
-      await cargarDatos();
-    } catch (err) {
-      console.error('[gerencia-estadisticas-ventas]', err);
-      alert(`No se pudo cargar el submódulo de gerencia. ${err.message}`);
+      await loadData();
+    } catch (error) {
+      console.error('[gerencia-estadisticas-ventas]', error);
     }
   }
 

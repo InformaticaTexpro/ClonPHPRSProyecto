@@ -153,10 +153,11 @@
   const MODULOS = [
     { nombre:'Dashboard',      icon:'🏠', url:'../../ventas/dashboard/index.html',                   area: null },
     { nombre:'Ventas',         icon:'📊', url:'../../ventas/ventas/index.html',                      area:['ventas','gerencia'] },
+    { nombre:'Cotizaciones',   icon:'💼', url:'../../ventas/cotizaciones/index.html',                area:['ventas','gerencia','administracion','admin'] },
     { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
     { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
     { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                      area:['bodega','produccion','gerencia'] },
-    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',            area:['laboratorio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
     { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                  area:['cobranza','contabilidad','gerencia'] },
     { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                          area:['rrhh','gerencia'] },
     { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',          area:['contabilidad','gerencia'] },

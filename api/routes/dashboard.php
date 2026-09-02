@@ -23,6 +23,12 @@ return static function (
     if ($method === 'GET' && $path === '/vendedores') {
         json_response($analyticsService->vendedores($payload, $query));
     }
+    if ($method === 'GET' && $path === '/ventas-compartidas-resumen') {
+        json_response($analyticsService->ventasCompartidasRecibidasResumen($payload, $query));
+    }
+    if ($method === 'GET' && $path === '/ventas-compartidas-entregadas-resumen') {
+        json_response($analyticsService->ventasCompartidasEntregadasResumen($payload, $query));
+    }
     if ($method === 'GET' && $path === '/ventas-mes') {
         json_response($analyticsService->ventasMes($payload, $query));
     }

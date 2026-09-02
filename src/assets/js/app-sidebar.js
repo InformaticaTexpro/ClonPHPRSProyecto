@@ -14,7 +14,48 @@
   };
 
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
+  const GERENCIA_VENDOR_SALES_URL = '/src/modulo/gerencia/comercial/ventas-vendedor/index.html';
   const EXTRA_ITEMS = [];
+
+  const ICON_SVGS = {
+    dashboard: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="3" y="4" width="7" height="7" rx="1.6"></rect>
+        <rect x="14" y="4" width="7" height="4" rx="1.6"></rect>
+        <rect x="14" y="10" width="7" height="10" rx="1.6"></rect>
+        <rect x="3" y="13" width="7" height="7" rx="1.6"></rect>
+      </svg>`,
+    monitor: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="3" y="5" width="18" height="12" rx="2"></rect>
+        <path d="M8 21h8"></path>
+        <path d="M12 17v4"></path>
+      </svg>`,
+    clipboard: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <rect x="5" y="4" width="14" height="16" rx="2"></rect>
+        <path d="M9 4.5h6"></path>
+        <path d="M9 11l2.2 2.2L16 8.4"></path>
+      </svg>`,
+    tools: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M14.7 3.5a4.5 4.5 0 0 0-4.2 6L4 16l-1 4 4-1 6.5-6.5a4.5 4.5 0 0 0 6-4.2l-2.7 1-2.1-2.1 1-2.7z"></path>
+        <path d="M16.8 13.2 20.5 17"></path>
+      </svg>`,
+    boxes: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M3 7.5 12 3l9 4.5-9 4.5-9-4.5Z"></path>
+        <path d="M3 7.5V17l9 4.5 9-4.5V7.5"></path>
+        <path d="M12 12v9"></path>
+      </svg>`,
+    headset: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 13a8 8 0 0 1 16 0"></path>
+        <rect x="3" y="13" width="4" height="6" rx="1.2"></rect>
+        <rect x="17" y="13" width="4" height="6" rx="1.2"></rect>
+        <path d="M7 17v2.5A2.5 2.5 0 0 0 9.5 22h2.5"></path>
+      </svg>`,
+  };
 
   const GENERAL_ITEM = {
     id: 'extra-general',
@@ -38,18 +79,7 @@
     extra: true,
   };
 
-  const RRHH_REVIEW_ITEM = {
-    id: 'extra-rrhh-reportes-compartidos',
-    codigo: 'rrhh_reportes_compartidos',
-    nombre: 'Revisión ventas compartidas',
-    url: '/src/modulo/rrhh/reportes-compartidos/index.html',
-    icono: '📄',
-    grupo: 'RRHH',
-    orden: 1,
-    extra: true,
-  };
-
-  [RRHH_HOME_ITEM, RRHH_REVIEW_ITEM].forEach(item => {
+  [RRHH_HOME_ITEM].forEach(item => {
     const url = normalizarUrl(item.url);
     const exists = EXTRA_ITEMS.some(extra => normalizarUrl(extra.url) === url);
     if (!exists) EXTRA_ITEMS.push(item);
@@ -59,7 +89,32 @@
     General: '🏠',
     Ventas: '💰',
     RRHH: '👥',
+    Laboratorio: '🧪',
+    'Soporte TI': 'headset',
     Gerencia: '📈',
+  };
+
+  const GROUP_SUBMENUS = {
+    Gerencia: [
+      {
+        id: 'comercial',
+        nombre: 'Comercial',
+        icono: '📊',
+        items: [
+          { codigo: 'gerencia', nombre: 'Dashboard' },
+          { codigo: 'gerencia_estadisticas_ventas', nombre: 'Estadísticas de Ventas' },
+          { codigo: 'gerencia_ventas_vendedor', nombre: 'Ventas por Vendedor' },
+        ],
+      },
+      {
+        id: 'finanzas',
+        nombre: 'Finanzas',
+        icono: '💳',
+        items: [
+          { codigo: 'gerencia_dashboard_finanzas', nombre: 'Dashboard' },
+        ],
+      },
+    ],
   };
 
   function ensureRealtimeClientLoaded() {
@@ -76,6 +131,100 @@
       .trim()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function parseJSONSafe(raw) {
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function obtenerUsuarioLocal() {
+    const fuentes = [
+      sessionStorage.getItem('texpro_user'),
+      localStorage.getItem('user'),
+      localStorage.getItem('usuario'),
+    ];
+
+    for (const raw of fuentes) {
+      const usuario = parseJSONSafe(raw);
+      if (usuario) return usuario;
+    }
+
+    return null;
+  }
+
+  function obtenerNombreUsuario(usuario) {
+    return String(
+      usuario?.nombre
+      || usuario?.name
+      || usuario?.usuario
+      || usuario?.email
+      || 'Usuario'
+    ).trim();
+  }
+
+  function obtenerAreaUsuario(usuario) {
+    return String(
+      usuario?.area
+      || usuario?.perfil_nombre
+      || usuario?.perfil
+      || ''
+    ).trim();
+  }
+
+  function obtenerInicialUsuario(usuario) {
+    const fuente = obtenerNombreUsuario(usuario) || String(usuario?.email || usuario?.usuario || 'U');
+    const partes = fuente.split(/\s+/).filter(Boolean);
+    const inicial = partes.slice(0, 2).map(parte => parte.charAt(0).toUpperCase()).join('');
+    return inicial || 'U';
+  }
+
+  function renderUsuarioSidebar(usuario) {
+    return renderUsuarioSidebarConEstado(usuario, 'Sin sesión activa');
+  }
+
+  function renderUsuarioSidebarConEstado(usuario, estadoFallback = 'Sin sesión activa') {
+    const avatar = document.getElementById('userAvatar');
+    const nombreEl = document.getElementById('userName');
+    const areaEl = document.getElementById('userArea');
+
+    if (!usuario) {
+      if (avatar) avatar.textContent = '?';
+      if (nombreEl) nombreEl.textContent = estadoFallback || 'Sin sesión activa';
+      if (areaEl) areaEl.textContent = '';
+      return;
+    }
+
+    const nombre = obtenerNombreUsuario(usuario);
+    const area = obtenerAreaUsuario(usuario);
+    const inicial = obtenerInicialUsuario(usuario);
+
+    if (avatar) avatar.textContent = inicial;
+    if (nombreEl) nombreEl.textContent = nombre;
+    if (areaEl) areaEl.textContent = area;
+  }
+
+  function renderIconMarkup(icono, fallback = '•', className = 'nav-icon') {
+    const key = normalizarTexto(icono).toLowerCase();
+    const svg = ICON_SVGS[key];
+    if (svg) {
+      return `<span class="${className} nav-icon--svg nav-icon--${key}" aria-hidden="true">${svg}</span>`;
+    }
+
+    const text = String(icono || fallback).trim() || fallback;
+    return `<span class="${className} nav-icon--text" aria-hidden="true">${escapeHtml(text)}</span>`;
   }
 
   function normalizarUrl(url) {
@@ -108,6 +257,7 @@
         })(),
         orden: Number(menu?.orden ?? 0) || 0,
         extra: Boolean(menu?.extra),
+        permisoCodigo: normalizarTexto(menu?.permisoCodigo),
       }))
       .filter(menu => menu.id !== null && menu.nombre && menu.url)
       .filter(menu => (FEATURE_FLAGS.mensajeria ? true : menu.codigo !== 'mensajeria'))
@@ -122,6 +272,21 @@
       map.set(normalizarUrl(GENERAL_ITEM.url), {
         ...GENERAL_ITEM,
         url: normalizarUrl(GENERAL_ITEM.url),
+      });
+    }
+
+    const gerenciaBase = catalogo.find(menu => menu.codigo === 'gerencia');
+    const ventasVendedorUrl = normalizarUrl(GERENCIA_VENDOR_SALES_URL);
+    if (gerenciaBase && !map.has(ventasVendedorUrl)) {
+      map.set(ventasVendedorUrl, {
+        ...gerenciaBase,
+        id: 'derived-gerencia-ventas-vendedor',
+        codigo: 'gerencia_ventas_vendedor',
+        permisoCodigo: 'gerencia',
+        nombre: 'Ventas por Vendedor',
+        url: ventasVendedorUrl,
+        orden: 3,
+        extra: false,
       });
     }
 
@@ -196,6 +361,7 @@
   function tienePermiso(menu, indice) {
     return indice.ids.has(String(menu.id))
       || (menu.codigo && indice.codigos.has(menu.codigo))
+      || (menu.permisoCodigo && indice.codigos.has(menu.permisoCodigo))
       || indice.urls.has(menu.url);
   }
 
@@ -233,6 +399,10 @@
     const objetivo = normalizarTexto(codigo);
     if (!objetivo) return false;
     return (Array.isArray(usuario?.menus) ? usuario.menus : []).some(menu => normalizarTexto(menu?.codigo) === objetivo);
+  }
+
+  function obtenerTokenSesion() {
+    return localStorage.getItem('token') || '';
   }
 
   function extraerCatalogo(data) {
@@ -411,8 +581,30 @@
       .nav-module-icon {
         width: 20px !important;
         min-width: 20px !important;
-        text-align: center !important;
-        font-size: 1rem !important;
+        height: 20px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 20px !important;
+      }
+      .nav-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 20px !important;
+        height: 20px !important;
+        color: currentColor !important;
+        flex: 0 0 20px !important;
+      }
+      .nav-icon svg {
+        width: 20px !important;
+        height: 20px !important;
+        display: block !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 2 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
       }
       .nav-module-label {
         flex: 1 !important;
@@ -470,6 +662,83 @@
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+      }
+      .nav-subitem .nav-item-icon {
+        width: 18px !important;
+        min-width: 18px !important;
+        height: 18px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 18px !important;
+      }
+      .nav-subitem .nav-item-icon svg {
+        width: 18px !important;
+        height: 18px !important;
+        display: block !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 2 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
+      }
+      .nav-subgroup {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      .nav-subgroup-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 30px !important;
+        align-items: center !important;
+      }
+      .nav-subgroup-link {
+        min-width: 0 !important;
+        min-height: 34px !important;
+        padding: 7px 6px 7px 9px !important;
+        border-radius: 7px 0 0 7px !important;
+        color: rgba(255, 255, 255, .72) !important;
+        font-size: .81rem !important;
+        font-weight: 700 !important;
+      }
+      .nav-subgroup-link.active {
+        color: #fff !important;
+        background: rgba(255, 255, 255, .08) !important;
+      }
+      .nav-subgroup-link.is-locked {
+        color: rgba(255, 255, 255, .42) !important;
+      }
+      .nav-subgroup-toggle {
+        width: 30px !important;
+        height: 34px !important;
+        display: grid !important;
+        place-items: center !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 7px 7px 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, .68) !important;
+        cursor: pointer !important;
+      }
+      .nav-subgroup-toggle:hover,
+      .nav-subgroup-toggle:focus-visible {
+        background: rgba(255, 255, 255, .08) !important;
+        color: #fff !important;
+      }
+      .nav-subgroup.is-open .nav-subgroup-toggle .nav-module-chevron {
+        transform: rotate(90deg) !important;
+      }
+      .nav-subgroup-items {
+        display: none !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        margin: 0 0 4px 18px !important;
+      }
+      .nav-subgroup.is-open .nav-subgroup-items {
+        display: flex !important;
+      }
+      .nav-subgroup-items .nav-subitem {
+        font-size: .77rem !important;
       }
       .nav-extra-badge {
         display: inline-flex !important;
@@ -603,6 +872,7 @@
         margin-left: 0 !important;
       }
       .sidebar--collapsed .nav-module-icon,
+      .sidebar--collapsed .nav-icon,
       .sidebar--collapsed .nav-item > span:first-child,
       .sidebar--collapsed .sidebar-nav a > span:first-child {
         width: 28px !important;
@@ -853,7 +1123,7 @@
     });
     document.addEventListener('click', event => {
       if (!isMobileViewport()) return;
-      if (event.target.closest('.sidebar .nav-subitem')) {
+      if (event.target.closest('.sidebar .nav-subitem, .sidebar .nav-subgroup-link')) {
         closeSidebarDrawer();
       }
     });
@@ -876,25 +1146,63 @@
 
   function renderGrupo(grupo, indicePermisos) {
     const abierto = grupoActivo(grupo);
+    const configuracion = GROUP_SUBMENUS[grupo.nombre] || [];
+    const codigosConfigurados = new Set(configuracion.flatMap(submenu => submenu.items.map(item => item.codigo)));
+    const submenus = configuracion.map(submenu => ({
+      ...submenu,
+      items: submenu.items.map(definicion => {
+        const item = grupo.items.find(candidato => candidato.codigo === definicion.codigo);
+        return item ? { ...item, nombre: definicion.nombre || item.nombre } : null;
+      }).filter(Boolean),
+    })).filter(submenu => submenu.items.length);
+    const itemsDirectos = grupo.items.filter(item => !codigosConfigurados.has(item.codigo));
+
+    const renderItem = item => {
+      const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
+      const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
+      return `
+        <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
+          ${renderIconMarkup(item.icono, '•', 'nav-item-icon')}
+          <span class="nav-label">${item.nombre}</span>
+          ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+        </a>
+      `;
+    };
+
+    const renderSubmenu = submenu => {
+      const submenuAbierto = submenu.items.some(itemActivo);
+      const destino = submenu.items[0];
+      const permitido = destino.extra ? true : tienePermiso(destino, indicePermisos);
+      const href = permitido ? destino.url : urlSinAcceso(destino, rutaActual());
+      return `
+        <div class="nav-subgroup ${submenuAbierto ? 'is-open' : ''}">
+          <div class="nav-subgroup-row">
+            <a class="nav-subgroup-link ${submenuAbierto ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
+              <span>${submenu.icono || destino.icono}</span>
+              <span class="nav-label">${submenu.nombre}</span>
+              ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+            </a>
+            <button class="nav-subgroup-toggle" type="button" aria-label="Desplegar ${submenu.nombre}" aria-expanded="${submenuAbierto ? 'true' : 'false'}">
+              <span class="nav-module-chevron">▶</span>
+            </button>
+          </div>
+          <div class="nav-subgroup-items">
+            ${submenu.items.map(renderItem).join('')}
+          </div>
+        </div>
+      `;
+    };
+
     return `
       <div class="nav-module ${abierto ? 'is-open' : ''}">
         <button class="nav-module-btn ${abierto ? 'is-open' : ''}" type="button" aria-expanded="${abierto ? 'true' : 'false'}">
-          <span class="nav-module-icon">${grupo.icono || '📁'}</span>
+          ${renderIconMarkup(grupo.icono || 'folder', '•', 'nav-module-icon')}
           <span class="nav-module-label">${grupo.nombre}</span>
           <span class="nav-module-chevron">▶</span>
         </button>
         <div class="nav-subitems">
-          ${grupo.items.map(item => {
-            const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
-            const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
-            return `
-              <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
-                <span>${item.icono}</span>
-                <span class="nav-label">${item.nombre}</span>
-                ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
-              </a>
-            `;
-          }).join('')}
+          ${submenus.map(renderSubmenu).join('')}
+          ${itemsDirectos.map(renderItem).join('')}
         </div>
       </div>
     `;
@@ -936,6 +1244,15 @@
         btn.classList.toggle('is-open', open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         syncSidebarOverlay();
+      });
+    });
+
+    nav.querySelectorAll('.nav-subgroup-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const submenu = btn.closest('.nav-subgroup');
+        const open = !submenu.classList.contains('is-open');
+        submenu.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
     });
   }
@@ -1843,48 +2160,122 @@
 
   async function obtenerContextoSidebar() {
     try {
-      const token = localStorage.getItem('token');
+      const token = obtenerTokenSesion();
       if (!token) return null;
 
       const res = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => null);
-      return data || null;
+      const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+      const raw = await res.text().catch(() => '');
+      let data = null;
+      if (raw.trim()) {
+        if (contentType.includes('application/json') || /^[\[{]/.test(raw.trim())) {
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            data = null;
+          }
+        }
+      }
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: data?.error || `HTTP ${res.status}`,
+          data,
+        };
+      }
+
+      if (!data || typeof data !== 'object') {
+        return {
+          ok: false,
+          error: 'Respuesta no JSON desde /api/auth/me',
+          data: null,
+        };
+      }
+
+      return data;
     } catch (err) {
       console.warn('[app-sidebar] No se pudo obtener usuario:', err.message);
       return null;
     }
   }
 
-  async function init() {
+  async function cargarSidebarDesdeSesion() {
     const nav = document.getElementById('sidebarNav');
+    const token = obtenerTokenSesion();
+    const cachedUser = obtenerUsuarioLocal();
     if (nav) {
       inyectarEstilos();
       nav.innerHTML = '<div class="nav-loading">Cargando menús...</div>';
     }
 
+    renderUsuarioSidebarConEstado(cachedUser, token ? 'Cargando...' : 'Sin sesión activa');
+
+    let fallbackTimer = window.setTimeout(() => {
+      const nombreEl = document.getElementById('userName');
+      const current = normalizeText(nombreEl?.textContent || '');
+      if (current === 'Cargando...' || current === 'Cargando…') {
+        renderUsuarioSidebarConEstado(cachedUser, token ? 'Sesión no disponible' : 'Sin sesión activa');
+      }
+    }, 1200);
+
     const data = await obtenerContextoSidebar();
-    if (!data?.user) {
+    window.clearTimeout(fallbackTimer);
+
+    const usuario = extraerUsuario(data);
+    if (!usuario) {
       if (nav) nav.innerHTML = '<div class="nav-empty">Sin sesión activa</div>';
+      renderUsuarioSidebarConEstado(cachedUser, token ? 'Sesión no disponible' : 'Sin sesión activa');
       return;
     }
 
-    const usuario = extraerUsuario(data);
     const catalogo = construirCatalogo(extraerCatalogo(data));
     const indicePermisos = crearIndicePermisos(usuario?.menus);
     validarAccesoPaginaActual(catalogo, usuario, indicePermisos);
+    renderUsuarioSidebarConEstado(usuario);
     renderSidebar(data);
     crearWidgetMensajeriaGlobal(data);
     ensureRealtimeClientLoaded();
 
-    document.getElementById('btnLogout')?.addEventListener('click', event => {
-      event.preventDefault();
-      cerrarSesion();
-    });
+    const logoutBtn = document.getElementById('btnLogout');
+    if (logoutBtn && !logoutBtn.dataset.bound) {
+      logoutBtn.addEventListener('click', event => {
+        event.preventDefault();
+        cerrarSesion();
+      });
+      logoutBtn.dataset.bound = '1';
+    }
+
+    return data;
   }
+
+  async function init() {
+    try {
+      await cargarSidebarDesdeSesion();
+    } catch (err) {
+      console.warn('[app-sidebar] Error al inicializar el sidebar:', err?.message || err);
+      renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
+    }
+  }
+
+  window.addEventListener('load', () => {
+    window.setTimeout(() => {
+      const nombreEl = document.getElementById('userName');
+      const current = normalizeText(nombreEl?.textContent || '');
+      if (current === 'Cargando...' || current === 'Cargando…') {
+        renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
+      }
+    }, 400);
+  });
+
+  window.addEventListener('texpro:auth-updated', () => {
+    cargarSidebarDesdeSesion().catch(err => {
+      console.warn('[app-sidebar] No se pudo refrescar el sidebar:', err.message);
+    });
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

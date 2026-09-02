@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
   <link rel="stylesheet" href="../../gerencia.css?v=1.1.0" />
-  <link rel="stylesheet" href="./estadisticas-ventas.css?v=1.1.0" />
+  <link rel="stylesheet" href="./estadisticas-ventas.css?v=1.2.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -42,7 +42,7 @@
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
-        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores comerciales">Mes seleccionado</span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Período comercial">Mes seleccionado</span>
       </div>
     </header>
 
@@ -50,10 +50,8 @@
       <section class="hero-panel" aria-labelledby="tituloEstadisticas">
         <div>
           <p class="eyebrow">Gerencia comercial</p>
-          <h2 id="tituloEstadisticas">Top 10 clientes y productos</h2>
-          <p class="hero-description">
-            Participación sobre la venta mensual con detalle de clientes, productos y categorías.
-          </p>
+          <h2 id="tituloEstadisticas">Estadísticas de Ventas</h2>
+          <p class="hero-description">Ventas por unidad de negocio, vendedor principal y códigos asociados.</p>
         </div>
         <a class="real-data-badge real-data-badge--link" href="../../dashboard-comercial/index.html">Volver al dashboard</a>
       </section>
@@ -68,145 +66,67 @@
           <select class="filtro-select" id="yearFilter"></select>
         </div>
         <button class="btn-buscar" id="btnActualizar" type="button">Actualizar</button>
+        <button class="btn-exportar" id="btnExportarPdf" type="button" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Exportar PDF
+        </button>
       </section>
-      <p class="gerencia-mensaje" id="mensajeMensual" role="status" aria-live="polite"></p>
+      <p class="gerencia-mensaje" id="mensajeEstadisticas" role="status" aria-live="polite"></p>
 
-      <section class="kpis-grid gerencia-kpis" aria-label="Resumen mensual">
-        <article class="kpi-card">
-          <div class="kpi-icono kpi-icono--verde">$</div>
-          <div class="kpi-info">
-            <span class="kpi-label">Venta del mes</span>
-            <span class="kpi-valor" id="kpiVentaMes">—</span>
-          </div>
-        </article>
-        <article class="kpi-card">
-          <div class="kpi-icono kpi-icono--morado">★</div>
-          <div class="kpi-info">
-            <span class="kpi-label">Meta del mes</span>
-            <span class="kpi-valor" id="kpiMetaMes">—</span>
-            <small class="gerencia-kpi-ayuda" id="metaMesAyuda"></small>
-          </div>
-        </article>
-        <article class="kpi-card">
-          <div class="kpi-icono kpi-icono--naranja">%</div>
-          <div class="kpi-info">
-            <span class="kpi-label">Cumplimiento</span>
-            <span class="kpi-valor" id="kpiCumplimiento">—</span>
-          </div>
-        </article>
-        <article class="kpi-card">
-          <div class="kpi-icono kpi-icono--azul">%</div>
-          <div class="kpi-info">
-            <span class="kpi-label">Porcentaje de descuento</span>
-            <span class="kpi-valor" id="kpiDescuentoMes">—</span>
-          </div>
-        </article>
+      <section class="kpis-grid gerencia-kpis" aria-label="Resumen general">
+        <article class="kpi-card"><div class="kpi-icono kpi-icono--verde">$</div><div class="kpi-info"><span class="kpi-label">Venta total</span><span class="kpi-valor" id="kpiVentaTotal">$0</span></div></article>
+        <article class="kpi-card"><div class="kpi-icono kpi-icono--azul">U</div><div class="kpi-info"><span class="kpi-label">Unidades</span><span class="kpi-valor" id="kpiCantidadUnidades">0</span></div></article>
+        <article class="kpi-card"><div class="kpi-icono kpi-icono--naranja">V</div><div class="kpi-info"><span class="kpi-label">Vendedores</span><span class="kpi-valor" id="kpiCantidadVendedores">0</span></div></article>
+        <article class="kpi-card"><div class="kpi-icono kpi-icono--morado">#</div><div class="kpi-info"><span class="kpi-label">Códigos</span><span class="kpi-valor" id="kpiCantidadCodigos">0</span></div></article>
       </section>
 
-      <section class="grafico-seccion">
-        <div class="grafico-card">
-          <div class="grafico-header">
-            <h3 class="grafico-titulo">Ventas por categoría del mes</h3>
-            <p class="grafico-descripcion" id="descripcionCategorias">Distribución del período seleccionado.</p>
-          </div>
-          <div class="gerencia-distribucion gerencia-distribucion--mensual">
-            <div class="gerencia-torta">
-              <canvas id="categoryChart"></canvas>
-            </div>
-            <div class="tabla-wrapper gerencia-tabla-compacta">
-              <table class="dash-tabla">
-                <thead>
-                  <tr>
-                    <th>Categoría de producto</th>
-                    <th class="numero">Venta del mes</th>
-                    <th class="numero">Participación</th>
-                  </tr>
-                </thead>
-                <tbody id="categoryTableBody">
-                  <tr><td colspan="3" class="gerencia-empty">Cargando…</td></tr>
-                </tbody>
-                <tfoot id="categoryTableFoot"></tfoot>
-              </table>
-            </div>
+      <section class="tabla-seccion" aria-labelledby="tituloResumenUnidades">
+        <div class="tabla-card">
+          <div class="tabla-header"><div><h3 class="tabla-titulo" id="tituloResumenUnidades">Resumen por unidad de negocio</h3><p class="gerencia-subtitulo">Participación de cada unidad sobre la venta total.</p></div></div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead><tr><th>Unidad</th><th class="numero">Venta</th><th class="numero">Participación</th></tr></thead>
+              <tbody id="unitsSummaryBody"><tr><td colspan="3" class="gerencia-empty">Cargando...</td></tr></tbody>
+              <tfoot id="unitsSummaryFoot"></tfoot>
+            </table>
           </div>
         </div>
       </section>
 
-      <div class="gerencia-grid gerencia-grid--equilibrado">
-        <section class="tabla-seccion">
-          <div class="tabla-card">
-            <div class="tabla-header">
-              <div>
-                <h3 class="tabla-titulo">Top 10 clientes del mes</h3>
-                <p class="gerencia-subtitulo">Participación sobre la venta mensual.</p>
-              </div>
-            </div>
-            <div class="tabla-wrapper">
-              <table class="dash-tabla">
-                <thead>
-                  <tr>
-                    <th class="numero">Posición</th>
-                    <th>Cliente</th>
-                    <th class="numero">Venta</th>
-                    <th class="numero">Participación</th>
-                  </tr>
-                </thead>
-                <tbody id="clientsTableBody">
-                  <tr><td colspan="4" class="gerencia-empty">Cargando…</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section class="tabla-seccion">
-          <div class="tabla-card">
-            <div class="tabla-header">
-              <div>
-                <h3 class="tabla-titulo">Top 10 productos del mes</h3>
-                <p class="gerencia-subtitulo">Productos ordenados por venta efectiva.</p>
-              </div>
-            </div>
-            <div class="tabla-wrapper">
-              <table class="dash-tabla">
-                <thead>
-                  <tr>
-                    <th class="numero">Posición</th>
-                    <th>Producto</th>
-                    <th>Categoría</th>
-                    <th class="numero">Venta</th>
-                    <th class="numero">Participación</th>
-                  </tr>
-                </thead>
-                <tbody id="productsTableBody">
-                  <tr><td colspan="5" class="gerencia-empty">Cargando…</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-      </div>
+      <section class="detalle-unidades" aria-labelledby="tituloDetalleUnidades">
+        <div class="detalle-unidades__header"><h3 id="tituloDetalleUnidades">Detalle por unidad de negocio</h3></div>
+        <div class="unidades-lista" id="unitsDetail"><p class="gerencia-empty">Cargando...</p></div>
+      </section>
     </main>
   </div>
 
+  <div class="ventas-modal" id="vendorCodesModal" aria-hidden="true" hidden>
+    <button class="ventas-modal__backdrop" type="button" data-modal-close aria-label="Cerrar detalle"></button>
+    <section class="ventas-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="vendorCodesTitle">
+      <header class="ventas-modal__header">
+        <div><p class="eyebrow">Códigos asociados</p><h3 id="vendorCodesTitle">Detalle del vendedor</h3><p id="vendorCodesSubtitle"></p></div>
+        <button class="ventas-modal__close" id="btnCloseVendorCodes" type="button" aria-label="Cerrar">×</button>
+      </header>
+      <div class="ventas-modal__body tabla-wrapper">
+        <table class="dash-tabla">
+          <thead><tr><th>Código</th><th>Descripción</th><th class="numero">Venta</th><th class="numero">Participación</th></tr></thead>
+          <tbody id="vendorCodesBody"></tbody>
+        </table>
+      </div>
+      <footer class="ventas-modal__footer"><span>Total vendedor</span><strong id="vendorCodesTotal">$0</strong></footer>
+    </section>
+  </div>
+
   <div class="gerencia-loading-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite">
-    <div class="gerencia-loading-card" role="status" aria-label="Cargando datos de gerencia">
+    <div class="gerencia-loading-card" role="status" aria-label="Cargando estadísticas de ventas">
       <div class="gerencia-loading-spinner" aria-hidden="true"></div>
-      <div class="gerencia-loading-copy">
-        <strong data-loading-text>Cargando datos...</strong>
-        <span>Estamos preparando la informacion mas reciente.</span>
-      </div>
-      <div class="gerencia-loading-skeleton" aria-hidden="true">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
+      <div class="gerencia-loading-copy"><strong data-loading-text>Cargando datos...</strong><span>Estamos preparando la información del período.</span></div>
+      <div class="gerencia-loading-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="../../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="./estadisticas-ventas.js?v=1.1.0"></script>
+  <script src="../../../../assets/js/app-sidebar.js?v=1.1.0"></script>
+  <script src="./estadisticas-ventas.js?v=1.4.0"></script>
   <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>

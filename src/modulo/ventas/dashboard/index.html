@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
-  <link rel="stylesheet" href="dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="dashboard.css?v=2.3.9" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
@@ -75,19 +75,11 @@
             </ul>
           </div>
         </div>
-        <div class="header-user-chip">
-          <div class="chip-avatar" id="chipAvatar">T</div>
-          <span class="chip-name" id="chipName">...</span>
-        </div>
       </div>
     </header>
 
     <main class="main-content">
       <div class="welcome-bar">
-        <div class="welcome-text">
-          <h2 id="welcomeTitle">Hola 👋</h2>
-          <p id="welcomeSubtitle">Cargando...</p>
-        </div>
         <div class="welcome-filtros">
           <select class="filtro-select" id="filtroMes"></select>
           <select class="filtro-select" id="filtroAnio"></select>
@@ -131,6 +123,45 @@
         </div>
       </section>
 
+      <div class="cotizaciones-modal" id="modalCotizacionDashboard" aria-hidden="true">
+        <div class="cotizaciones-modal__backdrop" data-close="true"></div>
+        <div class="cotizaciones-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalCotizacionDashboardTitulo">
+          <div class="cotizaciones-modal__header">
+            <div>
+              <h3 class="tabla-titulo" id="modalCotizacionDashboardTitulo">Detalle de cotización</h3>
+              <p class="tabla-subtitulo" id="modalCotizacionDashboardSubtitulo">—</p>
+            </div>
+            <button class="cotizaciones-modal__close" type="button" data-close="true">×</button>
+          </div>
+          <div class="cotizaciones-modal__summary">
+            <div><span class="summary-label">Cliente</span><strong id="modalCotizacionDashboardCliente">—</strong></div>
+            <div><span class="summary-label">Contacto</span><strong id="modalCotizacionDashboardContacto">—</strong></div>
+            <div><span class="summary-label">Vendedor</span><strong id="modalCotizacionDashboardVendedor">—</strong></div>
+            <div><span class="summary-label">Estado</span><strong id="modalCotizacionDashboardEstado">—</strong></div>
+            <div><span class="summary-label">Total</span><strong id="modalCotizacionDashboardTotal">—</strong></div>
+          </div>
+          <div class="tabla-wrapper cotizaciones-modal__table">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Línea</th>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th style="text-align:right">Cantidad</th>
+                  <th style="text-align:right">Precio</th>
+                  <th style="text-align:right">Subtotal</th>
+                  <th style="text-align:right">Descuento</th>
+                  <th style="text-align:right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyDetalleCotizacionDashboard">
+                <tr class="tabla-empty"><td colspan="8">Selecciona una cotización</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <section class="cartera-seccion" id="seccionCartera">
         <div class="cartera-header">
           <h3 class="cartera-titulo">Cartera de Clientes</h3>
@@ -140,10 +171,10 @@
         <div class="cartera-toolbar">
           <div class="cartera-toolbar__texto">
             <span class="cartera-toolbar__label">Filtro por vendedor</span>
-            <span class="cartera-toolbar__help">Muestra la cartera solo del cÃ³digo seleccionado.</span>
+            <span class="cartera-toolbar__help">Muestra la cartera solo del código seleccionado.</span>
           </div>
           <select id="filtroVendedorCartera" class="filtro-select filtro-select--sm" aria-label="Filtrar cartera por vendedor">
-            <option value="">Todos mis cÃ³digos</option>
+            <option value="">Todos mis códigos</option>
           </select>
         </div>
 
@@ -275,7 +306,23 @@
           <div class="tabla-header"><h3 class="tabla-titulo">Distribución por Categoría</h3></div>
           <div class="grafico-dona-centrado">
             <div id="tortaVendedorTabs" class="torta-vendedor-tabs" style="display:none"></div>
-            <div class="grafico-torta-wrapper"><canvas id="graficoClientesDistribucion"></canvas></div>
+            <div class="grafico-categoria-layout">
+              <div class="grafico-torta-panel">
+                <div class="grafico-torta-wrapper"><canvas id="graficoClientesDistribucion"></canvas></div>
+              </div>
+              <div id="graficoClientesDistribucionLeyenda" class="grafico-categoria-leyenda">
+                <div class="grafico-categoria-leyenda-header">
+                  <span>Categoría</span>
+                  <span>Monto</span>
+                  <span>%</span>
+                </div>
+                <div class="grafico-categoria-leyenda-scroll">
+                  <table class="grafico-categoria-leyenda-tabla">
+                    <tbody id="tbodyGraficoClientesDistribucionLeyenda"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -284,6 +331,65 @@
         <div class="tabla-card">
           <div class="tabla-header"><h3 class="tabla-titulo">Ventas por Vendedor</h3></div>
           <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Cód. Vendedor</th><th>Nombre</th><th>Folios</th><th style="text-align:right">Total Ventas</th><th style="text-align:right">Venta Real</th><th style="text-align:right">Descuento</th></tr></thead><tbody id="tbodyVendedores"><tr class="tabla-empty"><td colspan="6">Cargando...</td></tr></tbody><tfoot id="tfootVendedores"></tfoot></table></div>
+        </div>
+      </section>
+
+      <section class="tabla-seccion">
+        <div class="tabla-card tabla-card--compartidas">
+          <div class="tabla-header">
+            <div>
+              <h3 class="tabla-titulo">Ventas Compartidas Recibidas</h3>
+              <span class="tabla-subtitulo">Resumen de folios y montos asignados al usuario autenticado.</span>
+            </div>
+            <span class="tabla-badge" id="badgeVentasCompartidasRecibidas">0 registros</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Cód. Asignador</th>
+                  <th>Vendedor que asignó</th>
+                  <th>Folios</th>
+                  <th style="text-align:right">Monto asignado</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyVentasCompartidasRecibidas">
+                <tr class="tabla-empty"><td colspan="4">Cargando...</td></tr>
+              </tbody>
+              <tfoot id="tfootVentasCompartidasRecibidas"></tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="tabla-seccion" id="seccionCompartidasEntregadas" hidden>
+        <div class="tabla-card tabla-card--compartidas">
+          <div class="tabla-header">
+            <div>
+              <h3 class="tabla-titulo">Ventas Compartidas Entregadas</h3>
+              <span class="tabla-subtitulo">Folios que compartiste y vendedor que los recibió.</span>
+            </div>
+            <span class="tabla-badge" id="badgeVentasCompartidasEntregadas">0 registros</span>
+          </div>
+          <div class="tabla-wrapper">
+            <table class="dash-tabla">
+              <thead>
+                <tr>
+                  <th>Folio</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Cód. Asignado</th>
+                  <th>Vendedor asignado</th>
+                  <th style="text-align:right">% Part.</th>
+                  <th style="text-align:right">Monto asignado</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyVentasCompartidasEntregadas">
+                <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+              </tbody>
+              <tfoot id="tfootVentasCompartidasEntregadas"></tfoot>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -317,7 +423,7 @@
   </div>
 
   <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="dashboard.js?v=2.3.6"></script>
+  <script src="dashboard.js?v=2.3.9"></script>
   <script src="notificaciones-ui.js?v=2.0.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
   <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>

@@ -643,12 +643,11 @@ final class AdminService
 
         return array_map(function (array $user) use ($vendorsByUser, $menusByUser, $profilesByUser): array {
             $id = (int)$user['id'];
-            return $this->mapUserRow([
-                ...$user,
+            return $this->mapUserRow(array_merge($user, [
                 'vendedores' => $vendorsByUser[$id] ?? [],
                 'menus' => $menusByUser[$id] ?? [],
                 'perfiles' => $profilesByUser[$id] ?? [],
-            ]);
+            ]));
         }, $users);
     }
 
@@ -656,6 +655,113 @@ final class AdminService
     {
         $users = $this->loadUsers($pdo, $userId);
         return $users[0] ?? null;
+    }
+
+    private function loadEffectiveUserMenus(PDO $pdo, int $userId): array
+    {
+        $user = $this->loadUser($pdo, $userId);
+        if (!$user) {
+            throw new RuntimeException('Usuario no encontrado', 404);
+        }
+
+        $profiles = $this->loadUserProfiles($pdo, $userId);
+        $profileIds = array_values(array_filter(array_map(static fn(array $profile): int => (int)($profile['id'] ?? 0), $profiles)));
+
+        $directMenus = [];
+        $stmtDirect = $pdo->prepare(
+            'SELECT m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
+             FROM usuario_menu um
+             INNER JOIN menu m ON m.id = um.menu_id
+             WHERE um.usuario_id = ? AND um.activo = 1 AND m.activo = 1
+             ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC'
+        );
+        $stmtDirect->execute([$userId]);
+        foreach ($stmtDirect->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $menu = $this->mapMenuRow($row);
+            $directMenus[$menu['id']] = $menu;
+        }
+
+        $profileMenusByMenu = [];
+        if ($profileIds) {
+            $placeholders = implode(',', array_fill(0, count($profileIds), '?'));
+            $stmtProfiles = $pdo->prepare(
+                "SELECT pm.perfil_id, p.codigo AS perfil_codigo, p.nombre AS perfil_nombre,
+                        m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
+                 FROM perfil_menu pm
+                 INNER JOIN perfil p ON p.id = pm.perfil_id
+                 INNER JOIN menu m ON m.id = pm.menu_id
+                 WHERE pm.perfil_id IN ($placeholders)
+                   AND pm.activo = 1
+                   AND p.activo = 1
+                   AND m.activo = 1
+                 ORDER BY pm.perfil_id ASC, m.orden ASC, m.nombre ASC"
+            );
+            $stmtProfiles->execute($profileIds);
+            foreach ($stmtProfiles->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $menuId = (int)($row['id'] ?? 0);
+                if ($menuId <= 0) {
+                    continue;
+                }
+                $profileMenu = [
+                    'id' => (int)($row['perfil_id'] ?? 0),
+                    'codigo' => (string)($row['perfil_codigo'] ?? ''),
+                    'nombre' => (string)($row['perfil_nombre'] ?? ''),
+                ];
+                $profileMenusByMenu[$menuId] ??= [];
+                $profileMenusByMenu[$menuId][] = $profileMenu;
+            }
+        }
+
+        $menus = [];
+        $blocked = 0;
+        $direct = 0;
+        $inherited = 0;
+        $effective = 0;
+
+        foreach ($this->loadMenus($pdo) as $menu) {
+            $menuId = (int)$menu['id'];
+            $menuProfiles = $profileMenusByMenu[$menuId] ?? [];
+            $hasDirect = isset($directMenus[$menuId]);
+            $hasProfile = !empty($menuProfiles);
+            $allowed = $hasDirect || $hasProfile;
+            $origin = $hasDirect ? 'directo' : ($hasProfile ? 'perfil' : 'ninguno');
+
+            if ($allowed) {
+                $effective++;
+                if ($hasDirect) {
+                  $direct++;
+                } else {
+                  $inherited++;
+                }
+            } else {
+                $blocked++;
+            }
+
+            $menus[] = array_merge($menu, [
+                'permitido' => $allowed,
+                'origen' => $origin,
+                'directo' => $hasDirect,
+                'perfiles' => $menuProfiles,
+            ]);
+        }
+
+        return [
+            'usuario' => [
+                'id' => (int)$user['id'],
+                'nombre' => (string)$user['nombre'],
+                'email' => (string)$user['email'],
+                'codigo' => (string)$user['codigo'],
+                'area' => (string)$user['area'],
+            ],
+            'resumen' => [
+                'efectivos' => $effective,
+                'heredados' => $inherited,
+                'directos' => $direct,
+                'bloqueados' => $blocked,
+                'total_menus' => count($menus),
+            ],
+            'menus' => $menus,
+        ];
     }
 
     private function countActiveAdmins(PDO $pdo, ?int $excludeUserId = null): int
@@ -1339,11 +1445,11 @@ final class AdminService
 
             if ($hasAssignments) {
                 $pdo->prepare('UPDATE menu SET activo = 0 WHERE id = ?')->execute([$menuId]);
-                return [...$current, 'activo' => false, 'deleted' => false];
+                return array_merge($current, ['activo' => false, 'deleted' => false]);
             }
 
             $pdo->prepare('DELETE FROM menu WHERE id = ?')->execute([$menuId]);
-            return [...$current, 'deleted' => true];
+            return array_merge($current, ['deleted' => true]);
         });
 
         return ['ok' => true, 'data' => $menu];
@@ -1468,11 +1574,11 @@ final class AdminService
 
             if ($refsMenus > 0 || $refsUsers > 0) {
                 $pdo->prepare('UPDATE perfil SET activo = 0 WHERE id = ?')->execute([$profileId]);
-                return [...$current, 'activo' => false, 'deleted' => false];
+                return array_merge($current, ['activo' => false, 'deleted' => false]);
             }
 
             $pdo->prepare('DELETE FROM perfil WHERE id = ?')->execute([$profileId]);
-            return [...$current, 'deleted' => true];
+            return array_merge($current, ['deleted' => true]);
         });
         return ['ok' => true, 'data' => $perfil];
     }
@@ -1515,11 +1621,7 @@ final class AdminService
     public function usuarioMenus(array $payload, int $userId): array
     {
         $this->assertAdmin($payload);
-        $user = $this->withTransaction(fn(PDO $pdo) => $this->loadUser($pdo, $userId));
-        if (!$user) {
-            throw new RuntimeException('Usuario no encontrado', 404);
-        }
-        return ['ok' => true, 'data' => $user['menus']];
+        return ['ok' => true, 'data' => $this->withTransaction(fn(PDO $pdo) => $this->loadEffectiveUserMenus($pdo, $userId))];
     }
 
     public function usuarioPerfiles(array $payload, int $userId): array

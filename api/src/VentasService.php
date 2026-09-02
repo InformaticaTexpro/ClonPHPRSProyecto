@@ -328,7 +328,7 @@ final class VentasService
         if (!$data) {
             throw new RuntimeException('Folio no encontrado', 404);
         }
-        return ['ok' => true, ...$data];
+        return array_merge(['ok' => true], $data);
     }
 
     private function detalle(array $payload, string $folio, array $query): array

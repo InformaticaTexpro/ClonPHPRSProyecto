@@ -11,7 +11,7 @@ final class AuthService
     {
         $loginFinal = Security::normalize_login($login);
         if ($loginFinal === '' || $password === '') {
-            throw new RuntimeException('Email y contraseÃ±a requeridos', 400);
+            throw new RuntimeException('Email y contraseña requeridos', 400);
         }
 
         $user = $this->db->fetchOne(
@@ -25,17 +25,17 @@ final class AuthService
         );
 
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
         }
 
         if (!Security::verify_password_django($password, (string)$user['password'])) {
-            throw new RuntimeException('Usuario o contraseÃ±a incorrectos', 401);
+            throw new RuntimeException('Usuario o contraseña incorrectos', 401);
         }
 
         $this->db->execute('UPDATE usuario SET last_login = NOW() WHERE id = ?', [$user['id']]);
         $vendedores = $this->load_vendedores((int)$user['id']);
         $menusData = $this->load_user_menus((int)$user['id']);
-        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus']);
+        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
         $token = Security::jwt_encode($payload, (string)env('JWT_SECRET', ''), env('JWT_EXPIRES_IN', '8h'));
 
         return [
@@ -51,7 +51,7 @@ final class AuthService
         $payload = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
         $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token invÃ¡lido.', 401);
+            throw new RuntimeException('Token inválido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -60,7 +60,7 @@ final class AuthService
             [$userId]
         );
         if (!$user || !(int)$user['is_active']) {
-            throw new RuntimeException('SesiÃ³n no vÃ¡lida', 401);
+            throw new RuntimeException('Sesión no válida', 401);
         }
 
         $vendedores = $this->load_vendedores($userId);
@@ -72,6 +72,7 @@ final class AuthService
                 'vendedores' => $vendedores,
                 'perfiles' => $menusData['perfiles'],
                 'menus' => $menusData['menus'],
+                'menus_directos' => $menusData['menusDirectos'] ?? [],
             ]),
             'allMenus' => $menusData['allMenus'],
         ];
@@ -84,12 +85,12 @@ final class AuthService
         $exp = (int)($decoded['exp'] ?? 0);
         $window = 24 * 3600;
         if ($exp > 0 && ($now - $exp) > $window) {
-            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesiÃ³n nuevamente.', 401);
+            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesión nuevamente.', 401);
         }
 
         $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
         if ($userId <= 0) {
-            throw new RuntimeException('Token invÃ¡lido.', 401);
+            throw new RuntimeException('Token inválido.', 401);
         }
 
         $user = $this->db->fetchOne(
@@ -103,7 +104,7 @@ final class AuthService
 
         $vendedores = $this->load_vendedores($userId);
         $menusData = $this->load_user_menus($userId);
-        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus']);
+        $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
 
         return [
             'ok' => true,
@@ -130,7 +131,19 @@ final class AuthService
     private function load_user_menus(int $userId): array
     {
         $this->ensure_common_menus();
-        $menus = $this->db->fetchAll(
+        $menusDirectos = $this->db->fetchAll(
+            'SELECT DISTINCT
+                m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
+             FROM usuario_menu um
+             INNER JOIN menu m ON m.id = um.menu_id
+             WHERE um.usuario_id = ?
+               AND um.activo = 1
+               AND m.activo = 1
+             ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC',
+            [$userId]
+        );
+
+        $menusHeredados = $this->db->fetchAll(
             'SELECT DISTINCT
                 m.id, m.codigo, m.nombre, m.url, m.icono, m.grupo, m.orden
              FROM menu m
@@ -148,6 +161,17 @@ final class AuthService
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC',
             [$userId]
         );
+
+        $menus = array_values(array_filter(
+            array_map([self::class, 'normalize_menu'], array_merge($menusHeredados, $menusDirectos)),
+            static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''
+        ));
+        $menus = self::unique_menus($menus);
+        usort($menus, static function (array $left, array $right): int {
+            return ($left['orden'] <=> $right['orden'])
+                ?: strcmp((string)$left['grupo'], (string)$right['grupo'])
+                ?: strcmp((string)$left['nombre'], (string)$right['nombre']);
+        });
 
         $perfiles = $this->db->fetchAll(
             'SELECT DISTINCT
@@ -169,10 +193,7 @@ final class AuthService
              ORDER BY m.orden ASC, m.grupo ASC, m.nombre ASC'
         );
 
-        $menus = array_values(array_filter(
-            array_map([self::class, 'normalize_menu'], $menus),
-            static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''
-        ));
+        $menusDirectos = array_values(array_filter(array_map([self::class, 'normalize_menu'], $menusDirectos), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
         $allMenus = array_values(array_filter(array_map([self::class, 'normalize_menu'], $allMenus), static fn ($menu) => $menu['id'] !== null && $menu['url'] !== ''));
         $perfiles = array_values(array_filter(array_map(static function (array $perfil): array {
             return [
@@ -184,7 +205,7 @@ final class AuthService
             ];
         }, $perfiles), static fn ($perfil) => $perfil['id'] !== null));
 
-        return compact('menus', 'perfiles', 'allMenus');
+        return compact('menus', 'menusDirectos', 'perfiles', 'allMenus');
     }
 
     private function ensure_common_menus(): void
@@ -219,6 +240,194 @@ final class AuthService
                 ]
             );
         }
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'laboratorio_ingreso_muestras',
+                'Ingreso de Muestras',
+                'Laboratorio',
+                '/src/modulo/laboratorio/ingreso-muestras/index.html',
+                '🧪',
+                1,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'ventas_cotizaciones',
+                'Cotizaciones',
+                'Ventas',
+                '/src/modulo/ventas/cotizaciones/index.html',
+                '💼',
+                8,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_dashboard',
+                'Dashboard',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/dashboard/index.html',
+                'TI',
+                1,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_equipos',
+                'Equipos',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/equipos/index.html',
+                'EQ',
+                2,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_actividades',
+                'Actividades',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/actividades/index.html',
+                'AC',
+                3,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_mantenciones',
+                'Mantenciones',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/mantenciones/index.html',
+                'MT',
+                4,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO menu (codigo, nombre, grupo, url, icono, orden, activo)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               grupo = VALUES(grupo),
+               url = VALUES(url),
+               icono = VALUES(icono),
+               orden = VALUES(orden),
+               activo = VALUES(activo)',
+            [
+                'soporte_ti_bodega',
+                'Bodega TI',
+                'Soporte TI',
+                '/src/modulo/soporte-ti/bodega/index.html',
+                'BD',
+                5,
+            ]
+        );
+
+        $this->db->execute(
+            'INSERT INTO perfil (codigo, nombre, descripcion, area, es_base, activo)
+             VALUES (?, ?, ?, ?, 1, 1)
+             ON DUPLICATE KEY UPDATE
+               nombre = VALUES(nombre),
+               descripcion = VALUES(descripcion),
+               area = VALUES(area),
+               es_base = VALUES(es_base),
+               activo = VALUES(activo)',
+            [
+                'soporte-ti',
+                'Soporte TI',
+                'Perfil base para Soporte TI',
+                'soporte-ti',
+            ]
+        );
+
+        $this->ensure_menu_profile_access('laboratorio_ingreso_muestras', ['laboratorio', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('ventas_cotizaciones', ['ventas', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_dashboard', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_equipos', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_actividades', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_mantenciones', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+        $this->ensure_menu_profile_access('soporte_ti_bodega', ['soporte-ti', 'gerencia', 'administracion', 'admin']);
+    }
+
+    private function ensure_menu_profile_access(string $menuCode, array $profileCodes): void
+    {
+        $menu = $this->db->fetchOne('SELECT id FROM menu WHERE codigo = ? LIMIT 1', [$menuCode]);
+        if (!$menu) {
+            return;
+        }
+
+        $profileCodes = array_values(array_filter(array_map('trim', $profileCodes)));
+        if (!$profileCodes) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($profileCodes), '?'));
+        $sql = 'INSERT INTO perfil_menu (perfil_id, menu_id, activo)
+                SELECT p.id, m.id, 1
+                FROM perfil p
+                INNER JOIN menu m ON m.id = ?
+                WHERE p.codigo IN (' . $placeholders . ')
+                ON DUPLICATE KEY UPDATE activo = VALUES(activo)';
+        $params = array_merge([(int)$menu['id']], $profileCodes);
+        $this->db->execute($sql, $params);
     }
 
     private static function normalize_menu(array $menu): array
@@ -240,7 +449,20 @@ final class AuthService
         ];
     }
 
-    private function build_payload(array $user, array $vendedores, array $perfiles, array $menus): array
+    private static function unique_menus(array $menus): array
+    {
+        $indexed = [];
+        foreach ($menus as $menu) {
+            $id = isset($menu['id']) ? (int)$menu['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $indexed[$id] = $menu;
+        }
+        return array_values($indexed);
+    }
+
+    private function build_payload(array $user, array $vendedores, array $perfiles, array $menus, array $menusDirectos = []): array
     {
         return [
             'id' => (int)$user['id'],
@@ -252,6 +474,7 @@ final class AuthService
             'vendedores' => $vendedores,
             'perfiles' => $perfiles,
             'menus' => $menus,
+            'menus_directos' => $menusDirectos,
         ];
     }
 }
@@ -276,7 +499,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'Si el correo estÃ¡ registrado, recibirÃ¡s el cÃ³digo en breve.',
+            'message' => 'Si el correo está registrado, recibirás el código en breve.',
         ];
     }
 
@@ -284,7 +507,7 @@ final class RecoveryService
     {
         $email = Security::validate_email($email);
         if (!preg_match('/^\d{6}$/', trim($otp))) {
-            throw new RuntimeException('Email y cÃ³digo de 6 dÃ­gitos son requeridos.', 400);
+            throw new RuntimeException('Email y código de 6 dígitos son requeridos.', 400);
         }
 
         $row = $this->db->fetchOne(
@@ -299,7 +522,7 @@ final class RecoveryService
         );
 
         if (!$row) {
-            throw new RuntimeException('CÃ³digo incorrecto o expirado.', 401);
+            throw new RuntimeException('Código incorrecto o expirado.', 401);
         }
 
         $this->db->execute('UPDATE otp_tokens SET usado = 1 WHERE id = ?', [$row['id']]);
@@ -307,7 +530,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'CÃ³digo verificado correctamente.',
+            'message' => 'Código verificado correctamente.',
             'resetToken' => $token,
         ];
     }
@@ -316,15 +539,15 @@ final class RecoveryService
     {
         $resetToken = trim($resetToken);
         if ($resetToken === '' || $password === '') {
-            throw new RuntimeException('Token y contraseÃ±a son requeridos.', 400);
+            throw new RuntimeException('Token y contraseña son requeridos.', 400);
         }
         if (mb_strlen($password) < 8) {
-            throw new RuntimeException('La contraseÃ±a debe tener mÃ­nimo 8 caracteres.', 400);
+            throw new RuntimeException('La contraseña debe tener mínimo 8 caracteres.', 400);
         }
 
         $payload = Security::jwt_decode($resetToken, (string)env('JWT_SECRET', ''));
         if (($payload['purpose'] ?? '') !== 'password_reset') {
-            throw new RuntimeException('Token de restablecimiento invÃ¡lido o expirado.', 401);
+            throw new RuntimeException('Token de restablecimiento inválido o expirado.', 401);
         }
 
         $email = Security::validate_email((string)($payload['email'] ?? ''));
@@ -340,7 +563,7 @@ final class RecoveryService
 
         return [
             'ok' => true,
-            'message' => 'ContraseÃ±a actualizada correctamente. Ya puedes iniciar sesiÃ³n.',
+            'message' => 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
         ];
     }
 
@@ -495,7 +718,7 @@ final class RecoveryService
 
     private function build_otp_html(string $code): string
     {
-        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">RecuperaciÃ³n de contraseÃ±a</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseÃ±a en el sistema TEXPRO.<br>Usa el siguiente cÃ³digo. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este cÃ³digo, ignora este correo.<br>Tu contraseÃ±a actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos QuÃ­micos y Tratamiento de Aguas</p></div></body></html>';
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:32px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.1)"><h2 style="color:#1a1a2e;margin-bottom:8px">Recuperación de contraseña</h2><p style="color:#555;margin-bottom:24px">Recibimos una solicitud para restablecer tu contraseña en el sistema TEXPRO.<br>Usa el siguiente código. <strong>Expira en 15 minutos.</strong></p><div style="text-align:center;margin:32px 0"><span style="display:inline-block;letter-spacing:10px;font-size:40px;font-weight:bold;color:#1a1a2e;background:#f0f4ff;padding:16px 32px;border-radius:8px">' . htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span></div><p style="color:#888;font-size:13px">Si no solicitaste este código, ignora este correo.<br>Tu contraseña actual sigue siendo la misma.</p><hr style="border:none;border-top:1px solid #eee;margin:24px 0"><p style="color:#aaa;font-size:12px;text-align:center">TEXPRO Productos Químicos y Tratamiento de Aguas</p></div></body></html>';
     }
 }
 

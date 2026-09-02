@@ -1,33 +1,38 @@
 'use strict';
 
 /**
- * dashboard.js — RSProyecto Texpro
+ * dashboard.js â€” RSProyecto Texpro
  *
  * 2026-04-23: filtros client-side en tabla Ventas del Mes
  * 2026-04-24: módulo Alertas agregado al sidebar
  * 2026-04-24: fix(lint) — eliminada función setHTML no utilizada
- * 2026-06-04: fix — ruta alertas corregida a ../../alertas/index.html
- * 2026-06-08: fix — todas las rutas del sidebar corregidas a nueva estructura anidada
- * 2026-06-08: fix — eliminadas funciones del Panel Coordinador
- * 2026-06-08: feat — cartera: eliminadas cards Activos/Recuperados/SinCompras;
+ * 2026-06-04: fix â€” ruta alertas corregida a ../../alertas/index.html
+ * 2026-06-08: fix â€” todas las rutas del sidebar corregidas a nueva estructura anidada
+ * 2026-06-08: fix â€” eliminadas funciones del Panel Coordinador
+ * 2026-06-08: feat â€” cartera: eliminadas cards Activos/Recuperados/SinCompras;
  *                    agregada card Activos Mes Actual (fija al mes real del servidor)
- * 2026-06-09: fix — agrega enlace Historial Cliente al sidebar
- * 2026-06-10: feat — cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
+ * 2026-06-09: fix â€” agrega enlace Historial Cliente al sidebar
+ * 2026-06-10: feat â€” cartera: 5 KPIs desde /api/cartera (Total, Activos, Inactivos, Nuevos,
  *                    Recuperados); elimina lista-KPI redundante del HTML
- * 2026-06-11: fix — descuentos redondeados (sin decimales) en KPI global,
+ * 2026-06-11: fix â€” descuentos redondeados (sin decimales) en KPI global,
  *                    tabla vendedores y tabla ventas del mes
- * 2026-06-15: fix — sidebar estandarizado: Ventas → Ventas Asignadas, Historial → Historial Cliente
+ * 2026-06-15: fix â€” sidebar estandarizado: Ventas â†’ Ventas Asignadas, Historial â†’ Historial Cliente
  */
 
 (function () {
 
   const API        = '/api/dashboard';
   const API_CART   = '/api/cartera';
+  const API_COT    = '/api/cotizaciones';
   const token      = () => localStorage.getItem('token');
 
   let graficoEvolucion              = null;
   let graficoClientesDistribucion   = null;
   let usuarioSesion                 = null;
+  let cotizacionesResumen           = null;
+  let cotizacionesPreviewActivo     = 'month';
+  let ventasCompartidasRecibidas    = { rows: [], totales: { folios: 0, monto: 0 } };
+  let ventasCompartidasEntregadas   = { rows: [], totales: { folios: 0, monto: 0 } };
 
   // Datos de cartera por segmento (arrays para las tablas expandibles)
   let carteraData = {
@@ -44,7 +49,7 @@
   const MESES_NOMBRE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   function formatCLP(v) {
-    if (v == null || v === '') return '—';
+    if (v == null || v === '') return 'â€”';
     return new Intl.NumberFormat('es-CL', { style:'currency', currency:'CLP', maximumFractionDigits:0 }).format(Number(v));
   }
 
@@ -95,6 +100,118 @@
     renderVendedoresFooter(0, 0, null);
   }
 
+  function renderVentasCompartidasRecibidasFooter(totalFolios = 0, totalMonto = 0) {
+    const tfoot = document.getElementById('tfootVentasCompartidasRecibidas');
+    if (!tfoot) return;
+    tfoot.innerHTML = `<tr>
+      <td colspan="2"><strong>Total</strong></td>
+      <td style="text-align:right"><strong>${Number(totalFolios || 0).toLocaleString('es-CL')}</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(totalMonto)}</strong></td>
+    </tr>`;
+  }
+
+  function renderVentasCompartidasRecibidasEmpty(mensaje = 'Sin ventas compartidas recibidas para el período seleccionado.') {
+    const tbody = document.getElementById('tbodyVentasCompartidasRecibidas');
+    const badge = document.getElementById('badgeVentasCompartidasRecibidas');
+    if (tbody) {
+      tbody.innerHTML = `<tr class="tabla-empty"><td colspan="4">${escHtml(mensaje)}</td></tr>`;
+    }
+    if (badge) badge.textContent = '0 registros';
+    renderVentasCompartidasRecibidasFooter(0, 0);
+  }
+
+  function renderVentasCompartidasRecibidas() {
+    const tbody = document.getElementById('tbodyVentasCompartidasRecibidas');
+    const badge = document.getElementById('badgeVentasCompartidasRecibidas');
+    if (!tbody) return;
+
+    const rows = Array.isArray(ventasCompartidasRecibidas.rows) ? ventasCompartidasRecibidas.rows : [];
+    const totales = ventasCompartidasRecibidas.totales || {};
+
+    if (!rows.length) {
+      renderVentasCompartidasRecibidasEmpty();
+      return;
+    }
+
+    tbody.innerHTML = rows.map(row => {
+      const codigo = String(row.CodigoAsignador || '').trim();
+      const nombre = String(row.NombreAsignador || '').trim();
+      return `
+        <tr>
+          <td><strong>${escHtml(codigo) || '—'}</strong></td>
+          <td>${escHtml(nombre) || escHtml(codigo) || '—'}</td>
+          <td>${Number(row.FoliosAsignados || 0).toLocaleString('es-CL')}</td>
+          <td style="text-align:right">${formatCLP(row.MontoAsignado || 0)}</td>
+        </tr>`;
+    }).join('');
+
+    if (badge) {
+      badge.textContent = `${rows.length.toLocaleString('es-CL')} registros`;
+    }
+
+    renderVentasCompartidasRecibidasFooter(totales.folios ?? 0, totales.monto ?? 0);
+  }
+
+  function renderVentasCompartidasEntregadasFooter(totalFolios = 0, totalMonto = 0) {
+    const tfoot = document.getElementById('tfootVentasCompartidasEntregadas');
+    if (!tfoot) return;
+    tfoot.innerHTML = `<tr>
+      <td colspan="5"><strong>Total</strong></td>
+      <td style="text-align:right"><strong>${Number(totalFolios || 0).toLocaleString('es-CL')}</strong></td>
+      <td style="text-align:right"><strong>${formatCLP(totalMonto)}</strong></td>
+    </tr>`;
+  }
+
+  function renderVentasCompartidasEntregadasEmpty(mensaje = 'Sin ventas compartidas entregadas para el período seleccionado.') {
+    const tbody = document.getElementById('tbodyVentasCompartidasEntregadas');
+    const badge = document.getElementById('badgeVentasCompartidasEntregadas');
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    if (tbody) {
+      tbody.innerHTML = `<tr class="tabla-empty"><td colspan="7">${escHtml(mensaje)}</td></tr>`;
+    }
+    if (badge) badge.textContent = '0 registros';
+    if (section) section.hidden = true;
+    renderVentasCompartidasEntregadasFooter(0, 0);
+  }
+
+  function renderVentasCompartidasEntregadas() {
+    const tbody = document.getElementById('tbodyVentasCompartidasEntregadas');
+    const badge = document.getElementById('badgeVentasCompartidasEntregadas');
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    if (!tbody) return;
+
+    const rows = Array.isArray(ventasCompartidasEntregadas.rows) ? ventasCompartidasEntregadas.rows : [];
+    const totales = ventasCompartidasEntregadas.totales || {};
+
+    if (!rows.length) {
+      renderVentasCompartidasEntregadasEmpty();
+      return;
+    }
+
+    if (section) section.hidden = false;
+
+    tbody.innerHTML = rows.map(row => {
+      const codAsignado = String(row.CodigoAsignado || '').trim();
+      const nombreAsignado = String(row.NombreAsignado || '').trim();
+      return `
+        <tr>
+          <td><strong>${escHtml(row.folio) || '—'}</strong></td>
+          <td>${escHtml(String(row.fecha || '').slice(0, 10)) || '—'}</td>
+          <td>${escHtml(row.cliente || '—')}</td>
+          <td>${escHtml(codAsignado) || '—'}</td>
+          <td>${escHtml(nombreAsignado) || escHtml(codAsignado) || '—'}</td>
+          <td style="text-align:right">${Number(row.porcentaje || 0).toFixed(2)}%</td>
+          <td style="text-align:right">${formatCLP(row.MontoAsignado || 0)}</td>
+        </tr>`;
+    }).join('');
+
+    if (badge) {
+      badge.textContent = `${rows.length.toLocaleString('es-CL')} registros`;
+    }
+
+    renderVentasCompartidasEntregadasFooter(totales.folios ?? 0, totales.monto ?? 0);
+  }
+
   function mostrarEstadoDashboard(mensaje, tipo = 'error') {
     const el = document.getElementById('dashboardStatus');
     if (!el) return;
@@ -125,11 +242,15 @@
     return Array.from(codigos);
   }
 
+  function codigosCoordinadorUsuario(usuario = usuarioSesion) {
+    return normalizarCodigosVendedor((Array.isArray(usuario?.vendedores) ? usuario.vendedores : []).filter(v => String(v?.tipo || '').toUpperCase() === 'C'));
+  }
+
   if (window.Chart && window.ChartDataLabels) {
     window.Chart.register(window.ChartDataLabels);
   }
 
-  // ── Spinner ───────────────────────────────────────────────────────────────────────────────────
+  // â”€â”€ Spinner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let cargaOverlay = null;
 
   function crearSpinner() {
@@ -178,20 +299,21 @@
     } catch { window.location.href = '../../varios/login/index.html'; return null; }
   }
 
-  // ── Sidebar ──────────────────────────────────────────────────────────────────────────────────
+  // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Nombres estándar en todos los módulos del área ventas:
   //   Dashboard (activo) | Ventas Asignadas | Historial Cliente | Alertas
   const MODULOS = [
-    { nombre:'Ventas Asignadas', icon:'📊', url:'../ventas/index.html',                              area:['ventas','gerencia'] },
-    { nombre:'Historial Cliente',icon:'📋', url:'../historial-cliente/index.html',                   area:['ventas','gerencia'] },
+    { nombre:'Ventas Asignadas', icon:'&#128202;', url:'../ventas/index.html',                        area:['ventas','gerencia'] },
+    { nombre:'Cotizaciones',     icon:'&#128188;', url:'../cotizaciones/index.html',                  area:['ventas','gerencia','administracion','admin'] },
+    { nombre:'Historial Cliente',icon:'&#128203;', url:'../historial-cliente/index.html',             area:['ventas','gerencia'] },
     { nombre:'Facturación',    icon:'🧾', url:'../../facturacion/facturacion/index.html',           area:['facturacion','contabilidad','gerencia'] },
     { nombre:'Bodega',         icon:'🏭', url:'../../bodega/bodega/index.html',                    area:['bodega','produccion','gerencia'] },
     { nombre:'Producción',     icon:'⚙️', url:'../../produccion/produccion/index.html',             area:['produccion','gerencia'] },
     { nombre:'Serv. TEC',      icon:'🛠️', url:'../../servtecnico/servicio-tecnico/index.html',     area:['servicio-tecnico','servicio','gerencia'] },
-    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/laboratorio/index.html',          area:['laboratorio','gerencia'] },
+    { nombre:'Laboratorio',    icon:'🧪', url:'../../laboratorio/ingreso-muestras/index.html',      area:['laboratorio','gerencia'] },
     { nombre:'Cobranza',       icon:'💰', url:'../../cobranza/cobranza/index.html',                area:['cobranza','contabilidad','gerencia'] },
     { nombre:'RRHH',           icon:'👥', url:'../../rrhh/rrhh/index.html',                        area:['rrhh','gerencia'] },
-    { nombre:'Contabilidad',   icon:'📜', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
+    { nombre:'Contabilidad',   icon:'📝', url:'../../contabilidad/contabilidad/index.html',        area:['contabilidad','gerencia'] },
     { nombre:'Administración', icon:'🔧', url:'../../admin/admin/index.html',                      area:['admin'] },
   ];
 
@@ -201,12 +323,8 @@
     setText('userName',  usuario.nombre  || usuario.email);
     setText('userArea',  usuario.area    || '');
     setText('userAvatar', ini);
-    setText('chipAvatar', ini);
-    setText('chipName',   (usuario.nombre||usuario.email).split(' ')[0]);
     setText('headerDate', new Date().toLocaleDateString('es-CL',
       { weekday:'long', year:'numeric', month:'long', day:'numeric' }));
-    setText('welcomeTitle',    `Hola, ${(usuario.nombre||usuario.email).split(' ')[0]} 👋`);
-    setText('welcomeSubtitle', `Área: ${usuario.area||'Sistema'} — Texpro`);
 
     const nav      = document.getElementById('sidebarNav');
     const visibles = MODULOS.filter(m => {
@@ -252,7 +370,7 @@
     }
   }
 
-  // ── Selectores mes/año ────────────────────────────────────────────────────────────────────
+  // Selectores mes/año
   function initSelectores() {
     const hoy    = new Date();
     const selMes = document.getElementById('filtroMes');
@@ -303,7 +421,7 @@
     return params;
   }
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────────────────────
+  // â”€â”€ KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function cargarResumen() {
     try {
       const res  = await fetch(`${API}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -327,7 +445,236 @@
     }
   }
 
-  // ── Gráfico ───────────────────────────────────────────────────────────────────────────────
+  function cotizacionesLista(tipo) {
+    return tipo === 'total'
+      ? (cotizacionesResumen?.total?.preview || [])
+      : (cotizacionesResumen?.mes?.preview || []);
+  }
+
+  function renderCotizacionesResumen() {
+    const mes = cotizacionesResumen?.mes || {};
+    const total = cotizacionesResumen?.total || {};
+    setText('cotizacionesMesCount', Number(mes.totalCotizaciones || 0).toLocaleString('es-CL'));
+    setText('cotizacionesMesMonto', formatCLP(mes.montoCotizado || 0));
+    setText('cotizacionesTotalCount', Number(total.totalCotizaciones || 0).toLocaleString('es-CL'));
+    setText('cotizacionesTotalMonto', formatCLP(total.montoCotizado || 0));
+    renderCotizacionesPreview();
+  }
+
+  function setCotizacionesPreview(tipo, abrirDetalle = true) {
+    cotizacionesPreviewActivo = tipo === 'total' ? 'total' : 'month';
+
+    document.querySelectorAll('[data-cot-preview]').forEach(card => {
+      const active = card.dataset.cotPreview === cotizacionesPreviewActivo;
+      card.classList.toggle('is-active', active);
+      const btn = card.querySelector('.cartera-card-btn');
+      if (btn) btn.setAttribute('aria-expanded', active && abrirDetalle ? 'true' : 'false');
+      const body = card.querySelector('[data-cot-body]');
+      if (body) body.hidden = !(active && abrirDetalle);
+    });
+
+    setText('cotizacionesPreviewTitulo', cotizacionesPreviewActivo === 'total'
+      ? 'Cotizaciones históricas'
+      : 'Cotizaciones del mes');
+    setText('cotizacionesPreviewSubtitulo', cotizacionesPreviewActivo === 'total'
+      ? 'Resumen general, estado y detalle histórico de cotizaciones.'
+      : 'Resumen general, estado y detalle del período seleccionado.');
+    setText('cotizacionesPreviewBadge', cotizacionesPreviewActivo === 'total' ? 'Históricas' : 'Mes seleccionado');
+    renderCotizacionesPreview();
+  }
+
+  function ensureCotizacionesSection() {
+    if (document.getElementById('seccionCotizacionesDashboard')) return;
+
+    const carteraSection = document.getElementById('seccionCartera');
+    if (!carteraSection) return;
+
+    const section = document.createElement('section');
+    section.className = 'tabla-seccion cotizaciones-panel';
+    section.id = 'seccionCotizacionesDashboard';
+    section.innerHTML = `
+      <div class="cartera-header cotizaciones-preview-header">
+        <div>
+          <h3 class="cartera-titulo" id="cotizacionesPreviewTitulo">Cotizaciones del mes</h3>
+          <span class="cartera-subtitulo" id="cotizacionesPreviewSubtitulo">Resumen de cotizaciones y detalle por documento.</span>
+        </div>
+        <span class="tabla-badge" id="cotizacionesPreviewBadge">Mes seleccionado</span>
+      </div>
+
+      <div class="cartera-cards cotizaciones-summary-cards">
+        <div class="cartera-card cartera-card--cotizacion" data-cot-preview="month">
+          <button class="cartera-card-btn" type="button" data-cot-toggle="month" aria-expanded="false">
+            <div class="cartera-card-icono">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </div>
+            <div class="cartera-card-info">
+              <span class="cartera-card-label">COTIZACIONES DEL MES</span>
+              <span class="cartera-card-count" id="cotizacionesMesCount">—</span>
+              <span class="cartera-card-desc">Monto cotizado: <strong id="cotizacionesMesMonto">—</strong></span>
+            </div>
+            <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="cartera-lista cotizaciones-card__body" data-cot-body="month" hidden>
+            <div class="cartera-tabla-wrapper cotizaciones-tabla-wrapper">
+              <table class="dash-tabla cartera-tabla cotizaciones-tabla">
+                <thead>
+                  <tr>
+                    <th>N° Cotización</th>
+                    <th>Fecha</th>
+                    <th>Cliente / Razón social</th>
+                    <th>Vendedor</th>
+                    <th style="text-align:center">Estado</th>
+                    <th style="text-align:right">Total</th>
+                    <th style="text-align:center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyCotizacionesPreviewMonth">
+                  <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="cartera-card cartera-card--cotizacion" data-cot-preview="total">
+          <button class="cartera-card-btn" type="button" data-cot-toggle="total" aria-expanded="false">
+            <div class="cartera-card-icono">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M5 5h14M5 19h14"/>
+              </svg>
+            </div>
+            <div class="cartera-card-info">
+              <span class="cartera-card-label">COTIZACIONES HISTÓRICAS</span>
+              <span class="cartera-card-count" id="cotizacionesTotalCount">—</span>
+              <span class="cartera-card-desc">Monto histórico: <strong id="cotizacionesTotalMonto">—</strong></span>
+            </div>
+            <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="cartera-lista cotizaciones-card__body" data-cot-body="total" hidden>
+            <div class="cartera-tabla-wrapper cotizaciones-tabla-wrapper">
+              <table class="dash-tabla cartera-tabla cotizaciones-tabla">
+                <thead>
+                  <tr>
+                    <th>N° Cotización</th>
+                    <th>Fecha</th>
+                    <th>Cliente / Razón social</th>
+                    <th>Vendedor</th>
+                    <th style="text-align:center">Estado</th>
+                    <th style="text-align:right">Total</th>
+                    <th style="text-align:center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyCotizacionesPreviewTotal">
+                  <tr class="tabla-empty"><td colspan="7">Cargando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    carteraSection.insertAdjacentElement('afterend', section);
+
+    section.querySelectorAll('[data-cot-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tipo = String(btn.dataset.cotToggle || 'month');
+        const abrir = cotizacionesPreviewActivo !== tipo || btn.getAttribute('aria-expanded') !== 'true';
+        setCotizacionesPreview(tipo, abrir);
+      });
+    });
+  }
+
+  function renderCotizacionesPreview() {
+    const renderBody = (tbodyId, lista) => {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      if (!Array.isArray(lista) || !lista.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="7">Sin cotizaciones para mostrar</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = lista.map(item => `
+        <tr>
+          <td><strong>N° ${escHtml(item.CotNum) || '—'}</strong></td>
+          <td>${escHtml(item.fecha_formato) || '—'}</td>
+          <td>${escHtml(item.Cliente || item.cliente || item.CodAux) || '—'}</td>
+          <td>${escHtml(item.vendedor_nombre || item.VenCod) || '—'}</td>
+          <td style="text-align:center">${escHtml(item.CtEstado || '—')}</td>
+          <td style="text-align:right">${formatCLP(item.CtMonto || 0)}</td>
+          <td style="text-align:center">
+            <button class="btn-buscar btn-buscar--ghost" type="button" data-cot-detalle="${escHtml(item.CotNum)}">Ver detalle</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('[data-cot-detalle]').forEach(btn => {
+        btn.addEventListener('click', () => abrirDetalleCotizacion(btn.dataset.cotDetalle));
+      });
+    };
+
+    renderBody('tbodyCotizacionesPreviewMonth', cotizacionesLista('month'));
+    renderBody('tbodyCotizacionesPreviewTotal', cotizacionesLista('total'));
+  }
+
+  async function cargarCotizacionesDashboard() {
+    try {
+      const res = await fetch(`${API_COT}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      cotizacionesResumen = data;
+      renderCotizacionesResumen();
+    } catch (err) {
+      console.error('[cargarCotizacionesDashboard]', err);
+      reportarFalloDashboard('No se pudieron cargar las cotizaciones', err);
+    }
+  }
+
+  async function abrirDetalleCotizacion(cotNum) {
+    const modal = document.getElementById('modalCotizacionDashboard');
+    const tbody = document.getElementById('tbodyDetalleCotizacionDashboard');
+    if (!modal || !tbody || !cotNum) return;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Cargando...</td></tr>';
+    try {
+      const res = await fetch(`${API_COT}/detalle/${encodeURIComponent(cotNum)}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el detalle');
+      const cot = data.cotizacion || {};
+      setText('modalCotizacionDashboardTitulo', `Cotización ${cot.CotNum || cotNum}`);
+      setText('modalCotizacionDashboardSubtitulo', cot.fecha_formato ? `Emitida el ${cot.fecha_formato}` : 'Detalle de cotización');
+      setText('modalCotizacionDashboardCliente', cot.Cliente || cot.cliente || cot.CodAux || '—');
+      setText('modalCotizacionDashboardContacto', cot.Contacto || cot.NomCon || '—');
+      setText('modalCotizacionDashboardVendedor', cot.VenCod || '—');
+      setText('modalCotizacionDashboardEstado', cot.CtEstado || '—');
+      setText('modalCotizacionDashboardTotal', formatCLP(cot.CtMonto || 0));
+      const detalle = Array.isArray(cot.detalle) ? cot.detalle : [];
+      if (!detalle.length) {
+        tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">Sin detalle disponible</td></tr>';
+        return;
+      }
+      tbody.innerHTML = detalle.map(row => `
+        <tr>
+          <td>${escHtml(row.CtLinea || '—')}</td>
+          <td>${escHtml(row.CodProd || '—')}</td>
+          <td>${escHtml(row.DetProd || '—')}</td>
+          <td style="text-align:right">${Number(row.CtCant || 0).toLocaleString('es-CL')}</td>
+          <td style="text-align:right">${formatCLP(row.CtPrecio || 0)}</td>
+          <td style="text-align:right">${formatCLP(row.CtSubTotal || 0)}</td>
+          <td style="text-align:right">${formatCLP(row.CtTotDesc || 0)}</td>
+          <td style="text-align:right">${formatCLP(row.CtTotLinea || 0)}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error('[abrirDetalleCotizacion]', err);
+      tbody.innerHTML = '<tr class="tabla-empty"><td colspan="8">No se pudo cargar el detalle</td></tr>';
+    }
+  }
+
+  // Gráfico
   const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   async function cargarGrafico() {
@@ -386,7 +733,7 @@
     }
   }
 
-  // ── Tabla vendedores ──────────────────────────────────────────────────────────────────────
+  // â”€â”€ Tabla vendedores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function cargarVendedores() {
     try {
       renderVendedoresVacios();
@@ -405,7 +752,7 @@
         return `
         <tr>
           <td><strong>${escHtml(v.codVendedor)}</strong></td>
-          <td>${escHtml(v.nombreVendedor) || '—'}</td>
+          <td>${escHtml(v.nombreVendedor) || 'â€”'}</td>
           <td>${v.totalFolios}</td>
           <td style="text-align:right">${formatCLP(totalVentasCobrado)}</td>
           <td style="text-align:right">${formatCLP(ventaRealLista)}</td>
@@ -425,7 +772,52 @@
     }
   }
 
-  // ── Tabla ventas del mes ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Tabla ventas del mes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function cargarVentasCompartidasRecibidas() {
+    try {
+      renderVentasCompartidasRecibidasEmpty('Cargando...');
+      const res = await fetch(`${API}/ventas-compartidas-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar el resumen de ventas compartidas');
+      ventasCompartidasRecibidas = {
+        rows: Array.isArray(data.ventasCompartidasRecibidas) ? data.ventasCompartidasRecibidas : [],
+        totales: data.totales || { folios: 0, monto: 0 },
+      };
+      renderVentasCompartidasRecibidas();
+    } catch (err) {
+      console.error('[cargarVentasCompartidasRecibidas]', err);
+      ventasCompartidasRecibidas = { rows: [], totales: { folios: 0, monto: 0 } };
+      renderVentasCompartidasRecibidasEmpty('No se pudieron cargar las ventas compartidas recibidas.');
+      reportarFalloDashboard('No se pudieron cargar las ventas compartidas recibidas', err);
+    }
+  }
+
+  async function cargarVentasCompartidasEntregadas() {
+    const section = document.getElementById('seccionCompartidasEntregadas');
+    const coordCodes = codigosCoordinadorUsuario();
+    if (!coordCodes.length && !usuarioSesion?.is_admin) {
+      if (section) section.hidden = true;
+      return;
+    }
+
+    try {
+      renderVentasCompartidasEntregadasEmpty('Cargando...');
+      const res = await fetch(`${API}/ventas-compartidas-entregadas-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar las ventas compartidas entregadas');
+      ventasCompartidasEntregadas = {
+        rows: Array.isArray(data.ventasCompartidasEntregadas) ? data.ventasCompartidasEntregadas : [],
+        totales: data.totales || { folios: 0, monto: 0 },
+      };
+      renderVentasCompartidasEntregadas();
+    } catch (err) {
+      console.error('[cargarVentasCompartidasEntregadas]', err);
+      ventasCompartidasEntregadas = { rows: [], totales: { folios: 0, monto: 0 } };
+      renderVentasCompartidasEntregadasEmpty('No se pudieron cargar las ventas compartidas entregadas.');
+      reportarFalloDashboard('No se pudieron cargar las ventas compartidas entregadas', err);
+    }
+  }
+
   let ventasMesData = [];
 
   async function cargarVentasMes() {
@@ -477,15 +869,15 @@
       const pctDesc      = formatPctDescuento(v.pct_descuento ?? v.pctDescuento ?? v.dcto ?? v.Dcto ?? (pctDescRedondeado || null));
       const montoMostrar = v.es_compartido && v.monto_asignado != null ? v.monto_asignado : v.monto;
       const totLineaReal = Number(v.TotLineaReal || 0);
-      const cliente      = v.cliente || v.CodAux || '—';
+      const cliente      = v.cliente || v.CodAux || 'â€”';
       const badgeComp    = v.es_compartido
         ? `<span style="font-size:.7rem;background:#00E2A7;color:#000;border-radius:4px;padding:1px 5px;margin-left:4px">Compartido ${v.porcentaje_asignado?v.porcentaje_asignado+'%':''}</span>`
         : '';
       return `<tr data-folio="${v.Folio}">
-        <td><strong>${escHtml(v.Folio) || '—'}</strong>${badgeComp}</td>
-        <td>${escHtml(v.fecha_formato) || '—'}</td>
-        <td>${escHtml(cliente) || '—'}</td>
-        <td>${escHtml(v.CodVendedor) || '—'}</td>
+        <td><strong>${escHtml(v.Folio) || 'â€”'}</strong>${badgeComp}</td>
+        <td>${escHtml(v.fecha_formato) || 'â€”'}</td>
+        <td>${escHtml(cliente) || 'â€”'}</td>
+        <td>${escHtml(v.CodVendedor) || 'â€”'}</td>
         <td style="text-align:right">${formatCLP(montoMostrar)}</td>
         <td style="text-align:right">${formatCLP(totLineaReal)}</td>
         <td style="text-align:right">${pctDesc}</td>
@@ -501,15 +893,15 @@
     );
   }
 
-  // ── Modal detalle folio ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Modal detalle folio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function abrirDetalle(folio) {
     const overlay = document.getElementById('modalOverlay');
     const tbody   = document.getElementById('modalTbody');
     if (!overlay || !tbody) return;
     setText('modalTitulo', `Folio N° ${folio}`);
     const venta = ventasMesData.find(v => String(v.Folio) === String(folio));
-    setText('modalSubtitulo', venta ? `${venta.cliente||''} • ${venta.fecha_formato||''}` : '');
-    setText('modalTotalValor', '—');
+    setText('modalSubtitulo', venta ? `${venta.cliente||''} â€¢ ${venta.fecha_formato||''}` : '');
+    setText('modalTotalValor', 'â€”');
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem">Cargando...</td></tr>';
     overlay.classList.add('modal-overlay--visible');
     overlay.setAttribute('aria-hidden','false');
@@ -517,7 +909,7 @@
     try {
       const res  = await fetch(`/api/ventas/detalle/${folio}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
-      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">⚠️ Error</td></tr>'; return; }
+      if (!res.ok || !data.ok) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--color-danger)">âš ï¸ Error</td></tr>'; return; }
       if (!data.detalle?.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Sin líneas</td></tr>'; return; }
       const d0 = data.detalle[0] || {};
       setText('modalSubtitulo', venta
@@ -526,9 +918,9 @@
       const total = data.detalle.reduce((s,l)=>s+(Number(l.neto_total ?? l.TotLinea ?? 0)||0),0);
       tbody.innerHTML = data.detalle.map(l=>`
         <tr>
-          <td><code>${escHtml(l.CodProd) || '—'}</code></td>
-          <td>${escHtml(l.DesProd) || '—'}</td>
-          <td style="text-align:center">${l.CantFacturada ?? '—'}</td>
+          <td><code>${escHtml(l.CodProd) || 'â€”'}</code></td>
+          <td>${escHtml(l.DesProd) || 'â€”'}</td>
+          <td style="text-align:center">${l.CantFacturada ?? 'â€”'}</td>
           <td style="text-align:right">${formatCLP(l.precio_real)}</td>
           <td style="text-align:right">${formatCLP(l.precio_vta ?? l.PrecioVta)}</td>
           <td style="text-align:right">${formatCLP(l.neto_real)}</td>
@@ -547,7 +939,7 @@
     document.body.style.overflow = '';
   }
 
-  // ── CARTERA DE CLIENTES ───────────────────────────────────────────────────────────────────
+  // â”€â”€ CARTERA DE CLIENTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function cargarCartera() {
     try {
       const res  = await fetch(`${API_CART}?${new URLSearchParams(getCarteraParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -560,11 +952,11 @@
       const nuevos     = data.ClientesNuevos     ?? data.clientesNuevos     ?? null;
       const recuperados= data.ClientesRecuperados?? data.clientesRecuperados?? null;
 
-      setText('countTotal',      total       !== null ? String(total)       : '—');
-      setText('countActivo',     activos     !== null ? String(activos)     : '—');
-      setText('countInactivo',   inactivos   !== null ? String(inactivos)   : '—');
-      setText('countNuevo',      nuevos      !== null ? String(nuevos)      : '—');
-      setText('countRecuperado', recuperados !== null ? String(recuperados) : '—');
+      setText('countTotal',      total       !== null ? String(total)       : 'â€”');
+      setText('countActivo',     activos     !== null ? String(activos)     : 'â€”');
+      setText('countInactivo',   inactivos   !== null ? String(inactivos)   : 'â€”');
+      setText('countNuevo',      nuevos      !== null ? String(nuevos)      : 'â€”');
+      setText('countRecuperado', recuperados !== null ? String(recuperados) : 'â€”');
 
       carteraData.total      = data.total         || [];
       carteraData.activos    = data.activos        || [];
@@ -588,7 +980,7 @@
       console.error('[cargarCartera]', err);
       reportarFalloDashboard('No se pudo cargar la cartera de clientes', err);
       ['countTotal','countActivo','countInactivo','countNuevo','countRecuperado','countActivoMes']
-        .forEach(id => setText(id, '—'));
+        .forEach(id => setText(id, 'â€”'));
     }
   }
 
@@ -643,16 +1035,16 @@
     tbody.innerHTML = lista.map(c => {
       const emailHtml = c.EMail
         ? `<a href="mailto:${escHtml(c.EMail)}" style="color:var(--color-primary);text-decoration:none" title="${escHtml(c.EMail)}">${escHtml(c.EMail)}</a>`
-        : '—';
+        : 'â€”';
       const tel1Html = c.FONAUX1
         ? `<a href="tel:${escHtml(c.FONAUX1)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FONAUX1)}</a>`
-        : '—';
+        : 'â€”';
       const tel2Html = c.FonAux2
         ? `<a href="tel:${escHtml(c.FonAux2)}" style="color:var(--color-primary);text-decoration:none">${escHtml(c.FonAux2)}</a>`
-        : '—';
+        : 'â€”';
       return `<tr>
-          <td><code>${escHtml(c.CodAux) || '—'}</code></td>
-          <td>${escHtml(c.NomAux) || '—'}</td>
+          <td><code>${escHtml(c.CodAux) || 'â€”'}</code></td>
+          <td>${escHtml(c.NomAux) || 'â€”'}</td>
           <td>${tel1Html}</td>
           <td>${tel2Html}</td>
           <td>${emailHtml}</td>
@@ -699,22 +1091,51 @@
     });
   }
 
-  // ── Gráfico Distribución por Categoría ───────────────────────────────────────────────────
+  // Gráfico
   const COLORES_TORTA = ['#00E2A7','#4ECDC4','#45B7D1','#96CEB4','#F5A623','#DDA0DD','#F06543','#00B4D8'];
+
+  function renderGraficoClientesLeyenda(datos) {
+    const tbody = document.getElementById('tbodyGraficoClientesDistribucionLeyenda');
+    const panel = document.getElementById('graficoClientesDistribucionLeyenda');
+    if (!tbody || !panel) return;
+
+    if (!datos || !datos.length) {
+      tbody.innerHTML = '';
+      panel.hidden = true;
+      return;
+    }
+
+    const total = datos.reduce((s, item) => s + (Number(item.valor) || 0), 0);
+    tbody.innerHTML = datos.map(item => {
+      const valor = Number(item.valor) || 0;
+      const pct = total > 0 ? (valor / total) * 100 : 0;
+      return `
+        <tr class="grafico-categoria-leyenda-item">
+          <td class="grafico-categoria-leyenda-nombre">
+            <span class="grafico-categoria-swatch" style="background:${escHtml(item.color)}"></span>
+            <span title="${escHtml(item.label)}">${escHtml(item.label)}</span>
+          </td>
+          <td class="grafico-categoria-leyenda-valor">${formatCLP(valor)}</td>
+          <td class="grafico-categoria-leyenda-pct">${pct.toFixed(1)}%</td>
+        </tr>`;
+    }).join('');
+    panel.hidden = false;
+  }
 
   function renderGraficoClientesDistribucion(datos) {
     const canvas = document.getElementById('graficoClientesDistribucion');
+    const panel = document.getElementById('graficoClientesDistribucionLeyenda');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (graficoClientesDistribucion) graficoClientesDistribucion.destroy();
     if (!datos || !datos.length) {
-      graficoClientesDistribucion = new Chart(ctx, {
-        type: 'doughnut',
-        data: { labels: ['Sin datos'], datasets: [{ data: [1], backgroundColor: ['#E8EAF0'], borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '60%' }
-      });
+      canvas.hidden = true;
+      if (panel) panel.hidden = true;
+      renderGraficoClientesLeyenda([]);
       return;
     }
+    canvas.hidden = false;
+    renderGraficoClientesLeyenda(datos);
     graficoClientesDistribucion = new Chart(ctx, {
       type: 'doughnut',
       data: {
@@ -729,19 +1150,7 @@
             color: '#fff', font: { family: 'Montserrat', size: 11, weight: '700' },
             formatter: (value, ctx2) => { const total = ctx2.dataset.data.reduce((s, v) => s + (v || 0), 0); if (!total) return ''; return ((value / total) * 100).toFixed(1) + '%'; }
           },
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: 'Montserrat', size: 12 }, usePointStyle: true, pointStyle: 'circle', boxWidth: 10, padding: 14,
-              generateLabels: (chart) => {
-                const dataset = chart.data.datasets[0];
-                return chart.data.labels.map((label, i) => {
-                  const valor = dataset.data[i] || 0;
-                  return { text: label, fillStyle: dataset.backgroundColor[i], strokeStyle: dataset.backgroundColor[i], hidden: false, index: i, fontColor: valor === 0 ? '#B0B8C1' : undefined };
-                });
-              }
-            }
-          },
+          legend: { display: false },
           tooltip: { callbacks: { label: (ctx2) => { const total = ctx2.dataset.data.reduce((sum, v) => sum + (v || 0), 0); const pct = total > 0 ? ((ctx2.parsed / total) * 100).toFixed(1) : '0.0'; return ` ${ctx2.label}: ${ctx2.parsed.toLocaleString('es-CL')}  (${pct}%)`; } } }
         },
         cutout: '55%'
@@ -763,18 +1172,21 @@
       const todasLasCategorias = data.todasLasCategorias || [];
       const aggMap = {};
       for (const v of vendedores) { for (const c of v.categorias) { aggMap[c.categoria] = (aggMap[c.categoria] || 0) + c.total; } }
-      const maestro = [
-        ...Object.entries(aggMap).sort((a, b) => b[1] - a[1]).map(([label]) => label),
-        ...todasLasCategorias.filter(cat => !aggMap[cat])
-      ].map((label, i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
+      const maestro = Object.entries(aggMap)
+        .sort((a, b) => b[1] - a[1])
+        .map(([label], i) => ({ label, color: COLORES_TORTA[i % COLORES_TORTA.length] }));
       function padear(categorias) {
-        const mapa = Object.fromEntries(categorias.map(c => [c.categoria, c.total]));
-        return maestro.map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }));
+        const mapa = Object.fromEntries(categorias.map(c => [c.categoria, Number(c.total || 0)]));
+        return maestro
+          .map(m => ({ label: m.label, valor: mapa[m.label] || 0, color: m.color }))
+          .filter(item => Number(item.valor) > 0);
       }
-      const datosTotal = maestro.map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }));
+      const datosTotal = maestro
+        .map(m => ({ label: m.label, valor: aggMap[m.label] || 0, color: m.color }))
+        .filter(item => Number(item.valor) > 0);
       if (vendedores.length === 1) {
         if (tabsEl) tabsEl.style.display = 'none';
-        renderGraficoClientesDistribucion(padear(vendedores[0].categorias));
+        renderGraficoClientesDistribucion(padear(vendedores[0].categorias || []));
       } else {
         if (tabsEl) {
           tabsEl.style.display = 'flex';
@@ -786,7 +1198,7 @@
               tabsEl.querySelectorAll('.torta-tab').forEach(b => b.classList.remove('torta-tab--activo'));
               btn.classList.add('torta-tab--activo');
               const idx = Number(btn.dataset.idx);
-              renderGraficoClientesDistribucion(idx === -1 ? datosTotal : padear(vendedores[idx].categorias));
+              renderGraficoClientesDistribucion(idx === -1 ? datosTotal : padear(vendedores[idx].categorias || []));
             });
           });
         }
@@ -798,7 +1210,7 @@
     }
   }
 
-  // ── Clientes por vendedor ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Clientes por vendedor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function cargarClientesResumen() {
     try {
       const res  = await fetch(`${API}/clientes-resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -824,16 +1236,19 @@
     }
   }
 
-  // ── Cargar todo ───────────────────────────────────────────────────────────────────────────
+  // â”€â”€ Cargar todo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function cargarTodo() {
     mostrarCarga();
     ocultarEstadoDashboard();
     try {
       await Promise.all([
         cargarResumen(),
+        cargarCotizacionesDashboard(),
         cargarGrafico(),
         cargarCartera(),
         cargarVendedores(),
+        cargarVentasCompartidasRecibidas(),
+        cargarVentasCompartidasEntregadas(),
         cargarVentasMes(),
         cargarGraficoClientes(),
         cargarClientesResumen()
@@ -845,13 +1260,15 @@
     }
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────────────────────
+  // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function init() {
     const usuario = await verificarSesion();
     if (!usuario) return;
     cargarSidebar(usuario);
     initSelectores();
     initCarteraCards();
+    ensureCotizacionesSection();
+    setCotizacionesPreview('month', false);
 
     const bVentas = document.getElementById('busquedaVentas');
     if (bVentas) bVentas.addEventListener('input', aplicarFiltrosVentasMes);
@@ -879,6 +1296,24 @@
     const modalOverlay = document.getElementById('modalOverlay');
     if (modalOverlay) modalOverlay.addEventListener('click', e => { if (e.target===e.currentTarget) cerrarModal(); });
     document.addEventListener('keydown', e => { if (e.key==='Escape') cerrarModal(); });
+    document.getElementById('modalCotizacionDashboard')?.addEventListener('click', event => {
+      if (event.target instanceof HTMLElement && event.target.dataset.close === 'true') {
+        const modal = document.getElementById('modalCotizacionDashboard');
+        if (modal) {
+          modal.classList.remove('is-open');
+          modal.setAttribute('aria-hidden', 'true');
+        }
+      }
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        const modal = document.getElementById('modalCotizacionDashboard');
+        if (modal) {
+          modal.classList.remove('is-open');
+          modal.setAttribute('aria-hidden', 'true');
+        }
+      }
+    });
     const btnAct = document.getElementById('btnActualizar');
     if (btnAct) btnAct.addEventListener('click', () => cargarTodo());
 
@@ -889,5 +1324,3 @@
   else init();
 
 })();
-
-
