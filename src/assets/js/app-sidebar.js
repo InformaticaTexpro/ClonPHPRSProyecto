@@ -14,6 +14,7 @@
   };
 
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
+  const GERENCIA_VENDOR_SALES_URL = '/src/modulo/gerencia/comercial/ventas-vendedor/index.html';
   const EXTRA_ITEMS = [];
 
   const ICON_SVGS = {
@@ -91,6 +92,29 @@
     Laboratorio: '🧪',
     'Soporte TI': 'headset',
     Gerencia: '📈',
+  };
+
+  const GROUP_SUBMENUS = {
+    Gerencia: [
+      {
+        id: 'comercial',
+        nombre: 'Comercial',
+        icono: '📊',
+        items: [
+          { codigo: 'gerencia', nombre: 'Dashboard' },
+          { codigo: 'gerencia_estadisticas_ventas', nombre: 'Estadísticas de Ventas' },
+          { codigo: 'gerencia_ventas_vendedor', nombre: 'Ventas por Vendedor' },
+        ],
+      },
+      {
+        id: 'finanzas',
+        nombre: 'Finanzas',
+        icono: '💳',
+        items: [
+          { codigo: 'gerencia_dashboard_finanzas', nombre: 'Dashboard' },
+        ],
+      },
+    ],
   };
 
   function ensureRealtimeClientLoaded() {
@@ -233,6 +257,7 @@
         })(),
         orden: Number(menu?.orden ?? 0) || 0,
         extra: Boolean(menu?.extra),
+        permisoCodigo: normalizarTexto(menu?.permisoCodigo),
       }))
       .filter(menu => menu.id !== null && menu.nombre && menu.url)
       .filter(menu => (FEATURE_FLAGS.mensajeria ? true : menu.codigo !== 'mensajeria'))
@@ -247,6 +272,21 @@
       map.set(normalizarUrl(GENERAL_ITEM.url), {
         ...GENERAL_ITEM,
         url: normalizarUrl(GENERAL_ITEM.url),
+      });
+    }
+
+    const gerenciaBase = catalogo.find(menu => menu.codigo === 'gerencia');
+    const ventasVendedorUrl = normalizarUrl(GERENCIA_VENDOR_SALES_URL);
+    if (gerenciaBase && !map.has(ventasVendedorUrl)) {
+      map.set(ventasVendedorUrl, {
+        ...gerenciaBase,
+        id: 'derived-gerencia-ventas-vendedor',
+        codigo: 'gerencia_ventas_vendedor',
+        permisoCodigo: 'gerencia',
+        nombre: 'Ventas por Vendedor',
+        url: ventasVendedorUrl,
+        orden: 3,
+        extra: false,
       });
     }
 
@@ -321,6 +361,7 @@
   function tienePermiso(menu, indice) {
     return indice.ids.has(String(menu.id))
       || (menu.codigo && indice.codigos.has(menu.codigo))
+      || (menu.permisoCodigo && indice.codigos.has(menu.permisoCodigo))
       || indice.urls.has(menu.url);
   }
 
@@ -640,6 +681,64 @@
         stroke-width: 2 !important;
         stroke-linecap: round !important;
         stroke-linejoin: round !important;
+      }
+      .nav-subgroup {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      .nav-subgroup-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 30px !important;
+        align-items: center !important;
+      }
+      .nav-subgroup-link {
+        min-width: 0 !important;
+        min-height: 34px !important;
+        padding: 7px 6px 7px 9px !important;
+        border-radius: 7px 0 0 7px !important;
+        color: rgba(255, 255, 255, .72) !important;
+        font-size: .81rem !important;
+        font-weight: 700 !important;
+      }
+      .nav-subgroup-link.active {
+        color: #fff !important;
+        background: rgba(255, 255, 255, .08) !important;
+      }
+      .nav-subgroup-link.is-locked {
+        color: rgba(255, 255, 255, .42) !important;
+      }
+      .nav-subgroup-toggle {
+        width: 30px !important;
+        height: 34px !important;
+        display: grid !important;
+        place-items: center !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 7px 7px 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, .68) !important;
+        cursor: pointer !important;
+      }
+      .nav-subgroup-toggle:hover,
+      .nav-subgroup-toggle:focus-visible {
+        background: rgba(255, 255, 255, .08) !important;
+        color: #fff !important;
+      }
+      .nav-subgroup.is-open .nav-subgroup-toggle .nav-module-chevron {
+        transform: rotate(90deg) !important;
+      }
+      .nav-subgroup-items {
+        display: none !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        margin: 0 0 4px 18px !important;
+      }
+      .nav-subgroup.is-open .nav-subgroup-items {
+        display: flex !important;
+      }
+      .nav-subgroup-items .nav-subitem {
+        font-size: .77rem !important;
       }
       .nav-extra-badge {
         display: inline-flex !important;
@@ -1024,7 +1123,7 @@
     });
     document.addEventListener('click', event => {
       if (!isMobileViewport()) return;
-      if (event.target.closest('.sidebar .nav-subitem')) {
+      if (event.target.closest('.sidebar .nav-subitem, .sidebar .nav-subgroup-link')) {
         closeSidebarDrawer();
       }
     });
@@ -1047,6 +1146,53 @@
 
   function renderGrupo(grupo, indicePermisos) {
     const abierto = grupoActivo(grupo);
+    const configuracion = GROUP_SUBMENUS[grupo.nombre] || [];
+    const codigosConfigurados = new Set(configuracion.flatMap(submenu => submenu.items.map(item => item.codigo)));
+    const submenus = configuracion.map(submenu => ({
+      ...submenu,
+      items: submenu.items.map(definicion => {
+        const item = grupo.items.find(candidato => candidato.codigo === definicion.codigo);
+        return item ? { ...item, nombre: definicion.nombre || item.nombre } : null;
+      }).filter(Boolean),
+    })).filter(submenu => submenu.items.length);
+    const itemsDirectos = grupo.items.filter(item => !codigosConfigurados.has(item.codigo));
+
+    const renderItem = item => {
+      const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
+      const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
+      return `
+        <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
+          ${renderIconMarkup(item.icono, '•', 'nav-item-icon')}
+          <span class="nav-label">${item.nombre}</span>
+          ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+        </a>
+      `;
+    };
+
+    const renderSubmenu = submenu => {
+      const submenuAbierto = submenu.items.some(itemActivo);
+      const destino = submenu.items[0];
+      const permitido = destino.extra ? true : tienePermiso(destino, indicePermisos);
+      const href = permitido ? destino.url : urlSinAcceso(destino, rutaActual());
+      return `
+        <div class="nav-subgroup ${submenuAbierto ? 'is-open' : ''}">
+          <div class="nav-subgroup-row">
+            <a class="nav-subgroup-link ${submenuAbierto ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
+              <span>${submenu.icono || destino.icono}</span>
+              <span class="nav-label">${submenu.nombre}</span>
+              ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+            </a>
+            <button class="nav-subgroup-toggle" type="button" aria-label="Desplegar ${submenu.nombre}" aria-expanded="${submenuAbierto ? 'true' : 'false'}">
+              <span class="nav-module-chevron">▶</span>
+            </button>
+          </div>
+          <div class="nav-subgroup-items">
+            ${submenu.items.map(renderItem).join('')}
+          </div>
+        </div>
+      `;
+    };
+
     return `
       <div class="nav-module ${abierto ? 'is-open' : ''}">
         <button class="nav-module-btn ${abierto ? 'is-open' : ''}" type="button" aria-expanded="${abierto ? 'true' : 'false'}">
@@ -1055,17 +1201,8 @@
           <span class="nav-module-chevron">▶</span>
         </button>
         <div class="nav-subitems">
-          ${grupo.items.map(item => {
-            const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
-            const href = permitido ? item.url : urlSinAcceso(item, rutaActual());
-            return `
-              <a class="nav-subitem ${itemActivo(item) ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
-                ${renderIconMarkup(item.icono, '•', 'nav-item-icon')}
-                <span class="nav-label">${item.nombre}</span>
-                ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
-              </a>
-            `;
-          }).join('')}
+          ${submenus.map(renderSubmenu).join('')}
+          ${itemsDirectos.map(renderItem).join('')}
         </div>
       </div>
     `;
@@ -1107,6 +1244,15 @@
         btn.classList.toggle('is-open', open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         syncSidebarOverlay();
+      });
+    });
+
+    nav.querySelectorAll('.nav-subgroup-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const submenu = btn.closest('.nav-subgroup');
+        const open = !submenu.classList.contains('is-open');
+        submenu.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
     });
   }

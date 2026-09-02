@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Ventas por Vendedor</title>
+  <link rel="icon" type="image/png" href="../../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="./ventas-vendedor.css?v=1.6.0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user"><div class="user-avatar" id="userAvatar">G</div><div class="user-info"><span class="user-name" id="userName">Gerencia</span><span class="user-area" id="userArea">Comercial</span></div></div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión"><span>⎋</span><span class="btn-logout-text">Cerrar sesión</span></button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button><h1 class="header-title">Ventas por Vendedor</h1></div>
+      <div class="header-right"><span class="header-date" id="headerDate"></span><span class="header-indicadores" id="headerIndicadores">Gerencia comercial</span></div>
+    </header>
+
+    <main class="main-content ventas-vendedor-page">
+      <div class="welcome-bar vendedor-toolbar">
+        <div class="welcome-text"><h2>Consulta gerencial</h2><p>Indicadores consolidados del vendedor principal y sus códigos asociados.</p></div>
+        <div class="welcome-filtros vendedor-filtros">
+          <select class="filtro-select vendedor-select" id="vendedorFilter" aria-label="Vendedor"><option value="">Seleccione un vendedor</option></select>
+          <select class="filtro-select" id="monthFilter" aria-label="Mes"></select>
+          <select class="filtro-select" id="yearFilter" aria-label="Año"></select>
+          <button class="btn-buscar" id="btnActualizar" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Actualizar</button>
+        </div>
+      </div>
+
+      <section class="vendedor-empty" id="mensajeVendedor" role="status" aria-live="polite">
+        <div class="vendedor-empty-copy"><span class="vendedor-empty-icono" aria-hidden="true"><span></span><span></span><span></span></span><h2 id="vendedorEmptyTitulo">Seleccione un vendedor</h2><p id="vendedorEmptyTexto">Seleccione un vendedor, mes y a&ntilde;o para consultar sus indicadores comerciales.</p><small id="vendedorEmptyDetalle">Ventas, metas, descuentos, clientes y estad&iacute;sticas se cargar&aacute;n al realizar la consulta.</small></div>
+        <div class="vendedor-empty-visual" aria-hidden="true"><div class="vendedor-empty-kpis"><i></i><i></i><i></i></div><div class="vendedor-empty-charts"><div class="vendedor-empty-bars"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="vendedor-empty-line"><i></i><i></i><i></i><i></i><i></i></div></div></div>
+      </section>
+
+      <div id="dashboardVendedor" hidden>
+        <section class="kpis-grid" aria-label="Indicadores del vendedor">
+          <article class="kpi-card"><div class="kpi-icono kpi-icono--verde"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="kpi-info"><span class="kpi-label">Total Ventas del Mes</span><span class="kpi-valor" id="kpiTotalVentas">—</span></div></article>
+          <article class="kpi-card"><div class="kpi-icono kpi-icono--azul"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="kpi-info"><span class="kpi-label">Meta del Mes</span><span class="kpi-valor" id="kpiMeta">—</span></div></article>
+          <article class="kpi-card kpi-card--progreso"><div class="kpi-icono kpi-icono--naranja"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div class="kpi-info kpi-info--full"><div class="kpi-progreso-header"><span class="kpi-label">Progreso de Meta</span><span class="kpi-valor kpi-valor--sm" id="kpiProgresoPct">—</span></div><div class="progreso-barra-bg"><div class="progreso-barra-fill" id="progresoFill" style="width:0%"></div></div></div></article>
+          <article class="kpi-card"><div class="kpi-icono kpi-icono--rojo"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div><div class="kpi-info"><span class="kpi-label">Total Descuentos</span><span class="kpi-valor" id="kpiDescuento">—</span></div></article>
+          <button class="kpi-card guias-pendientes-kpi" id="kpiGuiasPendientesCard" type="button" aria-controls="guiasPendientesModal"><span class="kpi-icono kpi-icono--azul"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span><span class="kpi-info"><span class="kpi-label">Gu&iacute;as Pendientes de Facturar</span><strong class="kpi-valor" id="kpiGuiasPendientes">$0</strong><span class="kpi-subtitulo" id="kpiGuiasPendientesFolios">0 folios pendientes</span></span></button>
+        </section>
+
+        <section class="tabla-seccion" aria-labelledby="ventasVendedorTitulo">
+          <article class="tabla-card">
+            <div class="tabla-header"><h3 class="tabla-titulo" id="ventasVendedorTitulo">Ventas por Vendedor</h3></div>
+            <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Cód. Vendedor</th><th>Nombre</th><th>Folios</th><th class="numero">Total Ventas</th><th class="numero">Venta Real</th><th class="numero">Descuento</th></tr></thead><tbody id="codigosBody"></tbody><tfoot id="codigosFoot"></tfoot></table></div>
+          </article>
+        </section>
+
+        <section class="grafico-seccion"><article class="grafico-card"><div class="grafico-header"><h3 class="grafico-titulo" id="graficoTitulo">Evolución Mensual</h3></div><div class="grafico-wrapper"><canvas id="chartEvolucion"></canvas></div></article></section>
+
+        <section class="cartera-seccion" aria-labelledby="carteraTitulo">
+          <div class="cartera-header"><h3 class="cartera-titulo" id="carteraTitulo">Cartera de Clientes</h3><span class="cartera-subtitulo">Segmentación consolidada para todos los códigos asociados</span></div>
+          <div class="cartera-cards" id="carteraCards"></div>
+        </section>
+
+        <section class="cotizaciones-clientes-seccion" aria-labelledby="cotizacionesClientesTitulo">
+          <div class="cartera-header"><h3 class="cartera-titulo" id="cotizacionesClientesTitulo">Cotizaci&oacute;n de Clientes</h3><span class="cartera-subtitulo">Resumen hist&oacute;rico y mensual de cotizaciones del vendedor seleccionado.</span></div>
+          <div class="cotizaciones-clientes-grid">
+            <button class="kpi-card cotizacion-kpi" id="kpiCotizacionesTotal" type="button" data-cotizaciones-modo="historico" aria-controls="cotizacionesModal"><span class="kpi-icono kpi-icono--azul"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg></span><span class="kpi-info"><span class="kpi-label">Cotizaciones Totales</span><strong class="kpi-valor" id="kpiCotizacionesTotalValor">—</strong><span class="kpi-subtitulo" id="kpiCotizacionesTotalSubtitulo">Hist&oacute;rico del vendedor</span></span></button>
+            <button class="kpi-card cotizacion-kpi" id="kpiCotizacionesMes" type="button" data-cotizaciones-modo="mensual" aria-controls="cotizacionesModal"><span class="kpi-icono kpi-icono--verde"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span><span class="kpi-info"><span class="kpi-label">Cotizaciones del Mes</span><strong class="kpi-valor" id="kpiCotizacionesMesValor">—</strong><span class="kpi-subtitulo" id="kpiCotizacionesMesSubtitulo">Per&iacute;odo seleccionado</span></span></button>
+          </div>
+        </section>
+
+        <section class="clientes-nuevos-seccion" aria-labelledby="clientesNuevosTitulo">
+          <article class="clientes-nuevos-panel" id="clientesNuevosPanel" aria-labelledby="clientesNuevosTitulo">
+            <div class="clientes-nuevos-header"><div><h3 class="grafico-titulo" id="clientesNuevosTitulo">Clientes Nuevos</h3><p id="clientesNuevosPeriodo">Comparativo de a&ntilde;os calendario</p></div><label class="clientes-nuevos-filtro"><span>C&oacute;digo</span><select class="filtro-select" id="clientesNuevosCodigo" aria-label="C&oacute;digo vendedor para clientes nuevos"><option value="">Todos los c&oacute;digos</option></select></label></div>
+            <div class="clientes-nuevos-estado" id="clientesNuevosEstado" role="status" aria-live="polite"></div>
+            <div class="clientes-nuevos-grid">
+              <div class="clientes-nuevos-grafico"><canvas id="chartClientesNuevos"></canvas></div>
+              <div class="tabla-wrapper clientes-nuevos-tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Mes</th><th class="numero" id="clientesCantidadAnterior">Clientes</th><th class="numero" id="clientesVentaAnterior">Venta</th><th class="numero" id="clientesCantidadActual">Clientes</th><th class="numero" id="clientesVentaActual">Venta</th></tr></thead><tbody id="clientesNuevosBody"></tbody><tfoot id="clientesNuevosFoot"></tfoot></table></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grafico-seccion">
+          <article class="grafico-card"><div class="grafico-header"><h3 class="grafico-titulo">Distribución por Categoría</h3></div><div class="categoria-distribucion"><div class="categoria-grafico"><canvas id="chartCategorias"></canvas></div><div class="tabla-wrapper categoria-tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Categoría de producto</th><th class="numero">Venta</th><th class="numero">Participación</th></tr></thead><tbody id="categoriasBody"><tr><td colspan="3" class="tabla-empty">Sin datos.</td></tr></tbody><tfoot id="categoriasFoot"></tfoot></table></div></div></article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="carga-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite"><div class="carga-ring"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="carga-track" cx="36" cy="36" r="27"/><circle class="carga-arc" cx="36" cy="36" r="27"/></svg><div class="carga-dot"></div></div><span class="carga-texto" data-loading-text>Cargando datos...</span></div>
+  <div class="modal-overlay" id="cotizacionesModal" aria-hidden="true">
+    <section class="modal cotizaciones-modal" role="dialog" aria-modal="true" aria-labelledby="cotizacionesModalTitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="cotizacionesModalTitulo">Cotizaciones</h2><span class="modal-subtitulo" id="cotizacionesModalSubtitulo"></span></div><button class="modal-cerrar" id="cotizacionesModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>
+      <div class="modal-body"><div class="cotizaciones-estado" id="cotizacionesModalEstado" role="status" aria-live="polite"></div><div class="cotizaciones-tabla-wrapper"><table class="modal-tabla"><thead><tr><th>N&deg; Cotizaci&oacute;n</th><th>Fecha</th><th>Cliente</th><th class="numero">Monto</th><th>Estado</th></tr></thead><tbody id="cotizacionesModalBody"></tbody></table></div></div>
+      <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label">Cantidad: <strong id="cotizacionesModalCantidad">0</strong></span><span class="modal-total-label">Monto total:</span><strong class="modal-total-valor" id="cotizacionesModalMonto">$0</strong></footer>
+    </section>
+  </div>
+  <div class="modal-overlay" id="guiasPendientesModal" aria-hidden="true">
+    <section class="modal cotizaciones-modal guias-pendientes-modal" role="dialog" aria-modal="true" aria-labelledby="guiasPendientesModalTitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="guiasPendientesModalTitulo">Detalle de Gu&iacute;as Pendientes de Facturar</h2><span class="modal-subtitulo" id="guiasPendientesModalSubtitulo"></span></div><button class="modal-cerrar" id="guiasPendientesModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>
+      <div class="modal-body"><div class="cotizaciones-estado" id="guiasPendientesModalEstado" role="status" aria-live="polite"></div><div class="cotizaciones-tabla-wrapper guias-pendientes-tabla-wrapper"><table class="modal-tabla guias-pendientes-tabla"><colgroup><col class="guias-pendientes-col--folio" /><col class="guias-pendientes-col--fecha" /><col class="guias-pendientes-col--cliente" /><col class="guias-pendientes-col--monto" /></colgroup><thead><tr><th>N&deg; Gu&iacute;a</th><th class="guias-pendientes-fecha">Fecha</th><th>Cliente</th><th class="numero">Monto</th></tr></thead><tbody id="guiasPendientesModalBody"></tbody><tfoot id="guiasPendientesModalFoot"></tfoot></table></div></div>
+      <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label"><strong id="guiasPendientesModalCantidad">0 gu&iacute;as pendientes</strong></span><span class="modal-total-label">Monto total pendiente:</span><strong class="modal-total-valor" id="guiasPendientesModalMonto">$0</strong></footer>
+    </section>
+  </div>
+  <div class="modal-overlay" id="ventasCompartidasModal" aria-hidden="true">
+    <section class="modal cotizaciones-modal ventas-compartidas-modal" role="dialog" aria-modal="true" aria-labelledby="ventasCompartidasModalTitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="ventasCompartidasModalTitulo">Detalle de Ventas Compartidas TA</h2><span class="modal-subtitulo" id="ventasCompartidasModalPeriodo"></span></div><button class="modal-cerrar" id="ventasCompartidasModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>
+      <div class="modal-body"><div class="cotizaciones-estado" id="ventasCompartidasModalEstado" role="status" aria-live="polite"></div><div class="cotizaciones-tabla-wrapper ventas-compartidas-tabla-wrapper"><table class="modal-tabla ventas-compartidas-tabla"><colgroup><col class="ventas-compartidas-col--origen" /><col class="ventas-compartidas-col--codigo" /><col class="ventas-compartidas-col--monto" /><col class="ventas-compartidas-col--monto" /><col class="ventas-compartidas-col--participacion" /></colgroup><thead><tr><th>Vendedor origen</th><th class="ventas-compartidas-codigo">C&oacute;digo</th><th class="numero">Venta real</th><th class="numero">Venta asignada</th><th class="numero">Participaci&oacute;n</th></tr></thead><tbody id="ventasCompartidasModalBody"></tbody><tfoot id="ventasCompartidasModalFoot"></tfoot></table></div></div>
+      <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label">Total Ventas Compartidas TA asignadas:</span><strong class="modal-total-valor" id="ventasCompartidasModalTotal">$0</strong></footer>
+    </section>
+  </div>
+  <script src="../../../../assets/js/app-sidebar.js?v=1.2.0"></script>
+  <script src="./ventas-vendedor.js?v=1.9.0"></script>
+  <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>
