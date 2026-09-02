@@ -5,6 +5,8 @@ final class GerenciaService
 {
     use SharedServiceHelpers;
 
+    private ?array $vendorRelations = null;
+
     public function __construct(private Database $db, private AnalyticsService $analytics)
     {
     }
@@ -333,6 +335,10 @@ final class GerenciaService
 
     private function loadVendorRelations(): array
     {
+        if ($this->vendorRelations !== null) {
+            return $this->vendorRelations;
+        }
+
         $rows = $this->db->fetchAll(
             'SELECT
                 u.id AS usuarioId,
@@ -346,7 +352,7 @@ final class GerenciaService
              ORDER BY u.nombre ASC, uv.tipo ASC, uv.cod_vendedor ASC'
         );
 
-        return array_map(static function (array $row): array {
+        $this->vendorRelations = array_map(static function (array $row): array {
             return [
                 'usuarioId' => (int)($row['usuarioId'] ?? 0),
                 'codigoPrincipal' => trim((string)($row['codigoPrincipal'] ?? '')),
@@ -355,6 +361,8 @@ final class GerenciaService
                 'tipo' => strtoupper(trim((string)($row['tipo'] ?? ''))),
             ];
         }, $rows);
+
+        return $this->vendorRelations;
     }
 
     private function loadMetaForUser(int $usuarioId, int $anio, int $mes): ?float
@@ -391,9 +399,6 @@ final class GerenciaService
         $groups = [];
 
         foreach ($relations as $relation) {
-            if (($relation['tipo'] ?? '') === 'C') {
-                continue;
-            }
             $code = $relation['codigoAsociado'];
             if ($code === '') {
                 continue;
@@ -416,6 +421,7 @@ final class GerenciaService
                 'venta' => 0.0,
                 'ventaReal' => 0.0,
                 'meta' => 0.0,
+                'tipo' => $relation['tipo'] ?? '',
                 'esPrincipal' => $this->normalizeCode($code) === $this->normalizeCode($groups[$key]['codigoPrincipal']),
             ];
         }
@@ -449,6 +455,7 @@ final class GerenciaService
                     'venta' => 0.0,
                     'ventaReal' => 0.0,
                     'meta' => 0.0,
+                    'tipo' => $relation['tipo'] ?? '',
                     'esPrincipal' => $this->normalizeCode($code) === $this->normalizeCode($groups[$key]['codigoPrincipal']),
                 ];
             }
@@ -483,6 +490,7 @@ final class GerenciaService
                     'venta' => round($venta),
                     'ventaReal' => round($real),
                     'meta' => round($codigoMeta),
+                    'tipo' => $codeRow['tipo'] ?? '',
                     'porcentajeDescuento' => $this->porcentajeDescuento($venta, $real),
                     'cumplimiento' => $codigoMeta > 0 ? round(($venta / $codigoMeta) * 100, 2) : null,
                 ];
@@ -541,8 +549,34 @@ final class GerenciaService
              GROUP BY LTRIM(RTRIM(enc.CodVendedor))",
             ['A', $anio, $mes]
         );
-        $relationCodes = array_column($this->loadVendorRelations(), 'codigoAsociado');
-        return $this->analytics->applySharedSalesToVendorRows($rows, $mes, $anio, $relationCodes);
+        $relations = $this->loadVendorRelations();
+        $relationCodes = array_column($relations, 'codigoAsociado');
+        return $this->analytics->applySharedSalesToVendorRows(
+            $rows,
+            $mes,
+            $anio,
+            $relationCodes,
+            $this->vendorCodeTypeMap($relations)
+        );
+    }
+
+    private function totalVentasGlobalPeriodo(int $anio, int $mes): float
+    {
+        [$desde, $hasta] = $this->monthRange($anio, $mes);
+        $saleExpression = $this->commercialAmountSql('enc.Tipo', 'mov.TotLinea');
+        $row = $this->softlandOne(
+            "SELECT SUM($saleExpression) AS ventaTotal
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] mov
+                ON mov.NroInt = enc.NroInt AND mov.Tipo = enc.Tipo
+             WHERE enc.Fecha >= ?
+               AND enc.Fecha < ?
+               AND enc.Tipo IN ('F', 'N', 'D')
+               AND enc.Estado <> 'A'",
+            [$desde, $hasta]
+        );
+
+        return (float)($row['ventaTotal'] ?? $row['VentaTotal'] ?? 0);
     }
 
     private function cumplimientoVendedoresResumen(array $vendors): array
@@ -643,9 +677,16 @@ final class GerenciaService
                     'codigo' => $codigo,
                     'descripcion' => trim((string)($fila['descripcion'] ?? '')),
                     'neto' => 0.0,
+                    'compartidaRecibida' => 0.0,
+                    'tipo' => strtoupper(trim((string)($fila['tipo'] ?? ''))),
                 ];
             }
-            $ventasPorCodigo[$codigoKey]['neto'] += (float)($fila['neto'] ?? 0);
+            $tieneComponentes = array_key_exists('ventaBaseAtribuida', $fila);
+            $netoPropio = $tieneComponentes
+                ? (float)($fila['ventaBaseAtribuida'] ?? 0) - (float)($fila['ventaCompartidaEntregada'] ?? 0)
+                : (float)($fila['neto'] ?? 0);
+            $ventasPorCodigo[$codigoKey]['neto'] += $netoPropio;
+            $ventasPorCodigo[$codigoKey]['compartidaRecibida'] += (float)($fila['ventaCompartidaRecibida'] ?? 0);
         }
 
         $unidades = [];
@@ -680,7 +721,22 @@ final class GerenciaService
                     'descripcion' => trim((string)($ventaCodigo['descripcion'] ?? ''))
                         ?: ($descripcionPorCodigo[$codigoKey] ?? $vendedor),
                     'neto' => (int)round((float)$ventaCodigo['neto']),
+                    'tipo' => $ventaCodigo['tipo'] ?? '',
+                    'esCompartida' => false,
                 ];
+            }
+            if (abs((float)($ventaCodigo['compartidaRecibida'] ?? 0)) >= 0.000001) {
+                $sharedKey = '__ventas_compartidas_ta__';
+                if (!isset($unidades[$grupo]['vendedores'][$vendedorKey]['codigos'][$sharedKey])) {
+                    $unidades[$grupo]['vendedores'][$vendedorKey]['codigos'][$sharedKey] = [
+                        'codigo' => 'VENTAS COMPARTIDAS TA',
+                        'descripcion' => 'Ventas compartidas recibidas',
+                        'neto' => 0,
+                        'tipo' => 'TA',
+                        'esCompartida' => true,
+                    ];
+                }
+                $unidades[$grupo]['vendedores'][$vendedorKey]['codigos'][$sharedKey]['neto'] += (float)$ventaCodigo['compartidaRecibida'];
             }
         }
 
@@ -693,21 +749,28 @@ final class GerenciaService
                 $codigos = [];
                 $totalVendedor = 0;
                 foreach ($vendedor['codigos'] as $codigoRow) {
-                    $netoCodigo = (int)$codigoRow['neto'];
+                    $netoCodigo = (int)round((float)$codigoRow['neto']);
                     $codigos[] = [
                         'codigo' => $codigoRow['codigo'],
                         'descripcion' => $codigoRow['descripcion'],
                         'neto' => $netoCodigo,
+                        'tipo' => $codigoRow['tipo'] ?? '',
+                        'esCompartida' => (bool)($codigoRow['esCompartida'] ?? false),
                     ];
                     $totalVendedor += $netoCodigo;
-                    $codigosUnicos[$this->normalizeCode($codigoRow['codigo'])] = true;
+                    if (!(bool)($codigoRow['esCompartida'] ?? false)) {
+                        $codigosUnicos[$this->normalizeCode($codigoRow['codigo'])] = true;
+                    }
                 }
                 usort($codigos, static fn(array $a, array $b): int => ($b['neto'] <=> $a['neto']) ?: strcmp($a['codigo'], $b['codigo']));
                 $vendedores[] = [
                     'codigoPrincipal' => $vendedor['codigoPrincipal'],
                     'vendedor' => $vendedor['vendedor'],
                     'neto' => $totalVendedor,
-                    'cantidadCodigos' => count($codigos),
+                    'cantidadCodigos' => count(array_filter(
+                        $codigos,
+                        static fn(array $row): bool => !(bool)($row['esCompartida'] ?? false)
+                    )),
                     'codigos' => $codigos,
                 ];
                 $vendedoresUnicos[$vendedorKey] = true;
@@ -1073,6 +1136,7 @@ final class GerenciaService
         }
 
         [$desde, $hasta] = $this->monthRange($anio, $mes);
+        $ventaTotalGlobal = $this->totalVentasGlobalPeriodo($anio, $mes);
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'mov.TotLinea');
         $ventasRows = $this->softlandRows(
             "
@@ -1095,12 +1159,23 @@ final class GerenciaService
             [$desde, $hasta]
         );
 
-        $relationCodes = array_column($this->loadVendorRelations(), 'codigoAsociado');
+        $relaciones = $this->loadVendorRelations();
+        $relationCodes = array_column($relaciones, 'codigoAsociado');
         $ventasRows = array_map(static fn(array $row): array => [
             'codigoVendedor' => $row['codigoVendedor'] ?? '',
             'descripcion' => $row['nombreVendedor'] ?? $row['codigoVendedor'] ?? '',
             'neto' => $row['venta'] ?? 0,
-        ], $this->analytics->applySharedSalesToVendorRows($ventasRows, $mes, $anio, $relationCodes));
+            'tipo' => $row['tipoCodigo'] ?? '',
+            'ventaBaseAtribuida' => $row['ventaBaseAtribuida'] ?? 0,
+            'ventaCompartidaRecibida' => $row['ventaCompartidaRecibida'] ?? 0,
+            'ventaCompartidaEntregada' => $row['ventaCompartidaEntregada'] ?? 0,
+        ], $this->analytics->applySharedSalesToVendorRows(
+            $ventasRows,
+            $mes,
+            $anio,
+            $relationCodes,
+            $this->vendorCodeTypeMap($relaciones)
+        ));
 
         $gruposRows = $this->softlandRows(
             "
@@ -1117,7 +1192,6 @@ final class GerenciaService
             "
         );
 
-        $relaciones = $this->loadVendorRelations();
         $estadisticas = $this->consolidarEstadisticasVentas($ventasRows, $gruposRows, $relaciones);
 
         return [
@@ -1125,9 +1199,11 @@ final class GerenciaService
             'data' => [
                 'mes' => $mes,
                 'anio' => $anio,
-                'total' => $estadisticas['total'],
+                'total' => (int)round($ventaTotalGlobal),
+                'totalAtribuido' => $estadisticas['total'],
                 'resumen' => [
-                    'ventaTotal' => $estadisticas['total'],
+                    'ventaTotal' => (int)round($ventaTotalGlobal),
+                    'ventaTotalAtribuida' => $estadisticas['total'],
                     'cantidadUnidades' => $estadisticas['cantidadUnidades'],
                     'cantidadVendedores' => $estadisticas['cantidadVendedores'],
                     'cantidadCodigos' => $estadisticas['cantidadCodigos'],

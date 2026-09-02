@@ -145,7 +145,7 @@
     foot.innerHTML = `
       <tr>
         <th>Total</th>
-        <th class="numero">${formatCLP(data?.resumen?.ventaTotal ?? 0)}</th>
+        <th class="numero">${formatCLP(data?.totalAtribuido ?? 0)}</th>
         <th class="numero">${units.length ? '100,00 %' : '0,00 %'}</th>
       </tr>
     `;
@@ -177,7 +177,7 @@
         <article class="unidad-card">
           <header class="unidad-card__header">
             <h4>${escHtml(group.grupo || 'Sin unidad')}</h4>
-            <div><strong>${formatCLP(group.total ?? 0)}</strong><span>${formatPct(group.participacion ?? 0)} del total general</span></div>
+            <div><strong>${formatCLP(group.total ?? 0)}</strong><span>${formatPct(group.participacion ?? 0)} del total atribuido</span></div>
           </header>
           <div class="tabla-wrapper">
             <table class="dash-tabla">
@@ -265,7 +265,7 @@
         startY: doc.lastAutoTable.finalY + 4,
         head: [['Resumen por unidad', 'Venta', 'Participación']],
         body: unidades.map(item => [item.unidad || 'Sin unidad', formatCLP(item.venta), formatPct(item.participacion)]),
-        foot: [['TOTAL GENERAL', formatCLP(resumen.ventaTotal), unidades.length ? '100,00 %' : '0,00 %']],
+        foot: [['TOTAL ATRIBUIDO', formatCLP(data.totalAtribuido), unidades.length ? '100,00 %' : '0,00 %']],
         columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
         footStyles: { fillColor: [237, 248, 245], textColor: [23, 75, 67], fontStyle: 'bold' },
       }));

@@ -22,7 +22,14 @@ final class AnalyticsService
         $codigos = $this->normalizeVendorCodes($this->getVendorCodes($userId));
         $asignacionesCompartidas = $this->fetchSharedAssignments($codigos, $periodo['mes'], $periodo['anio']);
         $productosCompartidos = $this->sharedProductCategories($asignacionesCompartidas, $periodo['mes'], $periodo['anio']);
-        $categorias = $this->sharedCategoryDistribution($codigos, $periodo['mes'], $periodo['anio'], $asignacionesCompartidas, $productosCompartidos);
+        $categorias = $this->sharedCategoryDistribution(
+            $codigos,
+            $periodo['mes'],
+            $periodo['anio'],
+            $asignacionesCompartidas,
+            $productosCompartidos,
+            $this->vendorCodeTypeMapFromUserId($userId)
+        );
         $totalCategorias = array_sum(array_column($categorias, 'total'));
         $ventasCompartidas = $this->sharedSalesOriginSummary($codigos, $asignacionesCompartidas, $productosCompartidos);
         $clientes = $this->clientesResumen($payload, $query);
@@ -210,6 +217,19 @@ final class AnalyticsService
             return $calendar;
         }
 
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
+        $sharedOriginCodes = array_values(array_filter(
+            $vendorCodes,
+            fn(string $code): bool => $this->vendorCodeParticipationFactor(
+                $this->vendorCodeType($code, $codeTypeMap)
+            ) < 1.0
+        ));
+        $participationExpression = $sharedOriginCodes
+            ? 'CASE WHEN LTRIM(RTRIM(h.CodVendedor)) IN ('
+                . implode(',', array_fill(0, count($sharedOriginCodes), '?'))
+                . ') THEN 0.5 ELSE 1.0 END'
+            : '1.0';
+
         $pool = $this->softland();
         $placeholders = implode(',', array_fill(0, count($vendorCodes), '?'));
         $rangeStart = sprintf('%04d-01-01', $selectedYear - 1);
@@ -241,7 +261,7 @@ final class AnalyticsService
                 SELECT LTRIM(RTRIM(h.CodAux)) AS CodAux,
                        YEAR(h.Fecha) AS Anio,
                        MONTH(h.Fecha) AS Mes,
-                       SUM(m.TotLinea) AS Monto
+                       SUM(m.TotLinea * ($participationExpression)) AS Monto
                 FROM [PRODIN].[softland].[iw_gsaen] h
                 INNER JOIN [PRODIN].[softland].[iw_gmovi] m
                    ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
@@ -268,7 +288,9 @@ final class AnalyticsService
         );
         $stmt->execute(array_merge(
             $vendorCodes,
-            [$dataEndText, $rangeStart, $dataEndText, $rangeStart, $rangeEnd]
+            [$dataEndText],
+            $sharedOriginCodes,
+            [$rangeStart, $dataEndText, $rangeStart, $rangeEnd]
         ));
 
         $years = [];
@@ -300,6 +322,7 @@ final class AnalyticsService
     {
         $resultado = [];
         $vistos = [];
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
         foreach ($rows as $row) {
             $codigo = trim((string)($row['codVendedor'] ?? ''));
             if ($codigo === '') {
@@ -326,6 +349,7 @@ final class AnalyticsService
                 'totalFolios' => 0,
                 'totalVentasCobrado' => 0,
                 'ventaRealLista' => 0,
+                'tipoCodigo' => $this->vendorCodeType($codigo, $codeTypeMap),
                 'pctDescuento' => 0,
             ];
         }
@@ -854,7 +878,8 @@ final class AnalyticsService
         int $mes,
         int $anio,
         array $assignments,
-        array $productCategories
+        array $productCategories,
+        array $codeTypeMap = []
     ): array
     {
         $codes = $this->normalizeVendorCodes($vendCodes);
@@ -876,6 +901,7 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
         $stmt = $this->softland()->prepare(
             "SELECT
+                LTRIM(RTRIM(h.CodVendedor)) AS codigoVendedor,
                 LTRIM(RTRIM(COALESCE(t.CtaVentas, ''))) AS cuentaCategoria,
                 SUM(CONVERT(decimal(38, 6), $saleExpression)) AS total
              FROM [PRODIN].[softland].[iw_gsaen] h
@@ -888,7 +914,7 @@ final class AnalyticsService
                AND h.Estado <> 'A'
                AND h.Fecha >= ?
                AND h.Fecha < DATEADD(MONTH, 1, ?)
-             GROUP BY t.CtaVentas"
+             GROUP BY h.CodVendedor, t.CtaVentas"
         );
         $stmt->execute(array_merge($codes, [$start, $start]));
 
@@ -897,7 +923,8 @@ final class AnalyticsService
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $account = trim((string)($row['cuentaCategoria'] ?? ''));
             $category = $categoryMap[$account] ?? ($account !== '' ? $account : 'Otros');
-            $amount = (float)($row['total'] ?? 0);
+            $type = $this->vendorCodeType($row['codigoVendedor'] ?? '', $codeTypeMap);
+            $amount = (float)($row['total'] ?? 0) * $this->vendorCodeParticipationFactor($type);
             $grouped[$category] = ($grouped[$category] ?? 0.0) + $amount;
             $ownTotal += $amount;
         }
@@ -911,8 +938,10 @@ final class AnalyticsService
             $originKey = $this->sharedCodeKey($assignment['codVendedorOrigen'] ?? '');
             $destinationKey = $this->sharedCodeKey($assignment['codVendedorDestino'] ?? '');
             $amount = (float)($assignment['monto_asignado'] ?? 0);
+            $originType = $this->vendorCodeType($assignment['codVendedorOrigen'] ?? '', $codeTypeMap);
+            $outgoing = $this->sharedOutgoingAmount($amount, $originType);
             $delta = (isset($selected[$destinationKey]) ? $amount : 0.0)
-                - (isset($selected[$originKey]) ? $amount : 0.0);
+                - (isset($selected[$originKey]) ? $outgoing : 0.0);
             if (abs($delta) < 0.000001) {
                 continue;
             }
@@ -1024,7 +1053,7 @@ final class AnalyticsService
         return $balances;
     }
 
-    private function fetchSharedMonthlyBalances(array $vendCodes, int $anio): array
+    private function fetchSharedMonthlyBalances(array $vendCodes, int $anio, array $codeTypeMap = []): array
     {
         $codes = $this->normalizeVendorCodes($vendCodes);
         if (!$codes) {
@@ -1035,7 +1064,9 @@ final class AnalyticsService
         foreach (range(1, 12) as $mes) {
             $monthBalance = 0.0;
             foreach ($this->fetchSharedVendorBalances($codes, $mes, $anio) as $balance) {
-                $monthBalance += (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
+                $type = $this->vendorCodeType($balance['codigo'] ?? '', $codeTypeMap);
+                $monthBalance += (float)($balance['incoming'] ?? 0)
+                    - $this->sharedOutgoingAmount($balance['outgoing'] ?? 0, $type);
             }
             $balances[$mes] = $monthBalance;
         }
@@ -1043,7 +1074,13 @@ final class AnalyticsService
         return $balances;
     }
 
-    public function applySharedSalesToVendorRows(array $rows, int $mes, int $anio, array $extraCodes = []): array
+    public function applySharedSalesToVendorRows(
+        array $rows,
+        int $mes,
+        int $anio,
+        array $extraCodes = [],
+        array $codeTypeMap = []
+    ): array
     {
         $byCode = [];
         foreach ($rows as $row) {
@@ -1052,11 +1089,20 @@ final class AnalyticsService
                 continue;
             }
             $key = $this->sharedCodeKey($code);
+            $type = $this->vendorCodeType($code, $codeTypeMap);
+            $factor = $this->vendorCodeParticipationFactor($type);
             $byCode[$key] = [
                 'codigoVendedor' => $code,
                 'nombreVendedor' => trim((string)($row['nombreVendedor'] ?? $row['descripcion'] ?? '')) ?: $code,
-                'venta' => (float)($row['venta'] ?? $row['neto'] ?? 0),
-                'ventaReal' => (float)($row['ventaReal'] ?? 0),
+                'venta' => (float)($row['venta'] ?? $row['neto'] ?? 0) * $factor,
+                'ventaReal' => (float)($row['ventaReal'] ?? 0) * $factor,
+                'ventaBaseAtribuida' => (float)($row['venta'] ?? $row['neto'] ?? 0) * $factor,
+                'ventaRealBaseAtribuida' => (float)($row['ventaReal'] ?? 0) * $factor,
+                'ventaCompartidaRecibida' => 0.0,
+                'ventaRealCompartidaRecibida' => 0.0,
+                'ventaCompartidaEntregada' => 0.0,
+                'ventaRealCompartidaEntregada' => 0.0,
+                'tipoCodigo' => $type,
             ];
         }
         $codes = array_values(array_unique(array_merge(
@@ -1071,11 +1117,29 @@ final class AnalyticsService
                     'nombreVendedor' => $code,
                     'venta' => 0.0,
                     'ventaReal' => 0.0,
+                    'ventaBaseAtribuida' => 0.0,
+                    'ventaRealBaseAtribuida' => 0.0,
+                    'ventaCompartidaRecibida' => 0.0,
+                    'ventaRealCompartidaRecibida' => 0.0,
+                    'ventaCompartidaEntregada' => 0.0,
+                    'ventaRealCompartidaEntregada' => 0.0,
+                    'tipoCodigo' => $this->vendorCodeType($code, $codeTypeMap),
                 ];
             }
-            $byCode[$key]['venta'] += (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
-            $byCode[$key]['ventaReal'] += (float)($balance['incoming_real'] ?? $balance['incoming'] ?? 0)
-                - (float)($balance['outgoing_real'] ?? $balance['outgoing'] ?? 0);
+            $type = $byCode[$key]['tipoCodigo'] ?? '';
+            $incoming = (float)($balance['incoming'] ?? 0);
+            $incomingReal = (float)($balance['incoming_real'] ?? $balance['incoming'] ?? 0);
+            $outgoing = $this->sharedOutgoingAmount($balance['outgoing'] ?? 0, $type);
+            $outgoingReal = $this->sharedOutgoingAmount(
+                $balance['outgoing_real'] ?? $balance['outgoing'] ?? 0,
+                $type
+            );
+            $byCode[$key]['ventaCompartidaRecibida'] += $incoming;
+            $byCode[$key]['ventaRealCompartidaRecibida'] += $incomingReal;
+            $byCode[$key]['ventaCompartidaEntregada'] += $outgoing;
+            $byCode[$key]['ventaRealCompartidaEntregada'] += $outgoingReal;
+            $byCode[$key]['venta'] += $incoming - $outgoing;
+            $byCode[$key]['ventaReal'] += $incomingReal - $outgoingReal;
         }
 
         return array_values($byCode);
@@ -1228,29 +1292,32 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
         $realExpression = $this->commercialAmountSql('enc.Tipo', 'm.CantFacturada * ISNULL(t.PrecioVta, 0)');
         $sql = sprintf(
-            "SELECT SUM(%s) AS totalVentasCobrado,
-                    SUM(%s) AS totalVentasLista
+            "SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
+                    SUM(%s) AS venta,
+                    SUM(%s) AS ventaReal
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
              WHERE enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
                AND enc.CodVendedor IN (%s)
-               AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?",
+               AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
+             GROUP BY LTRIM(RTRIM(enc.CodVendedor))",
             $saleExpression,
             $realExpression,
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
-        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        $ventas = (float)($row['totalVentasCobrado'] ?? 0);
-        $lista = (float)($row['totalVentasLista'] ?? 0);
-        foreach ($this->fetchSharedVendorBalances($vendCodes, $mes, $anio) as $balance) {
-            $ventas += (float)($balance['incoming'] ?? 0) - (float)($balance['outgoing'] ?? 0);
-            $lista += (float)($balance['incoming_real'] ?? $balance['incoming'] ?? 0)
-                - (float)($balance['outgoing_real'] ?? $balance['outgoing'] ?? 0);
-        }
+        $rows = $this->applySharedSalesToVendorRows(
+            $stmt->fetchAll(PDO::FETCH_ASSOC),
+            $mes,
+            $anio,
+            $vendCodes,
+            $this->vendorCodeTypeMapFromUserId($userId)
+        );
+        $ventas = array_sum(array_column($rows, 'venta'));
+        $lista = array_sum(array_column($rows, 'ventaReal'));
 
         $metaMes = (float)$meta['meta_mes'];
         $progreso = $metaMes > 0 ? (int)round(($ventas / $metaMes) * 100) : 0;
@@ -1332,31 +1399,40 @@ final class AnalyticsService
         $pool = $this->softland();
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
         $sql = sprintf(
-            "SELECT MONTH(enc.Fecha) AS mes, SUM(%s) AS ventas
+            "SELECT MONTH(enc.Fecha) AS mes,
+                    LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
+                    SUM(%s) AS venta
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              WHERE enc.CodVendedor IN (%s)
                AND YEAR(enc.Fecha) = ?
                AND enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
-             GROUP BY MONTH(enc.Fecha)
-             ORDER BY mes",
+             GROUP BY MONTH(enc.Fecha), LTRIM(RTRIM(enc.CodVendedor))
+             ORDER BY mes, codigoVendedor",
             $saleExpression,
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$anio]));
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $mes = (int)($row['mes'] ?? 0);
-            if ($mes >= 1 && $mes <= 12) {
-                $evolucion[$mes - 1]['ventas'] = (int)round((float)($row['ventas'] ?? 0));
+        $rowsByMonth = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $rowMonth = (int)($row['mes'] ?? 0);
+            if ($rowMonth >= 1 && $rowMonth <= 12) {
+                $rowsByMonth[$rowMonth][] = $row;
             }
         }
 
-        foreach ($this->fetchSharedMonthlyBalances($vendCodes, $anio) as $mes => $balance) {
-            if ($mes >= 1 && $mes <= 12) {
-                $evolucion[$mes - 1]['ventas'] += (int)round($balance);
-            }
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
+        foreach (range(1, 12) as $month) {
+            $weightedRows = $this->applySharedSalesToVendorRows(
+                $rowsByMonth[$month] ?? [],
+                $month,
+                $anio,
+                $vendCodes,
+                $codeTypeMap
+            );
+            $evolucion[$month - 1]['ventas'] = (int)round(array_sum(array_column($weightedRows, 'venta')));
         }
 
         return ['ok' => true, 'evolucion' => $evolucion];
@@ -1403,16 +1479,20 @@ final class AnalyticsService
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
         $rows = [];
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $codigo = trim((string)$row['codVendedor']);
-            $ventas = (float)($row['totalVentasCobrado'] ?? 0);
-            $lista = (float)($row['ventaRealLista'] ?? 0);
+            $type = $this->vendorCodeType($codigo, $codeTypeMap);
+            $factor = $this->vendorCodeParticipationFactor($type);
+            $ventas = (float)($row['totalVentasCobrado'] ?? 0) * $factor;
+            $lista = (float)($row['ventaRealLista'] ?? 0) * $factor;
             $rows[] = [
                 'codVendedor' => $codigo,
                 'nombreVendedor' => $this->getVendorName($codigo),
                 'totalFolios' => (int)($row['totalFolios'] ?? 0),
                 'totalVentasCobrado' => $ventas,
                 'ventaRealLista' => $lista,
+                'tipoCodigo' => $type,
                 'pctDescuento' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
             ];
         }
@@ -1432,9 +1512,16 @@ final class AnalyticsService
             $incoming = (float)($balance['incoming'] ?? 0);
             $incomingReal = (float)($balance['incoming_real'] ?? $incoming);
             $incomingFolios = (int)($balance['incoming_folios'] ?? 0);
-            $ajuste = ($separarAsignadas ? 0.0 : $incoming) - (float)($balance['outgoing'] ?? 0);
-            $ajusteReal = ($separarAsignadas ? 0.0 : $incomingReal) - (float)($balance['outgoing_real'] ?? $balance['outgoing'] ?? 0);
-            $ajusteFolios = ($separarAsignadas ? 0 : $incomingFolios) - (int)($balance['outgoing_folios'] ?? 0);
+            $type = $row['tipoCodigo'] ?? '';
+            $outgoing = $this->sharedOutgoingAmount($balance['outgoing'] ?? 0, $type);
+            $outgoingReal = $this->sharedOutgoingAmount(
+                $balance['outgoing_real'] ?? $balance['outgoing'] ?? 0,
+                $type
+            );
+            $outgoingFolios = (int)$this->sharedOutgoingAmount($balance['outgoing_folios'] ?? 0, $type);
+            $ajuste = ($separarAsignadas ? 0.0 : $incoming) - $outgoing;
+            $ajusteReal = ($separarAsignadas ? 0.0 : $incomingReal) - $outgoingReal;
+            $ajusteFolios = ($separarAsignadas ? 0 : $incomingFolios) - $outgoingFolios;
             $ventasAsignadas += $incoming;
             $ventaRealAsignada += $incomingReal;
             $foliosAsignados += $incomingFolios;
@@ -1455,9 +1542,16 @@ final class AnalyticsService
             $incoming = (float)($balance['incoming'] ?? 0);
             $incomingReal = (float)($balance['incoming_real'] ?? $incoming);
             $incomingFolios = (int)($balance['incoming_folios'] ?? 0);
-            $ajuste = ($separarAsignadas ? 0.0 : $incoming) - (float)($balance['outgoing'] ?? 0);
-            $ajusteReal = ($separarAsignadas ? 0.0 : $incomingReal) - (float)($balance['outgoing_real'] ?? $balance['outgoing'] ?? 0);
-            $ajusteFolios = ($separarAsignadas ? 0 : $incomingFolios) - (int)($balance['outgoing_folios'] ?? 0);
+            $type = $this->vendorCodeType($codigo, $codeTypeMap);
+            $outgoing = $this->sharedOutgoingAmount($balance['outgoing'] ?? 0, $type);
+            $outgoingReal = $this->sharedOutgoingAmount(
+                $balance['outgoing_real'] ?? $balance['outgoing'] ?? 0,
+                $type
+            );
+            $outgoingFolios = (int)$this->sharedOutgoingAmount($balance['outgoing_folios'] ?? 0, $type);
+            $ajuste = ($separarAsignadas ? 0.0 : $incoming) - $outgoing;
+            $ajusteReal = ($separarAsignadas ? 0.0 : $incomingReal) - $outgoingReal;
+            $ajusteFolios = ($separarAsignadas ? 0 : $incomingFolios) - $outgoingFolios;
             $ventasAsignadas += $incoming;
             $ventaRealAsignada += $incomingReal;
             $foliosAsignados += $incomingFolios;
@@ -1469,6 +1563,7 @@ final class AnalyticsService
                 'totalFolios' => $ajusteFolios,
                 'totalVentasCobrado' => $ventas,
                 'ventaRealLista' => $lista,
+                'tipoCodigo' => $type,
                 'pctDescuento' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
             ];
         }
@@ -1653,15 +1748,20 @@ final class AnalyticsService
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
         $ventas = [];
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $monto = $this->asFloat($row['monto'] ?? 0);
-            $lista = $this->asFloat($row['venta_lista_folio'] ?? 0);
+            $code = trim((string)($row['CodVendedor'] ?? ''));
+            $type = $this->vendorCodeType($code, $codeTypeMap);
+            $factor = $this->vendorCodeParticipationFactor($type);
+            $monto = $this->asFloat($row['monto'] ?? 0) * $factor;
+            $lista = $this->asFloat($row['venta_lista_folio'] ?? 0) * $factor;
             $ventas[] = [
                 'Folio' => (int)($row['Folio'] ?? 0),
                 'fecha_formato' => (string)($row['fecha_formato'] ?? ''),
                 'cliente' => trim((string)($row['cliente'] ?? '')),
                 'CodAux' => trim((string)($row['CodAux'] ?? '')),
-                'CodVendedor' => trim((string)($row['CodVendedor'] ?? '')),
+                'CodVendedor' => $code,
+                'tipoCodigo' => $type,
                 'Tipo' => strtoupper(trim((string)($row['Tipo'] ?? ''))),
                 'monto' => (int)round($monto),
                 'venta_real_folio' => (int)round($lista),
@@ -2225,9 +2325,10 @@ final class AnalyticsService
 
     public function categoriasVendedor(array $payload, array $query): array
     {
+        $userId = $this->currentUserIdFromPayload($payload);
         $codes = array_values(array_unique(array_filter(array_map(
             static fn(mixed $code): string => trim((string)$code),
-            $this->vendorCodes($payload)
+            $this->getVendorCodes($userId)
         ))));
         if (!$codes) {
             return ['vendedores' => [], 'todasLasCategorias' => []];
@@ -2247,6 +2348,7 @@ final class AnalyticsService
 
         $assignments = $this->fetchSharedAssignments($codes, $mes, $anio);
         $productCategories = $this->sharedProductCategories($assignments, $mes, $anio);
+        $codeTypeMap = $this->vendorCodeTypeMapFromUserId($userId);
         $resultado = [];
         foreach ($codes as $cod) {
             $categorias = $this->sharedCategoryDistribution(
@@ -2254,7 +2356,8 @@ final class AnalyticsService
                 $mes,
                 $anio,
                 $assignments,
-                $productCategories
+                $productCategories,
+                $codeTypeMap
             );
             $resultado[] = ['codVendedor' => $cod, 'categorias' => $categorias];
             foreach ($categorias as $category) {

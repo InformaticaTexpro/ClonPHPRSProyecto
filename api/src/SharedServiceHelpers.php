@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 trait SharedServiceHelpers
 {
+    private array $vendorRelationsByUserId = [];
+
     protected function currentUserIdFromPayload(array $payload): int
     {
         $userId = (int)($payload['sub'] ?? $payload['id'] ?? 0);
@@ -24,7 +26,7 @@ trait SharedServiceHelpers
 
     protected function vendorCodesFromUserId(int $userId): array
     {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
+        $rows = $this->vendorRelationsFromUserId($userId);
         $codes = array_values(array_unique(array_filter(array_map(
             static fn(array $row): string => trim((string)($row['cod_vendedor'] ?? '')),
             $rows
@@ -54,7 +56,7 @@ trait SharedServiceHelpers
 
     protected function coordinatorCodesFromUserId(int $userId): array
     {
-        $rows = $this->db->fetchAll('SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?', [$userId]);
+        $rows = $this->vendorRelationsFromUserId($userId);
         return array_values(array_filter(array_map(static function (array $row): string {
             $tipo = strtoupper(trim((string)($row['tipo'] ?? '')));
             return $tipo === 'C' ? trim((string)($row['cod_vendedor'] ?? '')) : '';
@@ -69,6 +71,63 @@ trait SharedServiceHelpers
     protected function getCoordinatorCodes(int $userId): array
     {
         return $this->coordinatorCodesFromUserId($userId);
+    }
+
+    protected function vendorRelationsFromUserId(int $userId): array
+    {
+        if (!array_key_exists($userId, $this->vendorRelationsByUserId)) {
+            $this->vendorRelationsByUserId[$userId] = $this->db->fetchAll(
+                'SELECT cod_vendedor, tipo FROM usuario_vendedor WHERE usuario_id = ?',
+                [$userId]
+            );
+        }
+
+        return $this->vendorRelationsByUserId[$userId];
+    }
+
+    protected function vendorCodeTypeMap(array $relations): array
+    {
+        $map = [];
+        foreach ($relations as $relation) {
+            $code = trim((string)($relation['codigoAsociado'] ?? $relation['cod_vendedor'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $type = strtoupper(trim((string)($relation['tipo'] ?? '')));
+            foreach ($this->normalizeVendorCodes([$code]) as $normalizedCode) {
+                $map[mb_strtoupper((string)$normalizedCode)] = $type;
+            }
+        }
+
+        return $map;
+    }
+
+    protected function vendorCodeTypeMapFromUserId(int $userId): array
+    {
+        return $this->vendorCodeTypeMap($this->vendorRelationsFromUserId($userId));
+    }
+
+    protected function vendorCodeType(mixed $code, array $typeMap): string
+    {
+        foreach ($this->normalizeVendorCodes([(string)$code]) as $normalizedCode) {
+            $key = mb_strtoupper((string)$normalizedCode);
+            if (array_key_exists($key, $typeMap)) {
+                return strtoupper(trim((string)$typeMap[$key]));
+            }
+        }
+
+        return '';
+    }
+
+    protected function vendorCodeParticipationFactor(mixed $type): float
+    {
+        return strtoupper(trim((string)$type)) === 'C' ? 0.5 : 1.0;
+    }
+
+    protected function sharedOutgoingAmount(mixed $amount, mixed $vendorCodeType): float
+    {
+        return $this->vendorCodeParticipationFactor($vendorCodeType) < 1.0 ? 0.0 : (float)$amount;
     }
 
     protected function vendorCodes(array $payload): array
@@ -160,7 +219,7 @@ trait SharedServiceHelpers
             }
         }
 
-        return array_keys($normalized);
+        return array_map('strval', array_keys($normalized));
     }
 
     protected function commercialAmountSql(string $typeExpression, string $amountExpression): string
