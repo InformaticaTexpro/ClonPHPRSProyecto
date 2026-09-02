@@ -27,7 +27,7 @@ final class ApiApplication
         $cotizacionesService = new CotizacionesService($database);
         $soporteTiService = new SoporteTiService($database);
         $dashboardService = new DashboardService($database);
-        $gerenciaService = new GerenciaService($database);
+        $gerenciaService = new GerenciaService($database, $analyticsService);
         $ventasService = new VentasService($database, $analyticsService);
         $indicadoresService = new IndicadoresService();
 

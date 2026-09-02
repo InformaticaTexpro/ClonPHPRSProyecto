@@ -26,20 +26,21 @@ final class DashboardService
         }
 
         $placeholders = implode(',', array_fill(0, count($codigosCoord), '?'));
+        $saleExpression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
         $sql = "
-            SELECT TOP 1 h.Folio, h.Fecha, h.CodVendedor, h.CodAux,
+            SELECT TOP 1 h.Folio, h.Fecha, h.Tipo, h.CodVendedor, h.CodAux,
                    COALESCE(
                        NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), c.NomAux))), ''),
                        NULLIF(LTRIM(RTRIM(h.CodAux)), '')
                    ) AS cliente,
-                   SUM(m.TotLinea) AS montoBase
+                   SUM($saleExpression) AS montoBase
             FROM [PRODIN].[softland].[iw_gsaen] h
             LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
             WHERE h.Folio = ?
               AND h.CodVendedor IN ($placeholders)
               AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
-            GROUP BY h.Folio, h.Fecha, h.CodVendedor, h.CodAux, CONVERT(varchar(max), c.NomAux)
+            GROUP BY h.Folio, h.Fecha, h.Tipo, h.CodVendedor, h.CodAux, CONVERT(varchar(max), c.NomAux)
         ";
         $params = array_merge([$folio], $codigosCoord);
         $stmt = $this->db->softland()->prepare($sql);
@@ -113,6 +114,33 @@ final class DashboardService
         [$anio, $mes] = array_map('intval', explode('-', $iso));
         return ['mes' => $mes, 'anio' => $anio, 'iso' => $iso];
     }
+
+    private function assertSharedPercentageAvailable(
+        string $folio,
+        string $originCode,
+        int $mes,
+        int $anio,
+        float $percentage,
+        ?int $excludeId = null
+    ): void {
+        $sql = "SELECT COALESCE(SUM(porcentaje), 0) AS porcentaje_asignado
+                FROM factura_compartida
+                WHERE folio = ?
+                  AND TRIM(cod_vendedor_principal) = TRIM(?)
+                  AND mes = ?
+                  AND anio = ?
+                  AND rol = 'compartido'";
+        $params = [$folio, $originCode, $mes, $anio];
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> ?';
+            $params[] = $excludeId;
+        }
+        $assigned = (float)($this->db->fetchOne($sql, $params)['porcentaje_asignado'] ?? 0);
+        if ($assigned + $percentage > 100.000001) {
+            throw new RuntimeException('La suma de participaciones del documento no puede superar 100%.', 400);
+        }
+    }
+
     private function compartir(array $payload, array $body): array
     {
         $codigosCoord = $this->coordinatorCodes($payload);
@@ -132,6 +160,13 @@ final class DashboardService
         $montoBase = (float)($f['montoBase'] ?? 0);
         $montoAsignado = (int)round($montoBase * $porcentaje / 100);
         $fecha = $this->monthFromSql($f['Fecha'] ?? null);
+        $this->assertSharedPercentageAvailable(
+            (string)$folio,
+            (string)($f['CodVendedor'] ?? ''),
+            $fecha['mes'],
+            $fecha['anio'],
+            (float)$porcentaje
+        );
         $nombreVendedorComp = $this->getNombreVendedor($codVendedorCompartido);
         $nombreCoordinador = trim((string)($payload['nombre'] ?? '')) ?: ('Coordinador (' . ($f['CodVendedor'] ?? '') . ')');
 
@@ -201,7 +236,7 @@ final class DashboardService
 
         $placeholders = implode(',', array_fill(0, count($codigosCoord), '?'));
         $row = $this->db->fetchOne(
-            "SELECT id, monto_neto, folio, cliente, mes, anio
+            "SELECT id, monto_neto, folio, cliente, mes, anio, cod_vendedor_principal
              FROM factura_compartida
              WHERE id = ?
                AND cod_vendedor_principal IN ($placeholders)
@@ -212,13 +247,27 @@ final class DashboardService
             throw new RuntimeException('Asignación no encontrada', 404);
         }
 
-        $montoAsignado = (int)round((float)($row['monto_neto'] ?? 0) * $porcentaje / 100);
+        $this->assertSharedPercentageAvailable(
+            (string)$row['folio'],
+            (string)($row['cod_vendedor_principal'] ?? ''),
+            (int)$row['mes'],
+            (int)$row['anio'],
+            (float)$porcentaje,
+            $id
+        );
+
+        $softlandRow = $this->getSoftlandRowByFolioAndCoordinator(
+            (int)$row['folio'],
+            [(string)($row['cod_vendedor_principal'] ?? '')]
+        );
+        $montoBase = (float)($softlandRow['montoBase'] ?? $row['monto_neto'] ?? 0);
+        $montoAsignado = (int)round($montoBase * $porcentaje / 100);
         $nombreVendedorComp = $this->getNombreVendedor($codVendedorCompartido);
         $this->db->execute(
             'UPDATE factura_compartida
-             SET cod_vendedor_compartido = ?, nombre_vendedor_compartido = ?, porcentaje = ?, monto_asignado = ?
+             SET cod_vendedor_compartido = ?, nombre_vendedor_compartido = ?, porcentaje = ?, monto_neto = ?, monto_asignado = ?
              WHERE id = ?',
-            [$codVendedorCompartido, $nombreVendedorComp, $porcentaje, $montoAsignado, $id]
+            [$codVendedorCompartido, $nombreVendedorComp, $porcentaje, $montoBase, $montoAsignado, $id]
         );
 
         $usuarioIdReceptor = $this->usuarioIdDesdeCodVendedor($codVendedorCompartido);
