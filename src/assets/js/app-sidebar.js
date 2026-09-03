@@ -2192,7 +2192,7 @@
 
     let fallbackTimer = window.setTimeout(() => {
       const nombreEl = document.getElementById('userName');
-      const current = normalizeText(nombreEl?.textContent || '');
+      const current = String(nombreEl?.textContent || '').trim();
       if (current === 'Cargando...' || current === 'Cargando…') {
         renderUsuarioSidebarConEstado(cachedUser, token ? 'Sesión no disponible' : 'Sin sesión activa');
       }
@@ -2240,7 +2240,7 @@
   window.addEventListener('load', () => {
     window.setTimeout(() => {
       const nombreEl = document.getElementById('userName');
-      const current = normalizeText(nombreEl?.textContent || '');
+      const current = String(nombreEl?.textContent || '').trim();
       if (current === 'Cargando...' || current === 'Cargando…') {
         renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
       }

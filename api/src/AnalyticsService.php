@@ -20,17 +20,6 @@ final class AnalyticsService
             }
 
             $normalized[$code] = true;
-
-            if (preg_match('/^\d+$/', $code)) {
-                $unpad = ltrim($code, '0');
-                if ($unpad === '') {
-                    $unpad = '0';
-                }
-
-                $normalized[$unpad] = true;
-                $normalized[str_pad($unpad, 2, '0', STR_PAD_LEFT)] = true;
-                $normalized[str_pad($unpad, 4, '0', STR_PAD_LEFT)] = true;
-            }
         }
 
         return array_keys($normalized);
@@ -57,6 +46,43 @@ final class AnalyticsService
         } catch (Throwable) {
             return $cod;
         }
+    }
+
+    private function normalizeAreaCode(mixed $value): string
+    {
+        $text = strtoupper(trim((string)$value));
+        if ($text === '') {
+            return '';
+        }
+
+        $text = preg_replace('/\s+/', '_', $text) ?? $text;
+        $text = preg_replace('/[^A-Z0-9_]/', '', $text) ?? $text;
+        return trim($text, '_');
+    }
+
+    private function userAreaFromPayload(array $payload): string
+    {
+        $area = trim((string)($payload['area'] ?? ''));
+        if ($area !== '') {
+            return $area;
+        }
+
+        $userId = $this->currentUserIdFromPayload($payload);
+        try {
+            $row = $this->db->fetchOne('SELECT area FROM usuario WHERE id = ? LIMIT 1', [$userId]);
+            return trim((string)($row['area'] ?? ''));
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
+    private function inactivityDaysForArea(string $area): int
+    {
+        return match ($this->normalizeAreaCode($area)) {
+            'TRATAMIENTO_AGUA' => 365,
+            'PRODUCTOS_QUIMICOS' => 90,
+            default => 90,
+        };
     }
 
     private function inClause(array $values, array &$params): string
@@ -1535,7 +1561,8 @@ final class AnalyticsService
 
         $desde = new DateTimeImmutable($this->monthStart($anio, $mes));
         $hasta = new DateTimeImmutable($this->monthEnd($anio, $mes));
-        $ventanaActiva = $hasta->modify('-90 days');
+        $diasInactividad = $this->inactivityDaysForArea($this->userAreaFromPayload($payload));
+        $ventanaActiva = $hasta->modify(sprintf('-%d days', $diasInactividad));
         $ventanaRecupero = $hasta->modify('-180 days');
 
         $paramsClients = [];

@@ -147,17 +147,6 @@ trait SharedServiceHelpers
             }
 
             $normalized[$code] = true;
-
-            if (preg_match('/^\d+$/', $code)) {
-                $unpad = ltrim($code, '0');
-                if ($unpad === '') {
-                    $unpad = '0';
-                }
-
-                $normalized[$unpad] = true;
-                $normalized[str_pad($unpad, 2, '0', STR_PAD_LEFT)] = true;
-                $normalized[str_pad($unpad, 4, '0', STR_PAD_LEFT)] = true;
-            }
         }
 
         return array_keys($normalized);
