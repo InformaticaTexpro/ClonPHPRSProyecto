@@ -1575,7 +1575,7 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
         $realExpression = $this->commercialAmountSql('enc.Tipo', 'm.CantFacturada * ISNULL(t.PrecioVta, 0)');
         $sql = sprintf(
-            "SELECT enc.CodVendedor AS codigoVendedor,
+            "SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
                     SUM(%s) AS venta,
                     SUM(%s) AS ventaReal
              FROM [PRODIN].[softland].[iw_gsaen] enc
@@ -1591,7 +1591,6 @@ final class AnalyticsService
             $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
-        $sql .= ' GROUP BY enc.CodVendedor';
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
         $rows = $this->applySharedSalesToVendorRows(
