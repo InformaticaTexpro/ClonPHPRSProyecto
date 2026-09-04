@@ -82,17 +82,6 @@ final class DashboardService
         }
 
         $row = $this->db->fetchOne('SELECT usuario_id FROM usuario_vendedor WHERE TRIM(cod_vendedor) = ? LIMIT 1', [$cod]);
-        if ($row) {
-            return (int)$row['usuario_id'];
-        }
-
-        $codPadded = str_pad($cod, 2, '0', STR_PAD_LEFT);
-        $codUnpadded = ltrim($cod, '0');
-        $codUnpadded = $codUnpadded === '' ? '0' : $codUnpadded;
-        $row = $this->db->fetchOne(
-            'SELECT usuario_id FROM usuario_vendedor WHERE TRIM(cod_vendedor) IN (?, ?) LIMIT 1',
-            [$codPadded, $codUnpadded]
-        );
         return $row ? (int)$row['usuario_id'] : null;
     }
 
