@@ -1015,7 +1015,7 @@ final class AnalyticsService
         $realExpression = $this->commercialAmountSql('h.Tipo', 'm.CantFacturada * ISNULL(t.PrecioVta, 0)');
         $stmt = $this->softland()->prepare(
             "SELECT
-                LTRIM(RTRIM(h.CodVendedor)) AS codigoOrigen,
+                h.CodVendedor AS codigoOrigen,
                 CONVERT(varchar(50), h.Folio) AS folio,
                 MIN(h.Tipo) AS tipoDocumento,
                 SUM(CONVERT(decimal(38, 6), $saleExpression)) AS ventaDocumento,
@@ -1031,7 +1031,7 @@ final class AnalyticsService
                AND h.Fecha < DATEADD(MONTH, 1, ?)
                AND h.Folio IN ($folioPlaceholders)
                AND LTRIM(RTRIM(h.CodVendedor)) IN ($originPlaceholders)
-             GROUP BY LTRIM(RTRIM(h.CodVendedor)), h.Folio"
+             GROUP BY h.CodVendedor, h.Folio"
         );
         $stmt->execute(array_merge([$start, $start], $folioValues, $originValues));
         $documents = [];
@@ -1090,7 +1090,7 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
         $stmt = $this->softland()->prepare(
             "SELECT
-                LTRIM(RTRIM(h.CodVendedor)) AS codVendedorOrigen,
+                h.CodVendedor AS codVendedorOrigen,
                 CONVERT(varchar(50), h.Folio) AS folio,
                 LTRIM(RTRIM(COALESCE(t.CtaVentas, ''))) AS cuentaCategoria,
                 SUM(CONVERT(decimal(38, 6), $saleExpression)) AS ventaProducto
@@ -1184,7 +1184,7 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
         $stmt = $this->softland()->prepare(
             "SELECT
-                LTRIM(RTRIM(h.CodVendedor)) AS codigoVendedor,
+                h.CodVendedor AS codigoVendedor,
                 LTRIM(RTRIM(COALESCE(t.CtaVentas, ''))) AS cuentaCategoria,
                 SUM(CONVERT(decimal(38, 6), $saleExpression)) AS total
              FROM [PRODIN].[softland].[iw_gsaen] h
@@ -1575,7 +1575,7 @@ final class AnalyticsService
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
         $realExpression = $this->commercialAmountSql('enc.Tipo', 'm.CantFacturada * ISNULL(t.PrecioVta, 0)');
         $sql = sprintf(
-            "SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
+            "SELECT enc.CodVendedor AS codigoVendedor,
                     SUM(%s) AS venta,
                     SUM(%s) AS ventaReal
              FROM [PRODIN].[softland].[iw_gsaen] enc
@@ -1591,6 +1591,7 @@ final class AnalyticsService
             $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
+        $sql .= ' GROUP BY enc.CodVendedor';
         $stmt = $pool->prepare($sql);
         $stmt->execute(array_merge($vendCodes, [$mes, $anio]));
         $rows = $this->applySharedSalesToVendorRows(
@@ -1701,10 +1702,10 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              WHERE %s
-               AND enc.CodVendedor IN (%s)
-               AND YEAR(enc.Fecha) = ?
                AND enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
+               AND enc.CodVendedor IN (%s)
+               AND YEAR(enc.Fecha) = ?
              GROUP BY MONTH(enc.Fecha), LTRIM(RTRIM(enc.CodVendedor))
              ORDER BY mes, codigoVendedor",
             $saleExpression,
