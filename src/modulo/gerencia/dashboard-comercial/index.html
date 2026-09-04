@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.1.0" />
-  <link rel="stylesheet" href="../gerencia.css?v=1.1.0" />
+  <link rel="stylesheet" href="../gerencia.css?v=1.2.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -45,7 +45,7 @@
       </div>
     </header>
 
-    <main class="gerencia-page">
+    <main class="gerencia-page dashboard-comercial-page">
       <section class="hero-panel" aria-labelledby="tituloDashboard">
         <div>
           <p class="eyebrow">Gerencia comercial</p>
@@ -153,7 +153,169 @@
           </div>
         </div>
       </section>
+
+      <section class="gerencia-analisis-mensual" aria-labelledby="tituloAnalisisMensual">
+        <div class="gerencia-seccion-encabezado">
+          <div>
+            <p class="eyebrow">Detalle comercial</p>
+            <h2 id="tituloAnalisisMensual">Análisis mensual de ventas</h2>
+          </div>
+        </div>
+
+        <section class="gerencia-filtros gerencia-filtros--mensual" aria-label="Filtro mensual">
+          <div class="gerencia-filtro">
+            <label for="monthFilter">MES</label>
+            <select class="filtro-select" id="monthFilter"></select>
+          </div>
+          <button class="btn-buscar" id="btnActualizarMensual" type="button">Actualizar</button>
+        </section>
+        <p class="gerencia-mensaje" id="mensajeMensual" role="status" aria-live="polite"></p>
+
+        <section class="kpis-grid gerencia-kpis" aria-label="Resumen mensual">
+          <article class="kpi-card">
+            <div class="kpi-icono kpi-icono--verde">$</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Venta del mes</span>
+              <span class="kpi-valor" id="kpiVentaMes">$0</span>
+            </div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-icono kpi-icono--morado">★</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Meta del mes</span>
+              <span class="kpi-valor" id="kpiMetaMes">—</span>
+              <small class="gerencia-kpi-ayuda" id="metaMesAyuda"></small>
+            </div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-icono kpi-icono--naranja">%</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Cumplimiento</span>
+              <span class="kpi-valor" id="kpiCumplimiento">—</span>
+            </div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-icono kpi-icono--azul">%</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Porcentaje de descuento</span>
+              <span class="kpi-valor" id="kpiDescuentoMes">—</span>
+            </div>
+          </article>
+          <button class="kpi-card gerencia-kpi-interactivo" id="kpiVendedoresCumplieron" type="button" aria-controls="cumplimientoVendedoresModal">
+            <span class="kpi-icono kpi-icono--verde">✓</span>
+            <span class="kpi-info">
+              <span class="kpi-label">Vendedores que cumplieron meta</span>
+              <strong class="kpi-valor" id="kpiVendedoresCumplieronValor">0</strong>
+              <small class="gerencia-kpi-ayuda" id="kpiVendedoresCumplieronAyuda">Cumplimiento igual o superior al 100 %</small>
+            </span>
+          </button>
+        </section>
+
+        <section class="grafico-seccion">
+          <div class="grafico-card">
+            <div class="grafico-header">
+              <h3 class="grafico-titulo">Ventas por categoría del mes</h3>
+              <p class="grafico-descripcion" id="descripcionCategoriasMensual">Período seleccionado.</p>
+            </div>
+            <div class="gerencia-distribucion gerencia-distribucion--mensual">
+              <div class="gerencia-torta">
+                <canvas id="monthlyCategoryChart"></canvas>
+              </div>
+              <div class="tabla-wrapper gerencia-tabla-compacta">
+                <table class="dash-tabla">
+                  <thead>
+                    <tr>
+                      <th>Categoría de producto</th>
+                      <th class="numero">Venta del mes</th>
+                      <th class="numero">Participación</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monthlyCategoryTableBody">
+                    <tr><td colspan="3" class="gerencia-empty">Sin datos.</td></tr>
+                  </tbody>
+                  <tfoot id="monthlyCategoryTableFoot"></tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="gerencia-grid gerencia-grid--equilibrado">
+          <section class="tabla-seccion">
+            <div class="tabla-card">
+              <div class="tabla-header">
+                <div>
+                  <h3 class="tabla-titulo">Top 10 clientes del mes</h3>
+                  <p class="gerencia-subtitulo">Participación sobre la venta mensual.</p>
+                </div>
+              </div>
+              <div class="tabla-wrapper">
+                <table class="dash-tabla">
+                  <thead>
+                    <tr>
+                      <th class="numero">Posición</th>
+                      <th>Cliente</th>
+                      <th class="numero">Venta</th>
+                      <th class="numero">Participación</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monthlyClientsTableBody">
+                    <tr><td colspan="4" class="gerencia-empty">Sin datos.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="tabla-seccion">
+            <div class="tabla-card">
+              <div class="tabla-header">
+                <div>
+                  <h3 class="tabla-titulo">Top 10 productos del mes</h3>
+                  <p class="gerencia-subtitulo">Productos ordenados por venta efectiva.</p>
+                </div>
+              </div>
+              <div class="tabla-wrapper">
+                <table class="dash-tabla">
+                  <thead>
+                    <tr>
+                      <th class="numero">Posición</th>
+                      <th>Producto</th>
+                      <th>Categoría</th>
+                      <th class="numero">Venta</th>
+                      <th class="numero">Participación</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monthlyProductsTableBody">
+                    <tr><td colspan="5" class="gerencia-empty">Sin datos.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
     </main>
+  </div>
+
+  <div class="modal-overlay" id="cumplimientoVendedoresModal" aria-hidden="true">
+    <section class="modal gerencia-cumplimiento-modal" role="dialog" aria-modal="true" aria-labelledby="cumplimientoVendedoresTitulo">
+      <header class="modal-header">
+        <div class="modal-titulo-grupo"><h2 class="modal-titulo" id="cumplimientoVendedoresTitulo">Cumplimiento de metas por vendedor</h2><span class="modal-subtitulo" id="cumplimientoVendedoresPeriodo"></span></div>
+        <button class="modal-cerrar" id="cumplimientoVendedoresCerrar" type="button" aria-label="Cerrar detalle">&times;</button>
+      </header>
+      <div class="modal-body">
+        <div class="gerencia-cumplimiento-resumen" id="cumplimientoVendedoresResumen"></div>
+        <div class="gerencia-modal-estado" id="cumplimientoVendedoresEstado" role="status" aria-live="polite"></div>
+        <div class="gerencia-cumplimiento-tabla-wrapper">
+          <table class="modal-tabla gerencia-cumplimiento-tabla">
+            <thead><tr><th>Vendedor</th><th class="numero">Venta del mes</th><th class="numero">Meta del mes</th><th class="numero">Cumplimiento</th></tr></thead>
+            <tbody id="cumplimientoVendedoresBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <footer class="modal-footer"><span class="modal-total-label">Cumplieron meta:</span><strong class="modal-total-valor" id="cumplimientoVendedoresTotal">0</strong></footer>
+    </section>
   </div>
 
   <div class="gerencia-loading-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite">
@@ -172,8 +334,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="../gerencia.js?v=1.2.0"></script>
+  <script src="../../../assets/js/app-sidebar.js?v=1.1.0"></script>
+  <script src="../gerencia.js?v=1.4.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>
