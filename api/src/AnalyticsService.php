@@ -1581,19 +1581,14 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
              INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-
-             WHERE enc.Tipo IN ('F', 'N', 'D')
+             WHERE %s
                AND enc.Estado <> 'A'
                AND enc.CodVendedor IN (%s)
                AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
              GROUP BY LTRIM(RTRIM(enc.CodVendedor))",
             $saleExpression,
             $realExpression,
-             WHERE %s
-               AND enc.Estado <> 'A'
-               AND enc.CodVendedor IN (%s)
-               AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?",
-            $this->softlandVentaTiposSql('enc'), release/v1.0
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -1713,6 +1708,7 @@ final class AnalyticsService
              GROUP BY MONTH(enc.Fecha), LTRIM(RTRIM(enc.CodVendedor))
              ORDER BY mes, codigoVendedor",
             $saleExpression,
+            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -2764,7 +2760,6 @@ final class AnalyticsService
             "SELECT fc.id, fc.folio, fc.fecha, fc.mes, fc.anio,
                     COALESCE(
                       NULLIF(TRIM(fc.cliente), ''),
-                      NULLIF(TRIM(c.NomAux), ''),
                       CAST(fc.folio AS CHAR)
                     ) AS cliente,
                     fc.monto_neto, fc.monto_asignado, fc.porcentaje,
@@ -2773,13 +2768,6 @@ final class AnalyticsService
              FROM factura_compartida fc
              LEFT JOIN usuario_vendedor uv ON uv.cod_vendedor = fc.cod_vendedor_principal
              LEFT JOIN usuario u ON u.id = uv.usuario_id
-             LEFT JOIN (
-                SELECT h.Folio, YEAR(h.Fecha) AS anio, MONTH(h.Fecha) AS mes,
-                       COALESCE(NULLIF(LTRIM(RTRIM(c.NomAux)), ''), NULLIF(LTRIM(RTRIM(h.CodAux)), '')) AS NomAux
-                FROM [PRODIN].[softland].[iw_gsaen] h
-                LEFT JOIN [PRODIN].[softland].[cwtauxi] c ON c.CodAux = h.CodAux
-                WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
-             ) c ON c.Folio = fc.folio AND c.anio = fc.anio AND c.mes = fc.mes
                          WHERE TRIM(fc.cod_vendedor_compartido) IN ($placeholders)
                AND fc.mes = ?
                AND fc.anio = ?
