@@ -485,6 +485,14 @@
     return params;
   }
 
+  function actualizarTextoCartera(diasInactividad, diasRecuperacion) {
+    const diasActivos = Number.isFinite(Number(diasInactividad)) ? Number(diasInactividad) : 90;
+    const diasRec = Number.isFinite(Number(diasRecuperacion)) ? Number(diasRecuperacion) : 180;
+    setText('carteraActivosDesc', `Compraron en los últimos ${diasActivos} días`);
+    setText('carteraInactivosDesc', `Sin compras en más de ${diasActivos} días`);
+    setText('carteraRecuperadosDesc', `Volvieron a comprar tras ${diasRec} días sin compras`);
+  }
+
   // ── KPIs ──────────────────────────────────────────────────────────────────────────────────
   async function cargarResumen() {
     try {
@@ -1359,6 +1367,7 @@
       const inactivos  = data.ClientesInactivos  ?? data.clientesInactivos  ?? null;
       const nuevos     = data.ClientesNuevos     ?? data.clientesNuevos     ?? null;
       const recuperados= data.ClientesRecuperados?? data.clientesRecuperados?? null;
+      actualizarTextoCartera(data.DiasInactividad, data.DiasRecuperacion);
 
       setText('countTotal',      total       !== null ? String(total)       : '—');
       setText('countActivo',     activos     !== null ? String(activos)     : '—');
