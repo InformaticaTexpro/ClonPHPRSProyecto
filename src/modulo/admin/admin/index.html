@@ -171,6 +171,15 @@
                 <option value="no-admin">Solo no admin</option>
               </select>
             </div>
+            <div class="selection-toolbar">
+              <div class="permission-summary">
+                <span class="summary-chip">Seleccionados: <strong id="selectedUsersCount">0</strong></span>
+              </div>
+              <div class="permission-actions">
+                <button class="btn-secondary" id="usersSelectVisible" type="button">Seleccionar filtrados</button>
+                <button class="btn-secondary" id="usersClearSelection" type="button">Limpiar selección</button>
+              </div>
+            </div>
             <div class="form-section-note admin-explainer">
               Aquí administras datos operativos del usuario y sus relaciones comerciales. La autorización efectiva combina <strong>Perfiles</strong> con accesos directos trazados y la sesión se refresca automáticamente.
             </div>
@@ -178,6 +187,7 @@
               <table class="admin-table">
                 <thead>
                   <tr>
+                    <th class="table-select-cell"><input id="usersSelectAllToggle" type="checkbox" /></th>
                     <th>Nombre</th>
                     <th>Email</th>
                     <th>Código</th>
@@ -257,7 +267,7 @@
                     <p>Los menús se heredan a todos los usuarios asociados al perfil.</p>
                   </div>
                   <div class="permission-summary">
-                    <span class="summary-chip">Asignados: <strong id="profileMenuAllowedCount">0</strong></span>
+                    <span class="summary-chip">Seleccionados: <strong id="profileMenuAllowedCount">0</strong></span>
                     <span class="summary-chip">Bloqueados: <strong id="profileMenuBlockedCount">0</strong></span>
                   </div>
                 </div>
@@ -272,21 +282,50 @@
               <article class="profile-assignment-card">
                 <div class="profile-assignment-card__header">
                   <div>
-                    <h4>Perfiles por usuario</h4>
-                    <p>Asigna perfiles manuales sin quitar el perfil base automático por área.</p>
+                    <h4 id="profileUserHeading">Perfiles por usuario</h4>
+                    <p>Asigna perfiles manuales a uno o varios usuarios sin quitar el perfil base automático por área.</p>
                   </div>
                   <div class="permission-summary">
+                    <span class="summary-chip">Usuarios: <strong id="profileUserSelectionCount">0</strong></span>
                     <span class="summary-chip">Asignados: <strong id="profileUserAssignedCount">0</strong></span>
+                    <span class="summary-chip">Modo: <strong id="profileUserModeLabel">Usuario único</strong></span>
                   </div>
                 </div>
-                <div class="permission-topbar">
-                  <select class="input-control" id="profileUserSelect"></select>
+                <div class="profile-user-mode-switch" aria-label="Modo de asignación de usuarios">
+                  <button class="btn-secondary is-active" id="profileUserModeBulk" type="button">Selección múltiple</button>
+                  <button class="btn-secondary" id="profileUserModeSingle" type="button">Usuario individual</button>
                 </div>
-                <div class="inline-help">Selecciona uno o más perfiles para entregar accesos base. El perfil del área se mantiene como base automática.</div>
+                <div class="profile-user-panel" id="profileUserBulkPanel">
+                  <div class="permission-topbar profile-user-topbar">
+                    <input class="input-control" id="profileUserSearch" type="search" placeholder="Buscar por nombre, email, código o área" />
+                    <div class="permission-actions">
+                      <button class="btn-secondary" id="profileUserSelectVisible" type="button">Seleccionar filtrados</button>
+                      <button class="btn-secondary" id="profileUserClearSelection" type="button">Quitar selección</button>
+                    </div>
+                  </div>
+                  <div class="profile-user-picker profile-user-selector-list" id="profileUserPicker"></div>
+                  <div class="selected-users-preview" id="profileUserSelectionList"></div>
+                </div>
+                <div class="profile-user-panel" id="profileUserSinglePanel" hidden>
+                  <div class="permission-topbar">
+                    <select class="input-control" id="profileUserSelect"></select>
+                  </div>
+                </div>
+                <div class="inline-help" id="profileUserNote">Selecciona uno o más perfiles para entregar accesos base. El perfil del área se mantiene como base automática.</div>
+                <div class="profile-bulk-replace-box" id="profileBulkReplaceBox">
+                  <label class="profile-bulk-replace-toggle" for="profileReplaceAccesses">
+                    <input type="checkbox" id="profileReplaceAccesses" />
+                    <span>Reemplazar accesos individuales por los perfiles seleccionados</span>
+                  </label>
+                  <small class="field-help">Si activas esta opción, se eliminarán los accesos manuales/directos de los usuarios seleccionados y se conservarán únicamente los accesos derivados de sus perfiles y del perfil base obligatorio.</small>
+                  <div class="profile-bulk-preview" id="profileBulkPreview"></div>
+                </div>
                 <div class="permission-actions">
                   <button class="btn-primary" id="profileUserSave" type="button">Guardar perfiles</button>
+                  <button class="btn-primary" id="profileBulkAssign" type="button" hidden>Asignar perfiles</button>
+                  <button class="btn-secondary" id="profileBulkRemove" type="button" hidden>Quitar perfiles</button>
                 </div>
-                <div class="permission-list profile-user-list" id="profileUserGroups"></div>
+                <div class="permission-list profile-user-list profile-profile-selector-list" id="profileUserGroups"></div>
               </article>
             </div>
           </div>
@@ -343,7 +382,7 @@
               <button class="btn-primary" id="btnNuevaArea" type="button">Crear área</button>
             </div>
             <div class="form-section-note admin-explainer">
-              El perfil base del área es la referencia principal de accesos. Esta acción sincroniza la herencia del área sin tocar perfiles manuales ya asignados.
+              El perfil base del área es la referencia principal de accesos. La columna Usuarios muestra cuántos usuarios tienen asignado ese perfil base.
             </div>
             <div class="table-scroll">
               <table class="admin-table">
@@ -352,7 +391,7 @@
                     <th>Nombre</th>
                     <th>Código</th>
                     <th>Perfil base</th>
-                    <th>Usuarios</th>
+                    <th title="Usuarios con el perfil base asignado">Usuarios</th>
                     <th>Estado</th>
                     <th>Acciones</th>
                   </tr>
@@ -505,7 +544,7 @@
             <div class="panel-card__header">
               <div>
                 <h3>Auditoría / cambios recientes</h3>
-                <p id="auditSubtitle">Auditoría real pendiente de implementar.</p>
+                <p id="auditSubtitle">Historial real sincronizado desde la base de datos.</p>
               </div>
             </div>
             <div id="auditTimeline" class="audit-timeline"></div>
