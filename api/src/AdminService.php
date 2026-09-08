@@ -619,9 +619,9 @@ final class AdminService
 
     private function loadBaseProfileIdsForArea(PDO $pdo, string $area): array
     {
-        $areaRow = $this->loadAreaByCode($pdo, $area);
-        if ($areaRow && $areaRow['perfil_base_id']) {
-            return [(int)$areaRow['perfil_base_id']];
+        $baseProfile = $this->loadBaseProfileByArea($pdo, $area);
+        if ($baseProfile) {
+            return [(int)$baseProfile['id']];
         }
         return [];
     }
