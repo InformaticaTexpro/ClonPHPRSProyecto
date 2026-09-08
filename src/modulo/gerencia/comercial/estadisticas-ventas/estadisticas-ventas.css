@@ -276,7 +276,30 @@ body.ventas-modal-open {
   font-size: 1.1rem;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
+  .gerencia-filtros--mensual .gerencia-filtro {
+    min-width: 0;
+  }
+
+  .unidad-card,
+  .unidad-card .tabla-wrapper {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .unidad-card .tabla-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .unidad-card .dash-tabla {
+    min-width: 620px;
+  }
+
+  .vendedor-detalle {
+    min-height: 44px;
+  }
+
   .unidad-card__header {
     align-items: stretch;
     flex-direction: column;
@@ -288,13 +311,42 @@ body.ventas-modal-open {
   }
 
   .ventas-modal {
-    align-items: end;
-    padding: 0;
+    align-items: center;
+    padding: 12px;
   }
 
   .ventas-modal__dialog {
     width: 100%;
-    max-height: 88vh;
-    border-radius: 8px 8px 0 0;
+    max-height: calc(100dvh - 24px);
+    border-radius: 8px;
+  }
+
+  .ventas-modal__header {
+    gap: .75rem;
+    padding: .85rem 1rem;
+  }
+
+  .ventas-modal__header > div {
+    min-width: 0;
+  }
+
+  .ventas-modal__header h3,
+  .ventas-modal__header p {
+    overflow-wrap: anywhere;
+  }
+
+  .ventas-modal__close {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .ventas-modal__body .dash-tabla {
+    min-width: 620px;
+  }
+
+  .ventas-modal__footer {
+    padding: .75rem 1rem;
+    flex-wrap: wrap;
   }
 }

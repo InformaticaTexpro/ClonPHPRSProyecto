@@ -464,6 +464,14 @@ body {
   overflow-x: auto;
 }
 
+.tabla-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -527,7 +535,13 @@ td:not(:first-child) {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
   .sidebar {
     transform: translateX(-100%);
   }
@@ -647,6 +661,13 @@ td:not(:first-child) {
   grid-template-columns: 1.18fr .82fr;
   gap: var(--space-3);
   margin-bottom: var(--space-3);
+}
+
+.gerencia-grid > *,
+.gerencia-distribucion > *,
+.grafico-card,
+.tabla-card {
+  min-width: 0;
 }
 
 .gerencia-grid--equilibrado {
@@ -874,6 +895,13 @@ td:not(:first-child) {
   opacity: .7;
   transform: none;
 }
+
+.gerencia-top-interactivo { cursor: pointer; }
+.gerencia-top-interactivo:hover,
+.gerencia-top-interactivo:focus-visible { background: #eef8f5; outline: 2px solid #13a88a; outline-offset: -2px; }
+#detalleTopModal .modal-body { min-height: 0; }
+#detalleTopModal .modal-subtitulo { overflow-wrap: anywhere; }
+#detalleTopModal .modal-tabla { min-width: 560px; }
 
 .modal-overlay {
   position: fixed;
@@ -1202,9 +1230,71 @@ td:not(:first-child) {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .gerencia-page {
     padding: var(--space-4);
+  }
+
+  .main-wrapper,
+  .gerencia-page {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .gerencia-filtros {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .gerencia-filtro,
+  .gerencia-filtro .filtro-select,
+  .gerencia-filtros .btn-buscar {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .gerencia-filtro .filtro-select,
+  .gerencia-filtros .btn-buscar {
+    min-height: 44px;
+  }
+
+  .kpi-valor,
+  .modal-titulo,
+  .modal-subtitulo {
+    overflow-wrap: anywhere;
+  }
+
+  .tabla-wrapper > .dash-tabla {
+    min-width: 620px;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .modal-header {
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .modal-titulo-grupo {
+    min-width: 0;
+  }
+
+  .modal-cerrar {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
   }
 
   .header-right {
@@ -1213,5 +1303,11 @@ td:not(:first-child) {
 
   .real-data-badge {
     align-self: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .gerencia-page {
+    padding: 12px;
   }
 }

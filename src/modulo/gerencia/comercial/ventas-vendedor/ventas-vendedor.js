@@ -11,10 +11,9 @@
   let cargando = false;
   let secuencia = 0;
   let secuenciaCotizaciones = 0;
-  let secuenciaGuiasPendientes = 0;
   let secuenciaClientesNuevos = 0;
   let cargandoCotizaciones = false;
-  let cargandoGuiasPendientes = false;
+  let guiasPendientesModal = null;
   let ventasCompartidasDetalle = { items: [], totalVentaCompartida: 0, totalVentaReal: 0 };
 
   const token = () => localStorage.getItem('token') || '';
@@ -114,16 +113,13 @@
     $('kpiCotizacionesTotalSubtitulo').textContent = 'Hist\u00f3rico del vendedor';
     $('kpiCotizacionesMesValor').textContent = '\u2014';
     $('kpiCotizacionesMesSubtitulo').textContent = 'Per\u00edodo seleccionado';
-    $('kpiGuiasPendientes').textContent = formatCLP(0);
-    $('kpiGuiasPendientesFolios').textContent = '0 folios pendientes';
-    $('kpiGuiasPendientesCard').setAttribute('aria-label', 'Abrir detalle de Guías Pendientes de Facturar');
+    guiasPendientesModal?.resetSummary();
     secuenciaClientesNuevos += 1;
     $('clientesNuevosBody').innerHTML = '';
     $('clientesNuevosFoot').innerHTML = '';
     $('clientesNuevosEstado').textContent = '';
     $('clientesNuevosPanel').setAttribute('aria-busy', 'false');
     cerrarCotizaciones();
-    cerrarGuiasPendientes();
     cerrarVentasCompartidas();
   }
 
@@ -155,11 +151,7 @@
     $('kpiMeta').textContent = formatCLP(resumen.meta);
     $('kpiProgresoPct').textContent = tieneMeta ? `${progreso}%` : '—';
     $('kpiDescuento').textContent = `${descuento}%`;
-    const guiasPendientes = data.guiasPendientes || {};
-    const foliosPendientes = Number(guiasPendientes.folios) || 0;
-    $('kpiGuiasPendientes').textContent = formatCLP(guiasPendientes.total);
-    $('kpiGuiasPendientesFolios').textContent = `${formatCount(foliosPendientes)} ${foliosPendientes === 1 ? 'folio pendiente' : 'folios pendientes'}`;
-    $('kpiGuiasPendientesCard').setAttribute('aria-label', `Abrir detalle de Guías Pendientes de Facturar: ${formatCount(foliosPendientes)} ${foliosPendientes === 1 ? 'folio' : 'folios'}`);
+    guiasPendientesModal?.renderSummary(data.guiasPendientes);
     const fill = $('progresoFill');
     fill.style.width = `${tieneMeta ? Math.min(Math.max(progreso, 0), 100) : 0}%`;
     fill.style.background = progreso >= 100 ? 'var(--color-primary)' : progreso >= 70 ? 'var(--color-accent)' : 'var(--color-danger)';
@@ -386,67 +378,6 @@
     document.body.style.overflow = '';
   }
 
-  function cerrarGuiasPendientes() {
-    const modal = $('guiasPendientesModal');
-    if (!modal) return;
-    secuenciaGuiasPendientes += 1;
-    cargandoGuiasPendientes = false;
-    modal.classList.remove('modal-overlay--visible');
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-    $('kpiGuiasPendientesCard').disabled = false;
-  }
-
-  function guiaPendienteFila(item) {
-    return `<tr><td><code>${escapeHtml(item.numero) || '\u2014'}</code></td><td class="guias-pendientes-fecha">${escapeHtml(item.fecha) || '\u2014'}</td><td>${escapeHtml(item.cliente || item.codigoCliente) || '\u2014'}</td><td class="numero">${formatCLP(item.monto)}</td></tr>`;
-  }
-
-  async function abrirGuiasPendientes() {
-    if (cargandoGuiasPendientes) return;
-    const vendedorId = Number($('vendedorFilter').value);
-    if (!vendedorId) return;
-
-    const mes = $('monthFilter').value;
-    const anio = $('yearFilter').value;
-    const periodo = `${MESES[Number(mes) - 1]} ${anio}`;
-    const vendedor = $('vendedorFilter').selectedOptions[0]?.textContent?.trim() || 'Vendedor seleccionado';
-    const modal = $('guiasPendientesModal');
-    const requestId = ++secuenciaGuiasPendientes;
-    cargandoGuiasPendientes = true;
-    $('kpiGuiasPendientesCard').disabled = true;
-    $('guiasPendientesModalSubtitulo').textContent = `${periodo} \u00b7 ${vendedor}`;
-    $('guiasPendientesModalEstado').textContent = 'Cargando guías pendientes...';
-    $('guiasPendientesModalBody').innerHTML = '';
-    $('guiasPendientesModalFoot').innerHTML = '';
-    $('guiasPendientesModalCantidad').textContent = '0 guías pendientes';
-    $('guiasPendientesModalMonto').textContent = formatCLP(0);
-    modal.classList.add('modal-overlay--visible');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-
-    try {
-      const params = new URLSearchParams({ vendedorId: String(vendedorId), mes, anio });
-      const data = await apiGet(`/ventas-vendedor/guias-pendientes?${params}`);
-      if (requestId !== secuenciaGuiasPendientes) return;
-      const items = Array.isArray(data.items) ? data.items : [];
-      const cantidad = Number(data.cantidad) || 0;
-      const monto = Number(data.monto) || 0;
-      $('guiasPendientesModalEstado').textContent = items.length ? '' : 'No existen guías pendientes de facturar para el período seleccionado.';
-      $('guiasPendientesModalBody').innerHTML = items.map(guiaPendienteFila).join('');
-      $('guiasPendientesModalFoot').innerHTML = items.length ? `<tr><th colspan="3">TOTAL \u00b7 ${formatCount(cantidad)} ${cantidad === 1 ? 'guía pendiente' : 'guías pendientes'}</th><th class="numero">${formatCLP(monto)}</th></tr>` : '';
-      $('guiasPendientesModalCantidad').textContent = `${formatCount(cantidad)} ${cantidad === 1 ? 'guía pendiente' : 'guías pendientes'}`;
-      $('guiasPendientesModalMonto').textContent = formatCLP(monto);
-    } catch (error) {
-      if (requestId === secuenciaGuiasPendientes) $('guiasPendientesModalEstado').textContent = error.message || 'No fue posible cargar las guías pendientes.';
-    } finally {
-      if (requestId === secuenciaGuiasPendientes) {
-        cargandoGuiasPendientes = false;
-        $('kpiGuiasPendientesCard').disabled = false;
-        $('guiasPendientesModalCerrar')?.focus();
-      }
-    }
-  }
-
   function abrirVentasCompartidas() {
     const modal = $('ventasCompartidasModal');
     const items = Array.isArray(ventasCompartidasDetalle.items) ? ventasCompartidasDetalle.items : [];
@@ -559,20 +490,36 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     iniciarPeriodo();
+    guiasPendientesModal = window.GerenciaGuiasPendientes.create({
+      apiGet,
+      endpoint: '/ventas-vendedor/guias-pendientes',
+      formatCLP,
+      formatCount,
+      escapeHtml,
+      getRequest() {
+        const vendedorId = Number($('vendedorFilter').value);
+        if (!vendedorId) return null;
+        const mes = $('monthFilter').value;
+        const anio = $('yearFilter').value;
+        const periodo = `${MESES[Number(mes) - 1]} ${anio}`;
+        const vendedor = $('vendedorFilter').selectedOptions[0]?.textContent?.trim() || 'Vendedor seleccionado';
+        return {
+          params: { vendedorId: String(vendedorId), mes, anio },
+          subtitle: `${periodo} \u00b7 ${vendedor}`,
+        };
+      },
+    });
+    guiasPendientesModal.bind();
     cargarVendedores();
     $('btnActualizar')?.addEventListener('click', actualizar);
-    $('kpiGuiasPendientesCard')?.addEventListener('click', abrirGuiasPendientes);
     document.querySelectorAll('[data-cotizaciones-modo]').forEach(button => button.addEventListener('click', () => abrirCotizaciones(button.dataset.cotizacionesModo)));
     $('cotizacionesModalCerrar')?.addEventListener('click', cerrarCotizaciones);
     $('cotizacionesModal')?.addEventListener('click', event => { if (event.target === $('cotizacionesModal')) cerrarCotizaciones(); });
-    $('guiasPendientesModalCerrar')?.addEventListener('click', cerrarGuiasPendientes);
-    $('guiasPendientesModal')?.addEventListener('click', event => { if (event.target === $('guiasPendientesModal')) cerrarGuiasPendientes(); });
     $('ventasCompartidasModalCerrar')?.addEventListener('click', cerrarVentasCompartidas);
     $('ventasCompartidasModal')?.addEventListener('click', event => { if (event.target === $('ventasCompartidasModal')) cerrarVentasCompartidas(); });
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       if ($('cotizacionesModal')?.classList.contains('modal-overlay--visible')) cerrarCotizaciones();
-      if ($('guiasPendientesModal')?.classList.contains('modal-overlay--visible')) cerrarGuiasPendientes();
       if ($('ventasCompartidasModal')?.classList.contains('modal-overlay--visible')) cerrarVentasCompartidas();
     });
     $('clientesNuevosCodigo')?.addEventListener('change', cargarClientesNuevosPorCodigo);
