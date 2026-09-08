@@ -34,6 +34,13 @@
     selectedPermUserId: null,
     selectedProfileId: null,
     selectedProfileUserId: null,
+    selectedUserIds: new Set(),
+    profileUserMode: 'bulk',
+    profileUserSearch: '',
+    profileUserLoading: false,
+    profileUserDraftRequest: 0,
+    selectedProfileIds: new Set(),
+    replaceProfileAccesses: false,
     selectedVendorUserId: null,
     selectedAreaId: null,
     selectedAreaProfileId: null,
@@ -543,11 +550,25 @@
       headers,
     });
 
+    const rawText = await response.text();
     let payload = null;
-    try {
-      payload = await response.json();
-    } catch {
-      payload = null;
+    if (rawText.trim() !== '') {
+      try {
+        payload = JSON.parse(rawText);
+      } catch (parseError) {
+        const error = new Error(`Respuesta inválida desde ${path}: el backend no devolvió JSON válido.`);
+        error.status = response.status;
+        error.payload = rawText;
+        error.cause = parseError;
+        throw error;
+      }
+    }
+
+    if (response.ok && payload === null) {
+      const error = new Error(`Respuesta vacía desde ${path}: se esperaba JSON con data.`);
+      error.status = response.status;
+      error.payload = rawText;
+      throw error;
     }
 
     if (!response.ok || payload?.ok === false) {
@@ -584,8 +605,209 @@
           .map(([group, items]) => ({
             group,
             items: items.sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre, 'es')),
-          }))
+        }))
       );
+  }
+
+  function groupKeyFromLabel(label) {
+    return normalizeKey(label || 'general');
+  }
+
+  function formatMenuNodeLabel(segment) {
+    const raw = String(segment || '').trim().replace(/[-_]+/g, ' ');
+    if (!raw) return '';
+    const normalized = normalizeKey(raw);
+    const special = { rrhh: 'RRHH', ti: 'TI', it: 'IT' };
+    if (special[normalized]) return special[normalized];
+    return raw.replace(/\s+/g, ' ').replace(/\b\w/g, match => match.toUpperCase());
+  }
+
+  function getMenuPathSegments(menu) {
+    const path = normalizeText(menu?.url || '').split('?')[0];
+    if (!path) return [];
+
+    const parts = path.split('/').filter(Boolean);
+    const moduleIndex = parts.indexOf('modulo');
+    let segments = moduleIndex >= 0 ? parts.slice(moduleIndex + 2) : parts.slice();
+
+    if (segments.length && /index\.html$/i.test(segments[segments.length - 1])) {
+      segments.pop();
+    }
+
+    if (!segments.length) return [];
+
+    const groupKey = groupKeyFromLabel(menu?.grupo || '');
+    if (normalizeKey(segments[0]) === groupKey) {
+      segments = segments.slice(1);
+    }
+
+    return segments.map(segment => String(segment || '').trim()).filter(Boolean);
+  }
+
+  function createMenuTree(menus) {
+    const grouped = groupMenus(menus);
+
+    return grouped.map(group => {
+      const groupNode = {
+        key: `group:${groupKeyFromLabel(group.group)}`,
+        type: 'group',
+        label: group.group,
+        icon: group.icono || '📁',
+        orden: Number(group.orden) || 0,
+        children: [],
+      };
+
+      const findOrCreateChild = (parent, key, label, type) => {
+        parent.children ??= [];
+        let child = parent.children.find(node => node.key === key);
+        if (!child) {
+          child = {
+            key,
+            type,
+            label,
+            children: [],
+            orden: Number.MAX_SAFE_INTEGER,
+          };
+          parent.children.push(child);
+        }
+        return child;
+      };
+
+      group.items
+        .slice()
+        .sort((a, b) => (Number(a.orden) - Number(b.orden)) || a.nombre.localeCompare(b.nombre, 'es'))
+        .forEach(menu => {
+          const segments = getMenuPathSegments(menu);
+          if (!segments.length) {
+            groupNode.children.push({
+              key: `menu:${menu.id}`,
+              type: 'menu',
+              label: menu.nombre,
+              menu,
+              children: [],
+              orden: Number(menu.orden) || 0,
+            });
+            return;
+          }
+
+          const folders = segments.slice(0, -1);
+          let parent = groupNode;
+          let pathKey = groupNode.key;
+
+          folders.forEach((segment, index) => {
+            pathKey = `${pathKey}/${normalizeKey(segment) || `lvl${index + 1}`}`;
+            parent = findOrCreateChild(parent, `folder:${pathKey}`, formatMenuNodeLabel(segment), 'folder');
+            if (parent.orden === Number.MAX_SAFE_INTEGER) {
+              parent.orden = Number(menu.orden) || 0;
+            }
+          });
+
+          parent.children.push({
+            key: `menu:${menu.id}`,
+            type: 'menu',
+            label: menu.nombre,
+            menu,
+            children: [],
+            orden: Number(menu.orden) || 0,
+          });
+        });
+
+      const sortChildren = node => {
+        if (!Array.isArray(node.children) || !node.children.length) {
+          return Number(node.orden) || 0;
+        }
+
+        node.children.forEach(sortChildren);
+        node.children.sort((a, b) => {
+          const aOrder = Number.isFinite(Number(a.orden)) ? Number(a.orden) : Number.MAX_SAFE_INTEGER;
+          const bOrder = Number.isFinite(Number(b.orden)) ? Number(b.orden) : Number.MAX_SAFE_INTEGER;
+          return (aOrder - bOrder) || a.label.localeCompare(b.label, 'es');
+        });
+
+        const childOrders = node.children
+          .map(child => Number(child.orden))
+          .filter(order => Number.isFinite(order));
+        const minOrder = childOrders.length ? Math.min(...childOrders) : Number(node.orden) || 0;
+        node.orden = Number.isFinite(minOrder) ? minOrder : Number(node.orden) || 0;
+        return node.orden;
+      };
+
+      sortChildren(groupNode);
+      return groupNode;
+    });
+  }
+
+  function collectMenuIdsFromNode(node) {
+    if (!node) return [];
+    if (node.type === 'menu') {
+      return node.menu?.id != null ? [Number(node.menu.id)] : [];
+    }
+    return (Array.isArray(node.children) ? node.children : []).flatMap(child => collectMenuIdsFromNode(child));
+  }
+
+  function computeNodeSelectionState(node, selectedIds) {
+    const leafIds = collectMenuIdsFromNode(node);
+    const total = leafIds.length;
+    const selected = leafIds.reduce((count, id) => count + (selectedIds.has(Number(id)) ? 1 : 0), 0);
+
+    return {
+      total,
+      selected,
+      checked: total > 0 && selected === total,
+      indeterminate: selected > 0 && selected < total,
+      leafIds,
+    };
+  }
+
+  function renderProfileMenuNode(node, selectedIds, depth = 0) {
+    const stateInfo = computeNodeSelectionState(node, selectedIds);
+    const ids = stateInfo.leafIds.join(',');
+    const isLeaf = node.type === 'menu';
+    const badgeClass = stateInfo.checked
+      ? 'badge--ok'
+      : stateInfo.indeterminate
+        ? 'badge--info'
+        : 'badge--blocked';
+    const badgeText = isLeaf
+      ? (stateInfo.checked ? 'Asignado' : 'Bloqueado')
+      : stateInfo.indeterminate
+        ? `${stateInfo.selected}/${stateInfo.total}`
+        : stateInfo.checked
+          ? `${stateInfo.total}/${stateInfo.total}`
+          : `0/${stateInfo.total}`;
+    const inactiveClass = isLeaf && node.menu?.activo === false ? ' is-inactive' : '';
+    const indentStyle = depth > 0 ? ` style="--profile-menu-depth:${depth}"` : '';
+
+    return `
+      <div class="profile-menu-node profile-menu-node--${isLeaf ? 'leaf' : 'branch'}${inactiveClass}"${indentStyle}
+           data-profile-menu-node="1"
+           data-profile-menu-node-key="${escHtml(node.key)}"
+           data-profile-menu-node-ids="${escHtml(ids)}"
+           data-profile-menu-node-kind="${isLeaf ? 'menu' : 'branch'}">
+        <label class="permission-item profile-menu-row">
+          <span class="permission-item__label profile-menu-row__label">
+            <input type="checkbox"
+              data-profile-menu-id="${isLeaf ? escHtml(node.menu?.id ?? '') : escHtml(node.key)}"
+              data-profile-menu-node-key="${escHtml(node.key)}"
+              data-profile-menu-node-ids="${escHtml(ids)}"
+              data-node-indeterminate="${stateInfo.indeterminate ? '1' : '0'}"
+              ${stateInfo.checked ? 'checked' : ''}
+              ${stateInfo.indeterminate ? 'aria-checked="mixed"' : ''}
+            />
+            <strong>${escHtml(node.label)}</strong>
+          </span>
+          <span class="badge ${badgeClass}">${escHtml(badgeText)}</span>
+        </label>
+        ${isLeaf
+          ? `<small class="field-help profile-menu-row__meta">${node.menu?.activo === false ? 'Inactivo' : 'Activo'} · ${escHtml(node.menu?.grupo || 'General')}</small>`
+          : ''
+        }
+        ${Array.isArray(node.children) && node.children.length
+          ? `<div class="profile-menu-children">${node.children.map(child => renderProfileMenuNode(child, selectedIds, depth + 1)).join('')}</div>`
+          : ''
+        }
+      </div>
+    `;
   }
 
   function userById(id) {
@@ -614,6 +836,25 @@
 
   function areaLabel(code) {
     return areaByCode(code)?.nombre || formatAreaLabel(code);
+  }
+
+  function areaMemberCodes(areaCode) {
+    const area = areaByCode(areaCode);
+    const baseCode = normalizeKey(area?.perfil_base_codigo || area?.codigo || areaCode);
+    if (!baseCode) {
+      return new Set();
+    }
+    return new Set([baseCode]);
+  }
+
+  function userBelongsToArea(user, areaCode) {
+    const area = areaByCode(areaCode);
+    const baseCode = normalizeKey(area?.perfil_base_codigo || area?.codigo || areaCode);
+    if (!baseCode) {
+      return true;
+    }
+    return Array.isArray(user.perfiles)
+      && user.perfiles.some(profile => normalizeKey(profile.codigo) === baseCode && profile.activo !== false);
   }
 
   function activeProfiles() {
@@ -835,7 +1076,7 @@
     return state.users.filter(user => {
       const bySearch = !search || [user.nombre, user.email, user.codigo]
         .some(value => normalizeText(value).toLowerCase().includes(search));
-      const byArea = !state.filters.area || normalizeKey(user.area) === normalizeKey(state.filters.area);
+      const byArea = !state.filters.area || userBelongsToArea(user, state.filters.area);
       const byStatus = !state.filters.status
         || (state.filters.status === 'activo' && user.is_active)
         || (state.filters.status === 'inactivo' && !user.is_active);
@@ -844,6 +1085,121 @@
         || (state.filters.admin === 'no-admin' && !user.is_admin);
       return bySearch && byArea && byStatus && byAdmin;
     });
+  }
+
+  function selectedUsers() {
+    return state.users
+      .filter(user => state.selectedUserIds.has(Number(user.id)))
+      .filter(Boolean);
+  }
+
+  function filteredProfileUsers() {
+    const search = normalizeText(state.profileUserSearch).toLowerCase();
+    return state.users.filter(user => {
+      if (!search) return true;
+      return [user.nombre, user.email, user.codigo, formatAreaLabel(user.area)]
+        .some(value => normalizeText(value).toLowerCase().includes(search));
+    });
+  }
+
+  async function setProfileUserMode(mode) {
+    if (!['bulk', 'single'].includes(mode) || state.profileUserMode === mode) {
+      return;
+    }
+
+    state.profileUserMode = mode;
+    state.profileUserSearch = '';
+
+    if (mode === 'single') {
+      state.selectedUserIds = new Set();
+      const targetId = state.selectedProfileUserId || state.users[0]?.id || null;
+      state.selectedProfileUserId = targetId ? Number(targetId) : null;
+      if (targetId) {
+        await syncProfileUserDraft(Number(targetId));
+        return;
+      }
+    }
+
+    renderProfileUserSelects();
+    renderProfileUserSummary();
+    renderProfileUserList();
+    renderUsers();
+  }
+
+  function profileUserTargets() {
+    if (isBulkProfileMode()) {
+      const selected = selectedUsers();
+      if (selected.length > 0) {
+        return selected;
+      }
+      return [];
+    }
+    const single = selectedProfileUser();
+    return single ? [single] : [];
+  }
+
+  function isBulkProfileMode() {
+    return state.profileUserMode === 'bulk';
+  }
+
+  function manualProfiles() {
+    return state.profiles.filter(profile => !profile.es_base);
+  }
+
+  function userProfileIdSet(user) {
+    return new Set(
+      Array.isArray(user?.perfiles)
+        ? user.perfiles.map(profile => Number(profile.id)).filter(id => Number.isFinite(id) && id > 0)
+        : []
+    );
+  }
+
+  function profileAggregateState(profile, targets) {
+    const total = targets.length;
+    let selected = 0;
+    targets.forEach(user => {
+      if (userProfileIdSet(user).has(Number(profile.id))) {
+        selected += 1;
+      }
+    });
+    return {
+      total,
+      selected,
+      checked: total > 0 && selected === total,
+      indeterminate: selected > 0 && selected < total,
+    };
+  }
+
+  function updateUserSelectionSummary() {
+    const count = document.getElementById('selectedUsersCount');
+    if (count) {
+      count.textContent = String(state.selectedUserIds.size);
+    }
+
+    const selectAll = document.getElementById('usersSelectAllToggle');
+    const rows = filteredUsers();
+    const visibleSelected = rows.filter(user => state.selectedUserIds.has(Number(user.id))).length;
+    if (selectAll) {
+      selectAll.checked = rows.length > 0 && visibleSelected === rows.length;
+      selectAll.indeterminate = visibleSelected > 0 && visibleSelected < rows.length;
+      selectAll.disabled = !rows.length;
+    }
+
+    const clearButton = document.getElementById('usersClearSelection');
+    if (clearButton) {
+      clearButton.disabled = state.selectedUserIds.size === 0;
+    }
+  }
+
+  function syncUserSelectionFromRows(ids) {
+    state.selectedUserIds = new Set(ids);
+    if (ids.length > 0) {
+      state.profileUserMode = 'bulk';
+    }
+    updateUserSelectionSummary();
+    renderProfileUserSelects();
+    renderProfileUserSummary();
+    renderProfileUserList();
   }
 
   function renderUserFilters() {
@@ -865,12 +1221,16 @@
 
     const rows = filteredUsers();
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="row-empty"><td colspan="10">No hay usuarios para los filtros seleccionados.</td></tr>';
+      tbody.innerHTML = '<tr class="row-empty"><td colspan="11">No hay usuarios para los filtros seleccionados.</td></tr>';
+      updateUserSelectionSummary();
       return;
     }
 
     tbody.innerHTML = rows.map(user => `
       <tr>
+        <td class="table-select-cell">
+          <input type="checkbox" data-user-select-id="${escHtml(user.id)}" ${state.selectedUserIds.has(Number(user.id)) ? 'checked' : ''} />
+        </td>
         <td>${escHtml(user.nombre)}</td>
         <td>${escHtml(user.email)}</td>
         <td>${escHtml(user.codigo)}</td>
@@ -891,28 +1251,52 @@
         </td>
       </tr>
     `).join('');
+
+    updateUserSelectionSummary();
   }
 
   function renderMenusPreview() {
     const preview = document.getElementById('menusPreview');
     if (!preview) return;
 
-    const groups = groupMenus(state.menus.filter(menu => menu.activo));
-    if (!groups.length) {
+    const tree = createMenuTree(state.menus.filter(menu => menu.activo));
+    if (!tree.length) {
       preview.innerHTML = '<div class="mini-empty">No hay menús activos.</div>';
       return;
     }
 
-    preview.innerHTML = groups.map(group => `
-      <div class="sidebar-preview__group">
-        <h5>${escHtml(group.group)}</h5>
-        ${group.items.map(menu => `
-          <div class="sidebar-preview__item ${menu.activo ? '' : 'is-disabled'}">
+    const renderPreviewNode = (node, depth = 0) => {
+      if (node.type === 'menu') {
+        const menu = node.menu || {};
+        return `
+          <div class="sidebar-preview__item ${menu.activo ? '' : 'is-disabled'}" style="margin-left:${depth * 14}px">
             <span>${escHtml(menu.icono || '?')}</span>
             <span>${escHtml(menu.nombre)}</span>
             ${menu.activo ? '<span class="badge badge--ok">Activo</span>' : '<span class="badge badge--blocked">Inactivo</span>'}
           </div>
-        `).join('')}
+        `;
+      }
+
+      const children = Array.isArray(node.children) ? node.children.map(child => renderPreviewNode(child, depth + 1)).join('') : '';
+      const groupBadge = node.type === 'group'
+        ? `<span class="badge badge--neutral">${collectMenuIdsFromNode(node).length} menús</span>`
+        : '';
+      return `
+        <div class="sidebar-preview__branch" style="margin-left:${depth * 14}px">
+          <div class="sidebar-preview__item sidebar-preview__item--folder">
+            <span>${node.icon || '📁'}</span>
+            <span>${escHtml(node.label)}</span>
+            ${groupBadge}
+          </div>
+          ${children}
+        </div>
+      `;
+    };
+
+    preview.innerHTML = tree.map(group => `
+      <div class="sidebar-preview__group">
+        <h5>${escHtml(group.label)}</h5>
+        ${Array.isArray(group.children) ? group.children.map(child => renderPreviewNode(child, 1)).join('') : ''}
       </div>
     `).join('');
   }
@@ -989,7 +1373,7 @@
     if (blockedCount) blockedCount.textContent = String(Math.max(blocked, 0));
     if (note) {
       note.textContent = allowed
-        ? 'Selecciona los módulos que heredarán todos los usuarios con este perfil.'
+        ? 'Selecciona los módulos y submódulos que heredarán todos los usuarios con este perfil.'
         : 'Este perfil no tiene menús asignados. Los usuarios con este perfil no recibirán accesos desde él.';
     }
   }
@@ -998,50 +1382,172 @@
     const container = document.getElementById('profileMenuGroups');
     if (!container) return;
 
-    const grouped = groupMenus(state.menus);
-    if (!grouped.length) {
+    const tree = createMenuTree(state.menus);
+    if (!tree.length) {
       container.innerHTML = '<div class="mini-empty">Sin menús para mostrar.</div>';
       return;
     }
 
-    container.innerHTML = grouped.map(group => `
-      <article class="permission-group">
-        <div class="permission-group__header">
-          <h4>${escHtml(group.group)}</h4>
-          <span class="permission-group__count">${group.items.length} menús</span>
-        </div>
-        <div class="permission-list">
-          ${group.items.map(menu => {
-            const checked = state.profileMenuDraft.has(Number(menu.id));
-            return `
-              <label class="permission-item">
-                <span class="permission-item__label">
-                  <input type="checkbox" data-profile-menu-id="${escHtml(menu.id)}" ${checked ? 'checked' : ''} />
-                  <strong>${escHtml(menu.nombre)}</strong>
-                </span>
-                <span class="badge ${checked ? 'badge--ok' : 'badge--blocked'}">${checked ? 'Asignado' : 'Bloqueado'}</span>
-              </label>
-            `;
-          }).join('')}
-        </div>
-      </article>
-    `).join('');
+    container.innerHTML = tree.map(group => {
+      const stateInfo = computeNodeSelectionState(group, state.profileMenuDraft);
+      const ids = stateInfo.leafIds.join(',');
+      const badgeClass = stateInfo.checked
+        ? 'badge--ok'
+        : stateInfo.indeterminate
+          ? 'badge--info'
+          : 'badge--blocked';
+      const badgeText = stateInfo.indeterminate
+        ? `${stateInfo.selected}/${stateInfo.total}`
+        : `${stateInfo.selected}/${stateInfo.total}`;
+
+      return `
+        <article class="permission-group profile-menu-group" data-profile-menu-group="${escHtml(group.key)}">
+          <div class="permission-group__header profile-menu-group__header">
+            <label class="profile-menu-group__title">
+              <input type="checkbox"
+                data-profile-menu-id="${escHtml(group.key)}"
+                data-profile-menu-node-key="${escHtml(group.key)}"
+                data-profile-menu-node-ids="${escHtml(ids)}"
+                data-node-indeterminate="${stateInfo.indeterminate ? '1' : '0'}"
+                ${stateInfo.checked ? 'checked' : ''}
+                ${stateInfo.indeterminate ? 'aria-checked="mixed"' : ''}
+              />
+              <span>${escHtml(group.label)}</span>
+            </label>
+            <span class="permission-group__count">${stateInfo.selected}/${stateInfo.total} menús</span>
+          </div>
+          <div class="profile-menu-tree">
+            ${Array.isArray(group.children) ? group.children.map(child => renderProfileMenuNode(child, state.profileMenuDraft, 1)).join('') : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    syncProfileMenuCheckboxStates(container);
+  }
+
+  function syncProfileMenuCheckboxStates(container) {
+    if (!container) return;
+    container.querySelectorAll('input[data-node-indeterminate="1"]').forEach(input => {
+      if ('indeterminate' in input) {
+        input.indeterminate = true;
+      }
+    });
   }
 
   function renderProfileUserSelects() {
+    const bulkPanel = document.getElementById('profileUserBulkPanel');
+    const singlePanel = document.getElementById('profileUserSinglePanel');
+    const modeBulk = document.getElementById('profileUserModeBulk');
+    const modeSingle = document.getElementById('profileUserModeSingle');
     const userSelect = document.getElementById('profileUserSelect');
+    const bulkMode = isBulkProfileMode();
+
+    if (modeBulk) {
+      modeBulk.classList.toggle('is-active', bulkMode);
+    }
+    if (modeSingle) {
+      modeSingle.classList.toggle('is-active', !bulkMode);
+    }
+    if (bulkPanel) {
+      bulkPanel.hidden = !bulkMode;
+    }
+    if (singlePanel) {
+      singlePanel.hidden = bulkMode;
+    }
+
     if (userSelect) {
       userSelect.innerHTML = state.users.map(user => `
         <option value="${escHtml(user.id)}">${escHtml(user.nombre)} - ${escHtml(user.email || 'sin correo')} - ${escHtml(formatAreaLabel(user.area))}</option>
       `).join('');
-      if (state.selectedProfileUserId) {
+      if (!bulkMode && state.selectedProfileUserId) {
         userSelect.value = String(state.selectedProfileUserId);
+      }
+    }
+
+    const searchInput = document.getElementById('profileUserSearch');
+    if (searchInput && searchInput.value !== state.profileUserSearch) {
+      searchInput.value = state.profileUserSearch;
+    }
+
+    const picker = document.getElementById('profileUserPicker');
+    if (picker) {
+      const rows = filteredProfileUsers();
+      if (!bulkMode) {
+        picker.innerHTML = '<div class="mini-empty">La selección múltiple se activa desde este mismo bloque cuando la necesitas.</div>';
+      } else if (!rows.length) {
+        picker.innerHTML = '<div class="mini-empty">No hay usuarios que coincidan con el filtro.</div>';
+      } else {
+        picker.innerHTML = rows.map(user => `
+          <label class="profile-user-item">
+            <span class="profile-user-item__label">
+              <input type="checkbox" data-user-id="${escHtml(user.id)}" ${state.selectedUserIds.has(Number(user.id)) ? 'checked' : ''} />
+              <strong>${escHtml(user.nombre)}</strong>
+            </span>
+            <span class="profile-user-item__meta">${escHtml(user.email || 'sin correo')} · ${escHtml(formatAreaLabel(user.area))}</span>
+          </label>
+        `).join('');
       }
     }
   }
   function renderProfileUserSummary() {
     const assignedCount = document.getElementById('profileUserAssignedCount');
-    if (assignedCount) assignedCount.textContent = String(state.profileUserDraft.size);
+    if (assignedCount) assignedCount.textContent = String(isBulkProfileMode() ? state.selectedProfileIds.size : state.profileUserDraft.size);
+
+    const selectedCount = document.getElementById('profileUserSelectionCount');
+    if (selectedCount) {
+      selectedCount.textContent = String(isBulkProfileMode() ? selectedUsers().length : (state.selectedProfileUserId ? 1 : 0));
+    }
+
+    const modeLabel = document.getElementById('profileUserModeLabel');
+    if (modeLabel) {
+      modeLabel.textContent = isBulkProfileMode() ? 'Selección múltiple' : 'Usuario único';
+    }
+
+    const heading = document.getElementById('profileUserHeading');
+    if (heading) {
+      heading.textContent = isBulkProfileMode()
+        ? 'Perfiles para usuarios seleccionados'
+        : 'Perfiles por usuario';
+    }
+
+    const singleButton = document.getElementById('profileUserSave');
+    const bulkAssignButton = document.getElementById('profileBulkAssign');
+    const bulkRemoveButton = document.getElementById('profileBulkRemove');
+    if (singleButton) {
+      singleButton.hidden = isBulkProfileMode();
+      singleButton.disabled = isBulkProfileMode() || state.profileUserLoading;
+      singleButton.textContent = 'Guardar perfiles';
+    }
+    if (bulkAssignButton) {
+      bulkAssignButton.hidden = !isBulkProfileMode();
+      bulkAssignButton.disabled = !isBulkProfileMode() || !state.selectedUserIds.size || !state.selectedProfileIds.size;
+    }
+    if (bulkRemoveButton) {
+      bulkRemoveButton.hidden = !isBulkProfileMode();
+      bulkRemoveButton.disabled = !isBulkProfileMode() || !state.selectedUserIds.size || !state.selectedProfileIds.size;
+    }
+
+    refreshProfileBulkReplaceState();
+
+    const note = document.getElementById('profileUserNote');
+    if (note) {
+      note.textContent = isBulkProfileMode()
+        ? 'Selecciona uno o varios usuarios en la lista, luego elige uno o varios perfiles y usa Asignar o Quitar. El perfil base del área se mantiene automático.'
+        : 'Selecciona un usuario para editar sus perfiles manuales. El perfil base del área se mantiene automático.';
+    }
+
+    const preview = document.getElementById('profileUserSelectionList');
+    if (preview) {
+      const targets = isBulkProfileMode() ? selectedUsers() : [selectedProfileUser()].filter(Boolean);
+      preview.innerHTML = targets.length
+        ? targets.map(user => `
+            <span class="summary-chip selected-user-chip">${escHtml(user.nombre)}<small>${escHtml(formatAreaLabel(user.area))}</small></span>
+          `).join('')
+        : '<div class="mini-empty">Selecciona uno o más usuarios para habilitar acciones masivas.</div>';
+    }
+
+    renderProfileBulkPreview();
   }
 
   function renderProfileUserList() {
@@ -1053,17 +1559,44 @@
       return;
     }
 
+    const bulkMode = isBulkProfileMode();
+    if (!bulkMode && state.profileUserLoading) {
+      container.innerHTML = '<div class="mini-empty">Cargando perfiles del usuario seleccionado...</div>';
+      return;
+    }
+
     const grouped = state.profiles
       .slice()
       .sort((a, b) => (Number(b.es_base) - Number(a.es_base)) || a.nombre.localeCompare(b.nombre, 'es'));
 
+    if (bulkMode) {
+      container.innerHTML = grouped.map(profile => {
+        const profileId = Number(profile.id);
+        const checked = state.selectedProfileIds.has(profileId);
+        return `
+          <label class="permission-item permission-item--bulk">
+            <span class="permission-item__label">
+              <input type="checkbox" data-profile-id="${escHtml(profile.id)}" ${checked ? 'checked' : ''} />
+              <strong>${escHtml(profile.nombre)}</strong>
+            </span>
+            <span class="badge ${profile.es_base ? 'badge--ok' : 'badge--blocked'}">${profile.es_base ? 'Base' : 'Manual'}</span>
+          </label>
+        `;
+      }).join('');
+      return;
+    }
+
     container.innerHTML = grouped.map(profile => {
       const checked = state.profileUserDraft.has(Number(profile.id));
-      const locked = profile.es_base && normalizeKey(profile.area) === normalizeKey(userById(state.selectedProfileUserId)?.area);
+      const locked = !bulkMode && profile.es_base && normalizeKey(profile.area) === normalizeKey(userById(state.selectedProfileUserId)?.area);
       return `
         <label class="permission-item">
           <span class="permission-item__label">
-            <input type="checkbox" data-profile-user-id="${escHtml(profile.id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''} />
+            <input type="checkbox"
+              data-profile-id="${escHtml(profile.id)}"
+              ${checked ? 'checked' : ''}
+              ${locked ? 'disabled' : ''}
+            />
             <strong>${escHtml(profile.nombre)}</strong>
           </span>
           <span class="badge ${profile.es_base ? 'badge--ok' : 'badge--blocked'}">${profile.es_base ? 'Base' : 'Manual'}</span>
@@ -1092,16 +1625,35 @@
     const user = userById(userId);
     if (!user) return;
 
+    const requestId = state.profileUserDraftRequest + 1;
+    state.profileUserDraftRequest = requestId;
+    state.profileUserLoading = true;
+    renderProfileUserSummary();
+    renderProfileUserList();
+
     try {
       const response = await apiFetch(`/usuarios/${userId}/perfiles`);
+      if (requestId !== state.profileUserDraftRequest) {
+        return;
+      }
       const assigned = Array.isArray(response.data) ? response.data : [];
       state.profileUserDraft = new Set(assigned.map(profile => Number(profile.id)));
       state.selectedProfileUserId = Number(userId);
-      renderProfileUserSelects();
-      renderProfileUserSummary();
-      renderProfileUserList();
+      state.selectedUserIds = new Set();
+      state.profileUserMode = 'single';
+      state.profileUserSearch = '';
     } catch (error) {
+      if (requestId !== state.profileUserDraftRequest) {
+        return;
+      }
       toast('Perfiles', error.message, 'error');
+    } finally {
+      if (requestId === state.profileUserDraftRequest) {
+        state.profileUserLoading = false;
+        renderProfileUserSelects();
+        renderProfileUserSummary();
+        renderProfileUserList();
+      }
     }
   }
 
@@ -1260,24 +1812,37 @@
   }
 
   function selectedProfileUser() {
+    if (isBulkProfileMode()) {
+      const bulk = selectedUsers();
+      if (bulk.length === 1) {
+        return bulk[0];
+      }
+    }
     return userById(state.selectedProfileUserId || state.users[0]?.id || null);
   }
 
   async function renderProfilePanel() {
     const selected = selectedProfile();
-    const selectedUser = selectedProfileUser();
     if (selected) {
       await syncProfileMenuDraft(selected.id);
     } else {
       renderProfileMenuSummary();
       renderProfileMenuGroups();
     }
-    if (selectedUser) {
-      await syncProfileUserDraft(selectedUser.id);
-    } else {
+
+    if (isBulkProfileMode()) {
       renderProfileUserSelects();
       renderProfileUserSummary();
       renderProfileUserList();
+    } else {
+      const selectedUser = selectedProfileUser();
+      if (selectedUser) {
+        await syncProfileUserDraft(selectedUser.id);
+      } else {
+        renderProfileUserSelects();
+        renderProfileUserSummary();
+        renderProfileUserList();
+      }
     }
   }
 
@@ -1352,12 +1917,12 @@
     const container = document.getElementById('auditTimeline');
     const subtitle = document.getElementById('auditSubtitle');
     if (subtitle && !state.audit.length) {
-      subtitle.textContent = 'Auditoría real pendiente de implementar.';
+      subtitle.textContent = 'Historial real sincronizado desde la base de datos.';
     }
     if (!container) return;
 
     if (!state.audit.length) {
-      container.innerHTML = '<div class="mini-empty">Auditoría real pendiente de implementar.</div>';
+      container.innerHTML = '<div class="mini-empty">Todavía no hay eventos de auditoría registrados.</div>';
       return;
     }
 
@@ -1373,14 +1938,42 @@
     `).join('');
   }
 
-  function pushAudit(title, detail) {
-    state.audit.unshift({
-      when: new Date().toLocaleString('es-CL'),
-      actor: currentUserName(),
-      title,
-      detail,
-    });
-    renderAudit();
+  function mapAuditItem(item) {
+    return {
+      id: item?.id || null,
+      title: item?.accion || item?.title || 'Auditoría',
+      when: item?.fecha_formato || item?.creado_en || new Date().toLocaleString('es-CL'),
+      actor: item?.usuario_nombre || item?.actor || currentUserName(),
+      detail: item?.detalle || item?.detail || '',
+      entidad: item?.entidad || '',
+      entidadId: item?.entidad_id || null,
+    };
+  }
+
+  async function pushAudit(title, detail, entidad = 'administrador', entidadId = null) {
+    try {
+      const response = await apiFetch('/auditoria', {
+        method: 'POST',
+        body: JSON.stringify({
+          accion: title,
+          detalle: detail,
+          entidad,
+          entidad_id: entidadId,
+        }),
+      });
+      const entry = mapAuditItem(response?.data || {
+        accion: title,
+        detalle: detail,
+        entidad,
+        entidad_id: entidadId,
+        usuario_nombre: currentUserName(),
+        creado_en: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      });
+      state.audit.unshift(entry);
+      renderAudit();
+    } catch (error) {
+      console.warn('[admin.audit]', error);
+    }
   }
 
   function openDrawer(type, mode = 'new', id = null, readOnly = false) {
@@ -1802,17 +2395,20 @@
     renderLoadingState();
 
     try {
-      const [usersRes, menusRes, areasRes, profilesRes] = await Promise.all([
+      const [usersRes, menusRes, areasRes, profilesRes, auditsRes] = await Promise.all([
         apiFetch('/usuarios'),
         apiFetch('/menus'),
         apiFetch('/areas'),
         apiFetch('/perfiles'),
+        apiFetch('/auditoria?limit=20'),
       ]);
 
       state.users = Array.isArray(usersRes.data) ? usersRes.data : [];
       state.menus = Array.isArray(menusRes.data) ? menusRes.data : [];
       state.areas = Array.isArray(areasRes.data) ? areasRes.data : [];
       state.profiles = Array.isArray(profilesRes.data) ? profilesRes.data : [];
+      state.audit = Array.isArray(auditsRes.data) ? auditsRes.data.map(mapAuditItem) : [];
+      state.selectedUserIds = new Set(Array.from(state.selectedUserIds).filter(id => userById(id)));
       state.selectedPermUserId = state.selectedPermUserId || state.users[0]?.id || null;
       state.selectedProfileId = state.selectedProfileId || state.profiles[0]?.id || null;
       state.selectedProfileUserId = state.selectedProfileUserId || state.users[0]?.id || null;
@@ -1858,7 +2454,7 @@
     const changesList = document.getElementById('adminLatestChangesList');
 
     if (state.loading) {
-      if (usersBody) usersBody.innerHTML = '<tr class="row-empty"><td colspan="10">Cargando usuarios...</td></tr>';
+      if (usersBody) usersBody.innerHTML = '<tr class="row-empty"><td colspan="11">Cargando usuarios...</td></tr>';
       if (menusBody) menusBody.innerHTML = '<tr class="row-empty"><td colspan="9">Cargando menús...</td></tr>';
       if (profilesBody) profilesBody.innerHTML = '<tr class="row-empty"><td colspan="8">Cargando perfiles...</td></tr>';
       if (areasBody) areasBody.innerHTML = '<tr class="row-empty"><td colspan="6">Cargando áreas...</td></tr>';
@@ -1921,7 +2517,7 @@
           const existingProfiles = Array.isArray(created?.data?.perfiles) ? created.data.perfiles : [];
           await syncUserPrincipalProfile(createdUserId, primaryProfileCode, existingProfiles);
         }
-        pushAudit('Usuario creado', `Se creó el usuario ${nombre}.`);
+        await pushAudit('Usuario creado', `Se creó el usuario ${nombre}.`);
         toast('Usuarios', 'Usuario creado correctamente.', 'success');
       } else {
         const current = userById(state.drawer.id);
@@ -1938,7 +2534,7 @@
             body: JSON.stringify({ password }),
           });
         }
-        pushAudit('Usuario actualizado', `Se actualizaron los datos de ${nombre}.`);
+        await pushAudit('Usuario actualizado', `Se actualizaron los datos de ${nombre}.`);
         toast('Usuarios', password ? 'Usuario actualizado y contraseña restablecida correctamente.' : 'Usuario actualizado correctamente.', 'success');
       }
 
@@ -1960,11 +2556,11 @@
 
       if (state.drawer.mode === 'new') {
         await apiFetch('/menus', { method: 'POST', body: JSON.stringify(payload) });
-        pushAudit('Menú creado', `Se creó el menú ${payload.nombre}.`);
+        await pushAudit('Menú creado', `Se creó el menú ${payload.nombre}.`);
         toast('Menús', 'Menú creado correctamente.', 'success');
       } else {
         await apiFetch(`/menus/${state.drawer.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-        pushAudit('Menú actualizado', `Se actualizó el menú ${payload.nombre}.`);
+        await pushAudit('Menú actualizado', `Se actualizó el menú ${payload.nombre}.`);
         toast('Menús', 'Menú actualizado correctamente.', 'success');
       }
 
@@ -1989,7 +2585,7 @@
       if (!current) return;
       if (!window.confirm(`¿Desactivar lógicamente al usuario ${current.nombre}?`)) return;
       await apiFetch(`/usuarios/${state.drawer.id}`, { method: 'DELETE', body: JSON.stringify({ confirmar: true }) });
-      pushAudit('Usuario desactivado', `Se desactivó a ${current.nombre}.`);
+      await pushAudit('Usuario desactivado', `Se desactivó a ${current.nombre}.`);
       toast('Usuarios', 'Usuario desactivado.', 'success');
       closeDrawer();
       await loadData();
@@ -2001,7 +2597,7 @@
       if (!currentProfile) return;
       if (!window.confirm(`¿Eliminar el perfil ${currentProfile.nombre}?`)) return;
       await apiFetch(`/perfiles/${state.drawer.id}`, { method: 'DELETE' });
-      pushAudit('Perfil eliminado', `Se eliminó o desactivó el perfil ${currentProfile.nombre}.`);
+      await pushAudit('Perfil eliminado', `Se eliminó o desactivó el perfil ${currentProfile.nombre}.`);
       toast('Perfiles', 'Perfil procesado correctamente.', 'success');
       closeDrawer();
       await loadData();
@@ -2016,7 +2612,7 @@
     if (!current) return;
     if (!window.confirm(`¿Eliminar el menú ${current.nombre}?`)) return;
     await apiFetch(`/menus/${state.drawer.id}`, { method: 'DELETE' });
-    pushAudit('Menú eliminado', `Se eliminó o desactivó el menú ${current.nombre}.`);
+    await pushAudit('Menú eliminado', `Se eliminó o desactivó el menú ${current.nombre}.`);
     toast('Menús', 'Menú procesado correctamente.', 'success');
     closeDrawer();
     await loadData();
@@ -2033,7 +2629,7 @@
         method: 'PATCH',
         body: JSON.stringify({ confirmar: true }),
       });
-      pushAudit(nextActive ? 'Usuario activado' : 'Usuario desactivado', `${current.nombre} cambió de estado.`);
+      await pushAudit(nextActive ? 'Usuario activado' : 'Usuario desactivado', `${current.nombre} cambió de estado.`);
       toast('Usuarios', `Usuario ${nextActive ? 'activado' : 'desactivado'}.`, 'success');
       closeDrawer();
       await loadData();
@@ -2044,7 +2640,7 @@
       const current = menuById(state.drawer.id);
       if (!current) return;
       await apiFetch(`/menus/${state.drawer.id}/${current.activo ? 'desactivar' : 'activar'}`, { method: 'PATCH' });
-      pushAudit(current.activo ? 'Menú desactivado' : 'Menú activado', `${current.nombre} cambió de estado.`);
+      await pushAudit(current.activo ? 'Menú desactivado' : 'Menú activado', `${current.nombre} cambió de estado.`);
       toast('Menús', `Menú ${current.activo ? 'desactivado' : 'activado'}.`, 'success');
       closeDrawer();
       await loadData();
@@ -2055,7 +2651,7 @@
       const current = profileById(state.drawer.id);
       if (!current) return;
       await apiFetch(`/perfiles/${state.drawer.id}/${current.activo ? 'desactivar' : 'activar'}`, { method: 'PATCH' });
-      pushAudit(current.activo ? 'Perfil desactivado' : 'Perfil activado', `${current.nombre} cambió de estado.`);
+      await pushAudit(current.activo ? 'Perfil desactivado' : 'Perfil activado', `${current.nombre} cambió de estado.`);
       toast('Perfiles', `Perfil ${current.activo ? 'desactivado' : 'activado'}.`, 'success');
       closeDrawer();
       await loadData();
@@ -2072,7 +2668,7 @@
         method: 'PATCH',
         body: JSON.stringify({ confirmar: true }),
       });
-      pushAudit(nextActive ? 'Área activada' : 'Área desactivada', `${current.nombre} cambió de estado.`);
+      await pushAudit(nextActive ? 'Área activada' : 'Área desactivada', `${current.nombre} cambió de estado.`);
       toast('Áreas', `Área ${nextActive ? 'activada' : 'desactivada'}.`, 'success');
       closeDrawer();
       await loadData();
@@ -2088,8 +2684,8 @@
     if (!profile) return;
 
     const menus = Array.from(state.profileMenuDraft)
-      .map(id => menuById(id)?.codigo)
-      .filter(Boolean);
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id) && menuById(id));
     if (!menus.length) {
       const note = document.getElementById('profileMenuNote');
       if (note) note.textContent = 'Este perfil no tiene menús asignados. Los usuarios con este perfil no recibirán accesos desde él.';
@@ -2100,27 +2696,163 @@
       body: JSON.stringify({ menus }),
     });
 
-    pushAudit('Menús por perfil', `Se guardaron los menús del perfil ${profile.nombre}.`);
+    await pushAudit('Menús por perfil', `Se guardaron los menús del perfil ${profile.nombre}.`);
     toast('Perfiles', 'Menús del perfil guardados correctamente.', 'success');
     await loadData();
     await syncProfileMenuDraft(profile.id);
   }
+
   async function saveProfileUserAssignments() {
     const user = selectedProfileUser();
     if (!user) return;
+    if (state.profileUserLoading) {
+      toast('Perfiles', 'Espera a que termine de cargar el usuario seleccionado antes de guardar.', 'warn');
+      return;
+    }
 
     const perfiles = Array.from(state.profileUserDraft)
-      .map(id => profileById(id)?.codigo)
-      .filter(Boolean);
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id) && profileById(id));
+
     await apiFetch(`/usuarios/${user.id}/perfiles`, {
       method: 'PUT',
       body: JSON.stringify({ perfiles }),
     });
 
-    pushAudit('Perfiles por usuario', `Se actualizaron los perfiles del usuario ${user.nombre}.`);
+    await pushAudit('Perfiles por usuario', `Se actualizaron los perfiles del usuario ${user.nombre}.`);
     toast('Perfiles', 'Perfiles del usuario guardados correctamente.', 'success');
     await loadData();
     await syncProfileUserDraft(user.id);
+  }
+
+  function selectedBulkProfiles() {
+    return Array.from(state.selectedProfileIds)
+      .map(id => profileById(id))
+      .filter(Boolean);
+  }
+
+  function selectedBulkProfileLabels() {
+    return selectedBulkProfiles()
+      .map(profile => profile?.nombre || profile?.codigo || '')
+      .filter(Boolean);
+  }
+
+  function selectedBulkDirectAccessCount() {
+    return selectedUsers().reduce((total, user) => total + (Array.isArray(user.menus) ? user.menus.length : 0), 0);
+  }
+
+  function isReplaceAccessesEnabled() {
+    return Boolean(state.replaceProfileAccesses);
+  }
+
+  function refreshProfileBulkReplaceState() {
+    const toggle = document.getElementById('profileReplaceAccesses');
+    if (toggle) {
+      toggle.checked = state.replaceProfileAccesses;
+      toggle.disabled = !isBulkProfileMode();
+    }
+    const container = document.getElementById('profileBulkReplaceBox');
+    if (container) {
+      container.hidden = !isBulkProfileMode();
+    }
+  }
+
+  function renderProfileBulkPreview() {
+    const preview = document.getElementById('profileBulkPreview');
+    if (!preview) return;
+
+    if (!isBulkProfileMode()) {
+      preview.innerHTML = '<div class="mini-empty">Activa la selección múltiple para ver el impacto del reemplazo.</div>';
+      return;
+    }
+
+    const users = selectedUsers();
+    const profiles = selectedBulkProfileLabels();
+    const userCount = users.length;
+    const profileCount = profiles.length;
+    const directAccessCount = selectedBulkDirectAccessCount();
+    const replaceText = isReplaceAccessesEnabled()
+      ? 'El reemplazo limpiará los accesos manuales/directos de estos usuarios y conservará solo los accesos derivados de los perfiles seleccionados y del perfil base obligatorio.'
+      : 'El modo aditivo mantendrá los accesos manuales/directos actuales de estos usuarios.';
+
+    preview.innerHTML = `
+      <div class="profile-bulk-preview__grid">
+        <div class="summary-chip">Usuarios: <strong>${escHtml(userCount)}</strong></div>
+        <div class="summary-chip">Perfiles: <strong>${escHtml(profileCount)}</strong></div>
+        <div class="summary-chip">Accesos directos actuales: <strong>${escHtml(directAccessCount)}</strong></div>
+      </div>
+      <div class="profile-bulk-preview__text">${escHtml(replaceText)}</div>
+      <div class="profile-bulk-preview__profiles">
+        ${profiles.length
+          ? profiles.map(label => `<span class="summary-chip">${escHtml(label)}</span>`).join('')
+          : '<span class="field-help">Selecciona al menos un perfil para continuar.</span>'}
+      </div>
+    `;
+  }
+
+  async function applyBulkProfileAction(action) {
+    const users = selectedUsers();
+    const profiles = selectedBulkProfiles();
+    if (!users.length || !profiles.length) {
+      toast('Perfiles', 'Selecciona usuarios y perfiles antes de continuar.', 'warn');
+      return;
+    }
+
+    const userCount = users.length;
+    const profileCount = profiles.length;
+    const directAccessCount = selectedBulkDirectAccessCount();
+    const replaceAccesses = action === 'assign' && isReplaceAccessesEnabled();
+    const profileNames = selectedBulkProfileLabels();
+    const confirmText = action === 'assign'
+      ? replaceAccesses
+        ? [
+            `Se reemplazarán los accesos individuales de ${userCount} usuario(s).`,
+            `Perfiles que quedarán: ${profileNames.join(', ')}.`,
+            `Accesos directos actuales a eliminar: ${directAccessCount}.`,
+            'El perfil base obligatorio del área se mantendrá si existe.',
+          ].join('\n')
+        : `Se asignarán ${profileCount} perfil(es) a ${userCount} usuario(s).`
+      : `Se quitarán ${profileCount} perfil(es) de ${userCount} usuario(s).`;
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+
+    const payload = {
+      usuarios: users.map(user => Number(user.id)),
+      perfiles: profiles.map(profile => Number(profile.id)),
+    };
+    if (replaceAccesses) {
+      payload.reemplazar_accesos = true;
+    }
+
+    const endpoint = action === 'assign'
+      ? '/usuarios/perfiles/asignar-masivo'
+      : '/usuarios/perfiles/quitar-masivo';
+    await apiFetch(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+
+    await pushAudit(
+      action === 'assign' && replaceAccesses ? 'Perfiles reemplazados' : action === 'assign' ? 'Perfiles asignados' : 'Perfiles quitados',
+      action === 'assign' && replaceAccesses
+        ? `${profileCount} perfil(es) y ${directAccessCount} acceso(s) directo(s) procesados para ${userCount} usuario(s).`
+        : `${profileCount} perfil(es) procesados para ${userCount} usuario(s).`
+    );
+    toast(
+      'Perfiles',
+      action === 'assign'
+        ? replaceAccesses
+          ? 'Perfiles reemplazados y accesos individuales limpiados correctamente.'
+          : 'Perfiles asignados correctamente.'
+        : 'Perfiles quitados correctamente.',
+      'success'
+    );
+    state.selectedProfileIds = new Set();
+    await loadData();
+    renderProfileUserSelects();
+    renderProfileUserSummary();
+    renderProfileUserList();
   }
 
   async function saveProfileDrawer() {
@@ -2141,11 +2873,11 @@
 
     if (state.drawer.mode === 'new') {
       await apiFetch('/perfiles', { method: 'POST', body: JSON.stringify(payload) });
-      pushAudit('Perfil creado', `Se creó el perfil ${payload.nombre}.`);
+      await pushAudit('Perfil creado', `Se creó el perfil ${payload.nombre}.`);
       toast('Perfiles', 'Perfil creado correctamente.', 'success');
     } else {
       await apiFetch(`/perfiles/${state.drawer.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-      pushAudit('Perfil actualizado', `Se actualiz? el perfil ${payload.nombre}.`);
+      await pushAudit('Perfil actualizado', `Se actualiz? el perfil ${payload.nombre}.`);
       toast('Perfiles', 'Perfil actualizado correctamente.', 'success');
     }
 
@@ -2163,9 +2895,9 @@
       return;
     }
 
-    const affectedUsers = state.users.filter(user => user.is_active !== false && normalizeKey(user.area) === normalizeKey(area.codigo));
+    const affectedUsers = state.users.filter(user => userBelongsToArea(user, area.codigo));
     if (!affectedUsers.length) {
-      toast('Áreas', 'No hay usuarios activos en esta área.', 'warn');
+      toast('Áreas', 'No hay usuarios en esta área.', 'warn');
       return;
     }
 
@@ -2177,7 +2909,7 @@
       body: JSON.stringify({ perfil_id: selectedProfile.id }),
     });
 
-    pushAudit('Perfil aplicado por área', `Se aplicó ${selectedProfile.nombre} al área ${area.nombre}.`);
+    await pushAudit('Perfil aplicado por área', `Se aplicó ${selectedProfile.nombre} al área ${area.nombre}.`);
     toast('Áreas', `Perfil aplicado a ${response.data?.afectados || affectedUsers.length} usuario(s).`, 'success');
     state.selectedAreaId = Number(area.id);
     state.selectedAreaProfileId = Number(selectedProfile.id);
@@ -2201,11 +2933,11 @@
 
     if (state.drawer.mode === 'new') {
       await apiFetch('/areas', { method: 'POST', body: JSON.stringify(payload) });
-      pushAudit('Área creada', `Se creó el área ${payload.nombre}.`);
+      await pushAudit('Área creada', `Se creó el área ${payload.nombre}.`);
       toast('Áreas', 'Área creada correctamente.', 'success');
     } else {
       await apiFetch(`/areas/${state.drawer.id}`, { method: 'PUT', body: JSON.stringify(payload) });
-      pushAudit('Área actualizada', `Se actualizó el área ${payload.nombre}.`);
+      await pushAudit('Área actualizada', `Se actualizó el área ${payload.nombre}.`);
       toast('Áreas', 'Área actualizada correctamente.', 'success');
     }
 
@@ -2219,7 +2951,7 @@
     if (!areaCode) return;
     const area = state.areas.find(item => item.codigo === areaCode);
     const suggestions = area?.sugeridos || buildSuggestions(areaCode);
-    const affectedUsers = state.users.filter(user => normalizeKey(user.area) === normalizeKey(areaCode) && user.is_active !== false);
+    const affectedUsers = state.users.filter(user => userBelongsToArea(user, areaCode));
     if (!suggestions.length) {
       toast('Áreas', 'No hay menús sugeridos para esta área.', 'warn');
       return;
@@ -2230,7 +2962,7 @@
       body: JSON.stringify({ area: areaCode, menus: suggestions }),
     });
 
-    pushAudit('Accesos por área', `Se actualizó el perfil base de ${formatAreaLabel(areaCode)}.`);
+    await pushAudit('Accesos por área', `Se actualizó el perfil base de ${formatAreaLabel(areaCode)}.`);
     setMessage(`Área ${formatAreaLabel(areaCode)}: se actualizó el perfil base y ${affectedUsers.length} usuario(s) quedaron alineados a la nueva herencia.`, 'success');
     toast('Áreas', `Perfil base actualizado para ${formatAreaLabel(areaCode)}.`, 'success');
     await loadData();
@@ -2267,14 +2999,14 @@
         method: 'PUT',
         body: JSON.stringify({ tipo }),
       });
-      pushAudit('Vendedor actualizado', `Se cambió el tipo de ${state.vendorEditCode}.`);
+      await pushAudit('Vendedor actualizado', `Se cambió el tipo de ${state.vendorEditCode}.`);
       toast('Vendedores', 'Tipo actualizado correctamente.', 'success');
     } else {
       await apiFetch(`/usuarios/${userId}/vendedores`, {
         method: 'POST',
         body: JSON.stringify({ cod_vendedor: normalizedCode, tipo }),
       });
-      pushAudit('Vendedor agregado', `Se agreg? ${normalizedCode} al usuario seleccionado.`);
+      await pushAudit('Vendedor agregado', `Se agreg? ${normalizedCode} al usuario seleccionado.`);
       toast('Vendedores', 'Vendedor agregado correctamente.', 'success');
     }
 
@@ -2293,7 +3025,7 @@
 
     if (!window.confirm(`¿Quitar el vendedor ${cod} del usuario?`)) return;
     await apiFetch(`/usuarios/${userId}/vendedores/${encodeURIComponent(cod)}`, { method: 'DELETE' });
-    pushAudit('Vendedor eliminado', `Se quitó ${cod} del usuario seleccionado.`);
+    await pushAudit('Vendedor eliminado', `Se quitó ${cod} del usuario seleccionado.`);
     toast('Vendedores', 'Relación eliminada.', 'success');
     await loadData();
     state.selectedVendorUserId = Number(userId);
@@ -2326,9 +3058,15 @@
   }
 
   function openSelectedProfileInUsers(id) {
-    state.selectedProfileUserId = Number(id);
+    state.selectedProfileId = Number(id);
+    state.profileUserMode = 'bulk';
+    state.selectedUserIds = new Set();
+    state.profileUserSearch = '';
+    renderProfileMenuSummary();
+    renderProfileMenuGroups();
     renderProfileUserSelects();
-    syncProfileUserDraft(id);
+    renderProfileUserSummary();
+    renderProfileUserList();
     state.activeTab = 'perfiles';
     renderTabs();
   }
@@ -2555,30 +3293,6 @@
           return;
         }
 
-        const profileMenuCheckbox = event.target.closest('[data-profile-menu-id]');
-        if (profileMenuCheckbox && profileMenuCheckbox.type === 'checkbox') {
-          const menuId = Number(profileMenuCheckbox.dataset.profileMenuId);
-          if (profileMenuCheckbox.checked) {
-            state.profileMenuDraft.add(menuId);
-          } else {
-            state.profileMenuDraft.delete(menuId);
-          }
-          renderProfileMenuSummary();
-          return;
-        }
-
-        const profileUserCheckbox = event.target.closest('[data-profile-user-id]');
-        if (profileUserCheckbox && profileUserCheckbox.type === 'checkbox') {
-          const profileId = Number(profileUserCheckbox.dataset.profileUserId);
-          if (profileUserCheckbox.checked) {
-            state.profileUserDraft.add(profileId);
-          } else {
-            state.profileUserDraft.delete(profileId);
-          }
-          renderProfileUserSummary();
-          return;
-        }
-
         const vendorAction = event.target.closest('[data-vendor-action]');
         if (vendorAction) {
           const action = vendorAction.dataset.vendorAction;
@@ -2611,6 +3325,71 @@
         if (target.dataset.manual === '1') return;
         target.value = slugifyCodigo(source.value);
         target.dataset.autoFilled = '1';
+      });
+      document.body.addEventListener('change', event => {
+        const userSelectCheckbox = event.target.closest('[data-user-select-id]');
+        if (userSelectCheckbox && userSelectCheckbox.type === 'checkbox') {
+          const userId = Number(userSelectCheckbox.dataset.userSelectId);
+          if (userSelectCheckbox.checked) {
+            state.selectedUserIds.add(userId);
+          } else {
+            state.selectedUserIds.delete(userId);
+          }
+          renderUsers();
+          renderProfileUserSelects();
+          renderProfileUserSummary();
+          renderProfileUserList();
+          return;
+        }
+
+        const profileUserCheckbox = event.target.closest('[data-user-id]');
+        if (profileUserCheckbox && profileUserCheckbox.type === 'checkbox') {
+          const userId = Number(profileUserCheckbox.dataset.userId);
+          state.profileUserMode = 'bulk';
+          if (profileUserCheckbox.checked) {
+            state.selectedUserIds.add(userId);
+          } else {
+            state.selectedUserIds.delete(userId);
+          }
+          updateUserSelectionSummary();
+          renderUsers();
+          renderProfileUserSelects();
+          renderProfileUserSummary();
+          return;
+        }
+
+        const profileCheckbox = event.target.closest('[data-profile-id]');
+        if (profileCheckbox && profileCheckbox.type === 'checkbox') {
+          const profileId = Number(profileCheckbox.dataset.profileId);
+          if (isBulkProfileMode()) {
+            if (profileCheckbox.checked) {
+              state.selectedProfileIds.add(profileId);
+            } else {
+              state.selectedProfileIds.delete(profileId);
+            }
+          } else if (profileCheckbox.checked) {
+            state.profileUserDraft.add(profileId);
+          } else {
+            state.profileUserDraft.delete(profileId);
+          }
+          renderProfileUserSummary();
+          return;
+        }
+
+        const profileMenuCheckbox = event.target.closest('input[data-profile-menu-node-key]');
+        if (!profileMenuCheckbox) return;
+
+        const ids = String(profileMenuCheckbox.dataset.profileMenuNodeIds || '')
+          .split(',')
+          .map(id => Number(id.trim()))
+          .filter(id => Number.isFinite(id) && id > 0);
+        if (profileMenuCheckbox.checked) {
+          ids.forEach(id => state.profileMenuDraft.add(id));
+        } else {
+          ids.forEach(id => state.profileMenuDraft.delete(id));
+        }
+        renderProfileMenuSummary();
+        renderProfileMenuGroups();
       });
       document.body.addEventListener('change', event => {
         const selector = event.target.closest('[data-profile-suggest]');
@@ -2694,13 +3473,102 @@
       profileUserSave.dataset.bound = '1';
     }
 
+    const profileUserModeBulk = document.getElementById('profileUserModeBulk');
+    if (profileUserModeBulk && !profileUserModeBulk.dataset.bound) {
+      profileUserModeBulk.addEventListener('click', () => setProfileUserMode('bulk').catch(handleAdminError));
+      profileUserModeBulk.dataset.bound = '1';
+    }
+
+    const profileUserModeSingle = document.getElementById('profileUserModeSingle');
+    if (profileUserModeSingle && !profileUserModeSingle.dataset.bound) {
+      profileUserModeSingle.addEventListener('click', () => setProfileUserMode('single').catch(handleAdminError));
+      profileUserModeSingle.dataset.bound = '1';
+    }
+
+    const profileReplaceAccesses = document.getElementById('profileReplaceAccesses');
+    if (profileReplaceAccesses && !profileReplaceAccesses.dataset.bound) {
+      profileReplaceAccesses.addEventListener('change', event => {
+        state.replaceProfileAccesses = Boolean(event.target.checked);
+        renderProfileUserSummary();
+      });
+      profileReplaceAccesses.dataset.bound = '1';
+    }
+
+    const profileUserSearch = document.getElementById('profileUserSearch');
+    if (profileUserSearch && !profileUserSearch.dataset.bound) {
+      profileUserSearch.addEventListener('input', event => {
+        state.profileUserSearch = String(event.target.value || '');
+        renderProfileUserSelects();
+        renderProfileUserSummary();
+        renderProfileUserList();
+      });
+      profileUserSearch.dataset.bound = '1';
+    }
+
+    const profileUserSelectVisible = document.getElementById('profileUserSelectVisible');
+    if (profileUserSelectVisible && !profileUserSelectVisible.dataset.bound) {
+      profileUserSelectVisible.addEventListener('click', () => {
+        const ids = filteredProfileUsers().map(user => Number(user.id));
+        state.profileUserMode = 'bulk';
+        syncUserSelectionFromRows(Array.from(new Set([...state.selectedUserIds, ...ids])));
+        renderProfileUserSelects();
+        renderProfileUserSummary();
+        renderProfileUserList();
+      });
+      profileUserSelectVisible.dataset.bound = '1';
+    }
+
+    const profileUserClearSelection = document.getElementById('profileUserClearSelection');
+    if (profileUserClearSelection && !profileUserClearSelection.dataset.bound) {
+      profileUserClearSelection.addEventListener('click', () => {
+        state.selectedUserIds = new Set();
+        state.selectedProfileIds = new Set();
+        updateUserSelectionSummary();
+        renderUsers();
+        renderProfileUserSelects();
+        renderProfileUserSummary();
+        renderProfileUserList();
+      });
+      profileUserClearSelection.dataset.bound = '1';
+    }
+
+    const profileBulkAssign = document.getElementById('profileBulkAssign');
+    if (profileBulkAssign && !profileBulkAssign.dataset.bound) {
+      profileBulkAssign.addEventListener('click', () => applyBulkProfileAction('assign').catch(handleAdminError));
+      profileBulkAssign.dataset.bound = '1';
+    }
+
+    const profileBulkRemove = document.getElementById('profileBulkRemove');
+    if (profileBulkRemove && !profileBulkRemove.dataset.bound) {
+      profileBulkRemove.addEventListener('click', () => applyBulkProfileAction('remove').catch(handleAdminError));
+      profileBulkRemove.dataset.bound = '1';
+    }
+
     const profileUserSelect = document.getElementById('profileUserSelect');
     if (profileUserSelect && !profileUserSelect.dataset.bound) {
       profileUserSelect.addEventListener('change', event => {
         state.selectedProfileUserId = Number(event.target.value);
-        syncProfileUserDraft(state.selectedProfileUserId);
+        state.profileUserMode = 'single';
+        state.selectedUserIds = new Set();
+        state.profileUserSearch = '';
+        void syncProfileUserDraft(state.selectedProfileUserId);
+        renderUsers();
       });
       profileUserSelect.dataset.bound = '1';
+    }
+
+    const usersSelectAllToggle = document.getElementById('usersSelectAllToggle');
+    if (usersSelectAllToggle && !usersSelectAllToggle.dataset.bound) {
+      usersSelectAllToggle.addEventListener('change', event => {
+        const rows = filteredUsers().map(user => Number(user.id));
+        if (!event.target.checked) {
+          syncUserSelectionFromRows(Array.from(state.selectedUserIds).filter(id => !rows.includes(id)));
+        } else {
+          syncUserSelectionFromRows(Array.from(new Set([...state.selectedUserIds, ...rows])));
+        }
+        renderUsers();
+      });
+      usersSelectAllToggle.dataset.bound = '1';
     }
 
     const addVendor = document.getElementById('btnAddAssignment');
