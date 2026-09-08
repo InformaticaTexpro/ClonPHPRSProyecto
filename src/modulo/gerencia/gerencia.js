@@ -10,6 +10,7 @@
   let chartCategory = null;
   let chartMonthlyCategory = null;
   let resumenActual = null;
+  let guiasPendientesModal = null;
   let cumplimientoVendedoresActual = {
     cantidadCumplen: 0,
     cantidadConMeta: 0,
@@ -20,6 +21,80 @@
   };
   let cargaSecuencia = 0;
   let cargaMensualSecuencia = 0;
+  let detalleSecuencia = 0;
+  let detalleOrigen = null;
+  let detalleOverflow = '';
+
+  function cerrarDetalleTop() {
+    detalleSecuencia++;
+    const modal = document.getElementById('detalleTopModal');
+    if (!modal?.classList.contains('modal-overlay--visible')) return;
+    modal.classList.remove('modal-overlay--visible');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.inert = true;
+    document.body.style.overflow = detalleOverflow;
+    detalleOrigen?.focus();
+  }
+
+  async function abrirDetalleTop(tipo, item, periodo, origen) {
+    const modal = document.getElementById('detalleTopModal');
+    if (!modal) return;
+    const cliente = tipo === 'cliente';
+    const codigo = cliente ? item.codigoCliente : item.codigoProducto;
+    if (!codigo) return;
+    const request = ++detalleSecuencia;
+    detalleOrigen = origen;
+    if (!modal.classList.contains('modal-overlay--visible')) detalleOverflow = document.body.style.overflow;
+    const body = document.getElementById('detalleTopBody');
+    const head = document.getElementById('detalleTopHead');
+    body.innerHTML = '';
+    head.innerHTML = '';
+    setText('detalleTopTotal', '');
+    setText('detalleTopTotalLabel', cliente ? 'TOTAL' : 'TOTAL PRODUCTO');
+    setText('detalleTopTitulo', cliente ? 'Detalle de ventas del cliente' : 'Detalle de vendedores del producto');
+    setText('detalleTopNombre', cliente ? item.cliente : `${codigo} — ${item.producto}`);
+    setText('detalleTopPeriodo', `${mesesNombres[Number(periodo.mes) - 1]} ${periodo.anio}`);
+    setText('detalleTopEstado', 'Cargando detalle...');
+    modal.inert = false;
+    modal.classList.add('modal-overlay--visible');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('detalleTopCerrar').focus();
+    try {
+      const params = new URLSearchParams({ ...periodo, [cliente ? 'codigoCliente' : 'codigoProducto']: codigo });
+      const data = await apiGet(`/dashboard/${tipo}-detalle?${params}`);
+      if (request !== detalleSecuencia) return;
+      const items = Array.isArray(data.items) ? data.items : [];
+      setText('detalleTopEstado', items.length ? '' : (cliente
+        ? 'No existen documentos para este cliente en el período seleccionado.'
+        : 'No existen ventas del producto para el período seleccionado.'));
+      head.innerHTML = cliente
+        ? '<tr><th>Vendedor asignado</th><th>Código</th><th>Tipo</th><th>Folio</th><th class="numero">Monto</th></tr>'
+        : '<tr><th>Vendedor principal</th><th>Código vendedor</th><th>Vendedor asociado</th><th class="numero">Venta</th></tr>';
+      body.innerHTML = cliente ? items.map(row => `<tr><td>${escHtml(row.vendedor)}</td><td>${escHtml(row.codigoVendedor)}</td><td>${escHtml(row.tipo)}</td><td>${escHtml(row.folio)}</td><td class="numero">${formatCLP(row.monto)}</td></tr>`).join('')
+        : items.map(group => `<tr><th colspan="3">${escHtml(group.vendedorPrincipal)}</th><th class="numero">${formatCLP(group.venta)}</th></tr>${(group.codigos || []).map(row => `<tr><td>${escHtml(group.vendedorPrincipal)}</td><td>${escHtml(row.codigoVendedor)}</td><td>${escHtml(row.vendedorAsociado)}</td><td class="numero">${formatCLP(row.venta)}</td></tr>`).join('')}`).join('');
+      setText('detalleTopTotal', formatCLP(data.total));
+    } catch {
+      if (request === detalleSecuencia) setText('detalleTopEstado', 'No fue posible cargar el detalle.');
+    }
+  }
+
+  function vincularDetalleTop(body, items, tipo, data) {
+    Array.from(body.rows).forEach((row, index) => {
+      const item = items[index];
+      if (!(tipo === 'cliente' ? item.codigoCliente : item.codigoProducto)) return;
+      row.classList.add('gerencia-top-interactivo');
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-haspopup', 'dialog');
+      row.setAttribute('aria-label', `Ver detalle de ${item.cliente || item.producto}`);
+      const open = () => abrirDetalleTop(tipo, item, { mes: data.mes, anio: data.anio }, row);
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+      });
+    });
+  }
 
   function formatCLP(valor) {
     const numero = Number(valor ?? 0);
@@ -29,6 +104,10 @@
       currency: 'CLP',
       maximumFractionDigits: 0,
     }).format(numero);
+  }
+
+  function formatCount(valor) {
+    return new Intl.NumberFormat('es-CL').format(Number(valor) || 0);
   }
 
   function formatPct(valor) {
@@ -290,6 +369,7 @@
   }
 
   function resetMonthlyContent() {
+    cerrarDetalleTop();
     destroyMonthlyCategoryChart();
     cerrarCumplimientoVendedores();
     cumplimientoVendedoresActual = {
@@ -305,6 +385,7 @@
     setText('metaMesAyuda', '');
     setText('kpiCumplimiento', '—');
     setText('kpiDescuentoMes', '—');
+    guiasPendientesModal?.resetSummary();
     setText('kpiVendedoresCumplieronValor', '0');
     setText('kpiVendedoresCumplieronAyuda', 'Cumplimiento igual o superior al 100 %');
     const cumplimientoCard = document.getElementById('kpiVendedoresCumplieron');
@@ -336,6 +417,7 @@
     }
     setText('kpiCumplimiento', cumplimiento === null || cumplimiento === undefined ? '—' : formatPct(cumplimiento));
     setText('kpiDescuentoMes', descuento === null || descuento === undefined ? '—' : formatPct(descuento));
+    guiasPendientesModal?.renderSummary(data?.guiasPendientes);
     cumplimientoVendedoresActual = data?.cumplimientoVendedores || cumplimientoVendedoresActual;
     setText('kpiVendedoresCumplieronValor', String(Number(cumplimientoVendedoresActual.cantidadCumplen) || 0));
     setText('kpiVendedoresCumplieronAyuda', `${Number(cumplimientoVendedoresActual.cantidadConMeta) || 0} vendedores con meta`);
@@ -469,6 +551,7 @@
         <td class="numero">${formatPct(item.participacion ?? 0)}</td>
       </tr>
     `).join('');
+    vincularDetalleTop(body, clientes, 'cliente', data);
   }
 
   function renderMonthlyProducts(data) {
@@ -486,6 +569,7 @@
         <td class="numero">${formatPct(item.participacion ?? 0)}</td>
       </tr>
     `).join('');
+    vincularDetalleTop(body, productos, 'producto', data);
   }
 
   async function cargarDatosMensuales(manageLoading = true) {
@@ -562,6 +646,19 @@
   }
 
   function bindEvents() {
+    document.getElementById('detalleTopCerrar')?.addEventListener('click', cerrarDetalleTop);
+    document.getElementById('detalleTopModal')?.addEventListener('click', event => {
+      if (event.target === document.getElementById('detalleTopModal')) cerrarDetalleTop();
+    });
+    document.addEventListener('keydown', event => {
+      const modal = document.getElementById('detalleTopModal');
+      if (!modal?.classList.contains('modal-overlay--visible')) return;
+      if (event.key === 'Escape') cerrarDetalleTop();
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        document.getElementById('detalleTopCerrar').focus();
+      }
+    });
     document.getElementById('kpiVendedoresCumplieron')?.addEventListener('click', abrirCumplimientoVendedores);
     document.getElementById('cumplimientoVendedoresCerrar')?.addEventListener('click', cerrarCumplimientoVendedores);
     document.getElementById('cumplimientoVendedoresModal')?.addEventListener('click', event => {
@@ -608,6 +705,22 @@
 
     renderYears();
     renderMonths();
+    guiasPendientesModal = window.GerenciaGuiasPendientes.create({
+      apiGet,
+      endpoint: '/guias-pendientes',
+      formatCLP,
+      formatCount,
+      escapeHtml: escHtml,
+      getRequest() {
+        const mes = String(document.getElementById('monthFilter')?.value || (new Date().getMonth() + 1));
+        const anio = String(document.getElementById('yearFilter')?.value || new Date().getFullYear());
+        return {
+          params: { mes, anio },
+          subtitle: `${mesesNombres[Number(mes) - 1] || 'Mes'} ${anio}`,
+        };
+      },
+    });
+    guiasPendientesModal.bind();
     bindEvents();
 
     try {

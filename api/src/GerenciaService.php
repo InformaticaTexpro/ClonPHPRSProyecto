@@ -16,8 +16,11 @@ final class GerenciaService
         $this->assertGerenciaOrAdmin($payload);
 
         return match (true) {
+            $method === 'GET' && $path === '/comercial/dashboard/cliente-detalle' => $this->detalleClienteComercial($query),
+            $method === 'GET' && $path === '/comercial/dashboard/producto-detalle' => $this->detalleProductoComercial($query),
             $method === 'GET' && $path === '/comercial/resumen' => $this->resumenComercial($query),
             $method === 'GET' && $path === '/comercial/mensual' => $this->mensualComercial($query),
+            $method === 'GET' && $path === '/comercial/guias-pendientes' => $this->guiasPendientesGlobal($query),
             $method === 'GET' && $path === '/comercial/estadisticas-ventas' => $this->estadisticasVentas($query),
             $method === 'GET' && $path === '/comercial/vendedores-principales' => $this->vendedoresPrincipales(),
             $method === 'GET' && $path === '/comercial/ventas-vendedor/cotizaciones' => $this->cotizacionesVendedor($query),
@@ -26,6 +29,96 @@ final class GerenciaService
             $method === 'GET' && $path === '/comercial/ventas-vendedor' => $this->ventasVendedor($query),
             default => throw new RuntimeException('Ruta de gerencia no encontrada', 404),
         };
+    }
+
+    private function validarCodigoDetalle(mixed $valor): string
+    {
+        if (!is_string($valor) || trim($valor) === '' || strlen($valor) > 100 || preg_match('/[\x00-\x1F\x7F]/', $valor)) {
+            throw new RuntimeException('Debe indicar un codigo valido.', 400);
+        }
+        return trim($valor);
+    }
+
+    private function periodoDetalle(array $query): array
+    {
+        foreach (['anio', 'mes'] as $campo) {
+            if (filter_var($query[$campo] ?? null, FILTER_VALIDATE_INT) === false) {
+                throw new RuntimeException('Debe indicar un periodo valido.', 400);
+            }
+        }
+        return $this->monthRange($this->validarAnio($query['anio']), $this->validarMes($query['mes']));
+    }
+
+    private function detalleClienteComercial(array $query): array
+    {
+        $codigo = $this->validarCodigoDetalle($query['codigoCliente'] ?? null);
+        [$desde, $hasta] = $this->periodoDetalle($query);
+        $monto = $this->commercialAmountSql('enc.Tipo', 'enc.SubTotal');
+        $items = $this->softlandRows(
+            "SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
+                    COALESCE(NULLIF(LTRIM(RTRIM(vend.VenDes)), ''), LTRIM(RTRIM(enc.CodVendedor))) AS vendedor,
+                    enc.Tipo AS tipo, CONVERT(varchar(50), enc.Folio) AS folio,
+                    CONVERT(decimal(38, 2), $monto) AS monto
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             LEFT JOIN [PRODIN].[softland].[cwtvend] vend ON vend.VenCod = enc.CodVendedor
+             WHERE LTRIM(RTRIM(enc.CodAux)) = ?
+               AND enc.Fecha >= ? AND enc.Fecha < ?
+               AND enc.Tipo IN ('F', 'N', 'D') AND enc.Estado <> 'A'
+             ORDER BY enc.Fecha DESC, enc.Folio DESC",
+            [$codigo, $desde, $hasta]
+        );
+        foreach ($items as &$item) {
+            $item['monto'] = (float)$item['monto'];
+        }
+        unset($item);
+        return ['ok' => true, 'items' => $items, 'total' => array_sum(array_column($items, 'monto'))];
+    }
+
+    private function detalleProductoComercial(array $query): array
+    {
+        $codigo = $this->validarCodigoDetalle($query['codigoProducto'] ?? null);
+        [$desde, $hasta] = $this->periodoDetalle($query);
+        $venta = $this->commercialAmountSql('enc.Tipo', 'mov.TotLinea');
+        $rows = $this->softlandRows(
+            "SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor,
+                    COALESCE(NULLIF(LTRIM(RTRIM(vend.VenDes)), ''), LTRIM(RTRIM(enc.CodVendedor))) AS vendedorAsociado,
+                    SUM(CONVERT(decimal(38, 6), $venta)) AS venta
+             FROM [PRODIN].[softland].[iw_gsaen] enc
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] mov ON mov.NroInt = enc.NroInt AND mov.Tipo = enc.Tipo
+             LEFT JOIN [PRODIN].[softland].[cwtvend] vend ON vend.VenCod = enc.CodVendedor
+             WHERE LTRIM(RTRIM(mov.CodProd)) = ?
+               AND enc.Fecha >= ? AND enc.Fecha < ?
+               AND enc.Tipo IN ('F', 'N', 'D') AND enc.Estado <> 'A'
+             GROUP BY LTRIM(RTRIM(enc.CodVendedor)), vend.VenDes",
+            [$codigo, $desde, $hasta]
+        );
+        $relations = [];
+        foreach ($this->loadVendorRelations() as $relation) {
+            $relations[mb_strtoupper($relation['codigoAsociado'])][$relation['usuarioId']] = $relation;
+        }
+        $groups = [];
+        foreach ($rows as $row) {
+            $code = trim((string)$row['codigoVendedor']);
+            $owners = $relations[mb_strtoupper($code)] ?? [];
+            ksort($owners);
+            // Una relacion multiple identifica a todos los principales, sin duplicar la venta global.
+            $key = $owners ? 'usuarios:' . implode(',', array_keys($owners)) : 'codigo:' . $code;
+            $name = $owners ? implode(' / ', array_map(
+                static fn(array $owner): string => $owner['vendedor'] . ' (' . $owner['codigoPrincipal'] . ')',
+                $owners
+            )) : ((string)$row['vendedorAsociado'] ?: $code);
+            $groups[$key] ??= ['vendedorPrincipal' => $name, 'venta' => 0.0, 'codigos' => []];
+            $row['venta'] = (float)$row['venta'];
+            $groups[$key]['venta'] += $row['venta'];
+            $groups[$key]['codigos'][] = $row;
+        }
+        $items = array_values($groups);
+        foreach ($items as &$item) {
+            usort($item['codigos'], static fn(array $a, array $b): int => ($b['venta'] <=> $a['venta']) ?: strcmp($a['codigoVendedor'], $b['codigoVendedor']));
+        }
+        unset($item);
+        usort($items, static fn(array $a, array $b): int => ($b['venta'] <=> $a['venta']) ?: strcmp($a['vendedorPrincipal'], $b['vendedorPrincipal']));
+        return ['ok' => true, 'items' => $items, 'total' => array_sum(array_column($items, 'venta'))];
     }
 
     private function vendedoresPrincipales(): array
@@ -54,7 +147,16 @@ final class GerenciaService
         $usuarioId = $this->validarVendedorPrincipal($query['vendedorId'] ?? null);
         $anio = $this->validarAnio($query['anio'] ?? null);
         $mes = $this->validarMes($query['mes'] ?? null);
-        return $this->analytics->dashboardForUser($usuarioId, ['anio' => $anio, 'mes' => $mes]);
+        $dashboard = $this->analytics->dashboardForUser($usuarioId, ['anio' => $anio, 'mes' => $mes]);
+        // Solo ocultar codigos sin venta neta en la tabla mensual de Gerencia.
+        // Conservar las compartidas, las ventas negativas y los totales del motor de Ventas.
+        $dashboard['vendedores'] = array_values(array_filter(
+            $dashboard['vendedores'] ?? [],
+            static fn(array $row): bool => (bool)($row['esAsignada'] ?? false)
+                || abs((float)($row['totalVentasCobrado'] ?? 0)) >= 0.000001
+        ));
+
+        return $dashboard;
     }
 
     private function cotizacionesVendedor(array $query): array
@@ -80,6 +182,13 @@ final class GerenciaService
         $anio = $this->validarAnio($query['anio'] ?? null);
         $mes = $this->validarMes($query['mes'] ?? null);
         return $this->analytics->pendingGuidesDetailForUser($usuarioId, $mes, $anio);
+    }
+
+    private function guiasPendientesGlobal(array $query): array
+    {
+        $anio = $this->validarAnio($query['anio'] ?? null);
+        $mes = $this->validarMes($query['mes'] ?? null);
+        return $this->analytics->pendingGuidesDetailGlobal($mes, $anio);
     }
 
     private function clientesNuevosVendedor(array $query): array
@@ -1019,6 +1128,7 @@ final class GerenciaService
 
         $rows = $this->baseSalesRows($anio, $mes);
         $descuento = $this->obtenerMontosDescuento($anio, $mes, $mes);
+        $guiasPendientes = $this->analytics->pendingGuidesGlobal($mes, $anio);
 
         $categoryMap = $this->categoryMap();
         $categorias = [];
@@ -1111,6 +1221,7 @@ final class GerenciaService
                 'cumplimiento' => $metaMes > 0 ? round(($ventaMes / $metaMes) * 100, 2) : null,
                 'montoReal' => (int)round((float)($descuento['montoReal'] ?? 0)),
                 'porcentajeDescuento' => $this->porcentajeDescuento((float)($descuento['montoVenta'] ?? 0), (float)($descuento['montoReal'] ?? 0)),
+                'guiasPendientes' => $guiasPendientes,
                 'descuento' => [
                     'montoVenta' => (int)round((float)($descuento['montoVenta'] ?? 0)),
                     'montoReal' => (int)round((float)($descuento['montoReal'] ?? 0)),

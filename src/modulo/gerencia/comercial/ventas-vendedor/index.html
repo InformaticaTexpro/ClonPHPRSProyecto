@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
   <link rel="stylesheet" href="../../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="../guias-pendientes.css?v=1.0.0" />
   <link rel="stylesheet" href="./ventas-vendedor.css?v=1.6.0" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -106,13 +107,6 @@
       <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label">Cantidad: <strong id="cotizacionesModalCantidad">0</strong></span><span class="modal-total-label">Monto total:</span><strong class="modal-total-valor" id="cotizacionesModalMonto">$0</strong></footer>
     </section>
   </div>
-  <div class="modal-overlay" id="guiasPendientesModal" aria-hidden="true">
-    <section class="modal cotizaciones-modal guias-pendientes-modal" role="dialog" aria-modal="true" aria-labelledby="guiasPendientesModalTitulo">
-      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="guiasPendientesModalTitulo">Detalle de Gu&iacute;as Pendientes de Facturar</h2><span class="modal-subtitulo" id="guiasPendientesModalSubtitulo"></span></div><button class="modal-cerrar" id="guiasPendientesModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>
-      <div class="modal-body"><div class="cotizaciones-estado" id="guiasPendientesModalEstado" role="status" aria-live="polite"></div><div class="cotizaciones-tabla-wrapper guias-pendientes-tabla-wrapper"><table class="modal-tabla guias-pendientes-tabla"><colgroup><col class="guias-pendientes-col--folio" /><col class="guias-pendientes-col--fecha" /><col class="guias-pendientes-col--cliente" /><col class="guias-pendientes-col--monto" /></colgroup><thead><tr><th>N&deg; Gu&iacute;a</th><th class="guias-pendientes-fecha">Fecha</th><th>Cliente</th><th class="numero">Monto</th></tr></thead><tbody id="guiasPendientesModalBody"></tbody><tfoot id="guiasPendientesModalFoot"></tfoot></table></div></div>
-      <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label"><strong id="guiasPendientesModalCantidad">0 gu&iacute;as pendientes</strong></span><span class="modal-total-label">Monto total pendiente:</span><strong class="modal-total-valor" id="guiasPendientesModalMonto">$0</strong></footer>
-    </section>
-  </div>
   <div class="modal-overlay" id="ventasCompartidasModal" aria-hidden="true">
     <section class="modal cotizaciones-modal ventas-compartidas-modal" role="dialog" aria-modal="true" aria-labelledby="ventasCompartidasModalTitulo">
       <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="ventasCompartidasModalTitulo">Detalle de Ventas Compartidas TA</h2><span class="modal-subtitulo" id="ventasCompartidasModalPeriodo"></span></div><button class="modal-cerrar" id="ventasCompartidasModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>
@@ -121,6 +115,7 @@
     </section>
   </div>
   <script src="../../../../assets/js/app-sidebar.js?v=1.2.0"></script>
+  <script src="../guias-pendientes.js?v=1.0.0"></script>
   <script src="./ventas-vendedor.js?v=1.9.0"></script>
   <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>

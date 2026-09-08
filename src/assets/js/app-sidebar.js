@@ -1111,6 +1111,17 @@
     ensureSidebarOverlay();
     syncSidebarOverlay();
 
+    const headerMenuButton = document.getElementById('headerMenuBtn');
+    const isGerenciaPage = window.location.pathname.includes('/modulo/gerencia/');
+    if (headerMenuButton && isGerenciaPage && headerMenuButton.dataset.drawerBound !== '1') {
+      headerMenuButton.dataset.drawerBound = '1';
+      headerMenuButton.addEventListener('click', () => {
+        if (!isMobileViewport()) return;
+        sidebar.classList.toggle('sidebar--mobile-open');
+        syncSidebarOverlay();
+      });
+    }
+
     const observer = new MutationObserver(() => {
       syncSidebarOverlay();
     });
