@@ -84,6 +84,26 @@ CREATE TABLE IF NOT EXISTS `usuario_perfil` (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS `admin_auditoria` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `usuario_id` BIGINT DEFAULT NULL,
+  `usuario_nombre` VARCHAR(160) NOT NULL,
+  `accion` VARCHAR(120) NOT NULL,
+  `entidad` VARCHAR(80) NOT NULL DEFAULT 'administrador',
+  `entidad_id` BIGINT DEFAULT NULL,
+  `detalle` LONGTEXT,
+  `creado_en` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_auditoria_entidad` (`entidad`, `entidad_id`),
+  KEY `idx_admin_auditoria_accion` (`accion`),
+  KEY `idx_admin_auditoria_usuario` (`usuario_id`),
+  KEY `idx_admin_auditoria_fecha` (`creado_en`),
+  CONSTRAINT `fk_admin_auditoria_usuario`
+    FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 INSERT INTO `menu` (`id`, `codigo`, `nombre`, `grupo`, `url`, `icono`, `orden`, `activo`)
 VALUES
 (1,  'ventas_dashboard',  'Dashboard',         'Ventas',           '/src/modulo/ventas/dashboard/index.html',             '🏠', 1, 1),

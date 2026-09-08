@@ -67,7 +67,7 @@ function resolve_login_route(array $user): string
         return $menu['url'];
     }
 
-    return '/src/sin-acceso.html';
+    return '/src/modulo/varios/sin-acceso/index.html';
 }
 
 $authService = new AuthService(new Database());
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   localStorage.setItem('usuario', userPayload);
                 }
               }
-              window.location.href = payload.redirect || '/src/sin-acceso.html';
+              window.location.href = payload.redirect || '/src/modulo/varios/sin-acceso/index.html';
             })();
           </script>
         <?php endif; ?>

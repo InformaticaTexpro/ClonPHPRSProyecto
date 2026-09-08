@@ -119,6 +119,164 @@ final class AdminService
         }
     }
 
+    private function adminAuditTableExists(PDO $pdo): bool
+    {
+        try {
+            $row = $pdo->query("SHOW TABLES LIKE 'admin_auditoria'")->fetch(PDO::FETCH_NUM);
+            return (bool)$row;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    private function currentUserId(array $payload): ?int
+    {
+        $candidates = [
+            $payload['id'] ?? null,
+            $payload['sub'] ?? null,
+            $payload['usuario_id'] ?? null,
+            $payload['user_id'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $maybe = $this->asNumber($candidate, null);
+            if ($maybe !== null && (int)$maybe > 0) {
+                return (int)$maybe;
+            }
+        }
+
+        return null;
+    }
+
+    private function currentUserName(array $payload): string
+    {
+        $candidates = [
+            $payload['nombre'] ?? null,
+            $payload['name'] ?? null,
+            $payload['usuario_nombre'] ?? null,
+            $payload['email'] ?? null,
+            $payload['username'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $text = $this->normalizeText($candidate);
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return 'Sistema';
+    }
+
+    private function formatDateTime(mixed $value): string
+    {
+        $text = $this->normalizeText($value);
+        if ($text === '') {
+            return '—';
+        }
+
+        try {
+            $dt = new DateTimeImmutable($text);
+            return $dt->format('d-m-Y H:i');
+        } catch (Throwable) {
+            return $text;
+        }
+    }
+
+    private function mapAdminAudit(array $row): array
+    {
+        $fecha = $row['creado_en'] ?? $row['created_at'] ?? null;
+        $detalle = $row['detalle'] ?? '';
+        if (is_array($detalle)) {
+            $detalle = json_encode($detalle, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        }
+
+        return [
+            'id' => (int)($row['id'] ?? 0),
+            'usuario_id' => isset($row['usuario_id']) ? (int)$row['usuario_id'] : null,
+            'usuario_nombre' => $this->normalizeText($row['usuario_nombre'] ?? ''),
+            'accion' => $this->normalizeText($row['accion'] ?? ''),
+            'entidad' => $this->normalizeText($row['entidad'] ?? ''),
+            'entidad_id' => isset($row['entidad_id']) ? (int)$row['entidad_id'] : null,
+            'detalle' => $this->normalizeText($detalle),
+            'creado_en' => $fecha,
+            'fecha_formato' => $this->formatDateTime($fecha),
+        ];
+    }
+
+    private function auditAdmin(PDO $pdo, array $payload, string $accion, string $detalle = '', string $entidad = 'administrador', ?int $entidadId = null): ?array
+    {
+        if (!$this->adminAuditTableExists($pdo)) {
+            return null;
+        }
+
+        $data = [
+            'usuario_id' => $this->currentUserId($payload),
+            'usuario_nombre' => $this->currentUserName($payload),
+            'accion' => $this->normalizeText($accion),
+            'entidad' => $this->normalizeText($entidad) ?: 'administrador',
+            'entidad_id' => $entidadId,
+            'detalle' => $this->normalizeText($detalle),
+        ];
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO admin_auditoria (usuario_id, usuario_nombre, accion, entidad, entidad_id, detalle, creado_en)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())'
+        );
+        $stmt->execute([
+            $data['usuario_id'],
+            $data['usuario_nombre'],
+            $data['accion'],
+            $data['entidad'],
+            $data['entidad_id'],
+            $data['detalle'] !== '' ? $data['detalle'] : null,
+        ]);
+
+        $data['id'] = (int)$pdo->lastInsertId();
+        $data['creado_en'] = date('Y-m-d H:i:s');
+        $data['fecha_formato'] = $this->formatDateTime($data['creado_en']);
+        return $data;
+    }
+
+    private function listAdminAudits(PDO $pdo, array $filters = []): array
+    {
+        if (!$this->adminAuditTableExists($pdo)) {
+            return [];
+        }
+
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['entidad'])) {
+            $where[] = 'entidad = ?';
+            $params[] = $this->normalizeText($filters['entidad']);
+        }
+        if (!empty($filters['accion'])) {
+            $where[] = 'accion = ?';
+            $params[] = $this->normalizeText($filters['accion']);
+        }
+        if (!empty($filters['usuario_id'])) {
+            $where[] = 'usuario_id = ?';
+            $params[] = $this->requireId($filters['usuario_id'], 'usuario_id');
+        }
+
+        $limit = (int)($this->asNumber($filters['limit'] ?? 20, 20) ?? 20);
+        $limit = max(1, min(100, $limit));
+
+        $sql = 'SELECT id, usuario_id, usuario_nombre, accion, entidad, entidad_id, detalle, creado_en
+                FROM admin_auditoria';
+        if ($where) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY creado_en DESC, id DESC LIMIT ' . $limit;
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return array_map(fn(array $row): array => $this->mapAdminAudit($row), $rows);
+    }
+
     private function formatAreaLabel(mixed $value): string
     {
         $normalized = $this->normalizeKey($value);
@@ -425,8 +583,15 @@ final class AdminService
 
     private function loadBaseProfileByArea(PDO $pdo, string $area): ?array
     {
-        $areaRow = $this->loadAreaByCode($pdo, $area);
-        if ($areaRow && $areaRow['perfil_base_id']) {
+        $stmtArea = $pdo->prepare(
+            'SELECT a.perfil_base_id, a.codigo
+             FROM area a
+             WHERE LOWER(TRIM(a.codigo)) = LOWER(TRIM(?))
+             LIMIT 1'
+        );
+        $stmtArea->execute([$area]);
+        $areaRow = $stmtArea->fetch(PDO::FETCH_ASSOC);
+        if ($areaRow && !empty($areaRow['perfil_base_id'])) {
             $stmt = $pdo->prepare('SELECT id, codigo, nombre, descripcion, area, es_base, activo FROM perfil WHERE id = ? AND activo = 1 LIMIT 1');
             $stmt->execute([(int)$areaRow['perfil_base_id']]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -454,9 +619,9 @@ final class AdminService
 
     private function loadBaseProfileIdsForArea(PDO $pdo, string $area): array
     {
-        $areaRow = $this->loadAreaByCode($pdo, $area);
-        if ($areaRow && $areaRow['perfil_base_id']) {
-            return [(int)$areaRow['perfil_base_id']];
+        $baseProfile = $this->loadBaseProfileByArea($pdo, $area);
+        if ($baseProfile) {
+            return [(int)$baseProfile['id']];
         }
         return [];
     }
@@ -522,23 +687,30 @@ final class AdminService
         }
 
         $params = [];
-        $sql = 'SELECT a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre AS perfil_base_nombre, p.codigo AS perfil_base_codigo, a.activo, a.created_at, a.updated_at,
-                       COUNT(DISTINCT u.id) AS total_usuarios,
-                       SUM(CASE WHEN u.is_active = 1 THEN 1 ELSE 0 END) AS total_usuarios_activos
+        $sql = 'SELECT a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre AS perfil_base_nombre, p.codigo AS perfil_base_codigo, a.activo, a.created_at, a.updated_at
                 FROM area a
-                LEFT JOIN perfil p ON p.id = a.perfil_base_id
-                LEFT JOIN usuario u ON LOWER(TRIM(COALESCE(u.area, \'\'))) = LOWER(TRIM(COALESCE(a.codigo, \'\')))';
+                LEFT JOIN perfil p ON p.id = a.perfil_base_id';
         if ($areaId !== null) {
             $sql .= ' WHERE a.id = ?';
             $params[] = $areaId;
         }
-        $sql .= ' GROUP BY a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre, p.codigo, a.activo, a.created_at, a.updated_at ORDER BY a.nombre ASC';
+        $sql .= ' ORDER BY a.nombre ASC';
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        return array_map(fn(array $row): array => $this->mapAreaRow($row), $rows);
+        return array_map(function (array $row) use ($pdo): array {
+            $mapped = $this->mapAreaRow($row);
+            $baseProfile = $mapped['perfil_base_id'] ? null : $this->loadBaseProfileByArea($pdo, $mapped['codigo']);
+            if ($baseProfile) {
+                $mapped['perfil_base_id'] = (int)$baseProfile['id'];
+                $mapped['perfil_base_nombre'] = (string)($baseProfile['nombre'] ?? '');
+                $mapped['perfil_base_codigo'] = (string)($baseProfile['codigo'] ?? '');
+            }
+            $mapped['total_usuarios'] = $this->countAreaUsers($pdo, $mapped['codigo'], false);
+            $mapped['total_usuarios_activos'] = $this->countAreaUsers($pdo, $mapped['codigo'], true);
+            return $mapped;
+        }, $rows);
     }
 
     private function loadAreaById(PDO $pdo, int $areaId): ?array
@@ -554,19 +726,126 @@ final class AdminService
         }
 
         $stmt = $pdo->prepare(
-            'SELECT a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre AS perfil_base_nombre, p.codigo AS perfil_base_codigo, a.activo, a.created_at, a.updated_at,
-                    COUNT(DISTINCT u.id) AS total_usuarios,
-                    SUM(CASE WHEN u.is_active = 1 THEN 1 ELSE 0 END) AS total_usuarios_activos
+            'SELECT a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre AS perfil_base_nombre, p.codigo AS perfil_base_codigo, a.activo, a.created_at, a.updated_at
              FROM area a
              LEFT JOIN perfil p ON p.id = a.perfil_base_id
-             LEFT JOIN usuario u ON LOWER(TRIM(COALESCE(u.area, \'\'))) = LOWER(TRIM(COALESCE(a.codigo, \'\')))
              WHERE LOWER(TRIM(a.codigo)) = LOWER(TRIM(?))
-             GROUP BY a.id, a.codigo, a.nombre, a.descripcion, a.perfil_base_id, p.nombre, p.codigo, a.activo, a.created_at, a.updated_at
              LIMIT 1'
         );
         $stmt->execute([$codigo]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->mapAreaRow($row) : null;
+        if (!$row) {
+            return null;
+        }
+
+        $mapped = $this->mapAreaRow($row);
+        $baseProfile = $mapped['perfil_base_id'] ? null : $this->loadBaseProfileByArea($pdo, $mapped['codigo']);
+        if ($baseProfile) {
+            $mapped['perfil_base_id'] = (int)$baseProfile['id'];
+            $mapped['perfil_base_nombre'] = (string)($baseProfile['nombre'] ?? '');
+            $mapped['perfil_base_codigo'] = (string)($baseProfile['codigo'] ?? '');
+        }
+        $mapped['total_usuarios'] = $this->countAreaUsers($pdo, $mapped['codigo'], false);
+        $mapped['total_usuarios_activos'] = $this->countAreaUsers($pdo, $mapped['codigo'], true);
+        return $mapped;
+    }
+
+    private function loadAreaMemberCodes(PDO $pdo, string $areaCode): array
+    {
+        $normalized = $this->normalizeKey($areaCode);
+        if ($normalized === '') {
+            return [];
+        }
+
+        if ($normalized !== 'ventas') {
+            return [$normalized];
+        }
+
+        $codes = [$normalized];
+        $knownAreas = [];
+
+        try {
+            $stmt = $pdo->query("SELECT DISTINCT LOWER(TRIM(codigo)) AS codigo FROM area WHERE TRIM(COALESCE(codigo, '')) <> ''");
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $code = $this->normalizeKey($row['codigo'] ?? '');
+                if ($code !== '') {
+                    $knownAreas[$code] = true;
+                }
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT DISTINCT LOWER(TRIM(u.area)) AS area_code
+                 FROM usuario u
+                 INNER JOIN usuario_vendedor uv ON uv.usuario_id = u.id
+                 INNER JOIN usuario_perfil up ON up.usuario_id = u.id AND up.activo = 1
+                 INNER JOIN perfil p ON p.id = up.perfil_id AND p.activo = 1
+                 WHERE LOWER(TRIM(COALESCE(p.codigo, ''))) = 'ventas'
+                   AND TRIM(COALESCE(u.area, '')) <> ''"
+            );
+            $stmt->execute();
+
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $code = $this->normalizeKey($row['area_code'] ?? '');
+                if ($code !== '' && !isset($knownAreas[$code])) {
+                    $codes[$code] = $code;
+                }
+            }
+        } catch (Throwable) {
+            // Si falla la derivación, mantenemos la coincidencia exacta.
+        }
+
+        return array_values($codes);
+    }
+
+    private function loadAreaUserIds(PDO $pdo, string $areaCode, bool $onlyActive = false): array
+    {
+        $codes = $this->loadAreaMemberCodes($pdo, $areaCode);
+        if (!$codes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $sql = 'SELECT id
+                FROM usuario
+                WHERE LOWER(TRIM(COALESCE(area, \'\'))) IN (' . $placeholders . ')';
+        if ($onlyActive) {
+            $sql .= ' AND is_active = 1';
+        }
+        $sql .= ' ORDER BY nombre ASC, id ASC';
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($codes);
+        return array_map(static fn(array $row): int => (int)$row['id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    private function countAreaUsers(PDO $pdo, string $areaCode, bool $onlyActive = false): int
+    {
+        return count($this->loadAreaProfileUserIds($pdo, $areaCode, $onlyActive));
+    }
+
+    private function loadAreaProfileUserIds(PDO $pdo, string $areaCode, bool $onlyActive = false): array
+    {
+        $profile = $this->loadBaseProfileByArea($pdo, $areaCode);
+        if (!$profile) {
+            return [];
+        }
+
+        $sql = 'SELECT DISTINCT u.id
+                FROM usuario_perfil up
+                INNER JOIN usuario u ON u.id = up.usuario_id
+                INNER JOIN perfil p ON p.id = up.perfil_id
+                WHERE up.perfil_id = ?
+                  AND up.activo = 1
+                  AND p.activo = 1';
+        $params = [(int)$profile['id']];
+        if ($onlyActive) {
+            $sql .= ' AND u.is_active = 1';
+        }
+        $sql .= ' ORDER BY u.nombre ASC, u.id ASC';
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return array_map(static fn(array $row): int => (int)$row['id'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
     private function loadUsers(PDO $pdo, ?int $userId = null): array
@@ -891,6 +1170,182 @@ final class AdminService
         foreach ($menus as $menu) {
             $stmtInsert->execute([$userId, $menu['id']]);
         }
+    }
+
+    private function clearUserMenus(PDO $pdo, int $userId): void
+    {
+        $pdo->prepare('UPDATE usuario_menu SET activo = 0 WHERE usuario_id = ?')->execute([$userId]);
+    }
+
+    private function syncUserProfiles(PDO $pdo, int $userId, array $profiles): array
+    {
+        $current = $this->loadUser($pdo, $userId);
+        if (!$current) {
+            throw new RuntimeException('Usuario no encontrado', 404);
+        }
+
+        $basePerfil = $this->loadBaseProfileByArea($pdo, $current['area']);
+        $profileIds = [];
+        foreach ($profiles as $profile) {
+            if (!is_array($profile)) {
+                continue;
+            }
+            $profileId = isset($profile['id']) ? (int)$profile['id'] : 0;
+            if ($profileId > 0) {
+                $profileIds[$profileId] = true;
+            }
+        }
+
+        if ($basePerfil) {
+            $profileIds[(int)$basePerfil['id']] = true;
+        }
+
+        $pdo->prepare('UPDATE usuario_perfil SET activo = 0 WHERE usuario_id = ?')->execute([$userId]);
+        $stmtInsert = $pdo->prepare(
+            'INSERT INTO usuario_perfil (usuario_id, perfil_id, activo)
+             VALUES (?, ?, 1)
+             ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
+        );
+        foreach (array_keys($profileIds) as $profileId) {
+            $stmtInsert->execute([$userId, (int)$profileId]);
+        }
+
+        return $this->loadUserProfiles($pdo, $userId);
+    }
+
+    private function replaceUsersProfilesAndAccesses(PDO $pdo, array $userIds, array $profiles): array
+    {
+        $users = [];
+        foreach ($userIds as $userId) {
+            $user = $this->loadUser($pdo, (int)$userId);
+            if (!$user) {
+                throw new RuntimeException('Usuario no encontrado', 404);
+            }
+            $users[(int)$userId] = $user;
+        }
+
+        $directMenusRemoved = 0;
+        $stmtCountMenus = $pdo->prepare(
+            'SELECT COUNT(*) AS total
+             FROM usuario_menu
+             WHERE usuario_id = ? AND activo = 1'
+        );
+
+        foreach ($users as $userId => $user) {
+            $stmtCountMenus->execute([$userId]);
+            $directMenusRemoved += (int)($stmtCountMenus->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+            $this->syncUserProfiles($pdo, $userId, $profiles);
+            $this->clearUserMenus($pdo, $userId);
+        }
+
+        $result = [];
+        foreach (array_keys($users) as $userId) {
+            $result[$userId] = $this->loadUserProfiles($pdo, (int)$userId);
+        }
+
+        return [
+            'usuario_ids' => array_map('intval', array_keys($users)),
+            'perfil_ids' => array_map('intval', array_values(array_filter(array_map(static fn(array $profile): int => (int)($profile['id'] ?? 0), $profiles)))),
+            'accesos_directos_eliminados' => $directMenusRemoved,
+            'usuarios' => $result,
+        ];
+    }
+
+    private function normalizeIdList(mixed $rawIds): array
+    {
+        $items = is_array($rawIds) ? $rawIds : [];
+        $ids = [];
+        $seen = [];
+        foreach ($items as $item) {
+            $candidate = is_array($item)
+                ? ($item['id'] ?? $item['usuario_id'] ?? $item['value'] ?? $item['codigo'] ?? null)
+                : $item;
+            $maybeId = $this->asNumber($candidate, null);
+            if ($maybeId === null) {
+                continue;
+            }
+            $id = (int)$maybeId;
+            if ($id <= 0 || isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $ids[] = $id;
+        }
+
+        return $ids;
+    }
+
+    private function applyProfilesToUsers(PDO $pdo, array $userIds, array $profiles, string $mode): array
+    {
+        $mode = $this->normalizeKey($mode);
+        if (!in_array($mode, ['assign', 'remove'], true)) {
+            throw new RuntimeException('Modo masivo inválido', 400);
+        }
+
+        $users = [];
+        foreach ($userIds as $userId) {
+            $user = $this->loadUser($pdo, (int)$userId);
+            if (!$user) {
+                throw new RuntimeException('Usuario no encontrado', 404);
+            }
+            $users[(int)$userId] = $user;
+        }
+
+        $profileIds = [];
+        foreach ($profiles as $profile) {
+            $profileId = isset($profile['id']) ? (int)$profile['id'] : 0;
+            if ($profileId > 0) {
+                $profileIds[$profileId] = $profile;
+            }
+        }
+        if (!$profileIds) {
+            throw new RuntimeException('Selecciona al menos un perfil', 400);
+        }
+
+        if ($mode === 'assign') {
+            $stmt = $pdo->prepare(
+                'INSERT INTO usuario_perfil (usuario_id, perfil_id, activo)
+                 VALUES (?, ?, 1)
+                 ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
+            );
+
+            foreach ($users as $userId => $user) {
+                $basePerfil = $this->loadBaseProfileByArea($pdo, $user['area']);
+                $idsToApply = array_keys($profileIds);
+                if ($basePerfil) {
+                    $idsToApply[] = (int)$basePerfil['id'];
+                }
+                foreach (array_values(array_unique($idsToApply)) as $profileId) {
+                    $stmt->execute([$userId, (int)$profileId]);
+                }
+            }
+        } else {
+            $profileLookup = array_keys($profileIds);
+            foreach ($users as $userId => $user) {
+                $basePerfil = $this->loadBaseProfileByArea($pdo, $user['area']);
+                if ($basePerfil && in_array((int)$basePerfil['id'], $profileLookup, true)) {
+                    throw new RuntimeException('No puedes quitar el perfil base automático', 400);
+                }
+            }
+
+            $stmt = $pdo->prepare('UPDATE usuario_perfil SET activo = 0 WHERE usuario_id = ? AND perfil_id = ?');
+            foreach ($users as $userId => $user) {
+                foreach ($profileLookup as $profileId) {
+                    $stmt->execute([$userId, (int)$profileId]);
+                }
+            }
+        }
+
+        $result = [];
+        foreach (array_keys($users) as $userId) {
+            $result[$userId] = $this->loadUserProfiles($pdo, $userId);
+        }
+
+        return [
+            'usuario_ids' => array_map('intval', array_keys($users)),
+            'perfil_ids' => array_map('intval', array_keys($profileIds)),
+            'usuarios' => $result,
+        ];
     }
 
     private function normalizeVendorType(mixed $value): ?string
@@ -1638,34 +2093,52 @@ final class AdminService
     {
         $this->assertAdmin($payload);
         $perfiles = $this->withTransaction(function (PDO $pdo) use ($userId, $body) {
-            $current = $this->loadUser($pdo, $userId);
-            if (!$current) {
-                throw new RuntimeException('Usuario no encontrado', 404);
-            }
-
             $requested = $this->resolveProfiles($pdo, $body['perfiles'] ?? $body['perfil_ids'] ?? $body['profiles'] ?? []);
-            $basePerfil = $this->loadBaseProfileByArea($pdo, $current['area']);
-            $requestedIds = [];
-            foreach ($requested as $perfil) {
-                $requestedIds[(int)$perfil['id']] = true;
-            }
-            if ($basePerfil) {
-                $requestedIds[(int)$basePerfil['id']] = true;
-            }
-
-            $pdo->prepare('UPDATE usuario_perfil SET activo = 0 WHERE usuario_id = ?')->execute([$userId]);
-            $stmt = $pdo->prepare(
-                'INSERT INTO usuario_perfil (usuario_id, perfil_id, activo)
-                 VALUES (?, ?, 1)
-                 ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
-            );
-            foreach (array_keys($requestedIds) as $profileId) {
-                $stmt->execute([$userId, $profileId]);
-            }
-            return $this->loadUserProfiles($pdo, $userId);
+            return $this->syncUserProfiles($pdo, $userId, $requested);
         });
 
         return ['ok' => true, 'data' => $perfiles];
+    }
+
+    public function asignarUsuariosPerfilesMasivo(array $payload, array $body): array
+    {
+        $this->assertAdmin($payload);
+        $resultado = $this->withTransaction(function (PDO $pdo) use ($body) {
+            $userIds = $this->normalizeIdList($body['usuarios'] ?? $body['usuario_ids'] ?? $body['user_ids'] ?? $body['userIds'] ?? []);
+            if (!$userIds) {
+                throw new RuntimeException('Selecciona al menos un usuario', 400);
+            }
+
+            $profiles = $this->resolveProfiles($pdo, $body['perfiles'] ?? $body['perfil_ids'] ?? $body['profiles'] ?? []);
+            $replaceAccesses = $this->asBoolean(
+                $body['reemplazar_accesos'] ?? $body['replace_accesses'] ?? $body['replace_direct_accesses'] ?? false,
+                false
+            );
+
+            if ($replaceAccesses) {
+                return $this->replaceUsersProfilesAndAccesses($pdo, $userIds, $profiles);
+            }
+
+            return $this->applyProfilesToUsers($pdo, $userIds, $profiles, 'assign');
+        });
+
+        return ['ok' => true, 'data' => $resultado];
+    }
+
+    public function quitarUsuariosPerfilesMasivo(array $payload, array $body): array
+    {
+        $this->assertAdmin($payload);
+        $resultado = $this->withTransaction(function (PDO $pdo) use ($body) {
+            $userIds = $this->normalizeIdList($body['usuarios'] ?? $body['usuario_ids'] ?? $body['user_ids'] ?? $body['userIds'] ?? []);
+            if (!$userIds) {
+                throw new RuntimeException('Selecciona al menos un usuario', 400);
+            }
+
+            $profiles = $this->resolveProfiles($pdo, $body['perfiles'] ?? $body['perfil_ids'] ?? $body['profiles'] ?? []);
+            return $this->applyProfilesToUsers($pdo, $userIds, $profiles, 'remove');
+        });
+
+        return ['ok' => true, 'data' => $resultado];
     }
 
     public function agregarUsuarioPerfil(array $payload, int $userId, int $profileId): array
@@ -1967,13 +2440,7 @@ final class AdminService
             if (!$current) {
                 throw new RuntimeException('Área no encontrada', 404);
             }
-            $stmt = $pdo->prepare(
-                'SELECT COUNT(*) AS total
-                 FROM usuario
-                 WHERE is_active = 1 AND LOWER(TRIM(COALESCE(area, \'\'))) = LOWER(TRIM(COALESCE(?, \'\')))'
-            );
-            $stmt->execute([$current['codigo']]);
-            $activeUsers = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+            $activeUsers = count($this->loadAreaProfileUserIds($pdo, $current['codigo'], true));
             if ($activeUsers > 0 && !$confirmed) {
                 $e = new RuntimeException('No se puede desactivar un área con usuarios activos sin confirmación', 409);
                 throw $e;
@@ -2002,11 +2469,7 @@ final class AdminService
                 throw new RuntimeException('Perfil no encontrado', 404);
             }
 
-            $stmt = $pdo->prepare(
-                'SELECT id FROM usuario WHERE is_active = 1 AND LOWER(TRIM(COALESCE(area, \'\'))) = LOWER(TRIM(COALESCE(?, \'\')))'
-            );
-            $stmt->execute([$area['codigo']]);
-            $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $userIds = $this->loadAreaProfileUserIds($pdo, $area['codigo'], false);
 
             $affected = 0;
             $stmtInsert = $pdo->prepare(
@@ -2014,15 +2477,15 @@ final class AdminService
                  VALUES (?, ?, 1)
                  ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
             );
-            foreach ($users as $user) {
-                $stmtInsert->execute([(int)$user['id'], (int)$perfil['id']]);
+            foreach ($userIds as $userId) {
+                $stmtInsert->execute([(int)$userId, (int)$perfil['id']]);
                 $affected++;
             }
 
             return [
                 'area' => $area,
                 'perfil' => $perfil,
-                'usuarios' => count($users),
+                'usuarios' => count($userIds),
                 'afectados' => $affected,
             ];
         });
@@ -2062,9 +2525,7 @@ final class AdminService
                 $stmt->execute([$perfilBaseId, $menu['id']]);
             }
 
-            $stmt = $pdo->prepare('SELECT COUNT(*) AS total FROM usuario WHERE is_active = 1 AND LOWER(TRIM(COALESCE(area, ""))) = LOWER(TRIM(COALESCE(?, "")))');
-            $stmt->execute([$areaRow['codigo']]);
-            $usersCount = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+            $usersCount = count($this->loadAreaProfileUserIds($pdo, $areaRow['codigo'], false));
 
             return [
                 'usuarios' => $usersCount,
@@ -2075,6 +2536,39 @@ final class AdminService
         });
 
         return ['ok' => true, 'data' => $result];
+    }
+
+    public function auditoria(array $payload, array $query): array
+    {
+        $this->assertAdmin($payload);
+        $audits = $this->withTransaction(function (PDO $pdo) use ($query) {
+            return $this->listAdminAudits($pdo, [
+                'limit' => $query['limit'] ?? 20,
+                'entidad' => $query['entidad'] ?? '',
+                'accion' => $query['accion'] ?? '',
+                'usuario_id' => $query['usuario_id'] ?? null,
+            ]);
+        });
+
+        return ['ok' => true, 'data' => $audits];
+    }
+
+    public function registrarAuditoria(array $payload, array $body): array
+    {
+        $this->assertAdmin($payload);
+        $audit = $this->withTransaction(function (PDO $pdo) use ($payload, $body) {
+            $accion = $this->normalizeText($body['accion'] ?? $body['title'] ?? '');
+            if ($accion === '') {
+                throw new RuntimeException('La acción de auditoría es obligatoria', 400);
+            }
+
+            $detalle = $this->normalizeText($body['detalle'] ?? $body['detail'] ?? '');
+            $entidad = $this->normalizeText($body['entidad'] ?? $body['entity'] ?? 'administrador');
+            $entidadId = $this->asNumber($body['entidad_id'] ?? $body['entity_id'] ?? null, null);
+            return $this->auditAdmin($pdo, $payload, $accion, $detalle, $entidad, $entidadId !== null ? (int)$entidadId : null);
+        });
+
+        return ['ok' => true, 'data' => $audit];
     }
 
     public function vendedorMetas(array $payload, array $query): array
@@ -2210,6 +2704,8 @@ final class AdminService
         if ($method === 'GET' && preg_match('#^/usuarios/(\d+)/menus$#', $path, $m)) return $this->usuarioMenus($payload, (int)$m[1]);
         if ($method === 'GET' && preg_match('#^/usuarios/(\d+)/perfiles$#', $path, $m)) return $this->usuarioPerfiles($payload, (int)$m[1]);
         if ($method === 'PUT' && preg_match('#^/usuarios/(\d+)/perfiles$#', $path, $m)) return $this->actualizarUsuarioPerfiles($payload, (int)$m[1], $body);
+        if ($method === 'PUT' && $path === '/usuarios/perfiles/asignar-masivo') return $this->asignarUsuariosPerfilesMasivo($payload, $body);
+        if ($method === 'PUT' && $path === '/usuarios/perfiles/quitar-masivo') return $this->quitarUsuariosPerfilesMasivo($payload, $body);
         if ($method === 'POST' && preg_match('#^/usuarios/(\d+)/perfiles/(\d+)$#', $path, $m)) return $this->agregarUsuarioPerfil($payload, (int)$m[1], (int)$m[2]);
         if ($method === 'DELETE' && preg_match('#^/usuarios/(\d+)/perfiles/(\d+)$#', $path, $m)) return $this->quitarUsuarioPerfil($payload, (int)$m[1], (int)$m[2]);
         if ($method === 'PUT' && preg_match('#^/usuarios/(\d+)/menus$#', $path, $m)) return $this->actualizarUsuarioMenus($payload, (int)$m[1], $body);
@@ -2228,6 +2724,8 @@ final class AdminService
         if ($method === 'PATCH' && preg_match('#^/areas/(\d+)/desactivar$#', $path, $m)) return $this->desactivarArea($payload, (int)$m[1], $body);
         if ($method === 'POST' && preg_match('#^/areas/(\d+)/aplicar-perfil$#', $path, $m)) return $this->aplicarPerfilArea($payload, (int)$m[1], $body);
         if ($method === 'POST' && $path === '/accesos/asignar-por-area') return $this->asignarAccesosPorArea($payload, $body);
+        if ($method === 'GET' && $path === '/auditoria') return $this->auditoria($payload, $query);
+        if ($method === 'POST' && $path === '/auditoria') return $this->registrarAuditoria($payload, $body);
 
         if ($method === 'GET' && $path === '/vendedor-metas') return $this->vendedorMetas($payload, $query);
         if ($method === 'GET' && preg_match('#^/vendedor-metas/(\d+)$#', $path, $m)) return $this->vendedorMeta($payload, (int)$m[1]);

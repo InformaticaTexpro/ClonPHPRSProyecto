@@ -582,11 +582,16 @@ body {
 .admin-panels {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .admin-shell > .admin-panels {
   min-width: 0;
   margin-bottom: 12px;
+}
+
+.admin-panel {
+  min-width: 0;
 }
 
 .admin-panel[hidden] {
@@ -599,11 +604,13 @@ body {
   border-radius: 22px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, .07);
   padding: 20px;
+  min-width: 0;
 }
 
 .panel-card--split {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .panel-card__header {
@@ -633,6 +640,14 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
   align-items: center;
+}
+
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .permission-topbar {
@@ -737,10 +752,207 @@ body {
   font-size: .82rem;
 }
 
-.profile-user-list {
-  max-height: 420px;
-  overflow: auto;
+.profile-user-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-user-mode-switch .btn-secondary.is-active {
+  background: var(--color-primary, #00E2A7);
+  border-color: rgba(0, 0, 0, .06);
+  color: #000;
+  font-weight: 700;
+}
+
+.profile-bulk-replace-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: 16px;
+  background: rgba(0, 226, 167, .06);
+}
+
+.profile-bulk-replace-box[hidden] {
+  display: none;
+}
+
+.profile-bulk-replace-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: var(--color-black, #1A1D23);
+  cursor: pointer;
+}
+
+.profile-bulk-replace-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary, #00E2A7);
+}
+
+.profile-bulk-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-bulk-preview__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-bulk-preview__text {
+  font-size: .84rem;
+  line-height: 1.5;
+  color: var(--color-gray-dark, #6B7280);
+}
+
+.profile-bulk-preview__profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-user-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-user-topbar {
+  align-items: flex-start;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.profile-user-topbar .input-control {
+  flex: 1;
+  min-width: 220px;
+}
+
+.profile-user-topbar .permission-actions {
+  justify-content: flex-end;
+}
+
+.profile-user-picker {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   padding-right: 4px;
+  min-height: 0;
+}
+
+.profile-user-item {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  border-radius: 12px;
+  background: #FFF;
+}
+
+.profile-user-item__label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.profile-user-item__label strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-user-item__meta {
+  margin-left: 26px;
+  font-size: .74rem;
+  color: var(--color-gray-dark, #6B7280);
+}
+
+.profile-user-list {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+  min-height: 0;
+}
+
+.selected-users-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-user-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.15;
+}
+
+.selected-user-chip small {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--color-gray-dark, #6B7280);
+}
+
+.profile-user-panel[hidden] {
+  display: none !important;
+}
+
+.profile-confirm {
+  border: 1px solid rgba(0, 226, 167, .35);
+  background: rgba(0, 226, 167, .08);
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.profile-confirm__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-confirm__body {
+  display: grid;
+  gap: 6px;
+}
+
+.confirm-line {
+  padding: .55rem .75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, .08);
+  font-size: .84rem;
+  color: var(--color-black, #1A1D23);
+}
+
+.table-select-cell {
+  width: 42px;
+  text-align: center;
+}
+
+.table-select-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary, #00E2A7);
+}
+
+.permission-item--bulk .badge {
+  min-width: 56px;
+  justify-content: center;
 }
 
 .admin-panel[data-panel="perfiles"] .panel-card {
@@ -833,6 +1045,77 @@ body {
 .permission-list {
   display: grid;
   gap: 8px;
+}
+
+.profile-menu-group {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-menu-group__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 800;
+  color: var(--color-black, #1A1D23);
+}
+
+.profile-menu-group__title input[type="checkbox"] {
+  margin: 0;
+}
+
+.profile-menu-tree {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-menu-node {
+  display: grid;
+  gap: 6px;
+}
+
+.profile-menu-row {
+  align-items: center;
+  background: #fff;
+}
+
+.profile-menu-node--folder > .profile-menu-row {
+  background: linear-gradient(180deg, #fff 0%, #FBFCFE 100%);
+}
+
+.profile-menu-node--leaf > .profile-menu-row {
+  background: #fff;
+}
+
+.profile-menu-children {
+  display: grid;
+  gap: 8px;
+  margin-left: 18px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(15, 23, 42, .08);
+}
+
+.profile-menu-row__label {
+  min-width: 0;
+}
+
+.profile-menu-row__label strong {
+  white-space: normal;
+}
+
+.profile-menu-row__meta {
+  margin: 0 0 0 30px;
+  padding-left: 2px;
+}
+
+.profile-menu-node--leaf.is-inactive > .profile-menu-row {
+  border-color: rgba(148, 163, 184, .22);
+  background: rgba(248, 250, 252, .9);
+}
+
+.profile-menu-node--leaf.is-inactive .profile-menu-row__meta {
+  color: #94A3B8;
 }
 
 .permission-item {
@@ -1074,6 +1357,8 @@ body {
 
 .table-scroll {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   overflow: auto;
   max-height: 330px;
   scrollbar-gutter: stable;
