@@ -24,14 +24,36 @@
   const formatPct = valor => `${new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(valor) || 0)} %`;
   const escapeHtml = valor => String(valor ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 
-  const CARTERA = [
+  const CARTERA_BASE = [
     { key: 'total', count: 'TotalClientes', label: 'TOTAL CLIENTES', clase: 'total', descripcion: 'Cartera completa asignada', icono: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' },
-    { key: 'activos', count: 'ClientesActivos', label: 'ACTIVOS', clase: 'activo', descripcion: 'Compraron en los últimos 180 días', icono: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
-    { key: 'inactivos', count: 'ClientesInactivos', label: 'INACTIVOS', clase: 'inactivo', descripcion: 'Sin compras en los últimos 180 días', icono: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>' },
+    { key: 'activos', count: 'ClientesActivos', label: 'ACTIVOS', clase: 'activo', descripcion: '', icono: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>' },
+    { key: 'inactivos', count: 'ClientesInactivos', label: 'INACTIVOS', clase: 'inactivo', descripcion: '', icono: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>' },
     { key: 'nuevos', count: 'ClientesNuevos', label: 'NUEVOS', clase: 'nuevo', descripcion: 'Primera compra en el período seleccionado', icono: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>' },
-    { key: 'recuperados', count: 'ClientesRecuperados', label: 'RECUPERADOS', clase: 'recuperado', descripcion: 'Volvieron tras 180 días sin compras', icono: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>' },
+    { key: 'recuperados', count: 'ClientesRecuperados', label: 'RECUPERADOS', clase: 'recuperado', descripcion: '', icono: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>' },
     { key: 'activosMesActual', count: 'ClientesActivosMesActual', label: 'ACTIVOS MES ACTUAL', clase: 'activo-mes', descripcion: 'Compraron en el período seleccionado', icono: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/>' },
   ];
+
+  function descripcionCartera(definicion, diasInactividad, diasRecuperacion) {
+    if (definicion.key === 'activos') {
+      return `Compraron en los últimos ${diasInactividad} días`;
+    }
+    if (definicion.key === 'inactivos') {
+      return `Sin compras en más de ${diasInactividad} días`;
+    }
+    if (definicion.key === 'recuperados') {
+      return `Volvieron tras ${diasRecuperacion} días sin compras`;
+    }
+    return definicion.descripcion;
+  }
+
+  function diasCarteraDesdeResponse(cartera = {}) {
+    const diasInactividad = Number(cartera.DiasInactividad ?? cartera.diasInactividad);
+    const diasRecuperacion = Number(cartera.DiasRecuperacion ?? cartera.diasRecuperacion);
+    return {
+      diasInactividad: Number.isFinite(diasInactividad) && diasInactividad > 0 ? diasInactividad : 90,
+      diasRecuperacion: Number.isFinite(diasRecuperacion) && diasRecuperacion > 0 ? diasRecuperacion : 180,
+    };
+  }
 
   async function apiGet(path) {
     const response = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/json' } });
@@ -273,7 +295,15 @@
 
   function detalleCliente(cliente, tipo) {
     if (tipo === 'nuevos' && cliente.FechaPrimeraCompra) return `Primera compra: ${escapeHtml(cliente.FechaPrimeraCompra)}`;
-    if (tipo === 'recuperados' && cliente.DiasInactividadPrevia !== null) return `${formatCount(cliente.DiasInactividadPrevia)} días sin compras · última compra previa ${escapeHtml(cliente.FechaUltimaCompraPrevia || '—')}`;
+    if (tipo === 'recuperados') {
+      const diasPrevios = Number(cliente.DiasInactividadPrevia);
+      if (Number.isFinite(diasPrevios) && diasPrevios > 0) {
+        return `${formatCount(diasPrevios)} días sin compras · última compra previa ${escapeHtml(cliente.FechaUltimaCompraPrevia || '—')}`;
+      }
+      if (cliente.FechaUltimaCompraPrevia) {
+        return `Última compra previa ${escapeHtml(cliente.FechaUltimaCompraPrevia)}`;
+      }
+    }
     return cliente.FechaUltimaCompra ? `Última compra: ${escapeHtml(cliente.FechaUltimaCompra)}` : '';
   }
 
@@ -290,13 +320,14 @@
 
   function renderCartera(cartera) {
     const container = $('carteraCards');
-    container.innerHTML = CARTERA.map(definicion => {
+    const { diasInactividad, diasRecuperacion } = diasCarteraDesdeResponse(cartera);
+    container.innerHTML = CARTERA_BASE.map(definicion => {
       const clientes = Array.isArray(cartera?.[definicion.key]) ? cartera[definicion.key] : [];
       const count = cartera?.[definicion.count] ?? clientes.length;
       return `<article class="cartera-card cartera-card--${definicion.clase}">
         <button class="cartera-card-btn" type="button" data-cartera-toggle aria-expanded="false">
           <span class="cartera-card-icono"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${definicion.icono}</svg></span>
-          <span class="cartera-card-info"><span class="cartera-card-label">${definicion.label}</span><strong class="cartera-card-count">${formatCount(count)}</strong><span class="cartera-card-desc">${definicion.descripcion}</span></span>
+          <span class="cartera-card-info"><span class="cartera-card-label">${definicion.label}</span><strong class="cartera-card-count">${formatCount(count)}</strong><span class="cartera-card-desc">${descripcionCartera(definicion, diasInactividad, diasRecuperacion)}</span></span>
           <svg class="cartera-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="cartera-lista" hidden><div class="cartera-lista-busqueda"><input type="search" class="cartera-busqueda-input" placeholder="Buscar cliente..." aria-label="Buscar en ${definicion.label.toLowerCase()}" /></div><div class="cartera-tabla-wrapper"><table class="cartera-tabla"><thead><tr><th>Cód. Cliente</th><th>Nombre</th><th>Teléfono 1</th><th>Teléfono 2</th><th>Email</th></tr></thead><tbody data-cartera-body>${filasCartera(clientes, definicion.key)}</tbody></table></div></div>
@@ -304,7 +335,7 @@
     }).join('');
 
     container.querySelectorAll('.cartera-card').forEach((card, index) => {
-      const definicion = CARTERA[index];
+      const definicion = CARTERA_BASE[index];
       const clientes = Array.isArray(cartera?.[definicion.key]) ? cartera[definicion.key] : [];
       const toggle = card.querySelector('[data-cartera-toggle]');
       const lista = card.querySelector('.cartera-lista');

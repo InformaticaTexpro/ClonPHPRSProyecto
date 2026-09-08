@@ -996,6 +996,13 @@ img, svg, canvas, table { max-width: 100%; }
 .cartera-card--inactivo   .cartera-card-count { color: var(--cc-inactivo-color); }
 .cartera-card--nuevo      .cartera-card-count { color: var(--cc-nuevo-color); }
 .cartera-card--recuperado .cartera-card-count { color: var(--cc-recuperado-color); }
+
+.cartera-detalle {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+  font-size: .82rem;
+}
 .cartera-card--activo-mes .cartera-card-count { color: var(--cc-activomes-color); }
 
 .cartera-card-desc {
