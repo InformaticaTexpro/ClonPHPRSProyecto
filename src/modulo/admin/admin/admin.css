@@ -582,11 +582,16 @@ body {
 .admin-panels {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .admin-shell > .admin-panels {
   min-width: 0;
   margin-bottom: 12px;
+}
+
+.admin-panel {
+  min-width: 0;
 }
 
 .admin-panel[hidden] {
@@ -599,11 +604,13 @@ body {
   border-radius: 22px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, .07);
   padding: 20px;
+  min-width: 0;
 }
 
 .panel-card--split {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .panel-card__header {
@@ -1350,6 +1357,8 @@ body {
 
 .table-scroll {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   overflow: auto;
   max-height: 330px;
   scrollbar-gutter: stable;
