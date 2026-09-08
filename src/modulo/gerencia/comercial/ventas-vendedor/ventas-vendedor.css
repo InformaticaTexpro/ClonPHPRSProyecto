@@ -173,33 +173,14 @@
   cursor: pointer;
 }
 
-.guias-pendientes-kpi {
-  width: 100%;
-  border: 1px solid rgba(0, 0, 0, .05);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.cotizacion-kpi:focus-visible,
-.guias-pendientes-kpi:focus-visible {
+.cotizacion-kpi:focus-visible {
   outline: 3px solid rgba(0, 226, 167, .25);
   outline-offset: 2px;
 }
 
-.cotizacion-kpi:disabled,
-.guias-pendientes-kpi:disabled {
+.cotizacion-kpi:disabled {
   cursor: wait;
   opacity: .72;
-}
-
-.kpi-subtitulo {
-  display: block;
-  margin-top: 2px;
-  color: var(--color-gray-dark, #6b7280);
-  font-size: .72rem;
-  font-weight: 500;
-  line-height: 1.3;
 }
 
 .ventas-asignadas-row {
@@ -226,51 +207,6 @@
 
 .cotizaciones-modal {
   max-width: 920px;
-}
-
-.guias-pendientes-tabla-wrapper {
-  max-height: min(62vh, 620px);
-}
-
-.guias-pendientes-tabla {
-  min-width: 680px;
-  table-layout: fixed;
-}
-
-.guias-pendientes-col--folio {
-  width: 16%;
-}
-
-.guias-pendientes-col--fecha {
-  width: 18%;
-}
-
-.guias-pendientes-col--cliente {
-  width: 43%;
-}
-
-.guias-pendientes-col--monto {
-  width: 23%;
-}
-
-.guias-pendientes-tabla .guias-pendientes-fecha {
-  text-align: center;
-}
-
-.guias-pendientes-tabla thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.guias-pendientes-tabla tfoot {
-  border-top: 2px solid var(--color-gray-mid, #c7cbd6);
-  background: var(--color-gray-light, #f4f6fa);
-}
-
-.guias-pendientes-tabla tfoot th {
-  color: var(--color-black, #20242c);
-  font-weight: 800;
 }
 
 .ventas-compartidas-modal {
@@ -321,30 +257,11 @@
   font-weight: 800;
 }
 
-.cotizaciones-estado {
-  display: none;
-  padding: 24px;
-  color: var(--color-gray-dark, #6b7280);
-  text-align: center;
-}
-
-.cotizaciones-estado:not(:empty) {
-  display: block;
-}
-
-.cotizaciones-tabla-wrapper {
-  overflow: auto;
-}
-
 .cotizaciones-cliente-codigo {
   display: block;
   margin-top: 2px;
   color: var(--color-gray-dark, #6b7280);
   font-size: .7rem;
-}
-
-.cotizaciones-modal-footer {
-  flex-wrap: wrap;
 }
 
 .cartera-card-desc {
@@ -502,7 +419,10 @@
   }
 
   .vendedor-filtros {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     flex: 1 1 auto;
+    gap: 12px;
   }
 
   .vendedor-filtros,
@@ -512,7 +432,57 @@
   }
 
   .vendedor-select {
+    grid-column: 1 / -1;
     min-width: 0;
+  }
+
+  .vendedor-filtros .filtro-select,
+  .vendedor-filtros .btn-buscar {
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .vendedor-filtros .btn-buscar {
+    grid-column: 1 / -1;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-overlay > .modal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .modal-body {
+    min-height: 0;
+  }
+
+  .modal-header {
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .modal-titulo-grupo {
+    min-width: 0;
+  }
+
+  .modal-titulo,
+  .modal-subtitulo {
+    overflow-wrap: anywhere;
+  }
+
+  .modal-cerrar {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
   }
 
   .vendedor-empty {
@@ -540,10 +510,6 @@
     min-height: 290px;
   }
 
-  .cotizaciones-modal-footer {
-    justify-content: flex-start;
-  }
-
   .clientes-nuevos-panel {
     padding: 16px;
   }
@@ -567,6 +533,12 @@
 
   .clientes-nuevos-grafico {
     min-height: 320px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ventas-vendedor-page {
+    padding-inline: 12px;
   }
 }
 

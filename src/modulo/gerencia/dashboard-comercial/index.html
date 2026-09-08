@@ -9,7 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.1.0" />
-  <link rel="stylesheet" href="../gerencia.css?v=1.2.0" />
+  <link rel="stylesheet" href="../gerencia.css?v=1.2.1" />
+  <link rel="stylesheet" href="../comercial/guias-pendientes.css?v=1.0.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -201,6 +202,10 @@
               <span class="kpi-valor" id="kpiDescuentoMes">—</span>
             </div>
           </article>
+          <button class="kpi-card guias-pendientes-kpi" id="kpiGuiasPendientesCard" type="button" aria-controls="guiasPendientesModal" aria-label="Abrir detalle de Guías Pendientes de Facturar">
+            <span class="kpi-icono kpi-icono--azul"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span>
+            <span class="kpi-info"><span class="kpi-label">Gu&iacute;as Pendientes de Facturar</span><strong class="kpi-valor" id="kpiGuiasPendientes">$0</strong><span class="kpi-subtitulo" id="kpiGuiasPendientesFolios">0 folios pendientes</span></span>
+          </button>
           <button class="kpi-card gerencia-kpi-interactivo" id="kpiVendedoresCumplieron" type="button" aria-controls="cumplimientoVendedoresModal">
             <span class="kpi-icono kpi-icono--verde">✓</span>
             <span class="kpi-info">
@@ -298,6 +303,26 @@
     </main>
   </div>
 
+  <div class="modal-overlay" id="detalleTopModal" aria-hidden="true" inert>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="detalleTopTitulo" aria-describedby="detalleTopNombre detalleTopPeriodo">
+      <header class="modal-header">
+        <div class="modal-titulo-grupo">
+          <h2 class="modal-titulo" id="detalleTopTitulo"></h2>
+          <span class="modal-subtitulo" id="detalleTopNombre"></span>
+          <span class="modal-subtitulo" id="detalleTopPeriodo"></span>
+        </div>
+        <button class="modal-cerrar" id="detalleTopCerrar" type="button" aria-label="Cerrar detalle">&times;</button>
+      </header>
+      <div class="modal-body">
+        <div class="gerencia-modal-estado" id="detalleTopEstado" role="status" aria-live="polite"></div>
+        <div class="gerencia-cumplimiento-tabla-wrapper">
+          <table class="modal-tabla"><thead id="detalleTopHead"></thead><tbody id="detalleTopBody"></tbody></table>
+        </div>
+      </div>
+      <footer class="modal-footer"><span class="modal-total-label" id="detalleTopTotalLabel"></span><strong class="modal-total-valor" id="detalleTopTotal"></strong></footer>
+    </section>
+  </div>
+
   <div class="modal-overlay" id="cumplimientoVendedoresModal" aria-hidden="true">
     <section class="modal gerencia-cumplimiento-modal" role="dialog" aria-modal="true" aria-labelledby="cumplimientoVendedoresTitulo">
       <header class="modal-header">
@@ -335,7 +360,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="../../../assets/js/app-sidebar.js?v=1.1.0"></script>
-  <script src="../gerencia.js?v=1.4.0"></script>
+  <script src="../comercial/guias-pendientes.js?v=1.0.0"></script>
+  <script src="../gerencia.js?v=1.4.1"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>

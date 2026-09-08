@@ -61,13 +61,27 @@ final class AnalyticsService
 
     private function pendingGuidesForUser(array $vendorCodes, int $month, int $year): array
     {
-        $codes = $this->normalizeVendorCodes($vendorCodes);
-        if (!$codes) {
+        return $this->pendingGuides($month, $year, $vendorCodes);
+    }
+
+    public function pendingGuidesGlobal(int $month, int $year): array
+    {
+        return $this->pendingGuides($month, $year);
+    }
+
+    private function pendingGuides(int $month, int $year, ?array $vendorCodes = null): array
+    {
+        $codes = $vendorCodes === null ? null : $this->normalizeVendorCodes($vendorCodes);
+        if ($codes === []) {
             return ['total' => 0, 'folios' => 0];
         }
 
         $start = new DateTimeImmutable($this->monthStart($year, $month));
-        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $vendorFilter = '';
+        if ($codes !== null) {
+            $placeholders = implode(',', array_fill(0, count($codes), '?'));
+            $vendorFilter = "\n               AND LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)";
+        }
         $stmt = $this->softland()->prepare(
             "SELECT
                 COALESCE(SUM(CONVERT(decimal(38, 2), enc.SubTotal)), 0) AS totalPendiente,
@@ -78,17 +92,17 @@ final class AnalyticsService
                AND enc.Concepto = ?
                AND enc.Tipo = ?
                AND enc.Factura = ?
-               AND enc.Estado = ?
-               AND LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)"
+               AND enc.Estado = ?$vendorFilter"
         );
-        $stmt->execute(array_merge([
+        $params = [
             $start->format('Y-m-d'),
             $start->modify('first day of next month')->format('Y-m-d'),
             '01',
             'S',
             0,
             'V',
-        ], $codes));
+        ];
+        $stmt->execute($codes === null ? $params : array_merge($params, $codes));
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
         return [
@@ -100,12 +114,27 @@ final class AnalyticsService
     public function pendingGuidesDetailForUser(int $userId, int $month, int $year): array
     {
         $codes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
-        if (!$codes) {
+        return $this->pendingGuidesDetail($month, $year, $codes);
+    }
+
+    public function pendingGuidesDetailGlobal(int $month, int $year): array
+    {
+        return $this->pendingGuidesDetail($month, $year);
+    }
+
+    private function pendingGuidesDetail(int $month, int $year, ?array $vendorCodes = null): array
+    {
+        $codes = $vendorCodes === null ? null : $this->normalizeVendorCodes($vendorCodes);
+        if ($codes === []) {
             return ['ok' => true, 'cantidad' => 0, 'monto' => 0, 'items' => []];
         }
 
         $start = new DateTimeImmutable($this->monthStart($year, $month));
-        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $vendorFilter = '';
+        if ($codes !== null) {
+            $placeholders = implode(',', array_fill(0, count($codes), '?'));
+            $vendorFilter = "\n               AND LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)";
+        }
         $stmt = $this->softland()->prepare(
             "SELECT
                 CONVERT(varchar(50), enc.Folio) AS numero,
@@ -121,18 +150,18 @@ final class AnalyticsService
                AND enc.Concepto = ?
                AND enc.Tipo = ?
                AND enc.Factura = ?
-               AND enc.Estado = ?
-               AND LTRIM(RTRIM(enc.CodVendedor)) IN ($placeholders)
+               AND enc.Estado = ?$vendorFilter
              ORDER BY enc.Fecha DESC, enc.Folio DESC"
         );
-        $stmt->execute(array_merge([
+        $params = [
             $start->format('Y-m-d'),
             $start->modify('first day of next month')->format('Y-m-d'),
             '01',
             'S',
             0,
             'V',
-        ], $codes));
+        ];
+        $stmt->execute($codes === null ? $params : array_merge($params, $codes));
         $items = array_map(static function (array $row): array {
             $codigoCliente = trim((string)($row['codigoCliente'] ?? ''));
             $cliente = trim((string)($row['cliente'] ?? ''));
@@ -147,7 +176,7 @@ final class AnalyticsService
 
         return [
             'ok' => true,
-            'cantidad' => count($items),
+            'cantidad' => count(array_unique(array_column($items, 'numero'))),
             'monto' => (int)round(array_sum(array_column($items, 'monto'))),
             'items' => $items,
         ];
@@ -1579,16 +1608,19 @@ final class AnalyticsService
                     SUM(%s) AS venta,
                     SUM(%s) AS ventaReal
              FROM [PRODIN].[softland].[iw_gsaen] enc
-             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
-             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-             WHERE %s
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m
+                ON m.NroInt = enc.NroInt
+               AND m.Tipo = enc.Tipo
+             INNER JOIN [PRODIN].[softland].[iw_tprod] t
+                ON t.CodProd = m.CodProd
+             WHERE enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
                AND enc.CodVendedor IN (%s)
-               AND MONTH(enc.Fecha) = ? AND YEAR(enc.Fecha) = ?
+               AND MONTH(enc.Fecha) = ?
+               AND YEAR(enc.Fecha) = ?
              GROUP BY LTRIM(RTRIM(enc.CodVendedor))",
             $saleExpression,
             $realExpression,
-            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);
@@ -1700,7 +1732,8 @@ final class AnalyticsService
                     SUM(%s) AS venta
              FROM [PRODIN].[softland].[iw_gsaen] enc
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
-             WHERE %s
+             WHERE enc.CodVendedor IN (%s)
+               AND YEAR(enc.Fecha) = ?
                AND enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
                AND enc.CodVendedor IN (%s)
