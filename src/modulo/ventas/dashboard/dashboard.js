@@ -1438,11 +1438,17 @@
       recuperado: 'tbodyRecuperado',
       activomes:  'tbodyActivoMes'
     };
-    renderTablaCartera(tbodyMap[tipo], lista, CARTERA_VACIO[tipo]);
+    renderTablaCartera(tbodyMap[tipo], lista, CARTERA_VACIO[tipo], tipo);
     carteraRendered[tipo] = true;
   }
 
-  function renderTablaCartera(tbodyId, lista, mensajeVacio) {
+  function detalleRecuperado(c) {
+    const diasSinComprar = Number(c.DiasSinComprar ?? c.DiasInactividadPrevia);
+    if (!Number.isFinite(diasSinComprar) || diasSinComprar <= 0) return '';
+    return `<small class="cartera-detalle">${diasSinComprar.toLocaleString('es-CL')} días sin comprar</small>`;
+  }
+
+  function renderTablaCartera(tbodyId, lista, mensajeVacio, tipo = '') {
     const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     if (!lista.length) {
@@ -1451,7 +1457,9 @@
     }
     tbody.innerHTML = lista.map(c => {
       const codigoHtml = renderDatoTexto(c.CodAux);
-      const nombreHtml = renderDatoTexto(c.NomAux);
+      const nombreHtml = tipo === 'recuperado'
+        ? `${renderDatoTexto(c.NomAux)}${detalleRecuperado(c)}`
+        : renderDatoTexto(c.NomAux);
       const tel1Html = renderDatoEnlace(c.FONAUX1, 'tel');
       const tel2Html = renderDatoEnlace(c.FonAux2, 'tel');
       const emailHtml = renderDatoEnlace(c.EMail, 'email');

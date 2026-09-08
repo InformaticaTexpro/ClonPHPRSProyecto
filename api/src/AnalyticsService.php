@@ -33,7 +33,7 @@ final class AnalyticsService
         $totalCategorias = array_sum(array_column($categorias, 'total'));
         $ventasCompartidas = $this->sharedSalesOriginSummary($codigos, $asignacionesCompartidas, $productosCompartidos);
         $clientes = $this->clientesResumen($payload, $query);
-        $cartera = $this->carteraForUser($userId, $query, 180, 180);
+        $cartera = $this->carteraForUser($userId, $query);
         $clientesNuevosCalendario = $this->clientesNuevosCalendarioForUser($userId, $query);
         $cotizaciones = $this->cotizacionesResumenForUser($userId, $query);
         $guiasPendientes = $this->pendingGuidesForUser($codigos, $periodo['mes'], $periodo['anio']);
@@ -629,13 +629,23 @@ final class AnalyticsService
         }
     }
 
-    private function inactivityDaysForArea(string $area): int
+    private function carteraDaysForArea(string $area): array
     {
-        return match ($this->normalizeAreaCode($area)) {
+        $diasInactividad = match ($this->normalizeAreaCode($area)) {
             'TRATAMIENTO_AGUA' => 365,
-            'PRODUCTOS_QUIMICOS' => 90,
+            'PRODUCTOS_QUIMICOS' => 180,
             default => 90,
         };
+
+        return [
+            'inactividad' => $diasInactividad,
+            'recuperacion' => $diasInactividad,
+        ];
+    }
+
+    private function inactivityDaysForArea(string $area): int
+    {
+        return $this->carteraDaysForArea($area)['inactividad'];
     }
 
     private function inClause(array $values, array &$params): string
@@ -2530,6 +2540,10 @@ final class AnalyticsService
         $params = $this->monthYear($query);
         $mes = $params['mes'];
         $anio = $params['anio'];
+        $areaUsuario = $this->userAreaFromPayload($payload);
+        $diasCartera = $this->carteraDaysForArea($areaUsuario);
+        $diasInactividad = $diasCartera['inactividad'];
+        $diasRecuperacion = $diasCartera['recuperacion'];
 
         if ($unavailable = $this->softlandUnavailable('la cartera de clientes')) {
             return $unavailable;
@@ -2551,9 +2565,9 @@ final class AnalyticsService
 
         $desde = new DateTimeImmutable($this->monthStart($anio, $mes));
         $hasta = new DateTimeImmutable($this->monthEnd($anio, $mes));
-        $diasInactividad = $this->inactivityDaysForArea($this->userAreaFromPayload($payload));
+        $hastaExclusivo = $desde->modify('first day of next month');
         $ventanaActiva = $hasta->modify(sprintf('-%d days', $diasInactividad));
-        $ventanaRecupero = $hasta->modify('-180 days');
+        $ventanaRecupero = $hasta->modify(sprintf('-%d days', $diasRecuperacion));
 
         $paramsClients = [];
         $inClients = $this->inClause($vendCodes, $paramsClients);
@@ -2675,11 +2689,129 @@ final class AnalyticsService
             ];
         }
 
+        $paramsRecovered = [];
+        $inRecoveredVendors = $this->inClause($vendCodes, $paramsRecovered);
+        $recoveredStmt = $pool->prepare(
+            "WITH ComprasActuales AS (
+                SELECT
+                    LTRIM(RTRIM(h.CodAux)) AS CodCliente,
+                    LTRIM(RTRIM(h.CodVendedor)) AS CodVendedor,
+                    h.Folio,
+                    h.NroInt,
+                    CAST(h.Fecha AS date) AS FechaCompra,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), '')) AS NomAux,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux1))), '')) AS FONAux1,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux2))), '')) AS FonAux2,
+                    MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.EMail))), '')) AS EMail
+                FROM [PRODIN].[softland].[iw_gsaen] h
+                LEFT JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = h.CodAux
+                WHERE h.Tipo IN ('F','N','D')
+                  AND h.Estado <> 'A'
+                  AND h.Fecha >= ?
+                  AND h.Fecha < ?
+                  AND LTRIM(RTRIM(h.CodVendedor)) IN ($inRecoveredVendors)
+                GROUP BY
+                    LTRIM(RTRIM(h.CodAux)),
+                    LTRIM(RTRIM(h.CodVendedor)),
+                    h.Folio,
+                    h.NroInt,
+                    CAST(h.Fecha AS date)
+             ),
+             Recuperaciones AS (
+                SELECT
+                    ca.CodCliente,
+                    ca.CodVendedor,
+                    ca.Folio,
+                    ca.NroInt,
+                    ca.FechaCompra,
+                    prev.FechaCompraAnterior,
+                    DATEDIFF(DAY, prev.FechaCompraAnterior, ca.FechaCompra) AS DiasSinComprar,
+                    ca.NomAux,
+                    ca.FONAux1,
+                    ca.FonAux2,
+                    ca.EMail,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY ca.CodCliente
+                        ORDER BY ca.FechaCompra ASC, ca.NroInt ASC, ca.Folio ASC
+                    ) AS rn
+                FROM ComprasActuales ca
+                OUTER APPLY (
+                    SELECT TOP 1 CAST(hPrev.Fecha AS date) AS FechaCompraAnterior
+                    FROM [PRODIN].[softland].[iw_gsaen] hPrev
+                    WHERE LTRIM(RTRIM(hPrev.CodAux)) = ca.CodCliente
+                      AND hPrev.Tipo IN ('F','N','D')
+                      AND hPrev.Estado <> 'A'
+                      AND hPrev.Fecha < ca.FechaCompra
+                    ORDER BY hPrev.Fecha DESC, hPrev.NroInt DESC, hPrev.Folio DESC
+                ) prev
+                WHERE prev.FechaCompraAnterior IS NOT NULL
+                  AND DATEDIFF(DAY, prev.FechaCompraAnterior, ca.FechaCompra) > ?
+             )
+             SELECT
+                CodCliente,
+                CodCliente AS CodAux,
+                CodVendedor,
+                Folio,
+                NroInt,
+                FechaCompra,
+                FechaCompraAnterior,
+                DiasSinComprar,
+                NomAux,
+                FONAux1,
+                FonAux2,
+                EMail
+             FROM Recuperaciones
+             WHERE rn = 1
+             ORDER BY CodVendedor, DiasSinComprar DESC, CodCliente"
+        );
+        $recoveredStmt->execute(array_merge(
+            [$desde->format('Y-m-d'), $hastaExclusivo->format('Y-m-d')],
+            $paramsRecovered,
+            [$diasRecuperacion]
+        ));
+
+        $recuperados = [];
+        while ($row = $recoveredStmt->fetch(PDO::FETCH_ASSOC)) {
+            $fechaCompra = !empty($row['FechaCompra']) ? new DateTimeImmutable((string)$row['FechaCompra']) : null;
+            $fechaAnterior = !empty($row['FechaCompraAnterior']) ? new DateTimeImmutable((string)$row['FechaCompraAnterior']) : null;
+            $diasSinComprar = is_numeric($row['DiasSinComprar'] ?? null) ? (int)$row['DiasSinComprar'] : null;
+
+            $recuperados[] = [
+                'CodAux' => trim((string)($row['CodAux'] ?? '')),
+                'CodCliente' => trim((string)($row['CodCliente'] ?? '')),
+                'CodVendedor' => trim((string)($row['CodVendedor'] ?? '')),
+                'Folio' => trim((string)($row['Folio'] ?? '')),
+                'NroInt' => trim((string)($row['NroInt'] ?? '')),
+                'NomAux' => trim((string)($row['NomAux'] ?? '')),
+                'FONAUX1' => trim((string)($row['FONAux1'] ?? '')),
+                'FonAux2' => trim((string)($row['FonAux2'] ?? '')),
+                'EMail' => trim((string)($row['EMail'] ?? '')),
+                'FechaUltimaCompra' => $fechaCompra?->format('Y-m-d'),
+                'FechaCompra' => $fechaCompra?->format('Y-m-d'),
+                'FechaUltimaCompraPrevia' => $fechaAnterior?->format('Y-m-d'),
+                'FechaCompraAnterior' => $fechaAnterior?->format('Y-m-d'),
+                'DiasInactividadPrevia' => $diasSinComprar,
+                'DiasSinComprar' => $diasSinComprar,
+                'DiasRecuperacion' => $diasRecuperacion,
+                'Area' => $areaUsuario,
+                'EsRecuperado' => 1,
+                'Recuperado' => true,
+            ];
+        }
+
+        $recuperadosPorCliente = array_fill_keys(array_map(
+            static fn(array $r): string => trim((string)($r['CodAux'] ?? '')),
+            $recuperados
+        ), true);
+        foreach ($rows as &$row) {
+            $row['EsRecuperado'] = isset($recuperadosPorCliente[trim((string)($row['CodAux'] ?? ''))]) ? 1 : 0;
+        }
+        unset($row);
+
         $total = $rows;
         $activos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivo'] ?? 0) === 1));
         $inactivos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsInactivo'] ?? 0) === 1));
         $nuevos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsNuevo'] ?? 0) === 1));
-        $recuperados = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsRecuperado'] ?? 0) === 1));
         $activosMesActual = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivoMesActual'] ?? 0) === 1));
 
         $result = [
