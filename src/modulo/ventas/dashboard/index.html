@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
-  <link rel="stylesheet" href="dashboard.css?v=2.3.9" />
+  <link rel="stylesheet" href="dashboard.css?v=2.3.10" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
@@ -115,6 +115,10 @@
         <div class="kpi-card kpi-card--guias">
           <div class="kpi-icono kpi-icono--guias"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l4 4v14H5V3z"/><path d="M9 3v4h8"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
           <div class="kpi-info"><span class="kpi-label">Total Guía de Despacho</span><span class="kpi-valor" id="kpiTotalGuias">$0</span></div>
+        </div>
+        <div class="kpi-card kpi-card--concurso" hidden>
+          <div class="kpi-icono kpi-icono--concurso"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10"/><path d="M17 4v5a5 5 0 0 1-10 0V4"/><path d="M5 9a3 3 0 0 1-3-3V4h5"/><path d="M19 9a3 3 0 0 0 3-3V4h-5"/></svg></div>
+          <div class="kpi-info"><span class="kpi-label">Puntos acumulados</span><span class="kpi-valor" id="kpiConcursoPuntos">0</span></div>
         </div>
       </section>
 

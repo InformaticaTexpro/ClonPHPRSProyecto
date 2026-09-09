@@ -1746,12 +1746,9 @@ final class AnalyticsService
                AND YEAR(enc.Fecha) = ?
                AND enc.Tipo IN ('F', 'N', 'D')
                AND enc.Estado <> 'A'
-               AND enc.CodVendedor IN (%s)
-               AND YEAR(enc.Fecha) = ?
              GROUP BY MONTH(enc.Fecha), LTRIM(RTRIM(enc.CodVendedor))
              ORDER BY mes, codigoVendedor",
             $saleExpression,
-            $this->softlandVentaTiposSql('enc'),
             implode(',', array_fill(0, count($vendCodes), '?'))
         );
         $stmt = $pool->prepare($sql);

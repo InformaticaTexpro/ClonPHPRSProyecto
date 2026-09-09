@@ -16,6 +16,7 @@ final class ApiApplication
         $authService = new AuthService($database);
         $recoveryService = new RecoveryService($database);
         $analyticsService = new AnalyticsService($database);
+        $concursoVentasService = new ConcursoVentasService($database, $analyticsService);
         $salesService = new SalesService($database, $analyticsService);
         $adminService = new AdminService($database);
         $rrhhService = new RrhhService($database);
@@ -35,6 +36,7 @@ final class ApiApplication
             'auth' => $authService,
             'recovery' => $recoveryService,
             'analytics' => $analyticsService,
+            'concurso_ventas' => $concursoVentasService,
             'sales' => $salesService,
             'admin' => $adminService,
             'rrhh' => $rrhhService,

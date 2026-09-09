@@ -1442,6 +1442,18 @@
     carteraRendered[tipo] = true;
   }
 
+  async function cargarPuntajeConcurso() {
+    try {
+      const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
+      setText('kpiConcursoPuntos', Number(data.puntos || 0).toLocaleString('es-CL'));
+    } catch (err) {
+      console.error('[cargarPuntajeConcurso]', err);
+      setText('kpiConcursoPuntos', '0');
+    }
+  }
+
   function detalleRecuperado(c) {
     const diasSinComprar = Number(c.DiasSinComprar ?? c.DiasInactividadPrevia);
     if (!Number.isFinite(diasSinComprar) || diasSinComprar <= 0) return '';
@@ -1664,6 +1676,7 @@
     try {
       await Promise.all([
         cargarResumen(),
+        cargarPuntajeConcurso(),
         cargarCotizacionesDashboard(),
         cargarGuiasDespachoDashboard(),
         cargarGrafico(),

@@ -9,6 +9,7 @@ require_once __DIR__ . '/src/Pdf.php';
 require_once __DIR__ . '/src/Services.php';
 require_once __DIR__ . '/src/SharedServiceHelpers.php';
 require_once __DIR__ . '/src/AnalyticsService.php';
+require_once __DIR__ . '/src/ConcursoVentasService.php';
 require_once __DIR__ . '/src/SalesService.php';
 require_once __DIR__ . '/src/AdminService.php';
 require_once __DIR__ . '/src/RrhhService.php';
