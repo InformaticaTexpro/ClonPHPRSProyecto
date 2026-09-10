@@ -791,6 +791,10 @@ textarea {
   gap: .85rem;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .form-grid--2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

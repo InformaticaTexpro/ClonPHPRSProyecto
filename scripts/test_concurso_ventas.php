@@ -5,6 +5,8 @@ require_once dirname(__DIR__) . '/api/src/SharedServiceHelpers.php';
 require_once dirname(__DIR__) . '/api/src/ConcursoVentasService.php';
 
 $tests = [
+    ['inicio-septiembre', ConcursoVentasService::isActiveForPeriod(2026, 9) ? 1 : 0, 0],
+    ['inicio-octubre', ConcursoVentasService::isActiveForPeriod(2026, 10) ? 1 : 0, 1],
     ['A', ConcursoVentasService::progressPoints(8000000, 6000000), 2],
     ['B', ConcursoVentasService::progressPoints(20000000, 19000000), 9],
     ['C', ConcursoVentasService::progressPoints(30000000, 34500000), 20],

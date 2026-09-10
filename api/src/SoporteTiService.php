@@ -6,6 +6,9 @@ final class SoporteTiService
     use SharedServiceHelpers;
 
     private const EQUIPO_ESTADOS = ['ACTIVO', 'BAJA', 'MANTENCION', 'RESERVA', 'REVISAR'];
+    private const IMPRESION_TIPOS = ['IMPRESORA', 'ETIQUETADORA'];
+    private const IMPRESION_CONEXIONES = ['RED', 'USB', 'OTRO'];
+    private const IMPRESION_PROPIEDADES = ['ARRENDADA', 'ADQUIRIDA'];
     private const ACTIVIDAD_ESTADOS = ['PENDIENTE', 'EN_PROCESO', 'EN_ESPERA', 'FINALIZADA', 'CANCELADA'];
     private const ACTIVIDAD_PRIORIDADES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA'];
     private const MOVIMIENTO_TIPOS = ['ENTRADA', 'SALIDA', 'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO'];
@@ -36,6 +39,26 @@ final class SoporteTiService
 
         if ($method === 'POST' && $path === '/equipos') {
             return $this->guardarEquipo($payload, $body);
+        }
+
+        if ($method === 'GET' && $path === '/activos-selector') {
+            return $this->listarActivosSelector($payload);
+        }
+
+        if ($method === 'GET' && $path === '/dispositivos-impresion') {
+            return $this->listarDispositivosImpresion($payload, $query);
+        }
+
+        if ($method === 'POST' && $path === '/dispositivos-impresion') {
+            return $this->guardarDispositivoImpresion($payload, $body);
+        }
+
+        if ($method === 'GET' && preg_match('#^/dispositivos-impresion/(\d+)$#', $path, $m)) {
+            return $this->verDispositivoImpresion($payload, (int)$m[1]);
+        }
+
+        if ($method === 'PUT' && preg_match('#^/dispositivos-impresion/(\d+)$#', $path, $m)) {
+            return $this->guardarDispositivoImpresion($payload, $body, (int)$m[1]);
         }
 
         if ($method === 'GET' && preg_match('#^/equipos/(\d+)$#', $path, $m)) {
@@ -579,6 +602,18 @@ final class SoporteTiService
 
         $equiposActivos = (int)($this->db->fetchOne("SELECT COUNT(*) AS total FROM ti_equipo WHERE estado = 'ACTIVO'")['total'] ?? 0);
         $equiposBaja = (int)($this->db->fetchOne("SELECT COUNT(*) AS total FROM ti_equipo WHERE estado = 'BAJA'")['total'] ?? 0);
+        $impresorasActivas = (int)($this->db->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM ti_dispositivo_impresion
+             WHERE tipo = 'IMPRESORA'
+               AND activo = 1"
+        )['total'] ?? 0);
+        $etiquetadorasActivas = (int)($this->db->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM ti_dispositivo_impresion
+             WHERE tipo = 'ETIQUETADORA'
+               AND activo = 1"
+        )['total'] ?? 0);
         $equiposSinInfo = (int)($this->db->fetchOne(
             "SELECT COUNT(*) AS total
              FROM ti_equipo e
@@ -766,6 +801,9 @@ final class SoporteTiService
             'kpis' => [
                 'equipos_activos' => $equiposActivos,
                 'equipos_baja' => $equiposBaja,
+                'impresoras_activas' => $impresorasActivas,
+                'etiquetadoras_activas' => $etiquetadorasActivas,
+                'dispositivos_total' => $equiposActivos + $impresorasActivas + $etiquetadorasActivas,
                 'equipos_cumplen' => $equiposCumplen,
                 'equipos_fuera' => $equiposFuera,
                 'equipos_sin_info' => $equiposSinInfo,
@@ -912,6 +950,75 @@ final class SoporteTiService
         ];
     }
 
+    private function listarActivosSelector(array $payload): array
+    {
+        $this->assertModuleAccess($payload);
+
+        $equipos = $this->db->fetchAll(
+            "SELECT id, codigo_equipo, tipo_equipo, area, usuario_asignado, ip_actual
+             FROM ti_equipo
+             WHERE estado = 'ACTIVO'
+             ORDER BY codigo_equipo ASC"
+        );
+        $dispositivos = $this->db->fetchAll(
+            "SELECT id, tipo, modelo, nombre_estandar, area, usuario_responsable, tipo_conexion, ip
+             FROM ti_dispositivo_impresion
+             WHERE activo = 1
+             ORDER BY tipo ASC, nombre_estandar ASC, modelo ASC"
+        );
+
+        $activos = [];
+        foreach ($equipos as $row) {
+            $codigo = $this->normalizeText($row['codigo_equipo'] ?? '');
+            $tipo = $this->normalizeText($row['tipo_equipo'] ?? '');
+            $label = trim($codigo . ($tipo !== '' ? ' - ' . $tipo : ''));
+            $activos[] = [
+                'id' => (int)($row['id'] ?? 0),
+                'origen' => 'EQUIPO',
+                'tipo' => $tipo !== '' ? $tipo : 'EQUIPO',
+                'nombre' => $codigo !== '' ? $codigo : 'Equipo #' . (int)($row['id'] ?? 0),
+                'codigo_equipo' => $codigo,
+                'label' => $label !== '' ? $label : 'Equipo #' . (int)($row['id'] ?? 0),
+                'value' => 'EQUIPO:' . (int)($row['id'] ?? 0),
+                'legacy_id' => (int)($row['id'] ?? 0),
+                'legacy_codigo' => $codigo,
+                'area' => $this->normalizeText($row['area'] ?? ''),
+                'usuario' => $this->normalizeText($row['usuario_asignado'] ?? ''),
+                'ip' => $this->normalizeText($row['ip_actual'] ?? ''),
+            ];
+        }
+
+        foreach ($dispositivos as $row) {
+            $id = (int)($row['id'] ?? 0);
+            $tipo = $this->normalizeImpresionTipo($row['tipo'] ?? '');
+            $nombre = $this->normalizeText($row['nombre_estandar'] ?? '') ?: $this->normalizeText($row['modelo'] ?? '');
+            $label = trim(($nombre !== '' ? $nombre : 'Dispositivo #' . $id) . ' - ' . $tipo);
+            $activos[] = [
+                'id' => $id,
+                'origen' => 'DISPOSITIVO_IMPRESION',
+                'tipo' => $tipo,
+                'nombre' => $nombre !== '' ? $nombre : 'Dispositivo #' . $id,
+                'modelo' => $this->normalizeText($row['modelo'] ?? ''),
+                'nombre_estandar' => $this->normalizeText($row['nombre_estandar'] ?? ''),
+                'label' => $label,
+                'value' => 'DISPOSITIVO_IMPRESION:' . $id,
+                'area' => $this->normalizeText($row['area'] ?? ''),
+                'usuario' => $this->normalizeText($row['usuario_responsable'] ?? ''),
+                'tipo_conexion' => $this->normalizeImpresionConexion($row['tipo_conexion'] ?? ''),
+                'ip' => $this->normalizeText($row['ip'] ?? ''),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'activos' => $activos,
+            'totales' => [
+                'equipos' => count($equipos),
+                'dispositivos_impresion' => count($dispositivos),
+            ],
+        ];
+    }
+
     private function equiposToViewRow(array $row, array $config): array
     {
         $cpu = $this->normalizeText($row['descripcion_procesador'] ?? $row['generacion_procesador'] ?? '');
@@ -961,6 +1068,228 @@ final class SoporteTiService
             'cpu_referencia' => $standard['cpu_referencia'],
             'ram_referencia' => $standard['ram_referencia'],
         ];
+    }
+
+    private function normalizeImpresionTipo(mixed $value): string
+    {
+        $tipo = strtoupper($this->normalizeText($value));
+        return in_array($tipo, self::IMPRESION_TIPOS, true) ? $tipo : '';
+    }
+
+    private function normalizeImpresionConexion(mixed $value): string
+    {
+        $conexion = strtoupper($this->normalizeText($value));
+        if ($conexion === 'OTRA') {
+            $conexion = 'OTRO';
+        }
+        return in_array($conexion, self::IMPRESION_CONEXIONES, true) ? $conexion : 'RED';
+    }
+
+    private function normalizeImpresionPropiedad(mixed $value): string
+    {
+        $propiedad = strtoupper($this->normalizeText($value));
+        return in_array($propiedad, self::IMPRESION_PROPIEDADES, true) ? $propiedad : 'ADQUIRIDA';
+    }
+
+    private function dispositivoImpresionToViewRow(array $row): array
+    {
+        return [
+            'id' => (int)($row['id'] ?? 0),
+            'tipo' => $this->normalizeImpresionTipo($row['tipo'] ?? ''),
+            'modelo' => $this->normalizeText($row['modelo'] ?? ''),
+            'nombre_estandar' => $this->normalizeText($row['nombre_estandar'] ?? ''),
+            'tipo_conexion' => $this->normalizeImpresionConexion($row['tipo_conexion'] ?? ''),
+            'ip' => $this->normalizeText($row['ip'] ?? ''),
+            'area' => $this->normalizeText($row['area'] ?? ''),
+            'usuario_responsable' => $this->normalizeText($row['usuario_responsable'] ?? ''),
+            'propiedad' => $this->normalizeImpresionPropiedad($row['propiedad'] ?? ''),
+            'mantencion_requerida' => $this->normalizeDate($row['mantencion_requerida'] ?? null),
+            'ultima_mantencion' => $this->normalizeDate($row['ultima_mantencion'] ?? null),
+            'activo' => $row['activo'] === null ? 1 : (int)$row['activo'],
+            'created_at' => $this->normalizeText($row['created_at'] ?? ''),
+            'updated_at' => $this->normalizeText($row['updated_at'] ?? ''),
+        ];
+    }
+
+    private function listarDispositivosImpresion(array $payload, array $query): array
+    {
+        $this->assertModuleAccess($payload);
+        $tipo = $this->normalizeImpresionTipo($query['tipo'] ?? '');
+        $area = $this->normalizeText($query['area'] ?? '');
+        $usuario = $this->normalizeText($query['usuario'] ?? '');
+        $propiedad = $this->normalizeImpresionPropiedad($query['propiedad'] ?? '');
+        $mantencion = $this->normalizeText($query['mantencion'] ?? '');
+        $search = $this->normalizeText($query['search'] ?? $query['q'] ?? '');
+
+        $conditions = ['activo = 1'];
+        $params = [];
+        if ($tipo !== '') {
+            $conditions[] = 'tipo = ?';
+            $params[] = $tipo;
+        }
+        if ($area !== '') {
+            $conditions[] = 'area = ?';
+            $params[] = $area;
+        }
+        if ($usuario !== '') {
+            $conditions[] = 'usuario_responsable LIKE ?';
+            $params[] = '%' . $usuario . '%';
+        }
+        if (($query['propiedad'] ?? '') !== '' && $propiedad !== '') {
+            $conditions[] = 'propiedad = ?';
+            $params[] = $propiedad;
+        }
+        if ($mantencion !== '') {
+            $conditions[] = 'mantencion_requerida = ?';
+            $params[] = $this->normalizeDate($mantencion);
+        }
+        if ($search !== '') {
+            $conditions[] = '(modelo LIKE ? OR nombre_estandar LIKE ? OR ip LIKE ? OR tipo_conexion LIKE ? OR area LIKE ? OR usuario_responsable LIKE ?)';
+            for ($i = 0; $i < 6; $i++) {
+                $params[] = '%' . $search . '%';
+            }
+        }
+
+        $rows = $this->db->fetchAll(
+            'SELECT id, tipo, modelo, nombre_estandar, tipo_conexion, ip, area, usuario_responsable, propiedad, mantencion_requerida, ultima_mantencion, activo, created_at, updated_at
+             FROM ti_dispositivo_impresion
+             WHERE ' . implode(' AND ', $conditions) . '
+             ORDER BY tipo ASC, area ASC, nombre_estandar ASC, modelo ASC',
+            $params
+        );
+
+        return [
+            'ok' => true,
+            'dispositivos' => array_map(fn (array $row) => $this->dispositivoImpresionToViewRow($row), $rows),
+            'filtros' => [
+                'tipo' => $tipo,
+                'area' => $area,
+                'usuario' => $usuario,
+                'propiedad' => $propiedad,
+                'mantencion' => $mantencion,
+                'search' => $search,
+            ],
+        ];
+    }
+
+    private function verDispositivoImpresion(array $payload, int $dispositivoId): array
+    {
+        $this->assertModuleAccess($payload);
+        $row = $this->db->fetchOne(
+            'SELECT id, tipo, modelo, nombre_estandar, tipo_conexion, ip, area, usuario_responsable, propiedad, mantencion_requerida, ultima_mantencion, activo, created_at, updated_at
+             FROM ti_dispositivo_impresion
+             WHERE id = ?
+             LIMIT 1',
+            [$dispositivoId]
+        );
+
+        if (!$row) {
+            throw new RuntimeException('Dispositivo de impresion no encontrado', 404);
+        }
+
+        return [
+            'ok' => true,
+            'dispositivo' => $this->dispositivoImpresionToViewRow($row),
+        ];
+    }
+
+    private function guardarDispositivoImpresion(array $payload, array $body, ?int $dispositivoId = null): array
+    {
+        $this->assertModuleAccess($payload);
+        $dispositivo = $this->arrayOrEmpty($body['dispositivo'] ?? $body);
+
+        $tipo = $this->normalizeImpresionTipo($dispositivo['tipo'] ?? '');
+        if ($tipo === '') {
+            throw new RuntimeException('El tipo de dispositivo de impresion es requerido', 400);
+        }
+
+        $modelo = $this->normalizeText($dispositivo['modelo'] ?? '');
+        $nombre = $this->normalizeText($dispositivo['nombre_estandar'] ?? $dispositivo['nombre'] ?? '');
+        if ($modelo === '' || $nombre === '') {
+            throw new RuntimeException('Modelo y nombre estandar son requeridos', 400);
+        }
+
+        $conexion = $this->normalizeImpresionConexion($dispositivo['tipo_conexion'] ?? '');
+        $ip = $conexion === 'USB' ? null : $this->normalizeText($dispositivo['ip'] ?? '');
+        $data = [
+            'tipo' => $tipo,
+            'modelo' => $modelo,
+            'nombre_estandar' => $nombre,
+            'tipo_conexion' => $conexion,
+            'ip' => $ip !== '' ? $ip : null,
+            'area' => $this->normalizeText($dispositivo['area'] ?? ''),
+            'usuario_responsable' => $this->normalizeText($dispositivo['usuario_responsable'] ?? ''),
+            'propiedad' => $this->normalizeImpresionPropiedad($dispositivo['propiedad'] ?? ''),
+            'mantencion_requerida' => $this->normalizeDate($dispositivo['mantencion_requerida'] ?? null),
+            'ultima_mantencion' => $this->normalizeDate($dispositivo['ultima_mantencion'] ?? null),
+            'activo' => $this->normalizeBool($dispositivo['activo'] ?? 1) ?? 1,
+        ];
+
+        if ($dispositivoId === null) {
+            $this->db->execute(
+                'INSERT INTO ti_dispositivo_impresion
+                 (tipo, modelo, nombre_estandar, tipo_conexion, ip, area, usuario_responsable, propiedad, mantencion_requerida, ultima_mantencion, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $data['tipo'],
+                    $data['modelo'],
+                    $data['nombre_estandar'],
+                    $data['tipo_conexion'],
+                    $data['ip'],
+                    $data['area'],
+                    $data['usuario_responsable'],
+                    $data['propiedad'],
+                    $data['mantencion_requerida'],
+                    $data['ultima_mantencion'],
+                    $data['activo'],
+                ]
+            );
+            $dispositivoId = (int)$this->db->mysql()->lastInsertId();
+            if ($dispositivoId <= 0) {
+                throw new RuntimeException('No se pudo confirmar la creacion del dispositivo de impresion', 500);
+            }
+        } else {
+            $exists = $this->db->fetchOne('SELECT id FROM ti_dispositivo_impresion WHERE id = ? LIMIT 1', [$dispositivoId]);
+            if (!$exists) {
+                throw new RuntimeException('Dispositivo de impresion no encontrado', 404);
+            }
+
+            $this->db->execute(
+                'UPDATE ti_dispositivo_impresion
+                 SET tipo = ?,
+                     modelo = ?,
+                     nombre_estandar = ?,
+                     tipo_conexion = ?,
+                     ip = ?,
+                     area = ?,
+                     usuario_responsable = ?,
+                     propiedad = ?,
+                     mantencion_requerida = ?,
+                     ultima_mantencion = ?,
+                     activo = ?,
+                     updated_at = NOW()
+                 WHERE id = ?',
+                [
+                    $data['tipo'],
+                    $data['modelo'],
+                    $data['nombre_estandar'],
+                    $data['tipo_conexion'],
+                    $data['ip'],
+                    $data['area'],
+                    $data['usuario_responsable'],
+                    $data['propiedad'],
+                    $data['mantencion_requerida'],
+                    $data['ultima_mantencion'],
+                    $data['activo'],
+                    $dispositivoId,
+                ]
+            );
+        }
+
+        $response = $this->verDispositivoImpresion($payload, $dispositivoId);
+        $response['success'] = true;
+        $response['id'] = $dispositivoId;
+        return $response;
     }
 
     private function verEquipo(array $payload, int $equipoId): array

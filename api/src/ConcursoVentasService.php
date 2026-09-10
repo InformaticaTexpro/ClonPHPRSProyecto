@@ -6,6 +6,7 @@ final class ConcursoVentasService
     use SharedServiceHelpers;
 
     private const CONFIG = [
+        'fechaInicio' => '2026-10-01',
         'tramos' => [
             'C' => ['min' => 0, 'max' => 10000000],
             'B' => ['min' => 10000001, 'max' => 25000000],
@@ -45,13 +46,17 @@ final class ConcursoVentasService
         $mes = $periodo['mes'];
         $anio = $periodo['anio'];
 
+        if (!self::isActiveForPeriod($anio, $mes)) {
+            return ['ok' => true, 'activo' => false, 'puntos' => 0];
+        }
+
         if ($unavailable = $this->softlandUnavailable('el puntaje de concurso')) {
             return $unavailable;
         }
 
         $vendorCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
         if (!$vendorCodes) {
-            return ['ok' => true, 'puntos' => 0];
+            return ['ok' => true, 'activo' => true, 'puntos' => 0];
         }
 
         $meta = $this->fetchMetaMes($userId, $anio, $mes);
@@ -63,7 +68,14 @@ final class ConcursoVentasService
             + ($this->clientesNuevosPuntuables($vendorCodes, $anio, $mes) * (int)self::CONFIG['puntosNuevo'])
             + ($this->clientesRecuperadosPuntuables($vendorCodes, $anio, $mes, $diasRecuperacion) * (int)self::CONFIG['puntosRecuperado']);
 
-        return ['ok' => true, 'puntos' => $puntos];
+        return ['ok' => true, 'activo' => true, 'puntos' => $puntos];
+    }
+
+    public static function isActiveForPeriod(int $anio, int $mes): bool
+    {
+        $periodStart = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));
+        $contestStart = new DateTimeImmutable((string)self::CONFIG['fechaInicio']);
+        return $periodStart >= $contestStart;
     }
 
     public static function progressPoints(float $meta, float $ventas): int

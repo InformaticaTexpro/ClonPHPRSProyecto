@@ -1443,13 +1443,16 @@
   }
 
   async function cargarPuntajeConcurso() {
+    const card = document.getElementById('kpiConcursoCard');
     try {
       const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
+      if (card) card.hidden = data.activo !== true;
       setText('kpiConcursoPuntos', Number(data.puntos || 0).toLocaleString('es-CL'));
     } catch (err) {
       console.error('[cargarPuntajeConcurso]', err);
+      if (card) card.hidden = true;
       setText('kpiConcursoPuntos', '0');
     }
   }
