@@ -16,6 +16,8 @@ final class GerenciaService
         $this->assertGerenciaOrAdmin($payload);
 
         return match (true) {
+            $method === 'GET' && $path === '/comercial/control-muestras' => $this->controlMuestras($query, false),
+            $method === 'GET' && $path === '/comercial/control-muestras/vendedor-detalle' => $this->controlMuestras($query, true),
             $method === 'GET' && $path === '/comercial/dashboard/cliente-detalle' => $this->detalleClienteComercial($query),
             $method === 'GET' && $path === '/comercial/dashboard/producto-detalle' => $this->detalleProductoComercial($query),
             $method === 'GET' && $path === '/comercial/resumen' => $this->resumenComercial($query),
@@ -26,6 +28,7 @@ final class GerenciaService
             $method === 'GET' && $path === '/comercial/ventas-vendedor/cotizaciones' => $this->cotizacionesVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor/guias-pendientes' => $this->guiasPendientesVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor/clientes-nuevos' => $this->clientesNuevosVendedor($query),
+            $method === 'GET' && $path === '/comercial/ventas-vendedor/muestras-detalle' => $this->muestrasDetalleVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor' => $this->ventasVendedor($query),
             default => throw new RuntimeException('Ruta de gerencia no encontrada', 404),
         };
@@ -156,7 +159,276 @@ final class GerenciaService
                 || abs((float)($row['totalVentasCobrado'] ?? 0)) >= 0.000001
         ));
 
+        $dashboard['muestras'] = $this->muestrasVendedor($usuarioId, $mes, $anio);
+
         return $dashboard;
+    }
+
+    private function muestrasVendedor(int $usuarioId, int $mes, int $anio): array
+    {
+        $codigos = $this->normalizeVendorCodes($this->getVendorCodes($usuarioId));
+        if (!$codigos) {
+            return [
+                'historico' => ['monto' => 0, 'folios' => 0],
+                'mes' => ['monto' => 0, 'folios' => 0],
+                'composicion' => ['historico' => []],
+                'topProductosHistorico' => [],
+                'valorComercialMes' => 0,
+            ];
+        }
+
+        [$desde, $hasta] = $this->monthRange($anio, $mes);
+        [$fuenteSql, $fuenteParams] = $this->muestrasFuenteSql($codigos, '2022-01-01', null);
+        // Solo Muestras consulta TEXPRO18. Conservar los signos originales de ambas fuentes.
+        $stmt = $this->db->softland()->prepare(
+            "$fuenteSql
+             SELECT COALESCE(SUM(Total), 0) AS montoHistorico,
+                COUNT(DISTINCT CONCAT(Tipo, '|', Folio)) AS foliosHistoricos,
+                COALESCE(SUM(CASE WHEN Fecha >= ? AND Fecha < ? THEN Total ELSE 0 END), 0) AS montoMes,
+                COUNT(DISTINCT CASE WHEN Fecha >= ? AND Fecha < ? THEN CONCAT(Tipo, '|', Folio) END) AS foliosMes
+             FROM MuestrasFuente"
+        );
+        $stmt->execute(array_merge($fuenteParams, [$desde, $hasta, $desde, $hasta]));
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return [
+            'historico' => [
+                'monto' => (float)$row['montoHistorico'],
+                'folios' => (int)$row['foliosHistoricos'],
+            ],
+            'mes' => [
+                'monto' => (float)$row['montoMes'],
+                'folios' => (int)$row['foliosMes'],
+            ],
+            'composicion' => $this->muestrasComposicionVendedor($codigos, (float)$row['montoHistorico']),
+            'topProductosHistorico' => $this->muestrasTopProductosVendedor($codigos, (float)$row['montoHistorico']),
+            'valorComercialMes' => $this->muestrasValorComercialMes($codigos, $desde, $hasta),
+        ];
+    }
+
+    private function muestrasValorComercialMes(array $codigos, string $desde, string $hasta): float
+    {
+        [$fuenteSql, $params] = $this->muestrasFuenteSql($codigos, $desde, $hasta);
+        $precioProdin = $this->muestrasPrecioProdinSql('P.CodProd');
+        // Precio de referencia PRODIN; documentos y cantidades siguen siendo TEXPRO18.
+        $row = $this->softlandOne(
+            "$fuenteSql,
+             Productos AS (SELECT DISTINCT CodProd FROM MuestrasFuente),
+             PreciosProdin AS (
+                SELECT P.CodProd, PR.CodProd AS CodigoProdin, PR.PrecioVta AS PrecioVentaProdin
+                FROM Productos P $precioProdin
+             )
+             SELECT COALESCE(SUM(CONVERT(decimal(18, 6), PP.PrecioVentaProdin)
+                * CONVERT(decimal(18, 6), M.Cantidad)), 0) AS valorComercialMes
+             FROM MuestrasFuente M
+             LEFT JOIN PreciosProdin PP ON PP.CodProd = M.CodProd",
+            $params
+        );
+        return (float)$row['valorComercialMes'];
+    }
+
+    private function muestrasPrecioProdinSql(string $codProdSql = 'M.CodProd'): string
+    {
+        return "OUTER APPLY (
+                SELECT TOP 1 PP.CodProd, PP.PrecioVta
+                FROM [PRODIN].[softland].[iw_tprod] PP
+                WHERE (
+                    LTRIM(RTRIM($codProdSql)) LIKE 'MU%'
+                    AND LTRIM(RTRIM(PP.CodProd)) LIKE 'PQ' + SUBSTRING(LTRIM(RTRIM($codProdSql)), 3, 4) + '%'
+                    AND TRY_CONVERT(INT, SUBSTRING(LTRIM(RTRIM(PP.CodProd)), 7, LEN(LTRIM(RTRIM(PP.CodProd))))) >= 10
+                ) OR (
+                    LTRIM(RTRIM($codProdSql)) NOT LIKE 'MU%'
+                    AND LTRIM(RTRIM(PP.CodProd)) = LTRIM(RTRIM($codProdSql))
+                )
+                ORDER BY CASE
+                    WHEN LTRIM(RTRIM($codProdSql)) LIKE 'MU%'
+                        AND TRY_CONVERT(INT, SUBSTRING(LTRIM(RTRIM(PP.CodProd)), 7, LEN(LTRIM(RTRIM(PP.CodProd))))) = 10 THEN 0
+                    WHEN LTRIM(RTRIM($codProdSql)) LIKE 'MU%' THEN 1
+                    ELSE 0 END,
+                    CASE WHEN LTRIM(RTRIM($codProdSql)) LIKE 'MU%'
+                        THEN TRY_CONVERT(INT, SUBSTRING(LTRIM(RTRIM(PP.CodProd)), 7, LEN(LTRIM(RTRIM(PP.CodProd))))) ELSE 0 END,
+                    PP.CodProd
+             ) PR";
+    }
+
+    /** Fuente normalizada de Muestras; $hasta es exclusivo. */
+    private function muestrasFuenteSql(array $codigos, string $desde, ?string $hasta): array
+    {
+        $corte = '2026-09-01';
+        $placeholders = implode(',', array_fill(0, count($codigos), '?'));
+        $partes = [];
+        $params = [];
+
+        $finNw = $hasta === null || $hasta > $corte ? $corte : $hasta;
+        if ($desde < $corte && $desde < $finNw) {
+            $partes[] = "SELECT CAST('NV' AS varchar(2)) AS Tipo,
+                    CONVERT(varchar(50), NV.NVNumero) AS Folio,
+                    CONVERT(varchar(50), NV.NVNumero) AS NotaVenta,
+                    CAST(NV.NvFem AS date) AS Fecha,
+                    LTRIM(RTRIM(NV.VenCod)) AS CodVendedor,
+                    LTRIM(RTRIM(D.CodProd)) AS CodProd,
+                    CAST(D.DetProd AS varchar(max)) AS Producto,
+                    CONVERT(decimal(38, 6), D.NvCant) AS Cantidad,
+                    CONVERT(decimal(38, 6), D.NvPrecio) AS Precio,
+                    CONVERT(decimal(38, 2), D.NvTotLinea) AS Total,
+                    CASE
+                        WHEN LTRIM(RTRIM(D.CodProd)) LIKE 'PQ0762%' THEN 'AEROSOLES'
+                        WHEN LTRIM(RTRIM(D.CodProd)) LIKE 'MU%' THEN 'QUIMICOS'
+                        WHEN LTRIM(RTRIM(D.CodProd)) LIKE 'PQ%' THEN 'QUIMICOS'
+                        WHEN LTRIM(RTRIM(D.CodProd)) LIKE 'AE%' THEN 'AEROSOLES'
+                        WHEN LTRIM(RTRIM(D.CodProd)) LIKE 'GS%' THEN 'ACCESORIOS'
+                        ELSE 'OTRO' END AS Categoria,
+                    D.NvLinea AS OrdenLinea
+                FROM [TEXPRO18].[softland].[NW_NVENTA] NV
+                INNER JOIN [TEXPRO18].[softland].[NW_DETNV] D ON D.NVNumero = NV.NVNumero
+                WHERE NV.NvFem >= ? AND NV.NvFem < ?
+                    AND ISNULL(NV.NvEstado, '') <> 'N'
+                    AND D.CodProd IS NOT NULL AND LTRIM(RTRIM(D.CodProd)) <> ''
+                    AND LTRIM(RTRIM(NV.VenCod)) IN ($placeholders)";
+            $params = array_merge($params, [$desde, $finNw], $codigos);
+        }
+
+        $inicioIw = $desde < $corte ? $corte : $desde;
+        if ($hasta === null || $inicioIw < $hasta) {
+            $finSql = $hasta === null ? '' : ' AND G.Fecha < ?';
+            $partes[] = "SELECT CAST(G.Tipo AS varchar(2)) AS Tipo,
+                    CONVERT(varchar(50), G.Folio) AS Folio,
+                    CONVERT(varchar(50), G.Folio) AS NotaVenta,
+                    CAST(G.Fecha AS date) AS Fecha,
+                    LTRIM(RTRIM(G.CodVendedor)) AS CodVendedor,
+                    LTRIM(RTRIM(M.CodProd)) AS CodProd,
+                    CAST(M.DetProd AS varchar(max)) AS Producto,
+                    CONVERT(decimal(38, 6), M.CantFacturada) AS Cantidad,
+                    CASE WHEN M.CantFacturada <> 0 THEN CONVERT(decimal(38, 6), M.TotLinea) / M.CantFacturada ELSE 0 END AS Precio,
+                    CONVERT(decimal(38, 2), M.TotLinea) AS Total,
+                    COALESCE(NULLIF(LTRIM(RTRIM(CC.DescCC)), ''),
+                        COALESCE(NULLIF(LTRIM(RTRIM(M.CodiCC)), ''), NULLIF(LTRIM(RTRIM(G.CentrodeCosto)), '')),
+                        'SIN CENTRO DE COSTO') AS Categoria,
+                    M.Linea AS OrdenLinea
+                FROM [TEXPRO18].[softland].[iw_gsaen] G
+                INNER JOIN [TEXPRO18].[softland].[iw_gmovi] M ON M.Tipo = G.Tipo AND M.NroInt = G.NroInt
+                LEFT JOIN [TEXPRO18].[softland].[cwtccos] CC
+                    ON CC.CodiCC = COALESCE(NULLIF(LTRIM(RTRIM(M.CodiCC)), ''), NULLIF(LTRIM(RTRIM(G.CentrodeCosto)), ''))
+                WHERE G.Tipo IN ('F','N','D') AND G.Fecha >= ?$finSql
+                    AND M.CodProd IS NOT NULL AND LTRIM(RTRIM(M.CodProd)) <> ''
+                    AND LTRIM(RTRIM(G.CodVendedor)) IN ($placeholders)";
+            $params[] = $inicioIw;
+            if ($hasta !== null) $params[] = $hasta;
+            $params = array_merge($params, $codigos);
+        }
+
+        return ['WITH MuestrasFuente AS (' . implode("\nUNION ALL\n", $partes) . ')', $params];
+    }
+
+    private function controlMuestras(array $query, bool $detalle): array
+    {
+        $usuarioId = isset($query['vendedorId']) && $query['vendedorId'] !== ''
+            ? $this->validarVendedorPrincipal($query['vendedorId']) : null;
+        if ($detalle && $usuarioId === null) {
+            throw new RuntimeException('Debe seleccionar un vendedor valido.', 400);
+        }
+        // El catalogo ya contiene todas las relaciones de los usuarios activos.
+        // Precargar el cache de esta request evita un SELECT por vendedor.
+        $relaciones = [];
+        foreach ($this->loadVendorRelations() as $relacion) {
+            $id = (int)$relacion['usuarioId'];
+            $relaciones[$id][] = ['cod_vendedor' => $relacion['codigoAsociado'], 'tipo' => $relacion['tipo']];
+        }
+        foreach ($relaciones as $id => $rows) {
+            $this->vendorRelationsByUserId[$id] = $rows;
+        }
+        $vendedores = [];
+        foreach ($this->vendedoresPrincipales()['vendedores'] as $vendedor) {
+            if ($usuarioId !== null && $vendedor['usuarioId'] !== $usuarioId) continue;
+            $vendedor['codigos'] = $this->normalizeVendorCodes($this->getVendorCodes($vendedor['usuarioId']));
+            $vendedores[] = $vendedor;
+        }
+        require_once __DIR__ . '/ControlMuestrasService.php';
+        $service = new ControlMuestrasService($this->db, $this->muestrasPrecioProdinSql('P.CodProd'));
+        return $service->consultar($query, $vendedores, $usuarioId, $detalle);
+    }
+
+    private function muestrasComposicionVendedor(array $codigos, float $totalHistorico): array
+    {
+        [$fuenteSql, $params] = $this->muestrasFuenteSql($codigos, '2022-01-01', null);
+        $rows = $this->softlandRows(
+            "$fuenteSql
+             SELECT Categoria AS clasificacion, SUM(Total) AS montoHistorico
+             FROM MuestrasFuente GROUP BY Categoria",
+            $params
+        );
+        $historico = [];
+        foreach ($rows as $row) {
+            $monto = (float)$row['montoHistorico'];
+            $historico[] = [
+                'clasificacion' => $row['clasificacion'],
+                'monto' => $monto,
+                'participacion' => $totalHistorico != 0.0 ? $monto / $totalHistorico * 100 : 0,
+            ];
+        }
+        if (abs(array_sum(array_column($historico, 'monto')) - $totalHistorico) > 0.01) {
+            throw new RuntimeException('La composicion historica de Muestras no coincide con el resumen. Revisar JOIN de centros de costo.', 500);
+        }
+        usort($historico, static fn(array $a, array $b): int => ($b['monto'] <=> $a['monto']) ?: strcmp($a['clasificacion'], $b['clasificacion']));
+        return ['historico' => $historico];
+    }
+
+    private function muestrasTopProductosVendedor(array $codigos, float $totalHistorico): array
+    {
+        [$fuenteSql, $params] = $this->muestrasFuenteSql($codigos, '2022-01-01', null);
+        $rows = $this->softlandRows(
+            "$fuenteSql
+             SELECT TOP 10 M.CodProd AS codigoProducto,
+                COALESCE(NULLIF(LTRIM(RTRIM(MAX(M.Producto))), ''), MAX(P.DesProd)) AS producto,
+                SUM(M.Total) AS monto
+             FROM MuestrasFuente M
+             LEFT JOIN [TEXPRO18].[softland].[iw_tprod] P ON P.CodProd = M.CodProd
+             GROUP BY M.CodProd
+             ORDER BY monto DESC, codigoProducto ASC",
+            $params
+        );
+        foreach ($rows as &$row) {
+            $row['monto'] = (float)$row['monto'];
+            $row['participacion'] = $totalHistorico != 0.0 ? $row['monto'] / $totalHistorico * 100 : 0;
+        }
+        unset($row);
+        return $rows;
+    }
+
+    private function muestrasDetalleVendedor(array $query): array
+    {
+        $usuarioId = $this->validarVendedorPrincipal($query['vendedorId'] ?? null);
+        $anio = $this->validarAnio($query['anio'] ?? null);
+        $mes = $this->validarMes($query['mes'] ?? null);
+        $codigos = $this->normalizeVendorCodes($this->getVendorCodes($usuarioId));
+        if (!$codigos) return ['ok' => true, 'items' => [], 'monto' => 0, 'folios' => 0, 'valorComercialMes' => 0];
+        [$desde, $hasta] = $this->monthRange($anio, $mes);
+        [$fuenteSql, $params] = $this->muestrasFuenteSql($codigos, $desde, $hasta);
+        $items = $this->softlandRows(
+            "$fuenteSql
+             SELECT M.Tipo AS tipo, M.Folio AS folio, CONVERT(varchar(10), M.Fecha, 23) AS fecha,
+                COALESCE(NULLIF(LTRIM(RTRIM(M.Producto)), ''), P.DesProd) AS producto,
+                M.Cantidad AS cantidad, M.Total AS total,
+                M.Categoria AS linea, M.OrdenLinea AS ordenLinea
+             FROM MuestrasFuente M
+             LEFT JOIN [TEXPRO18].[softland].[iw_tprod] P ON P.CodProd = M.CodProd
+             ORDER BY M.Fecha DESC, M.Folio DESC, M.OrdenLinea ASC",
+            $params
+        );
+        // La identidad documental coincide con COUNT DISTINCT del resumen: Tipo + Folio.
+        $centavos = 0;
+        $folios = [];
+        foreach ($items as &$item) {
+            $centavos += (int)round((float)$item['total'] * 100);
+            $item['total'] = (float)$item['total'];
+            $item['cantidad'] = (float)$item['cantidad'];
+            $folios[$item['tipo'] . '|' . $item['folio']] = true;
+        }
+        unset($item);
+        return [
+            'ok' => true, 'items' => $items, 'monto' => $centavos / 100, 'folios' => count($folios),
+            'valorComercialMes' => $this->muestrasValorComercialMes($codigos, $desde, $hasta),
+        ];
     }
 
     private function cotizacionesVendedor(array $query): array

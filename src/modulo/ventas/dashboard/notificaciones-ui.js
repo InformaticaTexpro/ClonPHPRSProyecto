@@ -80,7 +80,15 @@
   const panel    = document.getElementById('notifPanel');
   const lista    = document.getElementById('notifLista');
   const leerTodo = document.getElementById('notifLeerTodo');
-  const toastCnt = document.getElementById('notifToastContainer');
+  let toastCnt = document.getElementById('notifToastContainer');
+
+  if (!toastCnt) {
+    toastCnt = document.createElement('div');
+    toastCnt.id = 'notifToastContainer';
+    toastCnt.className = 'notif-toast-container';
+    toastCnt.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toastCnt);
+  }
 
   if (!btn) return;
 

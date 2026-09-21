@@ -81,6 +81,16 @@
           </div>
         </section>
 
+        <section class="cotizaciones-clientes-seccion muestras-seccion" aria-labelledby="muestrasTitulo">
+          <div class="cartera-header"><h3 class="cartera-titulo" id="muestrasTitulo">Muestras</h3><span class="cartera-subtitulo">Resumen para todos los c&oacute;digos asociados al vendedor seleccionado.</span></div>
+          <div class="cotizaciones-clientes-grid">
+            <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Muestras Hist&oacute;ricas</span><strong class="kpi-valor" id="kpiMuestrasHistoricoValor">&mdash;</strong><span class="kpi-subtitulo" id="kpiMuestrasHistoricoFolios">Hist&oacute;rico desde 01/01/2022</span></div></article>
+            <button class="kpi-card cotizacion-kpi" id="kpiMuestrasMes" type="button" aria-controls="muestrasModal" aria-haspopup="dialog"><span class="kpi-info"><span class="kpi-label">Muestras del Mes</span><strong class="kpi-valor" id="kpiMuestrasMesValor">&mdash;</strong><span class="kpi-subtitulo" id="kpiMuestrasMesFolios">Per&iacute;odo seleccionado</span><span class="muestras-valor-comercial"><span class="kpi-subtitulo">Valor comercial equivalente</span><strong id="kpiMuestrasMesValorComercial">&mdash;</strong></span></span></button>
+          </div>
+          <article class="grafico-card muestras-composicion"><h3 class="grafico-titulo">Composici&oacute;n Hist&oacute;rica por L&iacute;nea</h3><p class="cartera-subtitulo">Desde 01/01/2022 hasta el &uacute;ltimo dato disponible.</p><div class="muestras-tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Clasificaci&oacute;n</th><th class="numero">Monto</th><th class="numero">Participaci&oacute;n</th></tr></thead><tbody id="muestrasHistoricoBody"></tbody><tfoot id="muestrasHistoricoFoot"></tfoot></table></div></article>
+          <article class="grafico-card muestras-top"><h3 class="grafico-titulo">Top 10 productos de muestras</h3><p class="cartera-subtitulo" id="muestrasTopPeriodo">Productos con mayor monto solicitado desde 01/01/2022.</p><div class="muestras-tabla-wrapper"><table class="dash-tabla"><thead><tr><th class="numero">#</th><th>C&oacute;digo</th><th>Producto</th><th class="numero">Monto</th><th class="numero">Participaci&oacute;n</th></tr></thead><tbody id="muestrasTopBody"></tbody></table></div></article>
+        </section>
+
         <section class="clientes-nuevos-seccion" aria-labelledby="clientesNuevosTitulo">
           <article class="clientes-nuevos-panel" id="clientesNuevosPanel" aria-labelledby="clientesNuevosTitulo">
             <div class="clientes-nuevos-header"><div><h3 class="grafico-titulo" id="clientesNuevosTitulo">Clientes Nuevos</h3><p id="clientesNuevosPeriodo">Comparativo de a&ntilde;os calendario</p></div><label class="clientes-nuevos-filtro"><span>C&oacute;digo</span><select class="filtro-select" id="clientesNuevosCodigo" aria-label="C&oacute;digo vendedor para clientes nuevos"><option value="">Todos los c&oacute;digos</option></select></label></div>
@@ -100,6 +110,13 @@
   </div>
 
   <div class="carga-overlay" id="gerenciaLoadingOverlay" aria-hidden="true" aria-live="polite"><div class="carga-ring"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="carga-track" cx="36" cy="36" r="27"/><circle class="carga-arc" cx="36" cy="36" r="27"/></svg><div class="carga-dot"></div></div><span class="carga-texto" data-loading-text>Cargando datos...</span></div>
+  <div class="modal-overlay" id="muestrasModal" aria-hidden="true">
+    <section class="modal cotizaciones-modal" role="dialog" aria-modal="true" aria-labelledby="muestrasModalTitulo" aria-describedby="muestrasModalSubtitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="muestrasModalTitulo">Detalle de Muestras del Mes</h2><span class="modal-subtitulo" id="muestrasModalSubtitulo"></span></div><button class="modal-cerrar" id="muestrasModalCerrar" type="button" aria-label="Cerrar detalle de muestras">&times;</button></header>
+      <div class="modal-body"><div class="cotizaciones-estado" id="muestrasModalEstado" role="status" aria-live="polite"></div><div class="muestras-tabla-wrapper"><table class="modal-tabla"><thead><tr><th>Folio</th><th>Fecha</th><th>Producto</th><th class="numero">Cantidad</th><th class="numero">Total</th><th>L&iacute;nea</th></tr></thead><tbody id="muestrasModalBody"></tbody></table></div></div>
+      <footer class="modal-footer cotizaciones-modal-footer"><span class="modal-total-label">Folios: <strong id="muestrasModalFolios">0</strong></span><span class="modal-total-label">TOTAL</span><strong class="modal-total-valor" id="muestrasModalMonto">&mdash;</strong><span class="muestras-modal-comercial modal-total-label">Valor comercial equivalente: <strong id="muestrasModalValorComercial">&mdash;</strong></span></footer>
+    </section>
+  </div>
   <div class="modal-overlay" id="cotizacionesModal" aria-hidden="true">
     <section class="modal cotizaciones-modal" role="dialog" aria-modal="true" aria-labelledby="cotizacionesModalTitulo">
       <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="cotizacionesModalTitulo">Cotizaciones</h2><span class="modal-subtitulo" id="cotizacionesModalSubtitulo"></span></div><button class="modal-cerrar" id="cotizacionesModalCerrar" type="button" aria-label="Cerrar detalle">&times;</button></header>

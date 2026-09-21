@@ -804,6 +804,221 @@ final class RrhhService
         return ['ok' => true, 'message' => 'Reporte rechazado correctamente'];
     }
 
+    private function rangoControlCompartidas(array $query): array
+    {
+        $parse = static function (mixed $value, string $label): string {
+            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value)) {
+                throw new RuntimeException("Fecha $label invalida", 400);
+            }
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+            if (!$date || $date->format('Y-m-d') !== $value) {
+                throw new RuntimeException("Fecha $label invalida", 400);
+            }
+            return $value;
+        };
+        $desde = $parse($query['desde'] ?? null, 'desde');
+        $hasta = $parse($query['hasta'] ?? null, 'hasta');
+        if ($desde > $hasta) throw new RuntimeException('Rango de fechas invalido', 400);
+        return [$desde, $hasta, (new DateTimeImmutable($hasta))->modify('+1 day')->format('Y-m-d')];
+    }
+
+    private function catalogoControlCompartidas(): array
+    {
+        $vendedores = $this->db->fetchAll(
+            "SELECT u.id AS usuarioId, COALESCE(NULLIF(TRIM(u.nombre), ''), MIN(TRIM(uv.cod_vendedor))) AS vendedor,
+                    MIN(TRIM(uv.cod_vendedor)) AS codigoPrincipal
+             FROM usuario u
+             INNER JOIN usuario_vendedor uv ON uv.usuario_id = u.id
+             WHERE u.is_active = 1 AND UPPER(TRIM(COALESCE(uv.tipo, ''))) <> 'C'
+             GROUP BY u.id, u.nombre ORDER BY vendedor ASC"
+        );
+        $compartidos = $this->db->fetchAll(
+            "SELECT DISTINCT uv.usuario_id AS usuarioId, TRIM(uv.cod_vendedor) AS codigo,
+                    COALESCE(NULLIF(TRIM(u.nombre), ''), TRIM(uv.cod_vendedor)) AS vendedor
+             FROM usuario_vendedor uv
+             INNER JOIN usuario u ON u.id = uv.usuario_id AND u.is_active = 1
+             WHERE UPPER(TRIM(COALESCE(uv.tipo, ''))) = 'C'
+               AND uv.cod_vendedor IS NOT NULL AND TRIM(uv.cod_vendedor) <> ''"
+        );
+        return ['vendedores' => array_map(static fn(array $row): array => [
+            'usuarioId' => (int)$row['usuarioId'],
+            'vendedor' => trim((string)$row['vendedor']),
+            'codigoPrincipal' => trim((string)$row['codigoPrincipal']),
+        ], $vendedores), 'compartidos' => array_map(static fn(array $row): array => [
+            'usuarioId' => (int)$row['usuarioId'],
+            'codigo' => trim((string)$row['codigo']),
+            'vendedor' => trim((string)$row['vendedor']),
+        ], $compartidos)];
+    }
+
+    public function controlVentasCompartidas(array $payload, array $query): array
+    {
+        $this->assertRrhh($payload);
+        [$desde, $hasta, $fin] = $this->rangoControlCompartidas($query);
+        $estadoFiltro = strtoupper(trim((string)($query['estado'] ?? 'TODOS')));
+        if (!in_array($estadoFiltro, ['TODOS', 'ASIGNADA', 'ASIGNADAS', 'NO ASIGNADA', 'NO ASIGNADAS'], true)) {
+            throw new RuntimeException('Estado no valido', 400);
+        }
+        $vendedorId = isset($query['vendedorId']) && $query['vendedorId'] !== '' ? $this->parseId($query['vendedorId'], 'Vendedor') : null;
+        $catalogo = $this->catalogoControlCompartidas();
+        $codigos = array_values(array_filter(array_map(static function (array $row) use ($vendedorId): string {
+            return $vendedorId === null || $row['usuarioId'] === $vendedorId ? $row['codigo'] : '';
+        }, $catalogo['compartidos'])));
+        if (!$codigos) {
+            return ['ok' => true, 'filtros' => compact('vendedorId', 'estadoFiltro', 'desde', 'hasta'),
+                'vendedores' => $catalogo['vendedores'], 'resumen' => $this->resumenControlCompartidas([]),
+                'estado' => ['asignadas' => 0, 'noAsignadas' => 0], 'items' => []];
+        }
+
+        $owners = [];
+        foreach ($catalogo['compartidos'] as $row) $owners[mb_strtoupper($row['codigo'])] = $row;
+        $placeholders = implode(',', array_fill(0, count($codigos), '?'));
+        $stmt = $this->db->softland()->prepare(
+            "SELECT H.Tipo AS tipo, CONVERT(varchar(50), H.Folio) AS folio, CONVERT(varchar(10), H.Fecha, 23) AS fecha,
+                    LTRIM(RTRIM(H.CodVendedor)) AS codigoCompartido,
+                    COALESCE(NULLIF(LTRIM(RTRIM(V.VenDes)), ''), LTRIM(RTRIM(H.CodVendedor))) AS vendedorCompartido,
+                    COALESCE(NULLIF(LTRIM(RTRIM(C.NomAux)), ''), NULLIF(LTRIM(RTRIM(H.CodAux)), ''), 'SIN CLIENTE') AS cliente,
+                    CONVERT(decimal(38,2), SUM(CASE
+                        WHEN H.Tipo = 'N' THEN -ABS(COALESCE(M.TotLinea, 0))
+                        WHEN H.Tipo IN ('F','D') THEN ABS(COALESCE(M.TotLinea, 0))
+                        ELSE 0 END)) AS ventaFolio
+             FROM [PRODIN].[softland].[iw_gsaen] H
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] M ON M.Tipo = H.Tipo AND M.NroInt = H.NroInt
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] C ON C.CodAux = H.CodAux
+             LEFT JOIN [PRODIN].[softland].[cwtvend] V ON V.VenCod = H.CodVendedor
+             WHERE H.Tipo IN ('F','N','D') AND H.Estado <> 'A' AND H.Fecha >= ? AND H.Fecha < ?
+               AND LTRIM(RTRIM(H.CodVendedor)) IN ($placeholders)
+             GROUP BY H.Tipo, H.Folio, H.Fecha, H.CodVendedor, H.CodAux, C.NomAux, V.VenDes"
+        );
+        $stmt->execute(array_merge([$desde, $fin], $codigos));
+        $folios = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $asignaciones = $this->db->fetchAll(
+            "SELECT id, CAST(folio AS CHAR) AS folio, DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha,
+                    TRIM(cod_vendedor_principal) AS codigoCompartido,
+                    TRIM(cod_vendedor_compartido) AS codigoAsignado,
+                    COALESCE(NULLIF(TRIM(nombre_vendedor_compartido), ''), TRIM(cod_vendedor_compartido)) AS vendedorAsignado,
+                    porcentaje, monto_asignado
+             FROM factura_compartida
+             WHERE rol = 'compartido' AND fecha >= ? AND fecha < ?
+               AND TRIM(cod_vendedor_principal) IN ($placeholders)
+             ORDER BY id ASC",
+            array_merge([$desde, $fin], $codigos)
+        );
+        $porFolio = [];
+        foreach ($asignaciones as $row) {
+            $key = mb_strtoupper(trim((string)$row['codigoCompartido'])) . '|' . trim((string)$row['folio']) . '|' . trim((string)$row['fecha']);
+            $porFolio[$key][] = [
+                'id' => (int)$row['id'], 'codigo' => trim((string)$row['codigoAsignado']),
+                'vendedor' => trim((string)$row['vendedorAsignado']),
+                'porcentaje' => (float)$row['porcentaje'], 'monto' => (float)$row['monto_asignado'],
+            ];
+        }
+
+        $items = [];
+        foreach ($folios as $row) {
+            $codigo = trim((string)$row['codigoCompartido']);
+            $folio = trim((string)$row['folio']);
+            $fecha = (string)$row['fecha'];
+            $rows = $porFolio[mb_strtoupper($codigo) . '|' . $folio . '|' . $fecha] ?? [];
+            $porcentaje = array_sum(array_column($rows, 'porcentaje'));
+            $montoAsignado = array_sum(array_column($rows, 'monto'));
+            $estado = $rows ? 'ASIGNADA' : 'NO ASIGNADA';
+            $owner = $owners[mb_strtoupper($codigo)] ?? null;
+            $venta = (float)$row['ventaFolio'];
+            $items[] = [
+                'id' => $row['tipo'] . '|' . $codigo . '|' . $folio . '|' . $fecha,
+                'tipo' => (string)$row['tipo'], 'folio' => $folio,
+                'fecha' => $fecha, 'cliente' => trim((string)$row['cliente']),
+                'codigoCompartido' => $codigo,
+                'vendedorCompartido' => $owner['vendedor'] ?? trim((string)$row['vendedorCompartido']),
+                'vendedorId' => $owner['usuarioId'] ?? null, 'ventaFolio' => $venta,
+                'estado' => $estado, 'porcentaje' => $porcentaje, 'montoAsignado' => $montoAsignado,
+                'montoNoAsignado' => $rows ? 0 : $venta,
+                'asignaciones' => $rows,
+            ];
+        }
+        $normalizarEstado = ['ASIGNADAS' => 'ASIGNADA', 'NO ASIGNADAS' => 'NO ASIGNADA'];
+        $estadoFiltro = $normalizarEstado[$estadoFiltro] ?? $estadoFiltro;
+        if ($estadoFiltro !== 'TODOS') $items = array_values(array_filter($items, static fn(array $row): bool => $row['estado'] === $estadoFiltro));
+        usort($items, static fn(array $a, array $b): int => strcasecmp($a['vendedorCompartido'], $b['vendedorCompartido'])
+            ?: strnatcasecmp($a['folio'], $b['folio']) ?: strcmp($a['fecha'], $b['fecha']) ?: strcmp($a['tipo'], $b['tipo']));
+        $resumen = $this->resumenControlCompartidas($items);
+        return ['ok' => true, 'filtros' => compact('vendedorId', 'estadoFiltro', 'desde', 'hasta'),
+            'vendedores' => $catalogo['vendedores'], 'resumen' => $resumen,
+            'estado' => ['asignadas' => $resumen['foliosAsignados'], 'noAsignadas' => $resumen['noAsignados']],
+            'items' => $items];
+    }
+
+    private function resumenControlCompartidas(array $items): array
+    {
+        $folios = count($items);
+        $asignados = count(array_filter($items, static fn(array $row): bool => $row['estado'] === 'ASIGNADA'));
+        return ['ventaCompartidaTotal' => array_sum(array_column($items, 'ventaFolio')), 'foliosCompartidos' => $folios,
+            'foliosAsignados' => $asignados,
+            'noAsignados' => count(array_filter($items, static fn(array $row): bool => $row['estado'] === 'NO ASIGNADA')),
+            'porcentajeAsignado' => $folios ? $asignados / $folios * 100 : 0,
+            'montoNoAsignado' => array_sum(array_column($items, 'montoNoAsignado'))];
+    }
+
+    public function detalleControlVentasCompartidas(array $payload, array $query): array
+    {
+        $this->assertRrhh($payload);
+        $folio = trim((string)($query['folio'] ?? ''));
+        $codigo = trim((string)($query['codigo'] ?? ''));
+        $tipo = strtoupper(trim((string)($query['tipo'] ?? '')));
+        $fecha = trim((string)($query['fecha'] ?? ''));
+        $fechaValida = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
+        if ($folio === '' || $codigo === '' || !in_array($tipo, ['F','N','D'], true)
+            || !$fechaValida || $fechaValida->format('Y-m-d') !== $fecha) {
+            throw new RuntimeException('Tipo, folio, codigo y fecha son requeridos', 400);
+        }
+        $fin = $fechaValida->modify('+1 day')->format('Y-m-d');
+        $stmt = $this->db->softland()->prepare(
+            "SELECT H.Tipo AS tipo, CONVERT(varchar(10), H.Fecha, 23) AS fecha,
+                    COALESCE(NULLIF(LTRIM(RTRIM(C.NomAux)), ''), NULLIF(LTRIM(RTRIM(H.CodAux)), ''), 'SIN CLIENTE') AS cliente,
+                    LTRIM(RTRIM(H.CodVendedor)) AS codigoCompartido,
+                    COALESCE(NULLIF(LTRIM(RTRIM(V.VenDes)), ''), LTRIM(RTRIM(H.CodVendedor))) AS vendedorCompartido,
+                    LTRIM(RTRIM(M.CodProd)) AS codigo, COALESCE(NULLIF(LTRIM(RTRIM(CAST(M.DetProd AS varchar(max)))), ''), P.DesProd) AS producto,
+                    M.CantFacturada AS cantidad,
+                    COALESCE(CONVERT(decimal(38,6), CASE WHEN H.Tipo = 'N' THEN -ABS(COALESCE(M.TotLinea,0)) ELSE ABS(COALESCE(M.TotLinea,0)) END)
+                        / NULLIF(ABS(CONVERT(decimal(38,6), M.CantFacturada)), 0), 0) AS precio,
+                    CONVERT(decimal(38,2), CASE WHEN H.Tipo = 'N' THEN -ABS(COALESCE(M.TotLinea,0)) ELSE ABS(COALESCE(M.TotLinea,0)) END) AS total,
+                    M.Linea AS orden
+             FROM [PRODIN].[softland].[iw_gsaen] H
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] M ON M.Tipo = H.Tipo AND M.NroInt = H.NroInt
+             LEFT JOIN [PRODIN].[softland].[cwtauxi] C ON C.CodAux = H.CodAux
+             LEFT JOIN [PRODIN].[softland].[cwtvend] V ON V.VenCod = H.CodVendedor
+             LEFT JOIN [PRODIN].[softland].[iw_tprod] P ON P.CodProd = M.CodProd
+             WHERE H.Tipo = ? AND H.Estado <> 'A' AND CONVERT(varchar(50), H.Folio) = ?
+               AND LTRIM(RTRIM(H.CodVendedor)) = ? AND H.Fecha >= ? AND H.Fecha < ? ORDER BY M.Linea ASC"
+        );
+        $stmt->execute([$tipo, $folio, $codigo, $fecha, $fin]);
+        $productos = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (!$productos) throw new RuntimeException('Folio compartido no encontrado', 404);
+        foreach ($productos as &$row) {
+            foreach (['cantidad', 'precio', 'total'] as $field) $row[$field] = (float)$row[$field];
+            unset($row['orden']);
+        }
+        unset($row);
+        $asignaciones = $this->db->fetchAll(
+            "SELECT COALESCE(NULLIF(TRIM(nombre_vendedor_compartido), ''), TRIM(cod_vendedor_compartido)) AS vendedor,
+                    TRIM(cod_vendedor_compartido) AS codigo, porcentaje, monto_asignado AS monto
+             FROM factura_compartida WHERE rol = 'compartido' AND CAST(folio AS CHAR) = ?
+               AND TRIM(cod_vendedor_principal) = ? AND DATE(fecha) = ? ORDER BY id ASC", [$folio, $codigo, $fecha]
+        );
+        foreach ($asignaciones as &$row) { $row['porcentaje'] = (float)$row['porcentaje']; $row['monto'] = (float)$row['monto']; }
+        unset($row);
+        $total = array_sum(array_column($productos, 'total'));
+        $porcentaje = array_sum(array_column($asignaciones, 'porcentaje'));
+        $monto = array_sum(array_column($asignaciones, 'monto'));
+        return ['ok' => true, 'cabecera' => ['folio' => $folio, 'tipo' => $tipo,
+            'fecha' => $productos[0]['fecha'], 'cliente' => $productos[0]['cliente'],
+            'codigoCompartido' => $codigo, 'vendedorCompartido' => $productos[0]['vendedorCompartido'], 'ventaTotal' => $total],
+            'productos' => $productos, 'asignaciones' => $asignaciones,
+            'resumen' => ['porcentajeAsignado' => $porcentaje, 'montoAsignado' => $monto]];
+    }
+
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
         if ($method === 'GET' && $path === '/confirmaciones') return $this->confirmaciones($payload, $query);
@@ -811,6 +1026,8 @@ final class RrhhService
         if ($method === 'GET' && $path === '/reportes-compartidos') return $this->reportesCompartidos($payload, $query);
         if ($method === 'GET' && preg_match('#^/reportes-compartidos/(\d+)$#', $path, $m)) return $this->reporteCompartido($payload, (int)$m[1]);
         if ($method === 'GET' && $path === '/ventas-compartidas/revision') return $this->revisionVentasCompartidas($payload, $query);
+        if ($method === 'GET' && $path === '/ventas-compartidas') return $this->controlVentasCompartidas($payload, $query);
+        if ($method === 'GET' && $path === '/ventas-compartidas/detalle') return $this->detalleControlVentasCompartidas($payload, $query);
         if ($method === 'PATCH' && preg_match('#^/reportes-compartidos/(\d+)/validar$#', $path, $m)) return $this->validarReporteCompartido($payload, (int)$m[1], $body);
         if ($method === 'PATCH' && preg_match('#^/reportes-compartidos/(\d+)/rechazar$#', $path, $m)) return $this->rechazarReporteCompartido($payload, (int)$m[1], $body);
         throw new RuntimeException('Ruta RRHH no encontrada', 404);

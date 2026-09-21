@@ -11,6 +11,8 @@
   let cargando = false;
   let secuencia = 0;
   let secuenciaCotizaciones = 0;
+  let secuenciaMuestras = 0;
+  let muestrasDisponibles = false;
   let secuenciaClientesNuevos = 0;
   let cargandoCotizaciones = false;
   let guiasPendientesModal = null;
@@ -100,6 +102,14 @@
   }
 
   function limpiarResultados(mensaje) {
+    muestrasDisponibles = false;
+    cerrarMuestras(false);
+    ['muestrasHistoricoBody', 'muestrasHistoricoFoot', 'muestrasTopBody'].forEach(id => { $(id).innerHTML = ''; });
+    $('kpiMuestrasHistoricoValor').textContent = '\u2014';
+    $('kpiMuestrasHistoricoFolios').textContent = 'Hist\u00f3rico desde 01/01/2022';
+    $('kpiMuestrasMesValor').textContent = '\u2014';
+    $('kpiMuestrasMesValorComercial').textContent = '\u2014';
+    $('kpiMuestrasMesFolios').textContent = 'Per\u00edodo seleccionado';
     $('dashboardVendedor').hidden = true;
     mostrarEstadoVacio(mensaje);
     destruirGraficos();
@@ -454,7 +464,76 @@
     }
   }
 
+  function renderMuestras(muestras) {
+    const historico = muestras?.historico || {};
+    const mensual = muestras?.mes || {};
+    $('kpiMuestrasHistoricoValor').textContent = formatCLP(historico.monto);
+    $('kpiMuestrasHistoricoFolios').textContent = `${formatCount(historico.folios)} folios desde 01/01/2022`;
+    $('kpiMuestrasMesValor').textContent = formatCLP(mensual.monto);
+    const valorComercial = muestras?.valorComercialMes;
+    $('kpiMuestrasMesValorComercial').textContent = valorComercial != null && Number.isFinite(Number(valorComercial))
+      ? formatCLP(valorComercial) : '\u2014';
+    $('kpiMuestrasMesFolios').textContent = `${formatCount(mensual.folios)} folios en ${MESES[Number($('monthFilter').value) - 1]} ${$('yearFilter').value}`;
+    const items = muestras?.composicion?.historico || [];
+    $('muestrasHistoricoBody').innerHTML = items.length ? items.map(item => `<tr><td>${escapeHtml(item.clasificacion)}</td><td class="numero">${formatCLP(item.monto)}</td><td class="numero">${formatPct(item.participacion)}</td></tr>`).join('') : '<tr><td colspan="3" class="tabla-empty">Sin muestras.</td></tr>';
+    $('muestrasHistoricoFoot').innerHTML = `<tr><th>TOTAL</th><th class="numero">${formatCLP(historico.monto)}</th><th class="numero">${formatPct(Number(historico.monto) ? 100 : 0)}</th></tr>`;
+    const productos = muestras?.topProductosHistorico || [];
+    $('muestrasTopBody').innerHTML = productos.length ? productos.map((item, index) => `<tr><td class="numero">${index + 1}</td><td><code>${escapeHtml(item.codigoProducto)}</code></td><td>${escapeHtml(item.producto)}</td><td class="numero">${formatCLP(item.monto)}</td><td class="numero">${formatPct(item.participacion)}</td></tr>`).join('') : '<tr><td colspan="5" class="tabla-empty">Sin muestras desde 01/01/2022.</td></tr>';
+    muestrasDisponibles = true;
+  }
+
+  function cerrarMuestras(restaurarFoco = true) {
+    const modal = $('muestrasModal');
+    const abierto = modal.classList.contains('modal-overlay--visible');
+    secuenciaMuestras += 1;
+    modal.classList.remove('modal-overlay--visible');
+    modal.setAttribute('aria-hidden', 'true');
+    $('muestrasModalBody').innerHTML = '';
+    $('muestrasModalEstado').textContent = '';
+    $('muestrasModalMonto').textContent = '\u2014';
+    $('muestrasModalValorComercial').textContent = '\u2014';
+    $('muestrasModalFolios').textContent = '0';
+    if (abierto) {
+      if (!document.querySelector('.modal-overlay--visible')) document.body.style.overflow = '';
+      if (restaurarFoco) $('kpiMuestrasMes').focus();
+    }
+  }
+
+  async function abrirMuestras() {
+    if (!muestrasDisponibles || $('muestrasModal').classList.contains('modal-overlay--visible')) return;
+    const vendedorId = $('vendedorFilter').value;
+    if (!vendedorId) return;
+    cerrarMuestras(false);
+    const requestId = ++secuenciaMuestras;
+    const params = new URLSearchParams({ vendedorId, mes: $('monthFilter').value, anio: $('yearFilter').value });
+    const vendedor = $('vendedorFilter').selectedOptions[0]?.textContent?.trim() || '';
+    $('muestrasModalSubtitulo').textContent = `${vendedor} · ${MESES[Number($('monthFilter').value) - 1]} ${$('yearFilter').value}`;
+    $('muestrasModalEstado').textContent = 'Cargando detalle...';
+    $('muestrasModal').classList.add('modal-overlay--visible');
+    $('muestrasModal').setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    $('muestrasModalCerrar').focus();
+    try {
+      const data = await apiGet(`/ventas-vendedor/muestras-detalle?${params}`);
+      if (requestId !== secuenciaMuestras) return;
+      const items = data.items || [];
+      $('muestrasModalEstado').textContent = items.length ? '' : 'No existen muestras para el per\u00edodo seleccionado.';
+      const unidades = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 6 });
+      $('muestrasModalBody').innerHTML = items.map(item => {
+        const fecha = String(item.fecha || '').replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1');
+        return `<tr><td>${escapeHtml(item.folio)}</td><td>${escapeHtml(fecha)}</td><td>${escapeHtml(item.producto)}</td><td class="numero">${unidades.format(Number(item.cantidad) || 0)}</td><td class="numero">${formatCLP(item.total)}</td><td>${escapeHtml(item.linea)}</td></tr>`;
+      }).join('');
+      $('muestrasModalMonto').textContent = formatCLP(data.monto);
+      $('muestrasModalValorComercial').textContent = data.valorComercialMes != null && Number.isFinite(Number(data.valorComercialMes))
+        ? formatCLP(data.valorComercialMes) : '\u2014';
+      $('muestrasModalFolios').textContent = formatCount(data.folios);
+    } catch (error) {
+      if (requestId === secuenciaMuestras) $('muestrasModalEstado').textContent = 'No fue posible cargar el detalle de muestras.';
+    }
+  }
+
   function render(data) {
+    renderMuestras(data.muestras);
     renderKpis(data);
     renderGraficos(data);
     renderCartera(data.cartera || {});
@@ -512,6 +591,13 @@
     guiasPendientesModal.bind();
     cargarVendedores();
     $('btnActualizar')?.addEventListener('click', actualizar);
+    $('kpiMuestrasMes').addEventListener('click', abrirMuestras);
+    $('muestrasModalCerrar').addEventListener('click', () => cerrarMuestras());
+    $('muestrasModal').addEventListener('click', event => { if (event.target === $('muestrasModal')) cerrarMuestras(); });
+    $('muestrasModal').addEventListener('keydown', event => {
+      // El cierre es el unico control del dialogo: mantener el foco dentro del modal.
+      if (event.key === 'Tab') { event.preventDefault(); $('muestrasModalCerrar').focus(); }
+    });
     document.querySelectorAll('[data-cotizaciones-modo]').forEach(button => button.addEventListener('click', () => abrirCotizaciones(button.dataset.cotizacionesModo)));
     $('cotizacionesModalCerrar')?.addEventListener('click', cerrarCotizaciones);
     $('cotizacionesModal')?.addEventListener('click', event => { if (event.target === $('cotizacionesModal')) cerrarCotizaciones(); });
@@ -519,6 +605,7 @@
     $('ventasCompartidasModal')?.addEventListener('click', event => { if (event.target === $('ventasCompartidasModal')) cerrarVentasCompartidas(); });
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
+      if ($('muestrasModal').classList.contains('modal-overlay--visible')) cerrarMuestras();
       if ($('cotizacionesModal')?.classList.contains('modal-overlay--visible')) cerrarCotizaciones();
       if ($('ventasCompartidasModal')?.classList.contains('modal-overlay--visible')) cerrarVentasCompartidas();
     });

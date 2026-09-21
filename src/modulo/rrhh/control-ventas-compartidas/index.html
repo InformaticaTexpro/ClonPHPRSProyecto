@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Control de Ventas Compartidas</title>
+  <link rel="icon" type="image/jpg" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../../ventas/dashboard/dashboard.css?v=2.3.10" />
+  <link rel="stylesheet" href="control-ventas-compartidas.css?v=1.1.0" />
+</head>
+<body class="cvc-page">
+  <aside class="sidebar" id="sidebar"><div class="sidebar-header"><img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" /><span class="sidebar-brand">TEXPRO</span><button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button></div><nav class="sidebar-nav" id="sidebarNav"></nav><div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar" id="userAvatar">RH</div><div class="user-info"><span class="user-name" id="userName">RRHH</span><span class="user-area" id="userArea">RRHH</span></div></div><button class="btn-logout" id="btnLogout" title="Cerrar sesión"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg><span class="btn-logout-text">Cerrar sesión</span></button></div></aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button><h1 class="header-title">Control de Ventas Compartidas</h1></div>
+      <div class="header-right"><span class="header-date" id="headerDate"></span><span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos"><span class="hind-label">USD</span><span class="hind-valor">—</span><span class="hind-sep" aria-hidden="true">|</span><span class="hind-label">UF</span><span class="hind-valor">—</span></span><div class="notif-wrapper" id="notifWrapper"><button class="notif-btn" id="notifBtn" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-badge" id="notifBadge" style="display:none">0</span></button><div class="notif-panel" id="notifPanel" role="menu" aria-label="Panel de notificaciones"><div class="notif-panel-header"><span class="notif-panel-title">Notificaciones</span><button class="notif-leer-todo" id="notifLeerTodo" title="Marcar todas como leídas"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Marcar todo leído</button></div><ul class="notif-lista" id="notifLista" role="list"><li class="notif-empty">Sin notificaciones nuevas</li></ul></div></div></div>
+    </header>
+    <main class="main-content cvc-main">
+      <div class="cvc-content-heading"><h2>Control de Ventas Compartidas</h2><p class="cvc-subtitle">Seguimiento de folios compartidos y estado de asignación.</p></div>
+      <section class="cvc-filters" aria-label="Filtros">
+        <label>Vendedor<select id="filterVendor"><option value="">TODOS</option></select></label>
+        <label>Estado<select id="filterStatus"><option value="TODOS">TODOS</option><option value="ASIGNADA">ASIGNADAS</option><option value="NO ASIGNADA">NO ASIGNADAS</option></select></label>
+        <label>Desde<input type="date" id="filterFrom" /></label><label>Hasta<input type="date" id="filterTo" /></label>
+        <button type="button" id="refreshButton">Actualizar</button>
+      </section>
+      <section class="cvc-results" id="resultsRegion">
+        <div class="cvc-loading" id="resultsLoading" role="status"><span></span><p>Cargando ventas compartidas…</p></div>
+        <div class="cvc-kpis" id="kpiGrid"></div>
+        <section class="cvc-state-card"><div><span>Resumen del período</span><h2>Estado de Asignación</h2></div><div class="cvc-state-chart"><canvas id="stateChart" aria-label="Estado de asignación"></canvas><strong id="stateTotal">0</strong></div><div class="cvc-state-legend" id="stateLegend"></div></section>
+        <section class="cvc-table-card">
+          <header><div><span>Control operativo</span><h2>Ventas Compartidas</h2></div><label class="cvc-search"><span>Buscar</span><input id="tableSearch" type="search" placeholder="Buscar folio, cliente o vendedor..." /></label></header>
+          <p class="cvc-message" id="tableMessage" role="status"></p>
+          <div class="cvc-table-wrap"><table><thead><tr>
+            <th><button data-sort="vendedorCompartido">Vendedor / Código</button></th><th><button data-sort="folio">Folio</button></th><th>Tipo</th><th><button data-sort="fecha">Fecha</button></th><th><button data-sort="cliente">Cliente</button></th><th class="num"><button data-sort="ventaFolio">Venta Folio</button></th><th><button data-sort="estado">Estado</button></th><th>Asignado a</th><th class="num"><button data-sort="porcentaje">%</button></th><th class="num"><button data-sort="montoAsignado">Monto Asignado</button></th><th>Acción</th>
+          </tr></thead><tbody id="salesBody"></tbody></table></div>
+        </section>
+      </section>
+    </main>
+  </div>
+  <div class="cvc-modal" id="detailModal" aria-hidden="true"><div class="cvc-dialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><header><div><span>Detalle del folio</span><h2 id="detailTitle">Folio</h2></div><button type="button" id="closeDetail" aria-label="Cerrar">×</button></header><div class="cvc-modal-body" id="detailContent"></div></div></div>
+  <script src="../../../assets/js/app-sidebar.js?v=2.2.0"></script>
+  <script src="control-ventas-compartidas.js?v=1.1.0"></script>
+  <script src="../../ventas/dashboard/notificaciones-ui.js?v=2.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+  <script src="../../../assets/js/indicadores-header.js?v=1.1.0"></script>
+</body>
+</html>
