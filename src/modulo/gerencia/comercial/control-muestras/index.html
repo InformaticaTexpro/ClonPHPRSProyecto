@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Control de Muestras</title>
+  <link rel="icon" href="../../../../assets/images/Isotipo-TEXPRO.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="./control-muestras.css?v=1.2.0" />
+</head>
+<body class="control-muestras">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><img src="../../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" /><span class="sidebar-brand">TEXPRO</span><button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">☰</button></div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="user-avatar" id="userAvatar">G</div><div class="user-info"><span class="user-name" id="userName">Gerencia</span><span class="user-area" id="userArea">Comercial</span></div></div><button class="btn-logout" id="btnLogout"><span>⎋</span><span class="btn-logout-text">Cerrar sesión</span></button></div>
+  </aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header"><div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button><h1 class="header-title">Control de Muestras</h1></div><div class="header-right"><span class="header-date" id="headerDate"></span></div></header>
+    <main class="main-content control-page">
+      <div class="welcome-bar"><div class="welcome-text"><h2>Control de Muestras</h2><p>Vista consolidada de muestras para todos los vendedores.</p></div></div>
+      <form id="controlFiltros" class="control-filtros">
+        <label>Vendedor<select class="filtro-select" id="vendedorFilter" disabled><option value="">TODOS</option></select></label>
+        <label>Desde<input class="filtro-select" id="desdeFilter" type="date" required disabled /></label>
+        <label>Hasta<input class="filtro-select" id="hastaFilter" type="date" required disabled /></label>
+        <button class="btn-buscar" id="btnActualizar" type="submit" disabled>Actualizar</button>
+      </form>
+      <div id="controlMuestrasResultados" class="control-muestras-resultados is-loading" aria-busy="true">
+  <div id="controlLoading" class="control-loading" role="status" aria-live="polite" aria-label="Cargando información del Control de Muestras.">
+    <div class="control-loading-card"><img src="./loading.gif" width="64" height="64" alt="" /><strong>Cargando Control de Muestras...</strong><span>Estamos preparando la información del período seleccionado.</span></div>
+  </div>
+      <div id="controlResultadosContenido" inert>
+      <p id="controlEstado" class="control-estado" role="status" aria-live="polite"></p>
+      <p id="controlAvisos" class="control-avisos" hidden></p>
+      <section class="control-kpis" aria-label="Indicadores de muestras">
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Total de Folios</span><strong class="kpi-valor" id="kpiFolios">—</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Valor de Muestras</span><strong class="kpi-valor" id="kpiMuestras">—</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Venta Potencial PRODIN</span><strong class="kpi-valor" id="kpiPotencial">—</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Diferencia</span><strong class="kpi-valor" id="kpiDiferencia">—</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">% Diferencia</span><strong class="kpi-valor" id="kpiPorcentaje">—</strong></div></article>
+      </section>
+      <section class="control-graficos" aria-label="Evolución y distribución">
+        <article class="grafico-card"><h2 class="grafico-titulo">Evolución de Muestras</h2><p class="control-chart-estado" id="evolucionEstado"></p><div class="control-chart"><canvas id="chartEvolucion" role="img" aria-label="Evolución diaria de muestras y venta potencial"></canvas></div></article>
+        <article class="grafico-card"><h2 class="grafico-titulo">Distribución por Línea</h2><p class="control-chart-estado" id="lineasEstado"></p><div class="control-distribucion"><div class="control-donut"><canvas id="chartLineas" role="img" aria-label="Distribución del valor de muestras por línea"></canvas></div><div class="control-tabla"><table class="dash-tabla"><thead><tr><th>Línea</th><th class="numero">Monto</th><th class="numero">Participación</th></tr></thead><tbody id="lineasBody"></tbody><tfoot id="lineasFoot"></tfoot></table></div></div></article>
+      </section>
+      <section class="tabla-seccion"><div class="tabla-header"><h2 class="grafico-titulo">Detalle por Vendedor</h2></div><div class="control-tabla"><table class="dash-tabla control-vendedores"><thead><tr><th aria-sort="none"><button class="control-sort" data-sort="vendedor" type="button">Vendedor <span class="control-sort-icon" aria-hidden="true">↕</span></button></th><th class="numero" aria-sort="none"><button class="control-sort" data-sort="folios" type="button">Folios <span class="control-sort-icon" aria-hidden="true">↕</span></button></th><th class="numero" aria-sort="descending"><button class="control-sort" data-sort="valorMuestras" type="button">Valor de Muestras <span class="control-sort-icon" aria-hidden="true">↓</span></button></th><th class="numero" aria-sort="none"><button class="control-sort" data-sort="ventaPotencial" type="button">Venta Potencial PRODIN <span class="control-sort-icon" aria-hidden="true">↕</span></button></th><th class="numero" aria-sort="none"><button class="control-sort" data-sort="diferencia" type="button">Diferencia <span class="control-sort-icon" aria-hidden="true">↕</span></button></th><th class="numero" aria-sort="none"><button class="control-sort" data-sort="porcentajeDiferencia" type="button">% Diferencia <span class="control-sort-icon" aria-hidden="true">↕</span></button></th><th class="control-accion">Acción</th></tr></thead><tbody id="vendedoresBody"></tbody></table></div></section>
+      </div>
+      </div>
+    </main>
+  </div>
+  <div id="distribucionLayer" class="control-layer is-modal" hidden>
+    <section class="control-panel control-panel-distribucion" role="dialog" aria-modal="true" aria-labelledby="distribucionTitulo" aria-describedby="distribucionSubtitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="distribucionTitulo">Detalle por Línea</h2><span class="modal-subtitulo" id="distribucionSubtitulo"></span></div><button class="modal-cerrar" id="distribucionCerrar" aria-label="Cerrar distribución" type="button">×</button></header>
+      <div class="modal-body"><p id="distribucionEstado" class="control-chart-estado"></p><div class="control-donut"><canvas id="chartDistribucion" role="img" aria-label="Distribución del vendedor por línea"></canvas></div><div class="control-tabla"><table class="dash-tabla"><thead><tr><th>Línea</th><th class="numero">Monto</th><th class="numero">Participación</th></tr></thead><tbody id="distribucionBody"></tbody></table></div></div>
+    </section>
+  </div>
+  <div id="detalleLayer" class="control-layer is-modal" hidden>
+    <section class="control-panel control-panel-detalle" role="dialog" aria-modal="true" aria-labelledby="detalleTitulo" aria-describedby="detalleSubtitulo">
+      <header class="modal-header"><div class="modal-titulo-grupo"><h2 class="modal-titulo" id="detalleTitulo">Detalle de Muestras del Vendedor</h2><span class="modal-subtitulo" id="detalleSubtitulo"></span></div><button class="modal-cerrar" id="detalleCerrar" aria-label="Cerrar detalle" type="button">×</button></header>
+      <div class="modal-body"><p id="detalleEstado" role="status" aria-live="polite"></p><div class="control-tabla"><table class="modal-tabla control-detalle"><thead><tr><th>Folio</th><th>Fecha</th><th>Producto</th><th class="numero">Cantidad</th><th class="numero">Total Muestra</th><th class="numero">Total PRODIN</th><th>Categoría</th></tr></thead><tbody id="detalleBody"></tbody></table></div></div>
+      <footer class="modal-footer detalle-resumen" aria-label="Resumen del detalle">
+        <div><span>Folios</span><strong id="detalleFolios">—</strong></div>
+        <div><span>Total Muestras</span><strong id="detalleMuestras">—</strong></div>
+        <div><span>Total PRODIN</span><strong id="detallePotencial">—</strong></div>
+        <div><span>Diferencia</span><strong id="detalleDiferencia">—</strong></div>
+      </footer>
+    </section>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="../../../../assets/js/app-sidebar.js?v=1.2.1"></script>
+  <script src="./control-muestras.js?v=1.2.0"></script>
+  <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

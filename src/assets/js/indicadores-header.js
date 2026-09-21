@@ -940,7 +940,7 @@ function cargarSidebarModulos() {
 }
 
   async function cargarIndicadores() {
-    const el = document.getElementById('headerIndicadores');
+    const el = document.getElementById('globalHeaderIndicadores') || document.getElementById('headerIndicadores');
     if (!el) return;
 
     try {
@@ -977,8 +977,20 @@ function cargarSidebarModulos() {
     }
   }
 
+  function cargarFechaHeader() {
+    const el = document.getElementById('globalHeaderDate') || document.getElementById('headerDate');
+    if (!el) return;
+    el.textContent = new Date().toLocaleDateString('es-CL', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
   function init() {
     cargarSidebarModulos();
+    cargarFechaHeader();
     cargarIndicadores();
     activarAutoRefreshFiltros();
     crearCampanaAlertasGlobal();
@@ -992,6 +1004,11 @@ function cargarSidebarModulos() {
       if (event.target.closest('#btnLogout')) limpiarAlertasSesion();
     }, true);
   }
+
+  window.GICOTEXIndicadoresHeader = {
+    refresh: cargarIndicadores,
+    refreshDate: cargarFechaHeader,
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
