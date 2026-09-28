@@ -122,6 +122,54 @@
         </div>
       </section>
 
+      <section class="muestras-dashboard" aria-labelledby="muestrasDashboardTitulo">
+        <div class="tabla-header muestras-dashboard__header">
+          <div>
+            <h3 class="tabla-titulo" id="muestrasDashboardTitulo">Muestras</h3>
+            <span class="tabla-subtitulo">Resumen para todos tus c&oacute;digos de vendedor asociados.</span>
+          </div>
+          <span class="tabla-badge" id="muestrasDashboardEstado" hidden></span>
+        </div>
+        <div class="muestras-dashboard__grid">
+          <article class="kpi-card muestras-dashboard__card">
+            <div class="muestras-dashboard__icon muestras-dashboard__icon--historico" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/>
+              </svg>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Muestras Hist&oacute;ricas</span>
+              <strong class="kpi-valor" id="kpiMuestrasHistoricoValor">&mdash;</strong>
+              <span class="kpi-subtitulo" id="kpiMuestrasHistoricoFolios">0 folios desde 01/01/2022</span>
+            </div>
+          </article>
+          <article class="kpi-card muestras-dashboard__card muestras-dashboard__card--mes">
+            <div class="muestras-dashboard__icon muestras-dashboard__icon--mes" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 3h6"/><path d="M10 3v5l-5 9a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-9V3"/><path d="M8 15h8"/>
+              </svg>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Muestras del Mes</span>
+              <strong class="kpi-valor" id="kpiMuestrasMesValor">&mdash;</strong>
+              <span class="kpi-subtitulo" id="kpiMuestrasMesFolios">0 folios en el per&iacute;odo seleccionado</span>
+            </div>
+          </article>
+          <article class="kpi-card muestras-dashboard__card muestras-dashboard__card--equivalente">
+            <div class="muestras-dashboard__icon muestras-dashboard__icon--equivalente" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19h16"/><path d="M7 15l3-3 3 2 4-6"/><path d="M15 8h2v2"/>
+              </svg>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Valor Comercial Equivalente</span>
+              <strong class="kpi-valor" id="kpiMuestrasMesValorComercial">&mdash;</strong>
+              <span class="kpi-subtitulo" id="kpiMuestrasValorComercialTexto">Equivalencia comercial del per&iacute;odo seleccionado</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="grafico-seccion">
         <div class="grafico-card">
           <div class="grafico-header">
