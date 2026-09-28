@@ -7,7 +7,11 @@ final class GerenciaService
 
     private ?array $vendorRelations = null;
 
-    public function __construct(private Database $db, private AnalyticsService $analytics)
+    public function __construct(
+        private Database $db,
+        private AnalyticsService $analytics,
+        private MuestrasService $muestras
+    )
     {
     }
 
@@ -16,6 +20,8 @@ final class GerenciaService
         $this->assertGerenciaOrAdmin($payload);
 
         return match (true) {
+            $method === 'GET' && $path === '/comercial/control-muestras' => $this->controlMuestras($query, false),
+            $method === 'GET' && $path === '/comercial/control-muestras/vendedor-detalle' => $this->controlMuestras($query, true),
             $method === 'GET' && $path === '/comercial/dashboard/cliente-detalle' => $this->detalleClienteComercial($query),
             $method === 'GET' && $path === '/comercial/dashboard/producto-detalle' => $this->detalleProductoComercial($query),
             $method === 'GET' && $path === '/comercial/resumen' => $this->resumenComercial($query),
@@ -26,6 +32,7 @@ final class GerenciaService
             $method === 'GET' && $path === '/comercial/ventas-vendedor/cotizaciones' => $this->cotizacionesVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor/guias-pendientes' => $this->guiasPendientesVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor/clientes-nuevos' => $this->clientesNuevosVendedor($query),
+            $method === 'GET' && $path === '/comercial/ventas-vendedor/muestras-detalle' => $this->muestrasDetalleVendedor($query),
             $method === 'GET' && $path === '/comercial/ventas-vendedor' => $this->ventasVendedor($query),
             default => throw new RuntimeException('Ruta de gerencia no encontrada', 404),
         };
@@ -156,7 +163,45 @@ final class GerenciaService
                 || abs((float)($row['totalVentasCobrado'] ?? 0)) >= 0.000001
         ));
 
+        $dashboard['muestras'] = $this->muestras->vendedorResumen($usuarioId, $mes, $anio);
+
         return $dashboard;
+    }
+
+    private function controlMuestras(array $query, bool $detalle): array
+    {
+        $usuarioId = isset($query['vendedorId']) && $query['vendedorId'] !== ''
+            ? $this->validarVendedorPrincipal($query['vendedorId']) : null;
+        if ($detalle && $usuarioId === null) {
+            throw new RuntimeException('Debe seleccionar un vendedor valido.', 400);
+        }
+        // El catalogo ya contiene todas las relaciones de los usuarios activos.
+        // Precargar el cache de esta request evita un SELECT por vendedor.
+        $relaciones = [];
+        foreach ($this->loadVendorRelations() as $relacion) {
+            $id = (int)$relacion['usuarioId'];
+            $relaciones[$id][] = ['cod_vendedor' => $relacion['codigoAsociado'], 'tipo' => $relacion['tipo']];
+        }
+        foreach ($relaciones as $id => $rows) {
+            $this->vendorRelationsByUserId[$id] = $rows;
+        }
+        $vendedores = [];
+        foreach ($this->vendedoresPrincipales()['vendedores'] as $vendedor) {
+            if ($usuarioId !== null && $vendedor['usuarioId'] !== $usuarioId) continue;
+            $vendedor['codigos'] = $this->normalizeVendorCodes($this->getVendorCodes($vendedor['usuarioId']));
+            $vendedores[] = $vendedor;
+        }
+        require_once __DIR__ . '/ControlMuestrasService.php';
+        $service = new ControlMuestrasService($this->db, $this->muestras->precioProdinSql('P.CodProd'));
+        return $service->consultar($query, $vendedores, $usuarioId, $detalle);
+    }
+
+    private function muestrasDetalleVendedor(array $query): array
+    {
+        $usuarioId = $this->validarVendedorPrincipal($query['vendedorId'] ?? null);
+        $anio = $this->validarAnio($query['anio'] ?? null);
+        $mes = $this->validarMes($query['mes'] ?? null);
+        return $this->muestras->vendedorDetalle($usuarioId, $mes, $anio);
     }
 
     private function cotizacionesVendedor(array $query): array

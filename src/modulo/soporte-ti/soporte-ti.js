@@ -14,11 +14,14 @@
     config: null,
     dashboard: null,
     equipos: [],
+    dispositivosImpresion: [],
     actividades: [],
     mantenciones: [],
     productos: [],
     movimientos: [],
+    activosSelector: [],
     equipoActual: null,
+    dispositivoImpresionActual: null,
     actividadActual: null,
     responsables: [],
     mantencionActual: null,
@@ -365,17 +368,83 @@
     }
   }
 
+  function getInventarioModo() {
+    const modo = normalizeText(el('equipoDispositivoTipo')?.value || 'EQUIPO').toUpperCase();
+    return ['IMPRESORA', 'ETIQUETADORA'].includes(modo) ? modo : 'EQUIPO';
+  }
+
+  function isImpresionMode() {
+    return getInventarioModo() !== 'EQUIPO';
+  }
+
+  function setInventarioModo(modo) {
+    const selector = el('equipoDispositivoTipo');
+    const next = ['IMPRESORA', 'ETIQUETADORA'].includes(String(modo).toUpperCase()) ? String(modo).toUpperCase() : 'EQUIPO';
+    if (selector) selector.value = next;
+    updateInventarioModoUi();
+  }
+
+  function updateInventarioModoUi() {
+    const modo = getInventarioModo();
+    const impresion = modo !== 'EQUIPO';
+    document.querySelectorAll('[data-equipo-section]').forEach(node => {
+      node.hidden = impresion;
+    });
+    ['filtroEstadoEquipo', 'filtroTipoEquipo', 'filtroCumplimientoEquipo'].forEach(id => {
+      const group = el(id)?.closest('.field-group');
+      if (group) group.hidden = impresion;
+    });
+    const impresionSection = el('impresionSection');
+    const equiposListadoCard = el('equiposListadoCard');
+    const impresionListadoCard = el('impresionListadoCard');
+    const title = document.querySelector('.form-card .table-title');
+    const subtitle = document.querySelector('.form-card .table-subtitle');
+    const save = el('btnGuardarEquipo');
+    const nuevo = el('btnNuevoEquipo');
+    const cred = el('btnCargarCredencial');
+    if (impresionSection) impresionSection.hidden = !impresion;
+    if (equiposListadoCard) equiposListadoCard.hidden = impresion;
+    if (impresionListadoCard) impresionListadoCard.hidden = !impresion;
+    if (title) title.textContent = impresion ? `Ficha de ${modo === 'IMPRESORA' ? 'impresora' : 'etiquetadora'}` : 'Ficha del equipo';
+    if (subtitle) subtitle.textContent = impresion ? 'Modelo, conexion, responsable y mantencion.' : 'General, hardware, seguridad y credenciales.';
+    if (save) save.textContent = impresion ? `Guardar ${modo === 'IMPRESORA' ? 'impresora' : 'etiquetadora'}` : 'Guardar equipo';
+    if (nuevo) nuevo.textContent = impresion ? 'Nuevo dispositivo' : 'Nuevo equipo';
+    if (cred) cred.disabled = impresion;
+    updateImpresionConexionUi();
+  }
+
+  function updateImpresionConexionUi() {
+    const conexion = normalizeText(el('impresionConexion')?.value || '').toUpperCase();
+    const ipGroup = el('impresionIpGroup');
+    const ip = el('impresionIp');
+    const isUsb = conexion === 'USB';
+    if (ipGroup) ipGroup.hidden = isUsb;
+    if (ip && isUsb) ip.value = '';
+  }
+
   function resetFormEquipo(shouldScroll = false) {
     closeCredentialModal();
     ['equipoId', 'equipoCodigo', 'equipoTipo', 'equipoArea', 'equipoUsuario', 'equipoRol', 'equipoIp', 'equipoFechaAlta', 'equipoFechaBaja', 'equipoLicencias', 'equipoAccesosIp', 'equipoObservaciones', 'hwCpuGen', 'hwCpuDesc', 'hwRam', 'hwRamGen', 'hwTipoFisico', 'hwDiscoP', 'hwDiscoS', 'hwEstadoDisco', 'hwPlaca', 'hwRed', 'hwWifi', 'hwSO', 'hwLicencia', 'secTipoCuenta', 'secAntivirus', 'secAntivirusActivo', 'secFirewall', 'secUltimaSO', 'secEstado', 'secObservaciones', 'credDescripcion', 'credSecreto'].forEach(id => {
       const node = el(id);
       if (node) node.value = '';
     });
+    ['impresionId', 'impresionModelo', 'impresionNombre', 'impresionIp', 'impresionArea', 'impresionUsuario', 'impresionUltimaMantencion'].forEach(id => {
+      const node = el(id);
+      if (node) node.value = '';
+    });
     const estado = el('equipoEstado');
     if (estado) estado.value = 'ACTIVO';
+    const conexion = el('impresionConexion');
+    if (conexion) conexion.value = 'RED';
+    const propiedad = el('impresionPropiedad');
+    if (propiedad) propiedad.value = 'ADQUIRIDA';
+    const mantencion = el('impresionMantencion');
+    if (mantencion) mantencion.value = '';
     const badge = el('badgeEquipoEdicion');
     if (badge) badge.textContent = 'Nuevo';
     state.equipoActual = null;
+    state.dispositivoImpresionActual = null;
+    updateInventarioModoUi();
     if (shouldScroll) scrollEquipoFormIntoView();
   }
 
@@ -431,6 +500,9 @@
     const kpis = data?.kpis || {};
     setText('kpiEquiposActivos', kpis.equipos_activos ?? 0);
     setText('kpiEquiposBaja', kpis.equipos_baja ?? 0);
+    setText('kpiImpresorasActivas', kpis.impresoras_activas ?? 0);
+    setText('kpiEtiquetadorasActivas', kpis.etiquetadoras_activas ?? 0);
+    setText('kpiDispositivosTotal', kpis.dispositivos_total ?? 0);
     setText('kpiEquiposCumplen', kpis.equipos_cumplen ?? 0);
     setText('kpiEquiposFuera', kpis.equipos_fuera ?? 0);
     setText('kpiEquiposSinInfo', kpis.equipos_sin_info ?? 0);
@@ -521,6 +593,75 @@
       const node = el(id);
       if (node) node.innerHTML = options.join('');
     });
+  }
+
+  function isImpresionSelectorValue(value) {
+    return normalizeText(value).startsWith('DISPOSITIVO_IMPRESION:');
+  }
+
+  function selectorLabel(item) {
+    return normalizeText(item?.label || item?.nombre || '') || `${normalizeText(item?.origen || 'ACTIVO')}:${normalizeText(item?.id || '')}`;
+  }
+
+  function populateActivosRelacionadosSelect(id, equipoValueMode = 'id') {
+    const node = el(id);
+    if (!node) return;
+    const options = ['<option value="">Seleccione...</option>'];
+    const equipos = state.activosSelector.filter(item => item.origen === 'EQUIPO');
+    const impresion = state.activosSelector.filter(item => item.origen === 'DISPOSITIVO_IMPRESION');
+
+    if (equipos.length) {
+      options.push('<optgroup label="Equipos">');
+      equipos.forEach(item => {
+        const value = equipoValueMode === 'codigo' ? item.legacy_codigo : item.legacy_id;
+        options.push(`<option value="${escapeHtml(value)}" data-origen="EQUIPO" data-id="${escapeHtml(item.id)}">${escapeHtml(selectorLabel(item))}</option>`);
+      });
+      options.push('</optgroup>');
+    }
+
+    if (impresion.length) {
+      options.push('<optgroup label="Impresoras y etiquetadoras">');
+      impresion.forEach(item => {
+        options.push(`<option value="${escapeHtml(item.value)}" data-origen="DISPOSITIVO_IMPRESION" data-id="${escapeHtml(item.id)}">${escapeHtml(selectorLabel(item))}</option>`);
+      });
+      options.push('</optgroup>');
+    }
+
+    node.innerHTML = options.join('');
+  }
+
+  function populateBodegaProductoSelectConDispositivos(items = []) {
+    const node = el('movProducto');
+    if (!node) return;
+    const options = ['<option value="">Seleccione...</option>'];
+    if (items.length) {
+      options.push('<optgroup label="Productos de bodega">');
+      items.forEach(item => {
+        options.push(`<option value="${escapeHtml(item.id)}" data-origen="BODEGA_PRODUCTO">${escapeHtml(`${item.codigo_producto} - ${item.descripcion}`)}</option>`);
+      });
+      options.push('</optgroup>');
+    }
+    const impresion = state.activosSelector.filter(item => item.origen === 'DISPOSITIVO_IMPRESION');
+    if (impresion.length) {
+      options.push('<optgroup label="Dispositivos registrados">');
+      impresion.forEach(item => {
+        options.push(`<option value="${escapeHtml(item.value)}" data-origen="DISPOSITIVO_IMPRESION">${escapeHtml(selectorLabel(item))}</option>`);
+      });
+      options.push('</optgroup>');
+    }
+    node.innerHTML = options.join('');
+  }
+
+  async function loadActivosSelector() {
+    const payload = await fetchJson('/activos-selector');
+    state.activosSelector = Array.isArray(payload.activos) ? payload.activos : [];
+    populateActivosRelacionadosSelect('mantencionEquipo', 'codigo');
+    populateActivosRelacionadosSelect('actividadEquipo', 'id');
+    populateActivosRelacionadosSelect('movEquipo', 'id');
+    if (el('movProducto') && state.productos.length) {
+      populateBodegaProductoSelectConDispositivos(state.productos);
+    }
+    return state.activosSelector;
   }
 
   function populateMovimientoEquipoSelect(items = []) {
@@ -649,13 +790,79 @@
     setBadge('badgeEquipos', `${rows.length.toLocaleString('es-CL')} registros`);
   }
 
+  async function loadDispositivosImpresion() {
+    if (!el('tbodyImpresion')) return;
+    statusBanner('Cargando dispositivos de impresion...', 'info');
+    try {
+      const qs = new URLSearchParams({
+        search: normalizeText(el('busquedaEquipo')?.value || ''),
+        tipo: getInventarioModo(),
+        area: normalizeText(el('filtroAreaEquipo')?.value || ''),
+        usuario: normalizeText(el('filtroUsuarioEquipo')?.value || ''),
+      });
+      const payload = await fetchJson(`/dispositivos-impresion?${qs.toString()}`);
+      state.dispositivosImpresion = Array.isArray(payload.dispositivos) ? payload.dispositivos : [];
+      renderDispositivosImpresion();
+      statusBanner('');
+    } catch (error) {
+      statusBanner(error.message || 'No se pudieron cargar los dispositivos de impresion', 'error');
+    }
+  }
+
+  function renderDispositivosImpresion() {
+    const tbody = el('tbodyImpresion');
+    if (!tbody) return;
+    const rows = state.dispositivosImpresion || [];
+    tbody.innerHTML = rows.length ? rows.map(item => `
+      <tr data-id="${item.id}">
+        <td><strong>${escapeHtml(item.tipo || 'â€”')}</strong></td>
+        <td>${escapeHtml(item.modelo || 'â€”')}</td>
+        <td>${escapeHtml(item.nombre_estandar || 'â€”')}</td>
+        <td>${escapeHtml(item.tipo_conexion || 'â€”')}${item.ip ? ` / ${escapeHtml(item.ip)}` : ''}</td>
+        <td>${escapeHtml(item.area || 'â€”')}</td>
+        <td>${escapeHtml(item.usuario_responsable || 'â€”')}</td>
+        <td>${escapeHtml(item.propiedad || 'â€”')}</td>
+      <td>${escapeHtml(formatDate(item.mantencion_requerida))}${item.ultima_mantencion ? ` <span class="muted">${escapeHtml(formatDate(item.ultima_mantencion))}</span>` : ''}</td>
+        <td><div class="row-actions"><button type="button" class="btn-link" data-action="editar-impresion" data-id="${item.id}">Editar</button></div></td>
+      </tr>`).join('') : '<tr><td colspan="9" class="table-empty">Sin dispositivos de impresion</td></tr>';
+    setBadge('badgeImpresion', `${rows.length.toLocaleString('es-CL')} registros`);
+  }
+
+  function fillDispositivoImpresionForm(dispositivo, shouldScroll = true) {
+    if (!dispositivo) {
+      resetFormEquipo(shouldScroll);
+      return;
+    }
+    closeCredentialModal();
+    state.dispositivoImpresionActual = dispositivo;
+    state.equipoActual = null;
+    setInventarioModo(dispositivo.tipo || 'IMPRESORA');
+    const set = (id, value) => { const node = el(id); if (node) node.value = value ?? ''; };
+    set('impresionId', dispositivo.id);
+    set('impresionModelo', dispositivo.modelo);
+    set('impresionNombre', dispositivo.nombre_estandar);
+    set('impresionConexion', dispositivo.tipo_conexion || 'RED');
+    set('impresionIp', dispositivo.ip);
+    set('impresionArea', dispositivo.area);
+    set('impresionUsuario', dispositivo.usuario_responsable);
+    set('impresionPropiedad', dispositivo.propiedad || 'ADQUIRIDA');
+    set('impresionMantencion', toDateInput(dispositivo.mantencion_requerida));
+    set('impresionUltimaMantencion', toDateInput(dispositivo.ultima_mantencion));
+    updateImpresionConexionUi();
+    const badge = el('badgeEquipoEdicion');
+    if (badge) badge.textContent = dispositivo.nombre_estandar || 'Edicion';
+    if (shouldScroll) scrollEquipoFormIntoView();
+  }
+
   function fillEquipoForm(equipo, shouldScroll = true) {
     if (!equipo) {
       resetFormEquipo(shouldScroll);
       return;
     }
     closeCredentialModal();
+    setInventarioModo('EQUIPO');
     state.equipoActual = equipo;
+    state.dispositivoImpresionActual = null;
     const set = (id, value) => { const node = el(id); if (node) node.value = value ?? ''; };
     set('equipoId', equipo.id);
     set('equipoCodigo', equipo.codigo_equipo);
@@ -702,8 +909,58 @@
     fillEquipoForm(payload.equipo, true);
   }
 
+  async function loadDispositivoImpresionDetalle(id) {
+    const payload = await fetchJson(`/dispositivos-impresion/${id}`);
+    fillDispositivoImpresionForm(payload.dispositivo, true);
+  }
+
+  function buildDispositivoImpresionPayload() {
+    const conexion = normalizeText(el('impresionConexion')?.value || 'RED').toUpperCase();
+    return {
+      dispositivo: {
+        tipo: getInventarioModo(),
+        modelo: normalizeText(el('impresionModelo')?.value || ''),
+        nombre_estandar: normalizeText(el('impresionNombre')?.value || ''),
+        tipo_conexion: conexion,
+        ip: conexion === 'USB' ? '' : normalizeText(el('impresionIp')?.value || ''),
+        area: normalizeText(el('impresionArea')?.value || ''),
+        usuario_responsable: normalizeText(el('impresionUsuario')?.value || ''),
+        propiedad: normalizeText(el('impresionPropiedad')?.value || 'ADQUIRIDA'),
+        mantencion_requerida: normalizeText(el('impresionMantencion')?.value || ''),
+        ultima_mantencion: normalizeText(el('impresionUltimaMantencion')?.value || ''),
+        activo: 1,
+      },
+    };
+  }
+
+  async function saveDispositivoImpresion() {
+    const id = normalizeText(el('impresionId')?.value || '');
+    const payload = buildDispositivoImpresionPayload();
+    try {
+      setLoading(true);
+      const response = await fetchJson(id ? `/dispositivos-impresion/${id}` : '/dispositivos-impresion', {
+        method: id ? 'PUT' : 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (response.success !== true || !response.id) {
+        throw new Error('La API no confirmo el guardado del dispositivo de impresion');
+      }
+      fillDispositivoImpresionForm(response.dispositivo, false);
+      await loadDispositivosImpresion();
+      statusBanner(id ? 'Dispositivo actualizado correctamente' : 'Dispositivo creado correctamente', 'success');
+    } catch (error) {
+      statusBanner(error.message || 'No se pudo guardar el dispositivo de impresion', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveEquipo(ev) {
     ev.preventDefault();
+    if (isImpresionMode()) {
+      await saveDispositivoImpresion();
+      return;
+    }
     const id = normalizeText(el('equipoId')?.value || '');
     const equipo = {
       codigo_equipo: normalizeText(el('equipoCodigo')?.value || ''),
@@ -915,9 +1172,14 @@
         fecha_inicio: normalizeText(el('actividadFechaInicio')?.value || '') || null,
         fecha_cierre: normalizeText(el('actividadFechaCierre')?.value || '') || null,
         responsable_usuario_id: toNullableId(el('actividadResponsable')?.value || ''),
-        equipo_id: toNullableId(el('actividadEquipo')?.value || ''),
+        equipo_id: normalizeText(el('actividadEquipo')?.value || ''),
       }
     };
+    if (isImpresionSelectorValue(payload.actividad.equipo_id)) {
+      statusBanner('La actividad puede mostrar dispositivos de impresion, pero guardarlos requiere agregar tipo_activo/activo_id en base de datos.', 'error');
+      return;
+    }
+    payload.actividad.equipo_id = toNullableId(payload.actividad.equipo_id);
     try {
       setLoading(true);
       let response = await fetchJson(id ? `/actividades/${id}` : '/actividades', {
@@ -1090,6 +1352,10 @@
         observaciones: normalizeText(el('mantencionObs')?.value || ''),
       }
     };
+    if (isImpresionSelectorValue(payload.mantencion.equipo_id)) {
+      statusBanner('La mantencion puede mostrar dispositivos de impresion, pero guardarlos requiere agregar tipo_activo/activo_id en base de datos.', 'error');
+      return;
+    }
     try {
       setLoading(true);
       const response = await fetchJson(isEdit ? `/mantenciones/${id}` : '/mantenciones', {
@@ -1114,19 +1380,21 @@
   async function loadBodega() {
     statusBanner('Cargando bodega...', 'info');
     try {
-      const [productosPayload, movimientosPayload, equiposPayload] = await Promise.all([
+      const [productosPayload, movimientosPayload, equiposPayload, activosPayload] = await Promise.all([
         fetchJson(`/bodega/productos?search=${encodeURIComponent(normalizeText(el('busquedaProducto')?.value || ''))}`),
         fetchJson('/bodega/movimientos'),
         fetchJson('/equipos'),
+        fetchJson('/activos-selector'),
       ]);
       state.productos = Array.isArray(productosPayload.productos) ? productosPayload.productos : [];
       state.movimientos = Array.isArray(movimientosPayload.movimientos) ? movimientosPayload.movimientos : [];
       state.equipos = Array.isArray(equiposPayload.equipos) ? equiposPayload.equipos : [];
+      state.activosSelector = Array.isArray(activosPayload.activos) ? activosPayload.activos : [];
       renderProductos();
       renderMovimientos();
-      populateProductoSelect(state.productos);
+      populateBodegaProductoSelectConDispositivos(state.productos);
       populateEquipoSelects(state.equipos);
-      populateMovimientoEquipoSelect(state.equipos);
+      populateActivosRelacionadosSelect('movEquipo', 'id');
       await loadResponsables();
       statusBanner('');
     } catch (error) {
@@ -1224,15 +1492,25 @@
     ev.preventDefault();
     const payload = {
       movimiento: {
-        producto_id: toNullableId(el('movProducto')?.value || ''),
+        producto_id: normalizeText(el('movProducto')?.value || ''),
         tipo_movimiento: normalizeText(el('movTipo')?.value || ''),
         cantidad: Number(normalizeText(el('movCantidad')?.value || '0')),
         motivo: normalizeText(el('movMotivo')?.value || ''),
-        equipo_id: toNullableId(el('movEquipo')?.value || ''),
+        equipo_id: normalizeText(el('movEquipo')?.value || ''),
         actividad_id: null,
         entregado_usuario_id: toNullableId(el('movEntregadoA')?.value || ''),
       }
     };
+    if (isImpresionSelectorValue(payload.movimiento.producto_id)) {
+      statusBanner('El selector Producto puede mostrar dispositivos registrados, pero moverlos como producto requiere relacionarlos con ti_bodega_producto.', 'error');
+      return;
+    }
+    if (isImpresionSelectorValue(payload.movimiento.equipo_id)) {
+      statusBanner('Bodega puede mostrar dispositivos relacionados, pero guardarlos requiere agregar tipo_activo/activo_id en base de datos.', 'error');
+      return;
+    }
+    payload.movimiento.producto_id = toNullableId(payload.movimiento.producto_id);
+    payload.movimiento.equipo_id = toNullableId(payload.movimiento.equipo_id);
     try {
       setLoading(true);
       await fetchJson('/bodega/movimientos', {
@@ -1250,6 +1528,12 @@
 
   function hookRowClicks() {
     document.addEventListener('click', async event => {
+      const impresionBtn = event.target.closest('#tbodyImpresion [data-action="editar-impresion"][data-id]');
+      if (impresionBtn && PAGE === 'equipos') {
+        await loadDispositivoImpresionDetalle(impresionBtn.dataset.id);
+        return;
+      }
+
       const equipoBtn = event.target.closest('[data-action="editar"][data-id], [data-action="ver"][data-id]');
       if (equipoBtn && PAGE === 'equipos') {
         const id = equipoBtn.dataset.id;
@@ -1293,13 +1577,24 @@
 
   async function initEquipos() {
     const btn = el('btnActualizarEquipos');
-    if (btn) btn.addEventListener('click', loadEquipos);
+    const loadCurrentInventario = () => (isImpresionMode() ? loadDispositivosImpresion() : loadEquipos());
+    if (btn) btn.addEventListener('click', loadCurrentInventario);
     const nuevo = el('btnNuevoEquipo');
     if (nuevo) nuevo.addEventListener('click', () => resetFormEquipo(true));
     const limpiar = el('btnLimpiarEquipo');
     if (limpiar) limpiar.addEventListener('click', () => resetFormEquipo(false));
     const form = el('formEquipo');
     if (form) form.addEventListener('submit', saveEquipo);
+    const tipoDispositivo = el('equipoDispositivoTipo');
+    if (tipoDispositivo) {
+      tipoDispositivo.addEventListener('change', async () => {
+        resetFormEquipo(false);
+        updateInventarioModoUi();
+        await loadCurrentInventario();
+      });
+    }
+    const conexion = el('impresionConexion');
+    if (conexion) conexion.addEventListener('change', updateImpresionConexionUi);
     const cred = el('btnCargarCredencial');
     if (cred) cred.addEventListener('click', revealCredential);
     const modalOverlay = el('credencialModalOverlay');
@@ -1323,11 +1618,12 @@
     });
     ['busquedaEquipo', 'filtroEstadoEquipo', 'filtroAreaEquipo', 'filtroTipoEquipo', 'filtroUsuarioEquipo', 'filtroCumplimientoEquipo'].forEach(id => {
       const node = el(id);
-      if (node) node.addEventListener('change', loadEquipos);
+      if (node) node.addEventListener('change', loadCurrentInventario);
       if (node && node.tagName === 'INPUT') node.addEventListener('keyup', evt => {
-        if (evt.key === 'Enter') loadEquipos();
+        if (evt.key === 'Enter') loadCurrentInventario();
       });
     });
+    setInventarioModo('EQUIPO');
     resetFormEquipo(false);
     await loadEquipos();
   }
@@ -1354,6 +1650,7 @@
     });
     resetFormActividad();
     await Promise.all([loadActividades(), loadEquipos(), loadResponsables()]);
+    await loadActivosSelector();
   }
 
   async function initMantenciones() {
@@ -1374,6 +1671,7 @@
     }
     resetFormMantencion();
     await Promise.all([loadMantenciones(), loadEquipos()]);
+    await loadActivosSelector();
   }
 
   async function initBodega() {

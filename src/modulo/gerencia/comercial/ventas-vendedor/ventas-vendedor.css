@@ -161,6 +161,8 @@
 .vendedor-empty-line i:nth-child(4) { left: 59%; top: 40%; transform: rotate(17deg); }
 .vendedor-empty-line i:nth-child(5) { left: 77%; top: 49%; transform: rotate(-27deg); }
 
+.dash-tabla .numero,
+.modal-tabla .numero,
 .numero {
   text-align: right;
 }
@@ -546,4 +548,100 @@
   .clientes-nuevos-grid {
     grid-template-columns: 1fr;
   }
+}
+/* Estilos exclusivos de Muestras; las tablas desplazan solo su contenedor. */
+.muestras-seccion,
+.muestras-seccion .grafico-card {
+  min-width: 0;
+}
+
+.muestras-composicion,
+.muestras-top {
+  margin-top: 24px;
+}
+
+.muestras-tabla-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.muestras-seccion td:not(.numero) {
+  overflow-wrap: anywhere;
+}
+
+#kpiMuestrasMes { cursor: pointer; }
+.muestras-valor-comercial {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-gray-light, #E8EAF0);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.muestras-valor-comercial strong {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-black, #1A1D23);
+}
+
+#muestrasModal .modal-body { min-width: 0; }
+#muestrasModal .modal-footer { flex-wrap: wrap; }
+.muestras-modal-comercial { flex-basis: 100%; text-align: right; overflow-wrap: anywhere; }
+
+.muestras-seccion th:not(.numero),
+.muestras-seccion td:not(.numero),
+#muestrasModal th:not(.numero),
+#muestrasModal td:not(.numero) {
+  text-align: left;
+}
+
+#muestrasModal .modal { max-width: 1100px; }
+#muestrasModal .modal-tabla { min-width: 760px; }
+
+/* Este archivo se carga solo en Ventas por Vendedor, incluidos sus modales compartidos. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.modal-overlay.modal-overlay--visible { display: flex; }
+
+.modal-overlay > .modal {
+  /* dashboard.css tambien usa cotizaciones-modal como overlay: aqui es el panel. */
+  position: static;
+  inset: auto;
+  width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  min-width: 0;
+  overflow: hidden;
+  transform: none;
+}
+
+.modal-overlay .modal-body {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal-overlay .modal-header,
+.modal-overlay .modal-footer { flex-shrink: 0; }
+.modal-overlay .modal-titulo-grupo { min-width: 0; }
+.modal-overlay .modal-titulo,
+.modal-overlay .modal-subtitulo { overflow-wrap: anywhere; }
+.modal-overlay .modal-cerrar { flex-shrink: 0; }
+.modal-overlay .cotizaciones-tabla-wrapper { overflow-x: auto; }
+
+@media (max-width: 768px) {
+  #muestrasModal .modal-tabla th,
+  #muestrasModal .modal-tabla td { padding: 9px 8px; }
 }

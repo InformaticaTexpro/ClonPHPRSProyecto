@@ -12,6 +12,8 @@ return static function (
     $analyticsService = $services['analytics'];
     /** @var DashboardService $dashboardService */
     $dashboardService = $services['dashboard'];
+    /** @var ConcursoVentasService $concursoVentasService */
+    $concursoVentasService = $services['concurso_ventas'];
     $payload = require_auth_payload();
 
     if ($method === 'GET' && $path === '/resumen') {
@@ -56,6 +58,9 @@ return static function (
     }
     if ($method === 'GET' && $path === '/clientes-resumen') {
         json_response(['ok' => true, 'clientes' => $analyticsService->clientesResumen($payload, $query)]);
+    }
+    if ($method === 'GET' && $path === '/concurso-puntaje') {
+        json_response($concursoVentasService->puntaje($payload, $query));
     }
     if ($method === 'POST' && $path === '/compartir') {
         json_response($dashboardService->route($payload, $method, $path, $query, $body));

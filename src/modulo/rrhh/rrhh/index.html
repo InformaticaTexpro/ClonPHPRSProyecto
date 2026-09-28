@@ -43,7 +43,7 @@
         <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
-        <h1 class="header-title">RRHH</h1>
+        <div><h1 class="header-title">Dashboard RRHH</h1><p class="rhdb-subtitle">Resumen general de Recursos Humanos.</p></div>
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
@@ -80,7 +80,20 @@
       </div>
     </header>
 
-    <main class="main-content rrhh-main">
+    <main class="main-content rhdb-main">
+      <section class="rhdb-kpis" id="rhdbKpis" aria-label="Indicadores RRHH"></section>
+      <section class="rhdb-charts">
+        <article class="rhdb-panel"><header><span>Últimos 30 días</span><h2>Asistencia</h2></header><div class="rhdb-canvas"><canvas id="rhdbAttendance" aria-label="Asistencia últimos 30 días"></canvas></div></article>
+        <article class="rhdb-panel"><header><span>Dotación vigente</span><h2>Distribución por Área</h2></header><div class="rhdb-area"><div class="rhdb-donut"><canvas id="rhdbAreas" aria-label="Distribución por área"></canvas><strong id="rhdbAreaTotal">0</strong></div><div class="rhdb-legend" id="rhdbAreaLegend"></div></div></article>
+      </section>
+      <section class="rhdb-lists">
+        <article class="rhdb-panel"><header><span>Planificación</span><h2>Próximas Vacaciones</h2></header><div class="rhdb-list" id="rhdbVacations"></div></article>
+        <article class="rhdb-panel"><header><span>Celebraciones</span><h2>Cumpleaños del Mes</h2></header><div class="rhdb-list" id="rhdbBirthdays"></div></article>
+      </section>
+      <p class="rhdb-demo">Datos ficticios para visualización.</p>
+    </main>
+
+    <main class="main-content rrhh-main rrhh-legacy">
       <section class="rrhh-hero">
         <div class="rrhh-hero__content">
           <p class="rrhh-kicker">Gestión de Recursos Humanos</p>
@@ -269,7 +282,7 @@
   </div>
 
   <script src="../../../assets/js/app-sidebar.js?v=1.0.0"></script>
-  <script src="rrhh.js?v=1.2.0"></script>
+  <script src="rrhh.js?v=2.0.0"></script>
   <script src="../../ventas/dashboard/notificaciones-ui.js?v=2.0.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
   <script src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>

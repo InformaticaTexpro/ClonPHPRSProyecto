@@ -494,6 +494,27 @@
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────────────────────
+  function renderMuestrasDashboard(muestras) {
+    const params = getParams();
+    const mesNombre = MESES_NOMBRE[Number(params.mes) - 1] || 'Mes';
+    const anio = params.anio || new Date().getFullYear();
+    const historico = muestras?.historico || {};
+    const mensual = muestras?.mes || {};
+    const estado = document.getElementById('muestrasDashboardEstado');
+
+    setText('kpiMuestrasHistoricoValor', formatCLP(historico.monto || 0));
+    setText('kpiMuestrasHistoricoFolios', `${formatNumeroSeguro(historico.folios || 0, '0')} folios desde 01/01/2022`);
+    setText('kpiMuestrasMesValor', formatCLP(mensual.monto || 0));
+    setText('kpiMuestrasMesFolios', `${formatNumeroSeguro(mensual.folios || 0, '0')} folios en ${mesNombre} ${anio}`);
+    setText('kpiMuestrasMesValorComercial', formatCLP(muestras?.valorComercialMes || 0));
+    setText('kpiMuestrasValorComercialTexto', `Equivalencia comercial de ${mesNombre} ${anio}`);
+
+    if (estado) {
+      estado.hidden = !muestras?.error;
+      estado.textContent = muestras?.error || '';
+    }
+  }
+
   async function cargarResumen() {
     try {
       const res  = await fetch(`${API}/resumen?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -511,8 +532,15 @@
         fill.style.width      = `${pct}%`;
         fill.style.background = progreso >= 100 ? 'var(--color-primary)' : progreso >= 70 ? 'var(--color-accent)' : 'var(--color-danger)';
       }
+      renderMuestrasDashboard(data.muestras);
     } catch (err) {
       console.error('[cargarResumen]', err);
+      renderMuestrasDashboard({
+        error: 'No fue posible cargar muestras.',
+        historico: { monto: 0, folios: 0 },
+        mes: { monto: 0, folios: 0 },
+        valorComercialMes: 0,
+      });
       reportarFalloDashboard('No se pudo cargar el resumen del dashboard', err);
     }
   }
@@ -1442,6 +1470,22 @@
     carteraRendered[tipo] = true;
   }
 
+  async function cargarPuntajeConcurso() {
+    const card = document.getElementById('kpiConcursoCard');
+    try {
+      const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
+      const visible = data.visible === true || data.activo === true;
+      if (card) card.hidden = !visible;
+      setText('kpiConcursoPuntos', Number(data.puntos || 0).toLocaleString('es-CL'));
+    } catch (err) {
+      console.error('[cargarPuntajeConcurso]', err);
+      if (card) card.hidden = true;
+      setText('kpiConcursoPuntos', '0');
+    }
+  }
+
   function detalleRecuperado(c) {
     const diasSinComprar = Number(c.DiasSinComprar ?? c.DiasInactividadPrevia);
     if (!Number.isFinite(diasSinComprar) || diasSinComprar <= 0) return '';
@@ -1664,6 +1708,7 @@
     try {
       await Promise.all([
         cargarResumen(),
+        cargarPuntajeConcurso(),
         cargarCotizacionesDashboard(),
         cargarGuiasDespachoDashboard(),
         cargarGrafico(),

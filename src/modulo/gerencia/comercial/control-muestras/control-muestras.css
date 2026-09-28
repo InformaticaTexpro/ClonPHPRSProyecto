@@ -1,0 +1,87 @@
+.control-muestras [hidden] { display: none !important; }
+.control-page { min-width: 0; }
+.control-filtros { display: grid; grid-template-columns: minmax(240px, 2fr) 1fr 1fr auto; gap: 16px; align-items: end; margin-bottom: 16px; }
+.control-filtros label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: .8rem; font-weight: 600; }
+.control-filtros .filtro-select { width: 100%; min-width: 0; min-height: 42px; }
+.control-filtros .btn-buscar { min-height: 42px; }
+.control-estado { margin: 12px 0; color: var(--color-gray-dark, #6b7280); }
+.control-avisos { padding: 12px; background: #fff7e6; border-radius: 8px; font-size: .85rem; }
+.control-kpis { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 16px; margin-bottom: 24px; }
+.control-kpis .kpi-valor { font-size: clamp(1.15rem, 1.55vw, 1.8rem); overflow-wrap: anywhere; }
+.control-kpis .kpi-card { min-width: 0; padding: 20px 16px; }
+.control-graficos { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; margin-bottom: 24px; }
+.control-graficos > *, .control-distribucion > * { min-width: 0; }
+.control-chart { position: relative; height: 330px; }
+.control-donut { position: relative; height: 220px; min-width: 0; }
+.control-distribucion { display: grid; grid-template-columns: minmax(150px,.8fr) minmax(0,1.2fr); align-items: center; gap: 12px; }
+.control-chart-estado { color: var(--color-gray-dark,#6b7280); font-size: .8rem; margin: 10px 0; }
+.control-tabla { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.control-muestras th, .control-muestras td { text-align: left; }
+.control-muestras .numero { text-align: right; white-space: nowrap; }
+.control-vendedores { min-width: 1000px; }
+.control-detalle { min-width: 1080px; }
+.control-name { background: none; border: 0; padding: 5px 0; font: inherit; font-weight: 600; color: var(--color-black,#1a1d23); text-align: left; cursor: pointer; }
+.control-name:hover { text-decoration: underline; }
+.control-action { background: white; border: 1px solid var(--color-gray-mid,#c7cbd6); border-radius: 6px; padding: 7px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+.control-muestras button:focus-visible { outline: 3px solid #00b284; outline-offset: 3px; }
+.control-layer { position: fixed; z-index: 1100; }
+.control-layer.is-modal { inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.45); }
+.control-panel { display: flex; flex-direction: column; background: white; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.2); width: 100%; max-height: calc(100dvh - 24px); overflow: hidden; min-width: 0; }
+.control-panel-distribucion { max-width: 540px; }
+.control-panel-detalle { max-width: 1280px; }
+.control-panel .modal-body { min-height: 0; min-width: 0; overflow-y: auto; }
+.control-panel-distribucion .modal-body { padding: 0 16px 16px; }
+.control-panel .modal-titulo-grupo { min-width: 0; }
+.control-panel .modal-titulo, .control-panel .modal-subtitulo { overflow-wrap: anywhere; }
+.control-panel .modal-cerrar { flex: 0 0 40px; width: 40px; height: 40px; }
+.control-panel .modal-header, .control-panel .modal-footer { flex-shrink: 0; }
+.control-panel .modal-footer { flex-wrap: wrap; font-size: .8rem; }
+.control-panel .modal-footer span { white-space: normal; }
+#detalleEstado { padding: 0 16px; }
+@media (max-width: 1250px) {
+  .control-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .control-graficos { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .control-filtros { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .control-filtros label:first-child, .control-filtros button { grid-column: 1 / -1; }
+  .control-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .control-kpis .kpi-valor { font-size: 1.3rem; }
+  .control-panel .modal-header { padding: 14px 16px; gap: 10px; }
+  .control-panel .modal-footer { padding: 12px; }
+  .control-distribucion { grid-template-columns: 1fr; }
+  .control-muestras .header-title { font-size: 1rem; }
+}
+@media (max-width: 430px) {
+  .control-kpis { grid-template-columns: 1fr; }
+  .control-page { padding: 16px 12px; }
+  .control-page .grafico-card { padding: 16px 12px; }
+}
+
+.control-muestras .control-accion { text-align: center; }
+.control-sort { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; text-align: inherit; cursor: pointer; }
+.control-sort-icon { display: inline-block; width: 1em; margin-left: 4px; }
+.control-vendedores tr[data-usuario-id] { cursor: pointer; }
+.control-vendedores tr[data-usuario-id]:hover { background: #eefaf6; }
+.control-loading { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(245,247,250,.88); cursor: wait; }
+.control-loading-card { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 100%; padding: 28px 20px; border-radius: 16px; background: white; box-shadow: 0 12px 40px rgba(0,0,0,.12); text-align: center; }
+.control-loading-card img { width: 64px; height: 64px; flex-shrink: 0; }
+.control-loading-card strong { font-size: 1rem; }
+.control-loading-card span { font-size: .85rem; color: var(--color-gray-dark,#6b7280); }
+
+/* El overlay queda dentro de resultados; navegacion y filtros permanecen visibles. */
+.control-muestras-resultados { position: relative; min-height: 420px; isolation: isolate; }
+.control-muestras-resultados.is-loading #controlResultadosContenido { visibility: hidden; height: 420px; overflow: hidden; }
+.control-muestras-resultados .control-loading { border-radius: 12px; background: rgba(244,248,247,.82); }
+.control-panel .detalle-resumen { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; padding: 16px 20px; }
+.detalle-resumen > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; border-left: 2px solid #d9eee7; }
+.detalle-resumen span { font-size: .68rem; font-weight: 600; text-transform: uppercase; color: var(--color-gray-dark,#6b7280); }
+.detalle-resumen strong { font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
+@media (max-width: 1024px) {
+  .control-panel .detalle-resumen { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 430px) {
+  .control-panel .detalle-resumen { gap: 8px; padding: 12px; }
+  .detalle-resumen > div { padding: 4px 8px; }
+  .detalle-resumen strong { font-size: 1rem; }
+}

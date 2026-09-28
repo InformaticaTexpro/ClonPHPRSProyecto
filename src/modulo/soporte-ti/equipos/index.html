@@ -73,7 +73,35 @@
           </div>
           <form id="formEquipo" class="form-grid">
             <input type="hidden" id="equipoId" />
-            <div class="form-section">
+            <input type="hidden" id="impresionId" />
+            <div class="form-section form-section--root">
+              <h4 class="form-section-title">Tipo de dispositivo</h4>
+              <div class="form-grid form-grid--3">
+                <div class="field-group">
+                  <label for="equipoDispositivoTipo">Dispositivo</label>
+                  <select id="equipoDispositivoTipo" class="control-select">
+                    <option value="EQUIPO">Equipo</option>
+                    <option value="IMPRESORA">Impresora</option>
+                    <option value="ETIQUETADORA">Etiquetadora</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="form-section" id="impresionSection" hidden>
+              <h4 class="form-section-title">Impresion</h4>
+              <div class="form-grid form-grid--3">
+                <div class="field-group"><label for="impresionModelo">Modelo</label><input id="impresionModelo" class="control-input" /></div>
+                <div class="field-group"><label for="impresionNombre">Nombre estandar</label><input id="impresionNombre" class="control-input" /></div>
+                <div class="field-group"><label for="impresionConexion">Conexion</label><select id="impresionConexion" class="control-select"><option value="RED">Red</option><option value="USB">USB</option><option value="OTRO">Otro</option></select></div>
+                <div class="field-group" id="impresionIpGroup"><label for="impresionIp">IP</label><input id="impresionIp" class="control-input" /></div>
+                <div class="field-group"><label for="impresionArea">Area</label><input id="impresionArea" class="control-input" /></div>
+                <div class="field-group"><label for="impresionUsuario">Usuario responsable</label><input id="impresionUsuario" class="control-input" /></div>
+                <div class="field-group"><label for="impresionPropiedad">Propiedad</label><select id="impresionPropiedad" class="control-select"><option value="ADQUIRIDA">Adquirida</option><option value="ARRENDADA">Arrendada</option></select></div>
+                <div class="field-group"><label for="impresionMantencion">Mantencion requerida</label><input id="impresionMantencion" type="date" class="control-input" /></div>
+                <div class="field-group"><label for="impresionUltimaMantencion">Ultima mantencion</label><input id="impresionUltimaMantencion" type="date" class="control-input" /></div>
+              </div>
+            </div>
+            <div class="form-section" data-equipo-section>
               <h4 class="form-section-title">General</h4>
               <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="equipoCodigo">Código</label><input id="equipoCodigo" class="control-input" /></div>
@@ -90,7 +118,7 @@
                 <div class="field-group"><label for="equipoObservaciones">Observaciones</label><textarea id="equipoObservaciones" class="control-textarea"></textarea></div>
               </div>
             </div>
-            <div class="form-section">
+            <div class="form-section" data-equipo-section>
               <h4 class="form-section-title">Hardware</h4>
               <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="hwCpuGen">Generación procesador</label><input id="hwCpuGen" class="control-input" /></div>
@@ -108,7 +136,7 @@
                 <div class="field-group"><label for="hwLicencia">Licencia SO</label><input id="hwLicencia" class="control-input" /></div>
               </div>
             </div>
-            <div class="form-section">
+            <div class="form-section" data-equipo-section>
               <h4 class="form-section-title">Seguridad</h4>
               <div class="form-grid form-grid--3">
                 <div class="field-group"><label for="secTipoCuenta">Tipo cuenta</label><input id="secTipoCuenta" class="control-input" /></div>
@@ -120,7 +148,7 @@
                 <div class="field-group"><label for="secObservaciones">Observaciones</label><textarea id="secObservaciones" class="control-textarea"></textarea></div>
               </div>
             </div>
-            <div class="form-section">
+            <div class="form-section" data-equipo-section>
               <h4 class="form-section-title">Credencial restringida</h4>
               <div class="form-grid form-grid--2">
                 <div class="field-group"><label for="credDescripcion">Descripción</label><input id="credDescripcion" class="control-input" placeholder="Ej: cuenta local / admin" /></div>
@@ -137,7 +165,7 @@
           </form>
         </article>
 
-        <article class="table-card">
+        <article class="table-card" id="equiposListadoCard">
           <div class="table-head">
             <div>
               <h3 class="table-title">Listado de equipos</h3>
@@ -149,6 +177,22 @@
             <table class="data-table">
               <thead><tr><th>Código</th><th>Tipo</th><th>Área</th><th>Usuario</th><th>IP</th><th>Estado</th><th>Estándar</th><th>Acciones</th></tr></thead>
               <tbody id="tbodyEquipos"><tr><td colspan="8" class="table-empty">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="table-card" id="impresionListadoCard" hidden>
+          <div class="table-head">
+            <div>
+              <h3 class="table-title">Listado de dispositivos de impresion</h3>
+              <p class="table-subtitle">Selecciona una impresora o etiquetadora para editar su ficha.</p>
+            </div>
+            <span class="badge badge--info" id="badgeImpresion">0 registros</span>
+          </div>
+          <div class="table-wrap table-wrap--tall">
+            <table class="data-table">
+              <thead><tr><th>Tipo</th><th>Modelo</th><th>Nombre</th><th>Conexion</th><th>Area</th><th>Responsable</th><th>Propiedad</th><th>Mantencion</th><th>Acciones</th></tr></thead>
+              <tbody id="tbodyImpresion"><tr><td colspan="9" class="table-empty">Cargando...</td></tr></tbody>
             </table>
           </div>
         </article>
