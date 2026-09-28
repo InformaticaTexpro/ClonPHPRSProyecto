@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/ConcursoReglasMeta.php';
 
 final class AnalyticsService
 {
@@ -9,6 +10,72 @@ final class AnalyticsService
 
     public function __construct(private Database $db)
     {
+    }
+
+    /** Lectura en bloque para Administración; reutiliza la hidratación comercial compartida. */
+    public function concursoPromediosFuente(string $desdePeriodo, string $hastaPeriodo, bool $productos = false): array
+    {
+        if (!preg_match('/^2026-(0[1-9]|1[0-2])$/', $desdePeriodo) || !preg_match('/^2026-(0[1-9]|1[0-2])$/', $hastaPeriodo)) {
+            throw new RuntimeException('Solo se permiten períodos correspondientes al año 2026.', 400);
+        }
+        if ($desdePeriodo > $hastaPeriodo) throw new RuntimeException('El período Hasta no puede ser anterior al período Desde.', 400);
+        $relations = $this->db->fetchAll(
+            'SELECT u.id AS usuarioId, u.codigo AS codigoPrincipal, u.nombre AS vendedor,
+                    uv.cod_vendedor AS codigoAsociado, uv.tipo
+             FROM usuario u INNER JOIN usuario_vendedor uv ON uv.usuario_id = u.id
+             WHERE u.is_active = 1 ORDER BY u.nombre, u.id, uv.cod_vendedor'
+        );
+        $catalog = $this->fetchCategoriaCatalogo();
+        $codes = array_column($relations, 'codigoAsociado');
+        $assignments = [];
+        foreach (range((int)substr($desdePeriodo, 5), (int)substr($hastaPeriodo, 5)) as $month) {
+            foreach ($this->fetchSharedAssignments($codes, $month, 2026) as $assignment) {
+                $assignment['mes'] = $month;
+                $assignment['origenClave'] = $this->sharedCodeKey($assignment['codVendedorOrigen']);
+                $assignment['destinoClave'] = $this->sharedCodeKey($assignment['codVendedorDestino']);
+                $assignment['documentoClave'] = $month . '|' . $assignment['origenClave'] . '|' . $this->sharedFolioKey($assignment['folio']);
+                $assignments[] = $assignment;
+            }
+        }
+        foreach ($relations as &$relation) {
+            $relation['claveCompartida'] = $this->sharedCodeKey($relation['codigoAsociado']);
+        }
+        unset($relation);
+        $desde = (new DateTimeImmutable($desdePeriodo . '-01'))->format('Ymd');
+        $hasta = (new DateTimeImmutable($hastaPeriodo . '-01'))->modify('+1 month')->format('Ymd');
+        $amount = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
+        $productSelect = $productos ? ', RTRIM(m.CodProd) AS codigoProducto, MAX(CONVERT(varchar(250), t.DesProd)) AS producto, SUM(m.CantFacturada) AS cantidad' : '';
+        $productGroup = $productos ? ', m.CodProd' : '';
+        $stmt = $this->softland()->prepare(
+            "SELECT h.NroInt AS documentoId, h.Tipo AS tipo, h.Folio AS folio,
+                    CONVERT(varchar(10), h.Fecha, 120) AS fecha,
+                    RTRIM(h.CodAux) AS clienteCodigo, MAX(CONVERT(varchar(250), h.NomAux)) AS cliente,
+                    RTRIM(h.CodVendedor) AS codigoVendedor,
+                    LTRIM(RTRIM(COALESCE(t.CtaVentas, ''))) AS cuentaCategoria,
+                    SUM(CONVERT(decimal(38,6), $amount)) AS original $productSelect
+             FROM [PRODIN].[softland].[iw_gsaen] h
+             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+             WHERE h.Fecha >= ? AND h.Fecha < ? AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
+             GROUP BY h.NroInt, h.Tipo, h.Folio, h.Fecha, h.CodAux, h.CodVendedor, t.CtaVentas $productGroup
+             ORDER BY h.Fecha, h.NroInt, h.Tipo, t.CtaVentas $productGroup"
+        );
+        $stmt->execute([$desde, $hasta]);
+        $rows = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $row['mes'] = (int)substr($row['fecha'], 5, 2);
+            $row['documentoClave'] = $row['mes'] . '|' . $this->sharedCodeKey($row['codigoVendedor']) . '|' . $this->sharedFolioKey($row['folio']);
+            if (!$productos) {
+                $rows[] = $row;
+                continue;
+            }
+            // Conserva el nivel de agregación y redondeo del cálculo principal.
+            $groupKey = json_encode([$row['documentoId'], $row['tipo'], $row['fecha'], $row['codigoVendedor'], $row['cuentaCategoria']]);
+            if (!isset($rows[$groupKey])) $rows[$groupKey] = array_merge($row, ['original' => 0.0, 'productos' => []]);
+            $rows[$groupKey]['original'] += (float)$row['original'];
+            $rows[$groupKey]['productos'][] = ['codigoProducto' => $row['codigoProducto'], 'producto' => $row['producto'], 'cantidad' => (float)$row['cantidad'], 'original' => (float)$row['original']];
+        }
+        return ['relaciones' => $relations, 'catalogo' => $catalog['mapa'], 'asignaciones' => $assignments, 'ventas' => $rows];
     }
 
     public function dashboardForUser(int $userId, array $query): array
@@ -205,6 +272,164 @@ final class AnalyticsService
             'codigos' => $codes,
             'anios' => array_values($years),
         ];
+    }
+
+    /** Concurso exclusivamente: criterio del calendario + venta neta atribuida por cliente. */
+    public function concursoClientes(array $relations, int $mes, ?int $detailUser = null, ?string $clientCode = null, bool $includeFolios = false): array
+    {
+        if ($mes < 1 || $mes > 12) throw new RuntimeException('Mes inválido.', 400);
+        $parameters = ConcursoReglasMeta::load();
+        $newRules = $parameters['clientesNuevos'];
+        $recoveredRules = $parameters['clientesRecuperados'];
+        $desde = sprintf('2026-%02d-01', $mes);
+        $hasta = (new DateTimeImmutable($desde))->modify('+1 month')->format('Y-m-d');
+        $owners = $types = $summary = [];
+        foreach ($relations as $relation) {
+            $id = (int)$relation['usuarioId'];
+            $code = $this->sharedCodeKey($relation['codigoAsociado']);
+            $owners[$code][$id] = true;
+            $types[$id][$code] = $relation['tipo'];
+            $summary[$id] = ['clientesNuevos' => 0, 'puntosNuevos' => 0, 'clientesRecuperados' => 0, 'puntosRecuperados' => 0];
+        }
+        if (!$owners) return ['resumen' => [], 'clientes' => []];
+        // Candidatos en bloque; histórico corporativo F/D/N, igual a PrimeraCompra del calendario.
+        $candidateSql = "SELECT DISTINCT CodAux FROM [PRODIN].[softland].[iw_gsaen]
+            WHERE Tipo IN ('F','N','D') AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
+        $filterClient = $clientCode === null ? '' : ' AND LTRIM(RTRIM(h.CodAux)) = ?';
+        $params = [$desde, $hasta, $hasta];
+        if ($clientCode !== null) $params[] = $clientCode;
+        $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
+            SELECT LTRIM(RTRIM(h.CodAux)) AS clienteCodigo, MIN(CONVERT(varchar(10), h.Fecha, 23)) AS primera,
+                MAX(RTRIM(COALESCE(cli.NomAux, h.NomAux, h.CodAux))) AS cliente
+            FROM [PRODIN].[softland].[iw_gsaen] h INNER JOIN Candidatos c ON c.CodAux = h.CodAux
+            LEFT JOIN [PRODIN].[softland].[cwtauxi] cli ON cli.CodAux = h.CodAux
+            WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A' AND h.Fecha < ? $filterClient
+            GROUP BY LTRIM(RTRIM(h.CodAux))");
+        $stmt->execute($params);
+        $clients = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $clients[$row['clienteCodigo']] = $row;
+        if (!$clients) return ['resumen' => $summary, 'clientes' => []];
+        $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
+            SELECT DISTINCT LTRIM(RTRIM(a.CodAux)) AS clienteCodigo, LTRIM(RTRIM(a.VenCod)) AS vendedor
+            FROM [PRODIN].[softland].[cwtauxven] a INNER JOIN Candidatos c ON c.CodAux = a.CodAux");
+        $stmt->execute([$desde, $hasta]);
+        $assigned = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            foreach ($owners[$this->sharedCodeKey($row['vendedor'])] ?? [] as $id => $_) $assigned[$id][$row['clienteCodigo']] = true;
+        }
+        // Histórico de compartidas en una consulta; mismos porcentajes acotados que fetchSharedAssignments.
+        $shared = [];
+        foreach ($this->db->fetchAll("SELECT folio, fecha, porcentaje, cod_vendedor_principal AS origen,
+            cod_vendedor_compartido AS destino FROM factura_compartida WHERE rol = 'compartido' AND fecha < ?", [$hasta]) as $row) {
+            $key = substr((string)$row['fecha'], 0, 7) . '|' . $this->sharedCodeKey($row['origen']) . '|' . $this->sharedFolioKey($row['folio']);
+            $shared[$key][] = $row;
+        }
+        $detailCodes = [];
+        if ($detailUser !== null) {
+            foreach ($relations as $relation) if ((int)$relation['usuarioId'] === $detailUser) $detailCodes[] = $relation['codigoAsociado'];
+            foreach ($shared as $shares) foreach ($shares as $share) {
+                if (isset($owners[$this->sharedCodeKey($share['destino'])][$detailUser])) $detailCodes[] = $share['origen'];
+            }
+            $detailCodes = $this->normalizeVendorCodes($detailCodes);
+        }
+        $filterVendor = $detailCodes ? ' AND LTRIM(RTRIM(h.CodVendedor)) IN (' . implode(',', array_fill(0, count($detailCodes), '?')) . ')' : '';
+        $expression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
+        // El histórico solo necesita fechas de compras positivas: no sumar todas sus líneas.
+        // EXISTS conserva exactamente los mismos productos/documentos comerciales válidos.
+        $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
+            SELECT LTRIM(RTRIM(h.CodAux)) AS clienteCodigo, LTRIM(RTRIM(h.CodVendedor)) AS codigoVendedor,
+                h.NroInt, h.Tipo AS tipo, h.Folio AS folio, CONVERT(varchar(10), h.Fecha, 23) AS fecha,
+                SUM($expression) AS original
+            FROM [PRODIN].[softland].[iw_gsaen] h
+            INNER JOIN Candidatos c ON c.CodAux = h.CodAux
+            INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
+            INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+            WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A' AND h.Fecha >= ? AND h.Fecha < ? $filterClient $filterVendor
+            GROUP BY h.CodAux, h.CodVendedor, h.NroInt, h.Tipo, h.Folio, CONVERT(varchar(10), h.Fecha, 23)
+            UNION ALL
+            SELECT LTRIM(RTRIM(h.CodAux)), LTRIM(RTRIM(h.CodVendedor)), h.NroInt, h.Tipo, h.Folio,
+                CONVERT(varchar(10), h.Fecha, 23), 1 AS original
+            FROM [PRODIN].[softland].[iw_gsaen] h INNER JOIN Candidatos c ON c.CodAux = h.CodAux
+            WHERE h.Tipo IN ('F','D') AND h.Estado <> 'A' AND h.Fecha < ? $filterClient $filterVendor
+                AND EXISTS (SELECT 1 FROM [PRODIN].[softland].[iw_gmovi] m
+                    INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+                    WHERE m.NroInt = h.NroInt AND m.Tipo = h.Tipo AND m.TotLinea <> 0)");
+        $documentParams = [$desde, $hasta, $desde, $hasta];
+        if ($clientCode !== null) $documentParams[] = $clientCode;
+        $documentParams = array_merge($documentParams, $detailCodes);
+        $documentParams[] = $desde;
+        if ($clientCode !== null) $documentParams[] = $clientCode;
+        $documentParams = array_merge($documentParams, $detailCodes);
+        $stmt->execute($documentParams);
+        $monthly = $previous = [];
+        while ($doc = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $client = trim((string)$doc['clienteCodigo']);
+            if ($client === '') continue;
+            $code = $this->sharedCodeKey($doc['codigoVendedor']);
+            $key = substr($doc['fecha'], 0, 7) . '|' . $code . '|' . $this->sharedFolioKey($doc['folio']);
+            $shares = $shared[$key] ?? [];
+            $participants = $owners[$code] ?? [];
+            foreach ($shares as $share) $participants += $owners[$this->sharedCodeKey($share['destino'])] ?? [];
+            foreach ($participants as $id => $_) {
+                if ($detailUser !== null && $detailUser !== $id) continue;
+                $type = $types[$id][$code] ?? '';
+                $factor = isset($owners[$code][$id]) ? $this->vendorCodeParticipationFactor($type) : 0.0;
+                $labels = [];
+                foreach ($shares as $share) {
+                    $portion = max(0.0, min(100.0, (float)$share['porcentaje'])) / 100;
+                    if (isset($owners[$code][$id])) {
+                        $factor -= $this->sharedOutgoingAmount($portion, $type);
+                        $labels['COMPARTIDA · ORIGEN'] = true;
+                    }
+                    if (isset($owners[$this->sharedCodeKey($share['destino'])][$id])) {
+                        $factor += $portion;
+                        $labels['COMPARTIDA · RECIBIDA'] = true;
+                    }
+                }
+                if (abs($factor) < 0.000000001) continue;
+                $amount = (float)$doc['original'] * $factor;
+                // Una N resta dinero, pero no constituye una compra/reingreso.
+                $purchase = $doc['tipo'] !== 'N' && $amount > 0;
+                if ($doc['fecha'] < $desde) {
+                    if ($purchase && $doc['fecha'] > ($previous[$id][$client] ?? '')) $previous[$id][$client] = $doc['fecha'];
+                    continue;
+                }
+                $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => []];
+                $entry = &$monthly[$id][$client];
+                $entry['ventaMes'] += $amount;
+                $entry['cantidadFolios']++;
+                if ($purchase && ($entry['primeraMes'] === null || $doc['fecha'] < $entry['primeraMes'])) $entry['primeraMes'] = $doc['fecha'];
+                if ($detailUser !== null && ($clientCode !== null || $includeFolios)) $entry['folios'][] = [
+                    'tipo' => $doc['tipo'], 'folio' => $doc['folio'], 'fecha' => $doc['fecha'], 'codigoVendedor' => $doc['codigoVendedor'],
+                    'original' => (float)$doc['original'], 'porcentaje' => $factor * 100, 'atribuida' => $amount,
+                    'atribucion' => array_keys($labels) ?: ['DIRECTA']];
+                unset($entry);
+            }
+        }
+        $details = [];
+        foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
+            if ($entry['cantidadFolios'] === 0 && $entry['ventaMes'] == 0.0) continue;
+            $first = new DateTimeImmutable($clients[$client]['primera']);
+            $last = isset($previous[$id][$client]) ? new DateTimeImmutable($previous[$id][$client]) : null;
+            $current = $entry['primeraMes'] ? new DateTimeImmutable($entry['primeraMes']) : null;
+            $classification = $this->clasificarClienteCartera($first, $last, $current,
+                new DateTimeImmutable($desde), (new DateTimeImmutable($hasta))->modify('-1 day'), $recoveredRules['diasMinimosSinCompra']);
+            $new = $classification['nuevo'] && isset($assigned[$id][$client]);
+            $kind = $new ? 'nuevos' : ($classification['recuperado'] ? 'recuperados' : null);
+            if ($kind === null) continue;
+            $minimum = $new ? $newRules['ventaMinima'] : $recoveredRules['ventaMinima'];
+            $qualifies = $entry['ventaMes'] >= $minimum && ($new || $classification['recuperado']);
+            $points = $qualifies ? ($new ? $newRules['puntos'] : $recoveredRules['puntos']) : 0;
+            if ($qualifies) {
+                $summary[$id][$new ? 'clientesNuevos' : 'clientesRecuperados']++;
+                $summary[$id][$new ? 'puntosNuevos' : 'puntosRecuperados'] += $points;
+            }
+            if ($detailUser !== null) $details[] = $entry + ['clienteCodigo' => (string)$client, 'cliente' => $clients[$client]['cliente'],
+                'categoria' => $kind, 'ultimaCompra' => $last?->format('Y-m-d'), 'dias' => $classification['diasInactividad'],
+                'califica' => $qualifies, 'puntos' => $points,
+                'motivo' => $entry['ventaMes'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
+        }
+        return ['resumen' => $summary, 'clientes' => $details];
     }
 
     public function clientesNuevosCalendarioForUser(int $userId, array $query): array
@@ -997,7 +1222,7 @@ final class AnalyticsService
         return mb_strtoupper($folio);
     }
 
-    private function fetchSharedAssignments(array $vendCodes, int $mes, int $anio): array
+    private function fetchSharedAssignments(array $vendCodes, int $mes, int $anio, ?array $rango = null): array
     {
         $codes = $this->normalizeVendorCodes($vendCodes);
         if (!$codes) {
@@ -1005,6 +1230,7 @@ final class AnalyticsService
         }
 
         $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $periodFilter = $rango === null ? 'fc.mes = ? AND fc.anio = ?' : 'fc.fecha >= ? AND fc.fecha < ?';
         $assignments = $this->db->fetchAll(
             "SELECT
                 fc.id,
@@ -1019,11 +1245,10 @@ final class AnalyticsService
              FROM factura_compartida fc
              WHERE (TRIM(fc.cod_vendedor_principal) IN ($placeholders)
                     OR TRIM(fc.cod_vendedor_compartido) IN ($placeholders))
-               AND fc.mes = ?
-               AND fc.anio = ?
+               AND $periodFilter
                AND fc.rol = 'compartido'
              ORDER BY fc.fecha DESC, fc.folio DESC, fc.id DESC",
-            array_merge($codes, $codes, [$mes, $anio])
+            array_merge($codes, $codes, $rango ?? [$mes, $anio])
         );
         if (!$assignments) {
             return [];
@@ -1049,7 +1274,8 @@ final class AnalyticsService
         $originValues = array_keys($origins);
         $folioPlaceholders = implode(',', array_fill(0, count($folioValues), '?'));
         $originPlaceholders = implode(',', array_fill(0, count($originValues), '?'));
-        $start = $this->monthStart($anio, $mes);
+        $start = $rango[0] ?? $this->monthStart($anio, $mes);
+        $end = $rango[1] ?? (new DateTimeImmutable($start))->modify('+1 month')->format('Y-m-d');
         $saleExpression = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
         $realExpression = $this->commercialAmountSql('h.Tipo', 'm.CantFacturada * ISNULL(t.PrecioVta, 0)');
         $stmt = $this->softland()->prepare(
@@ -1067,12 +1293,12 @@ final class AnalyticsService
              WHERE h.Tipo IN ('F', 'N', 'D')
                AND h.Estado <> 'A'
                AND h.Fecha >= ?
-               AND h.Fecha < DATEADD(MONTH, 1, ?)
+               AND h.Fecha < ?
                AND h.Folio IN ($folioPlaceholders)
                AND LTRIM(RTRIM(h.CodVendedor)) IN ($originPlaceholders)
              GROUP BY h.CodVendedor, h.Folio"
         );
-        $stmt->execute(array_merge([$start, $start], $folioValues, $originValues));
+        $stmt->execute(array_merge([$start, $end], $folioValues, $originValues));
         $documents = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $key = $this->sharedCodeKey($row['codigoOrigen'] ?? '') . '|' . $this->sharedFolioKey($row['folio'] ?? '');
@@ -1334,7 +1560,7 @@ final class AnalyticsService
         ];
     }
 
-    private function fetchSharedVendorBalances(array $vendCodes, int $mes, int $anio): array
+    private function fetchSharedVendorBalances(array $vendCodes, int $mes, int $anio, ?array $rango = null): array
     {
         $codes = $this->normalizeVendorCodes($vendCodes);
         if (!$codes) {
@@ -1346,7 +1572,7 @@ final class AnalyticsService
         foreach ($codes as $code) {
             $selected[$this->sharedCodeKey($code)] = true;
         }
-        foreach ($this->fetchSharedAssignments($codes, $mes, $anio) as $assignment) {
+        foreach ($this->fetchSharedAssignments($codes, $mes, $anio, $rango) as $assignment) {
             $saleAmount = (float)($assignment['monto_asignado'] ?? 0);
             $realAmount = (float)($assignment['monto_real_asignado'] ?? $saleAmount);
             $folioKey = $this->sharedFolioKey($assignment['folio'] ?? '');
@@ -1401,7 +1627,8 @@ final class AnalyticsService
         int $mes,
         int $anio,
         array $extraCodes = [],
-        array $codeTypeMap = []
+        array $codeTypeMap = [],
+        ?array $rango = null
     ): array
     {
         $byCode = [];
@@ -1431,7 +1658,7 @@ final class AnalyticsService
             array_column($byCode, 'codigoVendedor'),
             array_map(static fn(mixed $code): string => trim((string)$code), $extraCodes)
         )));
-        foreach ($this->fetchSharedVendorBalances($codes, $mes, $anio) as $key => $balance) {
+        foreach ($this->fetchSharedVendorBalances($codes, $mes, $anio, $rango) as $key => $balance) {
             $code = trim((string)($balance['codigo'] ?? $key));
             if (!isset($byCode[$key])) {
                 $byCode[$key] = [

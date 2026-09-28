@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/ConcursoPromediosService.php';
+require_once __DIR__ . '/ConcursoCierreStore.php';
+require_once __DIR__ . '/ConcursoReglasMeta.php';
+
 final class GerenciaService
 {
     use SharedServiceHelpers;
@@ -13,9 +17,18 @@ final class GerenciaService
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
-        $this->assertGerenciaOrAdmin($payload);
+        if ($method === 'POST' && in_array($path, ['/comercial/concurso-ventas/cerrar', '/comercial/concurso-ventas/reabrir'], true)) {
+            (new ConcursoPromediosService($this->db, $this->analytics))->assertAccess($payload);
+        } else {
+            $this->assertGerenciaOrAdmin($payload);
+        }
 
         return match (true) {
+            $method === 'GET' && $path === '/comercial/concurso-ventas/resumen' => $this->concursoCumplimiento($query),
+            $method === 'GET' && $path === '/comercial/concurso-ventas/clientes' => $this->concursoDetalleClientes($query),
+            $method === 'GET' && $path === '/comercial/concurso-ventas/productos' => $this->concursoDetalleProductos($query),
+            $method === 'POST' && $path === '/comercial/concurso-ventas/cerrar' => $this->concursoCerrar($payload, $body),
+            $method === 'POST' && $path === '/comercial/concurso-ventas/reabrir' => $this->concursoReabrir($payload, $body),
             $method === 'GET' && $path === '/comercial/control-muestras' => $this->controlMuestras($query, false),
             $method === 'GET' && $path === '/comercial/control-muestras/vendedor-detalle' => $this->controlMuestras($query, true),
             $method === 'GET' && $path === '/comercial/dashboard/cliente-detalle' => $this->detalleClienteComercial($query),
@@ -32,6 +45,378 @@ final class GerenciaService
             $method === 'GET' && $path === '/comercial/ventas-vendedor' => $this->ventasVendedor($query),
             default => throw new RuntimeException('Ruta de gerencia no encontrada', 404),
         };
+    }
+
+    public static function evaluarMetaConcurso(float $meta, float $venta, ?array $reglas = null): array
+    {
+        return ConcursoReglasMeta::evaluate($meta, $venta, $reglas);
+    }
+
+    private function concursoCumplimiento(array $query): array
+    {
+        $current = $this->concursoResumenMes($query);
+        $month = $current['mes'];
+        if ($month < 10) {
+            foreach ($current['items'] as &$vendor) {
+                $vendor['acumulado'] = null;
+                $vendor['mesesOficiales'] = [];
+            }
+            unset($vendor);
+            $current['puntosAcumulados'] = null;
+            return $current;
+        }
+        if (($current['estadoMes'] ?? null) === 'CERRADO') {
+            $store = new ConcursoCierreStore();
+            for ($previousMonth = 10; $previousMonth < $month; $previousMonth++) {
+                if (($store->load($previousMonth)['estado'] ?? null) !== 'CERRADO') {
+                    throw new RuntimeException('SNAPSHOT OFICIAL INVÁLIDO: existe un mes anterior abierto.', 409);
+                }
+            }
+        }
+        $monthly = [];
+        for ($officialMonth = 10; $officialMonth <= min($month, 12); $officialMonth++) {
+            $monthly[$officialMonth] = $officialMonth === $month
+                ? $current : $this->concursoResumenMes(['anio' => '2026', 'mes' => (string)$officialMonth]);
+        }
+        $totals = $breakdown = [];
+        foreach ($monthly as $officialMonth => $result) {
+            foreach ($result['items'] as $item) {
+                $id = $item['usuarioId'];
+                $previous = array_key_exists($id, $totals) ? $totals[$id] : 0;
+                $accumulated = $previous === null || $item['totalMes'] === null ? null : $previous + $item['totalMes'];
+                $totals[$id] = $accumulated;
+                $breakdown[$id][] = ['mes' => $officialMonth, 'tipo' => $item['tipo'],
+                    'puntosMeta' => $item['puntosMeta'], 'puntosNuevos' => $item['puntosNuevos'],
+                    'puntosRecuperados' => $item['puntosRecuperados'], 'productosPuntos' => $item['productosPuntos'],
+                    'totalMes' => $item['totalMes'], 'acumulado' => $accumulated];
+            }
+        }
+        $allComplete = true;
+        foreach ($current['items'] as &$vendor) {
+            $id = $vendor['usuarioId'];
+            $vendor['mesesOficiales'] = $breakdown[$id] ?? [];
+            $vendor['acumulado'] = $totals[$id] ?? null;
+            if ($vendor['acumulado'] === null) $allComplete = false;
+        }
+        unset($vendor);
+        $current['puntosAcumulados'] = $allComplete ? array_sum(array_column($current['items'], 'acumulado')) : null;
+        return $current;
+    }
+
+    private function concursoResumenMes(array $query): array
+    {
+        if ((string)($query['anio'] ?? '') !== '2026' || !preg_match('/^(?:[1-9]|1[0-2])$/', (string)($query['mes'] ?? ''))) {
+            throw new RuntimeException('Seleccione un mes válido del año 2026.', 400);
+        }
+        $mes = (int)$query['mes'];
+        if ($mes >= 10) {
+            $saved = (new ConcursoCierreStore())->load($mes);
+            if (($saved['estado'] ?? null) === 'CERRADO') return $this->concursoResumenCerrado($saved, $mes);
+        }
+        $reglasMeta = ConcursoReglasMeta::load();
+        $desde = sprintf('2026-%02d-01', $mes);
+        $hasta = (new DateTimeImmutable($desde))->modify('+1 month')->format('Y-m-d');
+        $relations = $this->loadVendorRelations();
+        $vendors = $owners = [];
+        foreach ($relations as $r) {
+            $id = $r['usuarioId'];
+            $vendors[$id] ??= ['usuarioId' => $id, 'vendedor' => $r['vendedor'], 'codigoPrincipal' => $r['codigoPrincipal'], 'meta' => 0.0,
+                'venta' => 0.0, 'desgloseVenta' => ['baseAsociada' => 0.0, 'compartidaRecibida' => 0.0, 'compartidaCedida' => 0.0]];
+            $owners[$this->normalizeCode($r['codigoAsociado'])][$id] = true;
+        }
+        if (!$vendors) return ['ok' => true, 'mes' => $mes, 'anio' => 2026, 'items' => [], 'puntosParciales' => 0,
+            'reglasMeta' => ['schemaVersion' => $reglasMeta['schemaVersion'], 'version' => $reglasMeta['version'], 'fechaActualizacion' => $reglasMeta['fechaActualizacion']]];
+        // Misma prioridad que AnalyticsService::fetchMetaMes: mensual, luego anual sin prorratear.
+        $metas = $this->db->fetchAll("SELECT usuario_id, meta FROM vendedor_meta
+            WHERE COALESCE(activo, 1) = 1 AND ((tipo_periodo = 'mensual' AND fecha = ?)
+                OR (tipo_periodo = 'anual' AND fecha >= '2026-01-01' AND fecha < '2027-01-01'))
+            ORDER BY CASE WHEN tipo_periodo = 'mensual' THEN 0 ELSE 1 END, fecha ASC, id ASC", [$desde]);
+        $assigned = [];
+        foreach ($metas as $m) {
+            $id = (int)$m['usuario_id'];
+            if (isset($vendors[$id]) && !isset($assigned[$id])) {
+                $vendors[$id]['meta'] = (float)$m['meta'];
+                $assigned[$id] = true;
+            }
+        }
+        $expression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
+        $rows = $this->softlandRows("SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor, SUM($expression) AS venta
+            FROM [PRODIN].[softland].[iw_gsaen] enc
+            INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
+            INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
+            WHERE enc.Tipo IN ('F', 'N', 'D') AND enc.Estado <> 'A' AND enc.Fecha >= ? AND enc.Fecha < ?
+            GROUP BY LTRIM(RTRIM(enc.CodVendedor))", [$desde, $hasta]);
+        $rows = $this->analytics->applySharedSalesToVendorRows($rows, $mes, 2026,
+            array_column($relations, 'codigoAsociado'), $this->vendorCodeTypeMap($relations), [$desde, $hasta]);
+        foreach ($rows as $row) {
+            foreach ($owners[$this->normalizeCode($row['codigoVendedor'])] ?? [] as $id => $_) {
+                $vendors[$id]['venta'] += (float)$row['venta'];
+                $vendors[$id]['desgloseVenta']['baseAsociada'] += (float)$row['ventaBaseAtribuida'];
+                $vendors[$id]['desgloseVenta']['compartidaRecibida'] += (float)$row['ventaCompartidaRecibida'];
+                $vendors[$id]['desgloseVenta']['compartidaCedida'] += (float)$row['ventaCompartidaEntregada'];
+            }
+        }
+        $clients = $this->analytics->concursoClientes($relations, $mes);
+        $periodo = sprintf('2026-%02d', $mes);
+        $sales = (new ConcursoPromediosService($this->db, $this->analytics))->calcular(null, null, null, $periodo, $periodo);
+        $monthly = [];
+        foreach ($sales['registros'] as $row) {
+            $monthly[(int)$row['usuario_id']][$row['categoria']] = (float)$row['ventas_mensuales'][$periodo];
+        }
+        $base = null;
+        $baseError = 'BASE OFICIAL NO DISPONIBLE';
+        try {
+            $base = (new ConcursoBaseOficialStore())->load();
+            if ($base !== null) $baseError = '';
+        } catch (RuntimeException $e) {
+            if (!str_starts_with($e->getMessage(), 'BASE OFICIAL INVÁLIDA')) throw $e;
+            $baseError = 'BASE OFICIAL INVÁLIDA';
+        }
+        $bases = [];
+        foreach ($base['vendedores'] ?? [] as $vendorBase) foreach ($vendorBase['categorias'] as $category => $values) {
+            $bases[$vendorBase['usuarioId']][$category] = (float)$values['promedioBase'];
+        }
+        $allBasesAvailable = true;
+        foreach ($vendors as &$vendor) {
+            $vendor += self::evaluarMetaConcurso($vendor['meta'], $vendor['venta'], $reglasMeta);
+            $vendor += $clients['resumen'][$vendor['usuarioId']];
+            $id = $vendor['usuarioId'];
+            $categories = [];
+            $available = true;
+            foreach (['QUIMICOS', 'ACCESORIOS', 'TRAT_AGUA', 'AEROSOLES'] as $category) {
+                $hasBase = array_key_exists($category, $bases[$id] ?? []);
+                $available = $available && $hasBase;
+                $average = $hasBase ? $bases[$id][$category] : null;
+                $sale = $monthly[$id][$category] ?? 0.0;
+                $difference = $hasBase ? $sale - $average : null;
+                $categories[] = ['categoria' => $category, 'promedioBase' => $average, 'ventaMes' => $sale,
+                    'superacion' => $difference, 'puntos' => $hasBase ? self::puntosProductosConcurso($difference, $reglasMeta) : null];
+            }
+            $vendor['productosEstadoBase'] = $available ? 'DISPONIBLE' : ($baseError ?: ($bases[$id] ?? false ? 'BASE INCOMPLETA' : 'BASE NO DISPONIBLE'));
+            $vendor['productos'] = $categories;
+            $vendor['productosPuntos'] = $available ? array_sum(array_column($categories, 'puntos')) : null;
+            $vendor['totalMes'] = $available
+                ? $vendor['puntosMeta'] + $vendor['puntosNuevos'] + $vendor['puntosRecuperados'] + $vendor['productosPuntos'] : null;
+            if (!$available) $allBasesAvailable = false;
+        }
+        unset($vendor);
+        return ['ok' => true, 'mes' => $mes, 'anio' => 2026, 'items' => array_values($vendors),
+            'puntosParciales' => $allBasesAvailable ? array_sum(array_column($vendors, 'totalMes')) : null,
+            'fuenteBase' => 'JSON', 'versionBase' => $base['version'] ?? null,
+            'periodoBase' => $base === null ? null : ['desde' => $base['periodoDesde'], 'hasta' => $base['periodoHasta']],
+            'estadoMes' => $mes < 10 ? 'PRUEBA' : 'ABIERTO',
+            'reglasMeta' => ['schemaVersion' => $reglasMeta['schemaVersion'], 'version' => $reglasMeta['version'], 'fechaActualizacion' => $reglasMeta['fechaActualizacion']]];
+    }
+
+    private function concursoResumenCerrado(array $saved, int $month): array
+    {
+        $items = [];
+        foreach ($saved['snapshot']['vendedores'] as $vendor) {
+            unset($vendor['clientes']);
+            foreach ($vendor['productos'] as &$category) unset($category['documentos'], $category['baseMeses']);
+            unset($category);
+            $items[] = $vendor;
+        }
+        return ['ok' => true, 'mes' => $month, 'anio' => 2026, 'items' => $items,
+            'puntosParciales' => array_sum(array_column($items, 'totalMes')),
+            'fuenteBase' => 'JSON', 'versionBase' => $saved['baseOficial']['version'],
+            'periodoBase' => ['desde' => $saved['baseOficial']['periodoDesde'], 'hasta' => $saved['baseOficial']['periodoHasta']],
+            'estadoMes' => 'CERRADO', 'versionCierre' => $saved['version'], 'fechaCierre' => $saved['fechaCierre'],
+            'reglasMeta' => $saved['reglasMeta'] ?? null];
+    }
+
+    private function concursoMesSolicitud(array $body): int
+    {
+        if ((string)($body['anio'] ?? '') !== '2026' || !preg_match('/^(?:10|11|12)$/', (string)($body['mes'] ?? ''))) {
+            if ((string)($body['mes'] ?? '') === '9' || (string)($body['mes'] ?? '') === '09') {
+                throw new RuntimeException('Septiembre 2026 corresponde al período de prueba y no puede cerrarse.', 400);
+            }
+            throw new RuntimeException('Solo pueden cerrarse Octubre, Noviembre y Diciembre de 2026.', 400);
+        }
+        return (int)$body['mes'];
+    }
+
+    private function concursoActor(array $payload): array
+    {
+        $id = $this->currentUserIdFromPayload($payload);
+        $user = $this->db->fetchOne('SELECT nombre FROM usuario WHERE id = ? AND is_active = 1', [$id]);
+        if (!$user) throw new RuntimeException('Usuario no disponible.', 403);
+        return ['usuarioId' => $id, 'nombre' => (string)$user['nombre']];
+    }
+
+    private function concursoCerrar(array $payload, array $body): array
+    {
+        $month = $this->concursoMesSolicitud($body);
+        $store = new ConcursoCierreStore();
+        $actor = $this->concursoActor($payload);
+        return $store->locked(function () use ($month, $store, $actor): array {
+            $previous = $store->load($month);
+            if (($previous['estado'] ?? null) === 'CERRADO') throw new RuntimeException('El mes ya está cerrado.', 409);
+            for ($before = 10; $before < $month; $before++) {
+                if (($store->load($before)['estado'] ?? null) !== 'CERRADO') {
+                    $name = ['Octubre', 'Noviembre', 'Diciembre'][$before - 10];
+                    throw new RuntimeException("Debe cerrar $name 2026 antes de cerrar este mes.", 409);
+                }
+            }
+            $base = (new ConcursoBaseOficialStore())->load();
+            if ($base === null) throw new RuntimeException('BASE OFICIAL NO DISPONIBLE: no se puede cerrar el mes.', 409);
+            $baseById = [];
+            foreach ($base['vendedores'] as $vendor) $baseById[$vendor['usuarioId']] = $vendor;
+            $summary = $this->concursoResumenMes(['anio' => '2026', 'mes' => (string)$month]);
+            if (!$summary['items']) throw new RuntimeException('No hay vendedores para cerrar.', 409);
+            if ($summary['puntosParciales'] === null || $summary['versionBase'] !== $base['version']) {
+                throw new RuntimeException('Base oficial incompleta o modificada durante el cálculo.', 409);
+            }
+            $relations = $this->loadVendorRelations();
+            $period = sprintf('2026-%02d', $month);
+            $calculator = new ConcursoPromediosService($this->db, $this->analytics);
+            $vendors = [];
+            foreach ($summary['items'] as $item) {
+                $id = $item['usuarioId'];
+                $vendorBase = $baseById[$id] ?? null;
+                if ($vendorBase === null || count($vendorBase['categorias']) !== 4) {
+                    throw new RuntimeException('Vendedor sin las cuatro categorías de Base Oficial.', 409);
+                }
+                if ($item['productosPuntos'] === null || $item['totalMes'] === null) {
+                    throw new RuntimeException('Productos o Total Mes incompletos.', 409);
+                }
+                $clientResult = $this->analytics->concursoClientes($relations, $month, $id, null, true);
+                $item['clientes'] = ['nuevos' => [], 'recuperados' => []];
+                foreach ($clientResult['clientes'] as $client) {
+                    $kind = $client['categoria'];
+                    if (!isset($item['clientes'][$kind])) throw new RuntimeException('Categoría de cliente inválida.', 409);
+                    $item['clientes'][$kind][] = $client;
+                }
+                foreach ($item['productos'] as &$category) {
+                    $name = $category['categoria'];
+                    $values = $vendorBase['categorias'][$name] ?? null;
+                    if ($values === null) throw new RuntimeException('Categoría de Base Oficial faltante.', 409);
+                    if (abs((float)$values['promedioBase'] - (float)$category['promedioBase']) > .011) {
+                        throw new RuntimeException('La Base Oficial cambió durante el cálculo.', 409);
+                    }
+                    $category['baseMeses'] = array_map('floatval', $values['meses']);
+                    $detail = $calculator->calcular($id, $name, $month, $period, $period);
+                    if (abs((float)$detail['total'] - (float)$category['ventaMes']) > .011) {
+                        throw new RuntimeException('El detalle de productos no coincide con la venta mensual.', 409);
+                    }
+                    $category['documentos'] = $detail['documentos'];
+                }
+                unset($category);
+                $vendors[] = $item;
+            }
+            if ((new ConcursoBaseOficialStore())->load() !== $base) {
+                throw new RuntimeException('La Base Oficial cambió durante el cierre.', 409);
+            }
+            $data = ['schemaVersion' => 1, 'anioConcurso' => 2026, 'periodo' => $period,
+                'estado' => 'CERRADO', 'version' => ($previous['version'] ?? 0) + 1,
+                'fechaCierre' => date(DATE_ATOM), 'fechaReapertura' => null,
+                'cerradoPor' => $actor, 'reabiertoPor' => null,
+                'baseOficial' => ['version' => $base['version'], 'periodoDesde' => $base['periodoDesde'], 'periodoHasta' => $base['periodoHasta']],
+                'reglasMeta' => $summary['reglasMeta'],
+                'parametros' => ['schemaVersion' => $summary['reglasMeta']['schemaVersion'],
+                    'version' => $summary['reglasMeta']['version']],
+                'snapshot' => ['vendedores' => $vendors]];
+            $saved = $store->save($data, $month);
+            return ['ok' => true, 'estadoMes' => 'CERRADO', 'versionCierre' => $saved['version'], 'fechaCierre' => $saved['fechaCierre']];
+        });
+    }
+
+    private function concursoReabrir(array $payload, array $body): array
+    {
+        $month = $this->concursoMesSolicitud($body);
+        $store = new ConcursoCierreStore();
+        $actor = $this->concursoActor($payload);
+        return $store->locked(function () use ($month, $store, $actor): array {
+            $saved = $store->load($month);
+            if (($saved['estado'] ?? null) !== 'CERRADO') throw new RuntimeException('El mes no está cerrado.', 409);
+            for ($later = $month + 1; $later <= 12; $later++) {
+                if (($store->load($later)['estado'] ?? null) === 'CERRADO') {
+                    $name = ['Octubre', 'Noviembre', 'Diciembre'][$later - 10];
+                    throw new RuntimeException("Debe reabrir $name 2026 antes de reabrir este mes.", 409);
+                }
+            }
+            $saved['estado'] = 'ABIERTO';
+            $saved['fechaReapertura'] = date(DATE_ATOM);
+            $saved['reabiertoPor'] = $actor;
+            $saved = $store->save($saved, $month);
+            return ['ok' => true, 'estadoMes' => 'ABIERTO', 'versionCierre' => $saved['version']];
+        });
+    }
+
+    public static function puntosProductosConcurso(float $superacion, ?array $parametros = null): int
+    {
+        return ConcursoReglasMeta::productPoints($superacion, $parametros);
+    }
+
+    private function concursoDetalleProductos(array $query): array
+    {
+        if ((string)($query['anio'] ?? '') !== '2026' || !preg_match('/^(?:[1-9]|1[0-2])$/', (string)($query['mes'] ?? ''))) {
+            throw new RuntimeException('Seleccione un mes válido del año 2026.', 400);
+        }
+        $id = Security::validate_id($query['vendedorId'] ?? null);
+        $category = (string)($query['categoria'] ?? '');
+        if (!in_array($category, ['QUIMICOS', 'ACCESORIOS', 'TRAT_AGUA', 'AEROSOLES'], true)) throw new RuntimeException('Categoría inválida.', 400);
+        $detail = $query['detalle'] ?? '';
+        if (!in_array($detail, ['base', 'venta'], true)) throw new RuntimeException('Detalle inválido.', 400);
+        $mes = (int)$query['mes'];
+        if ($mes >= 10) {
+            $saved = (new ConcursoCierreStore())->load($mes);
+            if (($saved['estado'] ?? null) === 'CERRADO') {
+                foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) {
+                    foreach ($vendor['productos'] as $product) if ($product['categoria'] === $category) {
+                        if ($detail === 'venta') return ['ok' => true, 'documentos' => $product['documentos'], 'total' => $product['ventaMes']];
+                        $months = [];
+                        foreach ($product['baseMeses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => $sale];
+                        return ['ok' => true, 'meses' => $months, 'promedioBase' => $product['promedioBase'],
+                            'fuenteBase' => 'JSON', 'versionBase' => $saved['baseOficial']['version']];
+                    }
+                }
+                throw new RuntimeException('Vendedor no encontrado en el snapshot oficial.', 404);
+            }
+        }
+        if (!in_array($id, array_column($this->loadVendorRelations(), 'usuarioId'), true)) throw new RuntimeException('Vendedor no encontrado.', 404);
+        if ($detail === 'base') {
+            $base = (new ConcursoBaseOficialStore())->load();
+            $vendorBase = null;
+            foreach ($base['vendedores'] ?? [] as $row) if ($row['usuarioId'] === $id) { $vendorBase = $row; break; }
+            $values = $vendorBase['categorias'][$category] ?? null;
+            if ($values === null) return ['ok' => true, 'meses' => [], 'fuenteBase' => 'JSON'];
+            $months = [];
+            foreach ($values['meses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => (float)$sale];
+            return ['ok' => true, 'meses' => $months, 'promedioBase' => (float)$values['promedioBase'],
+                'fuenteBase' => 'JSON', 'versionBase' => $base['version']];
+        }
+        $periodo = sprintf('2026-%02d', $mes);
+        $result = (new ConcursoPromediosService($this->db, $this->analytics))->calcular($id, $category, $mes, $periodo, $periodo);
+        return ['ok' => true, 'documentos' => $result['documentos'], 'total' => $result['total']];
+    }
+
+    private function concursoDetalleClientes(array $query): array
+    {
+        if ((string)($query['anio'] ?? '') !== '2026' || !preg_match('/^(?:[1-9]|1[0-2])$/', (string)($query['mes'] ?? ''))) {
+            throw new RuntimeException('Seleccione un mes válido del año 2026.', 400);
+        }
+        $id = Security::validate_id($query['vendedorId'] ?? null);
+        $kind = $query['categoria'] ?? '';
+        if (!in_array($kind, ['nuevos', 'recuperados'], true)) throw new RuntimeException('Categoría inválida.', 400);
+        $client = isset($query['cliente']) ? $this->validarCodigoDetalle($query['cliente']) : null;
+        $mes = (int)$query['mes'];
+        if ($mes >= 10) {
+            $saved = (new ConcursoCierreStore())->load($mes);
+            if (($saved['estado'] ?? null) === 'CERRADO') {
+                foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) {
+                    $rows = $vendor['clientes'][$kind];
+                    if ($client !== null) $rows = array_values(array_filter($rows, static fn(array $row): bool => $row['clienteCodigo'] === $client));
+                    return ['ok' => true, 'clientes' => $rows];
+                }
+                throw new RuntimeException('Vendedor no encontrado en el snapshot oficial.', 404);
+            }
+        }
+        $relations = $this->loadVendorRelations();
+        if (!in_array($id, array_column($relations, 'usuarioId'), true)) throw new RuntimeException('Vendedor no encontrado.', 404);
+        $result = $this->analytics->concursoClientes($relations, (int)$query['mes'], $id, $client);
+        $items = array_values(array_filter($result['clientes'], static fn(array $row): bool => $row['categoria'] === $kind));
+        return ['ok' => true, 'clientes' => $items];
     }
 
     private function validarCodigoDetalle(mixed $valor): string
@@ -941,9 +1326,9 @@ final class GerenciaService
         );
     }
 
-    private function totalVentasGlobalPeriodo(int $anio, int $mes): float
+    private function totalVentasGlobalPeriodo(int $anio, int $mes, ?array $rango = null): float
     {
-        [$desde, $hasta] = $this->monthRange($anio, $mes);
+        [$desde, $hasta] = $rango ?? $this->monthRange($anio, $mes);
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'mov.TotLinea');
         $row = $this->softlandOne(
             "SELECT SUM($saleExpression) AS ventaTotal
@@ -1512,14 +1897,28 @@ final class GerenciaService
 
     private function estadisticasVentas(array $query): array
     {
-        $anio = $this->validarAnio($query['anio'] ?? null);
-        $mes = $this->validarMes($query['mes'] ?? null);
+        $fechas = [];
+        foreach (['desde', 'hasta'] as $campo) {
+            $valor = $query[$campo] ?? null;
+            $fecha = is_string($valor) ? DateTimeImmutable::createFromFormat('!Y-m-d', $valor) : false;
+            if (!$fecha || $fecha->format('Y-m-d') !== $valor) {
+                throw new RuntimeException('Debe indicar fechas válidas Desde y Hasta.', 400);
+            }
+            $fechas[$campo] = $fecha;
+        }
+        if ($fechas['desde'] > $fechas['hasta']) {
+            throw new RuntimeException('La fecha Desde no puede ser posterior a Hasta.', 400);
+        }
+        $desde = $fechas['desde']->format('Ymd');
+        $hastaSiguiente = $fechas['hasta']->modify('+1 day')->format('Ymd');
+        $rango = [$desde, $hastaSiguiente];
+        $anio = (int)$fechas['desde']->format('Y');
+        $mes = (int)$fechas['desde']->format('m');
         if ($unavailable = $this->softlandUnavailable('las estadisticas de ventas')) {
             return $unavailable;
         }
 
-        [$desde, $hasta] = $this->monthRange($anio, $mes);
-        $ventaTotalGlobal = $this->totalVentasGlobalPeriodo($anio, $mes);
+        $ventaTotalGlobal = $this->totalVentasGlobalPeriodo($anio, $mes, $rango);
         $saleExpression = $this->commercialAmountSql('enc.Tipo', 'mov.TotLinea');
         $ventasRows = $this->softlandRows(
             "
@@ -1539,7 +1938,7 @@ final class GerenciaService
             GROUP BY enc.CodVendedor, vend.VenDes
             ORDER BY neto DESC
             ",
-            [$desde, $hasta]
+            $rango
         );
 
         $relaciones = $this->loadVendorRelations();
@@ -1557,7 +1956,8 @@ final class GerenciaService
             $mes,
             $anio,
             $relationCodes,
-            $this->vendorCodeTypeMap($relaciones)
+            $this->vendorCodeTypeMap($relaciones),
+            [$fechas['desde']->format('Y-m-d'), $fechas['hasta']->modify('+1 day')->format('Y-m-d')]
         ));
 
         $gruposRows = $this->softlandRows(
@@ -1580,8 +1980,8 @@ final class GerenciaService
         return [
             'ok' => true,
             'data' => [
-                'mes' => $mes,
-                'anio' => $anio,
+                'desde' => $fechas['desde']->format('Y-m-d'),
+                'hasta' => $fechas['hasta']->format('Y-m-d'),
                 'total' => (int)round($ventaTotalGlobal),
                 'totalAtribuido' => $estadisticas['total'],
                 'resumen' => [

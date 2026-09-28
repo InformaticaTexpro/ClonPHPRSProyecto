@@ -42,7 +42,7 @@
       </div>
       <div class="header-right">
         <span class="header-date" id="headerDate"></span>
-        <span class="header-indicadores" id="headerIndicadores" aria-label="Período comercial">Mes seleccionado</span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Período comercial">Rango seleccionado</span>
       </div>
     </header>
 
@@ -56,14 +56,14 @@
         <a class="real-data-badge real-data-badge--link" href="../../dashboard-comercial/index.html">Volver al dashboard</a>
       </section>
 
-      <section class="gerencia-filtros gerencia-filtros--mensual" aria-label="Filtro mensual">
+      <section class="gerencia-filtros gerencia-filtros--mensual" aria-label="Filtro por fechas">
         <div class="gerencia-filtro">
-          <label for="monthFilter">MES</label>
-          <select class="filtro-select" id="monthFilter"></select>
+          <label for="desdeFilter">DESDE</label>
+          <input type="date" class="filtro-select" id="desdeFilter" required />
         </div>
         <div class="gerencia-filtro">
-          <label for="yearFilter">AÑO</label>
-          <select class="filtro-select" id="yearFilter"></select>
+          <label for="hastaFilter">HASTA</label>
+          <input type="date" class="filtro-select" id="hastaFilter" required />
         </div>
         <button class="btn-buscar" id="btnActualizar" type="button">Actualizar</button>
         <button class="btn-exportar" id="btnExportarPdf" type="button" disabled>
@@ -126,7 +126,7 @@
   </div>
 
   <script src="../../../../assets/js/app-sidebar.js?v=1.1.0"></script>
-  <script src="./estadisticas-ventas.js?v=1.4.0"></script>
+  <script src="./estadisticas-ventas.js?v=1.4.1"></script>
   <script src="../../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>
