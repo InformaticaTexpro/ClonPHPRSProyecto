@@ -315,6 +315,16 @@ img, svg, canvas, table { max-width: 100%; }
 .progreso-barra-fill { height:100%; border-radius:100px; transition:width .6s cubic-bezier(.4,0,.2,1),background .3s; background:var(--color-primary,#00E2A7); }
 
 /* â•â•â•â• GRÃFICO â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+.muestras-dashboard { margin-bottom:24px; background:var(--color-white,#fff); border:1px solid var(--color-gray-light,#E8EAF0); border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,.07); overflow:hidden; }
+.muestras-dashboard__header { border-bottom:1px solid var(--color-gray-light,#E8EAF0); }
+.muestras-dashboard__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:18px 20px 20px; }
+.muestras-dashboard__card { min-height:90px; background:var(--color-white,#fff); box-shadow:0 1px 4px rgba(0,0,0,.07); border-color:var(--color-gray-light,#E8EAF0); }
+.muestras-dashboard__card:hover { box-shadow:0 4px 16px rgba(0,0,0,.10); }
+.muestras-dashboard__icon { width:clamp(40px,2.8vw,48px); height:clamp(40px,2.8vw,48px); border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.muestras-dashboard__icon--historico { background:rgba(0,226,167,.12); color:#00C896; }
+.muestras-dashboard__icon--mes { background:rgba(0,174,239,.12); color:#00AEEF; }
+.muestras-dashboard__icon--equivalente { background:rgba(245,166,35,.12); color:#B45309; }
+
 .grafico-seccion { margin-bottom:24px; }
 .grafico-card { background:var(--color-white,#fff); border-radius:14px; padding:20px 24px; box-shadow:0 1px 4px rgba(0,0,0,.07); border:1px solid var(--color-gray-light,#E8EAF0); }
 .grafico-header { margin-bottom:16px; }
@@ -1416,9 +1426,11 @@ img, svg, canvas, table { max-width: 100%; }
 @media (max-width:900px) {
   .kpis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cartera-cards { grid-template-columns: repeat(2, 1fr); }
+  .muestras-dashboard__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width:600px) {
   .kpis-grid { grid-template-columns: 1fr; }
+  .muestras-dashboard__grid { grid-template-columns:1fr; padding:14px; }
   .cartera-cards { grid-template-columns: 1fr; }
   .cartera-toolbar {
     flex-direction: column;

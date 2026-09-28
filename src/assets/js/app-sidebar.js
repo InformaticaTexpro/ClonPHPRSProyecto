@@ -16,10 +16,6 @@
   const SIDEBAR_COLLAPSED_KEY = 'texproSidebarCollapsed';
 
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
-  const GERENCIA_VENDOR_SALES_URL = '/src/modulo/gerencia/comercial/ventas-vendedor/index.html';
-  const GERENCIA_SAMPLE_CONTROL_URL = '/src/modulo/gerencia/comercial/control-muestras/index.html';
-  const EXTRA_ITEMS = [];
-
   const ICON_SVGS = {
     dashboard: `
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -51,6 +47,18 @@
         <path d="M3 7.5V17l9 4.5 9-4.5V7.5"></path>
         <path d="M12 12v9"></path>
       </svg>`,
+    chart: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 19h16"></path>
+        <path d="M6 16l4-4 3 3 5-7"></path>
+        <path d="M16 8h2v2"></path>
+      </svg>`,
+    flask: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M9 3h6"></path>
+        <path d="M10 3v5l-5 9a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-9V3"></path>
+        <path d="M8 15h8"></path>
+      </svg>`,
     headset: `
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 13a8 8 0 0 1 16 0"></path>
@@ -70,34 +78,6 @@
     orden: 0,
     extra: false,
   };
-
-  const RRHH_HOME_ITEM = {
-    id: 'extra-rrhh-home',
-    codigo: 'rrhh_dashboard',
-    nombre: 'Dashboard',
-    url: '/src/modulo/rrhh/rrhh/index.html',
-    icono: '👥',
-    grupo: 'RRHH',
-    orden: 0,
-    extra: true,
-  };
-
-  const RRHH_SHARED_CONTROL_ITEM = {
-    id: 'extra-rrhh-control-ventas-compartidas',
-    codigo: 'rrhh_control_ventas_compartidas',
-    nombre: 'Control de Ventas Compartidas',
-    url: '/src/modulo/rrhh/control-ventas-compartidas/index.html',
-    icono: '📋',
-    grupo: 'RRHH',
-    orden: 1,
-    extra: true,
-  };
-
-  [RRHH_HOME_ITEM, RRHH_SHARED_CONTROL_ITEM].forEach(item => {
-    const url = normalizarUrl(item.url);
-    const exists = EXTRA_ITEMS.some(extra => normalizarUrl(extra.url) === url);
-    if (!exists) EXTRA_ITEMS.push(item);
-  });
 
   const GROUP_ICONS = {
     General: '🏠',
@@ -397,7 +377,6 @@
         permisoCodigo: normalizarTexto(menu?.permisoCodigo),
       }))
       .filter(menu => menu.id !== null && menu.nombre && menu.url)
-      .filter(menu => menu.codigo !== 'rrhh_reportes_compartidos')
       .filter(menu => (FEATURE_FLAGS.mensajeria ? true : menu.codigo !== 'mensajeria'))
       .filter(menu => (FEATURE_FLAGS.alertas ? true : menu.codigo !== 'alertas'));
   }
@@ -412,56 +391,6 @@
         url: normalizarUrl(GENERAL_ITEM.url),
       });
     }
-
-    const gerenciaBase = catalogo.find(menu => menu.codigo === 'gerencia');
-    const ventasVendedorUrl = normalizarUrl(GERENCIA_VENDOR_SALES_URL);
-    if (gerenciaBase && !map.has(ventasVendedorUrl)) {
-      map.set(ventasVendedorUrl, {
-        ...gerenciaBase,
-        id: 'derived-gerencia-ventas-vendedor',
-        codigo: 'gerencia_ventas_vendedor',
-        permisoCodigo: 'gerencia',
-        nombre: 'Ventas por Vendedor',
-        url: ventasVendedorUrl,
-        orden: 3,
-        extra: false,
-      });
-    }
-
-    const controlMuestrasUrl = normalizarUrl(GERENCIA_SAMPLE_CONTROL_URL);
-    if (gerenciaBase && !map.has(controlMuestrasUrl)) {
-      map.set(controlMuestrasUrl, {
-        ...gerenciaBase,
-        id: 'derived-gerencia-control-muestras',
-        codigo: 'gerencia_control_muestras',
-        permisoCodigo: 'gerencia',
-        nombre: 'Control de Muestras',
-        url: controlMuestrasUrl,
-        orden: 4,
-        extra: false,
-      });
-    }
-
-    EXTRA_ITEMS.forEach(item => {
-      const url = normalizarUrl(item.url);
-      map.set(url, {
-          ...(map.get(url) || {}),
-          id: item.id,
-          codigo: normalizarTexto(item.codigo),
-          nombre: String(item.nombre || '').trim(),
-          url,
-          icono: String(item.icono || '').trim() || '•',
-          grupo: (() => {
-            const codigo = normalizarTexto(item.codigo);
-            const grupo = String(item.grupo || 'General').trim() || 'General';
-            if (codigo === 'rrhh' || codigo.startsWith('rrhh_')) return 'RRHH';
-            if (codigo.startsWith('gerencia')) return 'Gerencia';
-            return grupo;
-          })(),
-          orden: Number(item.orden ?? 0) || 0,
-          extra: true,
-        });
-    });
 
     return Array.from(map.values());
   }

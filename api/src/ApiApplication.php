@@ -15,7 +15,8 @@ final class ApiApplication
         $database = new Database();
         $authService = new AuthService($database);
         $recoveryService = new RecoveryService($database);
-        $analyticsService = new AnalyticsService($database);
+        $muestrasService = new MuestrasService($database);
+        $analyticsService = new AnalyticsService($database, $muestrasService);
         $concursoVentasService = new ConcursoVentasService($database, $analyticsService);
         $salesService = new SalesService($database, $analyticsService);
         $adminService = new AdminService($database);
@@ -28,7 +29,7 @@ final class ApiApplication
         $cotizacionesService = new CotizacionesService($database);
         $soporteTiService = new SoporteTiService($database);
         $dashboardService = new DashboardService($database);
-        $gerenciaService = new GerenciaService($database, $analyticsService);
+        $gerenciaService = new GerenciaService($database, $analyticsService, $muestrasService);
         $ventasService = new VentasService($database, $analyticsService);
         $indicadoresService = new IndicadoresService();
 

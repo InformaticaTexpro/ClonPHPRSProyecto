@@ -7,7 +7,7 @@ final class AnalyticsService
 
     private ?string $quoteVendorField = null;
 
-    public function __construct(private Database $db)
+    public function __construct(private Database $db, private MuestrasService $muestras)
     {
     }
 
@@ -37,6 +37,17 @@ final class AnalyticsService
         $clientesNuevosCalendario = $this->clientesNuevosCalendarioForUser($userId, $query);
         $cotizaciones = $this->cotizacionesResumenForUser($userId, $query);
         $guiasPendientes = $this->pendingGuidesForUser($codigos, $periodo['mes'], $periodo['anio']);
+        try {
+            $muestras = $this->muestras->vendedorResumen($userId, $periodo['mes'], $periodo['anio'], false);
+        } catch (Throwable $e) {
+            error_log('[dashboardForUser muestras] ' . $e->getMessage());
+            $muestras = [
+                'error' => 'No fue posible cargar muestras.',
+                'historico' => ['monto' => 0, 'folios' => 0],
+                'mes' => ['monto' => 0, 'folios' => 0],
+                'valorComercialMes' => 0,
+            ];
+        }
 
         return [
             'ok' => true,
@@ -56,6 +67,7 @@ final class AnalyticsService
             'clientesNuevosCalendario' => $clientesNuevosCalendario,
             'cotizaciones' => $cotizaciones,
             'guiasPendientes' => $guiasPendientes,
+            'muestras' => $muestras,
         ];
     }
 
@@ -1607,6 +1619,7 @@ final class AnalyticsService
                 'meta' => (float)$meta['meta_mes'],
                 'progreso' => 0,
                 'pctDescuentoGlobal' => 0,
+                'muestras' => $this->muestras->vendedorResumen($userId, $mes, $anio, false),
             ];
         }
 
@@ -1655,6 +1668,18 @@ final class AnalyticsService
             'progreso' => $progreso,
             'pctDescuentoGlobal' => $lista > 0 ? round((1 - ($ventas / $lista)) * 100, 2) : 0,
         ];
+
+        try {
+            $result['muestras'] = $this->muestras->vendedorResumen($userId, $mes, $anio, false);
+        } catch (Throwable $e) {
+            error_log('[dashboard resumen muestras] ' . $e->getMessage());
+            $result['muestras'] = [
+                'error' => 'No fue posible cargar muestras.',
+                'historico' => ['monto' => 0, 'folios' => 0],
+                'mes' => ['monto' => 0, 'folios' => 0],
+                'valorComercialMes' => 0,
+            ];
+        }
 
         if (filter_var($query['debug'] ?? false, FILTER_VALIDATE_BOOL)) {
             $ventasPropias = $this->ventasMes($payload, [
