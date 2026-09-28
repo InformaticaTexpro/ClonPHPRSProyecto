@@ -18,6 +18,10 @@
   const NO_ACCESS_URL = '/src/modulo/varios/sin-acceso/index.html';
   const GERENCIA_VENDOR_SALES_URL = '/src/modulo/gerencia/comercial/ventas-vendedor/index.html';
   const GERENCIA_SAMPLE_CONTROL_URL = '/src/modulo/gerencia/comercial/control-muestras/index.html';
+  const GERENCIA_SALES_CONTEST_URL = '/src/modulo/gerencia/comercial/concurso-ventas/2026/index.html';
+  const GERENCIA_SALES_CONTEST_LEGACY_URL = '/src/modulo/gerencia/comercial/concurso-ventas/index.html';
+  const ADMIN_SALES_CONTEST_URL = '/src/modulo/admin/concurso-ventas/2026/index.html';
+  const ADMIN_SALES_CONTEST_LEGACY_URL = '/src/modulo/admin/promedios-concurso/index.html';
   const EXTRA_ITEMS = [];
 
   const ICON_SVGS = {
@@ -119,6 +123,7 @@
           { codigo: 'gerencia_estadisticas_ventas', nombre: 'Estadísticas de Ventas' },
           { codigo: 'gerencia_ventas_vendedor', nombre: 'Ventas por Vendedor' },
           { codigo: 'gerencia_control_muestras', nombre: 'Control de Muestras' },
+          { codigo: 'gerencia_concurso_ventas', nombre: '2026' },
         ],
       },
       {
@@ -438,6 +443,40 @@
         nombre: 'Control de Muestras',
         url: controlMuestrasUrl,
         orden: 4,
+        extra: false,
+      });
+    }
+
+    const concursoVentasUrl = normalizarUrl(GERENCIA_SALES_CONTEST_URL);
+    const concursoAnterior = map.get(normalizarUrl(GERENCIA_SALES_CONTEST_LEGACY_URL));
+    if (concursoAnterior) map.delete(normalizarUrl(GERENCIA_SALES_CONTEST_LEGACY_URL));
+    const concursoPermiso = concursoAnterior || gerenciaBase;
+    if (concursoPermiso && !map.has(concursoVentasUrl)) {
+      map.set(concursoVentasUrl, {
+        ...concursoPermiso,
+        id: concursoAnterior?.id ?? 'derived-gerencia-concurso-ventas',
+        codigo: 'gerencia_concurso_ventas',
+        permisoCodigo: concursoPermiso.codigo,
+        nombre: '2026',
+        url: concursoVentasUrl,
+        orden: 5,
+        extra: false,
+      });
+    }
+
+    const administracionBase = catalogo.find(menu => menu.codigo === 'administracion');
+    const adminConcursoUrl = normalizarUrl(ADMIN_SALES_CONTEST_URL);
+    const promediosAnterior = map.get(normalizarUrl(ADMIN_SALES_CONTEST_LEGACY_URL));
+    if (promediosAnterior) map.delete(normalizarUrl(ADMIN_SALES_CONTEST_LEGACY_URL));
+    if (administracionBase && !map.has(adminConcursoUrl)) {
+      map.set(adminConcursoUrl, {
+        ...administracionBase,
+        id: 'derived-administracion-concurso-ventas',
+        codigo: 'administracion_concurso_ventas',
+        permisoCodigo: administracionBase.codigo,
+        nombre: '2026',
+        url: adminConcursoUrl,
+        orden: administracionBase.orden + 1,
         extra: false,
       });
     }
@@ -870,6 +909,18 @@
       .nav-subgroup-link.is-locked {
         color: rgba(255, 255, 255, .42) !important;
       }
+      .nav-subgroup-parent {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        border: 0 !important;
+        background: transparent !important;
+        text-align: left !important;
+        cursor: pointer !important;
+      }
+      .nav-subgroup-parent.active {
+        background: rgba(255, 255, 255, .08) !important;
+      }
       .nav-subgroup-toggle {
         width: 30px !important;
         height: 34px !important;
@@ -887,7 +938,7 @@
         background: rgba(255, 255, 255, .08) !important;
         color: #fff !important;
       }
-      .nav-subgroup.is-open .nav-subgroup-toggle .nav-module-chevron {
+      .nav-subgroup.is-open > .nav-subgroup-row > .nav-subgroup-toggle .nav-module-chevron {
         transform: rotate(90deg) !important;
       }
       .nav-subgroup-items {
@@ -896,7 +947,7 @@
         gap: 2px !important;
         margin: 0 0 4px 18px !important;
       }
-      .nav-subgroup.is-open .nav-subgroup-items {
+      .nav-subgroup.is-open > .nav-subgroup-items {
         display: flex !important;
       }
       .nav-subgroup-items .nav-subitem {
@@ -1754,11 +1805,31 @@
       `;
     };
 
+    const renderYearContainer = item => {
+      const active = itemActivo(item);
+      const permitido = item.extra ? true : tienePermiso(item, indicePermisos);
+      return `
+        <div class="nav-subgroup ${active ? 'is-open' : ''}">
+          <div class="nav-subgroup-row">
+            <button class="nav-subgroup-link nav-subgroup-parent ${active ? 'active' : ''} ${permitido ? '' : 'is-locked'}" type="button" aria-expanded="${active ? 'true' : 'false'}">
+              <span class="nav-label">Concurso de Ventas</span>
+              ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
+            </button>
+            <button class="nav-subgroup-toggle" type="button" aria-label="Desplegar Concurso de Ventas" aria-expanded="${active ? 'true' : 'false'}">
+              <span class="nav-module-chevron">▶</span>
+            </button>
+          </div>
+          <div class="nav-subgroup-items">${renderItem(item)}</div>
+        </div>
+      `;
+    };
+
     const renderSubmenu = submenu => {
       const submenuAbierto = submenu.items.some(itemActivo);
       const destino = submenu.items[0];
       const permitido = destino.extra ? true : tienePermiso(destino, indicePermisos);
       const href = permitido ? destino.url : urlSinAcceso(destino, rutaActual());
+      const esConcurso = grupo.nombre === 'Gerencia' && submenu.id === 'comercial';
       return `
         <div class="nav-subgroup ${submenuAbierto ? 'is-open' : ''}">
           <div class="nav-subgroup-row">
@@ -1772,7 +1843,7 @@
             </button>
           </div>
           <div class="nav-subgroup-items">
-            ${submenu.items.map(renderItem).join('')}
+            ${submenu.items.map(item => esConcurso && item.codigo === 'gerencia_concurso_ventas' ? renderYearContainer(item) : renderItem(item)).join('')}
           </div>
         </div>
       `;
@@ -1787,7 +1858,7 @@
         </button>
         <div class="nav-subitems">
           ${submenus.map(renderSubmenu).join('')}
-          ${itemsDirectos.map(renderItem).join('')}
+          ${itemsDirectos.map(item => item.codigo === 'administracion_concurso_ventas' ? renderYearContainer(item) : renderItem(item)).join('')}
         </div>
       </div>
     `;
@@ -1805,7 +1876,9 @@
     const usuario = extraerUsuario(data);
     const catalogo = construirCatalogo(extraerCatalogo(data));
     const indicePermisos = crearIndicePermisos(usuario?.menus);
-    const grupos = agruparMenus(catalogo);
+    const grupos = agruparMenus(catalogo.filter(menu =>
+      menu.codigo !== 'administracion_concurso_ventas' || tienePermiso(menu, indicePermisos)
+    ));
 
     if (!grupos.length) {
       nav.innerHTML = '<div class="nav-empty">Sin menús activos</div>';
@@ -1832,12 +1905,14 @@
       });
     });
 
-    nav.querySelectorAll('.nav-subgroup-toggle').forEach(btn => {
+    nav.querySelectorAll('.nav-subgroup-toggle, .nav-subgroup-parent').forEach(btn => {
       btn.addEventListener('click', () => {
         const submenu = btn.closest('.nav-subgroup');
         const open = !submenu.classList.contains('is-open');
         submenu.classList.toggle('is-open', open);
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.parentElement.querySelectorAll('.nav-subgroup-toggle, .nav-subgroup-parent').forEach(control => {
+          control.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
       });
     });
   }

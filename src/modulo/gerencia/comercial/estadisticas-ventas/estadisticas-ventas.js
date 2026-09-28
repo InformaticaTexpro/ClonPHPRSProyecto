@@ -3,7 +3,6 @@
 (function () {
   const API_BASE = '/api/gerencia/comercial';
   const token = () => localStorage.getItem('token') || '';
-  const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   let cargaSecuencia = 0;
   let datosActuales = null;
@@ -74,21 +73,11 @@
     });
   }
 
-  function renderMonths() {
-    const select = document.getElementById('monthFilter');
-    if (!select) return;
-    const current = new Date().getMonth() + 1;
-    select.innerHTML = mesesNombres.map((nombre, index) => `<option value="${index + 1}">${nombre}</option>`).join('');
-    select.value = String(current);
-  }
-
-  function renderYears() {
-    const select = document.getElementById('yearFilter');
-    if (!select) return;
-    const current = new Date().getFullYear();
-    const years = [current - 2, current - 1, current, current + 1];
-    select.innerHTML = years.map(year => `<option value="${year}">${year}</option>`).join('');
-    select.value = String(current);
+  function initDates() {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('desdeFilter').value = `${month}-01`;
+    document.getElementById('hastaFilter').value = `${month}-${String(now.getDate()).padStart(2, '0')}`;
   }
 
   function closeVendorCodes() {
@@ -125,7 +114,7 @@
     setText('kpiCantidadUnidades', formatCount(resumen.cantidadUnidades ?? 0));
     setText('kpiCantidadVendedores', formatCount(resumen.cantidadVendedores ?? 0));
     setText('kpiCantidadCodigos', formatCount(resumen.cantidadCodigos ?? 0));
-    setText('headerIndicadores', `${mesesNombres[(Number(data?.mes || 1) - 1)] || 'Mes'} ${data?.anio || ''}`);
+    setText('headerIndicadores', `${data.desde} / ${data.hasta}`);
   }
 
   function renderUnitsSummary(data) {
@@ -240,7 +229,7 @@
       const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
       const data = datosActuales;
       const resumen = data.resumen || {};
-      const periodo = `${mesesNombres[Number(data.mes || 1) - 1] || 'Mes'} ${data.anio || ''}`;
+      const periodo = `${data.desde} / ${data.hasta}`;
       const generado = new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
 
       doc.setTextColor(32, 49, 47);
@@ -310,7 +299,7 @@
         doc.text(`Texpro · Estadísticas de Ventas · ${periodo}`, 9, 205);
         doc.text(`Página ${pagina} de ${paginas}`, 288, 205, { align: 'right' });
       }
-      doc.save(`estadisticas-ventas-${data.anio}-${String(data.mes).padStart(2, '0')}.pdf`);
+      doc.save(`estadisticas-ventas-${data.desde}_${data.hasta}.pdf`);
       setText('mensajeEstadisticas', `PDF generado correctamente (${paginas} página${paginas === 1 ? '' : 's'}).`);
     } catch (error) {
       setText('mensajeEstadisticas', `No se pudo generar el PDF. ${error.message}`);
@@ -348,15 +337,22 @@
   }
 
   async function loadData() {
+    const desdeControl = document.getElementById('desdeFilter');
+    const hastaControl = document.getElementById('hastaFilter');
+    if (!desdeControl.reportValidity() || !hastaControl.reportValidity()) return;
+    const desde = desdeControl.value;
+    const hasta = hastaControl.value;
+    if (desde > hasta) {
+      setText('mensajeEstadisticas', 'La fecha Desde no puede ser posterior a Hasta.');
+      return;
+    }
     const currentLoad = ++cargaSecuencia;
-    const year = Number(document.getElementById('yearFilter')?.value || new Date().getFullYear());
-    const month = Number(document.getElementById('monthFilter')?.value || (new Date().getMonth() + 1));
     setLoadingState(true, 'Cargando estadísticas de ventas...');
     resetView();
     setText('mensajeEstadisticas', 'Actualizando información...');
 
     try {
-      const data = await apiGet(`/estadisticas-ventas?anio=${encodeURIComponent(year)}&mes=${encodeURIComponent(month)}`);
+      const data = await apiGet(`/estadisticas-ventas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
       if (currentLoad !== cargaSecuencia) return;
       datosActuales = data;
       renderSummary(data);
@@ -395,8 +391,7 @@
       window.location.href = '/src/modulo/varios/login/index.html';
       return;
     }
-    renderMonths();
-    renderYears();
+    initDates();
     bindEvents();
     try {
       await loadData();

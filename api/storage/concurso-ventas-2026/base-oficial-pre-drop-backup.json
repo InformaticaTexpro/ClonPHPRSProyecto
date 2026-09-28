@@ -1,0 +1,1804 @@
+{
+    "schemaVersion": 1,
+    "anioConcurso": 2026,
+    "version": 1,
+    "periodoDesde": "2026-06",
+    "periodoHasta": "2026-08",
+    "cantidadMeses": 3,
+    "fechaGeneracion": "2026-09-26 15:52:58",
+    "fechaBloqueo": "2026-09-25 09:22:20",
+    "categorias": [
+        "QUIMICOS",
+        "ACCESORIOS",
+        "TRAT_AGUA",
+        "AEROSOLES"
+    ],
+    "vendedores": [
+        {
+            "usuarioId": 1,
+            "codigoPrincipal": "003",
+            "vendedorNombre": "ADRIANA PERRET",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "150.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1852142.67",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "3252080.00",
+                        "2026-08": "2304348.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 2,
+            "codigoPrincipal": "202",
+            "vendedorNombre": "ALICIA RUZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "299611.33",
+                    "meses": {
+                        "2026-06": "271661.00",
+                        "2026-07": "496106.00",
+                        "2026-08": "131067.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "6444370.00",
+                    "meses": {
+                        "2026-06": "4478430.00",
+                        "2026-07": "0.00",
+                        "2026-08": "14854680.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1871447.67",
+                    "meses": {
+                        "2026-06": "3169839.00",
+                        "2026-07": "780035.00",
+                        "2026-08": "1664469.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "3996966.83",
+                    "meses": {
+                        "2026-06": "868250.00",
+                        "2026-07": "9754976.00",
+                        "2026-08": "1367674.50"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 3,
+            "codigoPrincipal": "358",
+            "vendedorNombre": "ANDREA PONCE",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "4471328.00",
+                    "meses": {
+                        "2026-06": "2522643.00",
+                        "2026-07": "5577793.00",
+                        "2026-08": "5313548.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1346528.33",
+                    "meses": {
+                        "2026-06": "2257910.00",
+                        "2026-07": "850900.00",
+                        "2026-08": "930775.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 4,
+            "codigoPrincipal": "213",
+            "vendedorNombre": "BARBARA PERRET",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 5,
+            "codigoPrincipal": "158",
+            "vendedorNombre": "CAROLINA LIZANA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "1077068.33",
+                    "meses": {
+                        "2026-06": "1171490.00",
+                        "2026-07": "0.00",
+                        "2026-08": "2059715.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "13086722.67",
+                    "meses": {
+                        "2026-06": "8845938.00",
+                        "2026-07": "19955096.00",
+                        "2026-08": "10459134.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "6794404.67",
+                    "meses": {
+                        "2026-06": "7986420.00",
+                        "2026-07": "7285984.00",
+                        "2026-08": "5110810.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "11742.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "35226.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 6,
+            "codigoPrincipal": "107",
+            "vendedorNombre": "CECILIA GAJARDO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 7,
+            "codigoPrincipal": "194",
+            "vendedorNombre": "CIDALIA SOTO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "1174507.00",
+                    "meses": {
+                        "2026-06": "1321838.00",
+                        "2026-07": "1021831.00",
+                        "2026-08": "1179852.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "704899.33",
+                    "meses": {
+                        "2026-06": "717595.00",
+                        "2026-07": "572610.00",
+                        "2026-08": "824493.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2982743.67",
+                    "meses": {
+                        "2026-06": "2160482.00",
+                        "2026-07": "3166809.00",
+                        "2026-08": "3620940.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "551025.00",
+                    "meses": {
+                        "2026-06": "950216.00",
+                        "2026-07": "702859.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 8,
+            "codigoPrincipal": "454",
+            "vendedorNombre": "CLAUDIA RINCONES",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "8081821.33",
+                    "meses": {
+                        "2026-06": "7073010.00",
+                        "2026-07": "9297737.00",
+                        "2026-08": "7874717.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "1513107.33",
+                    "meses": {
+                        "2026-06": "1949927.00",
+                        "2026-07": "1311122.00",
+                        "2026-08": "1278273.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "28291000.00",
+                    "meses": {
+                        "2026-06": "33378705.00",
+                        "2026-07": "25432115.00",
+                        "2026-08": "26062180.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "3887417.33",
+                    "meses": {
+                        "2026-06": "3448648.50",
+                        "2026-07": "5081853.00",
+                        "2026-08": "3131750.50"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 9,
+            "codigoPrincipal": "041",
+            "vendedorNombre": "DAVID VILLANUEVA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "-150152.67",
+                    "meses": {
+                        "2026-06": "-925848.00",
+                        "2026-07": "475390.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "47798.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "115680.00",
+                        "2026-08": "27714.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "940272.00",
+                    "meses": {
+                        "2026-06": "806080.00",
+                        "2026-07": "1715128.00",
+                        "2026-08": "299608.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "403170.00",
+                    "meses": {
+                        "2026-06": "574375.00",
+                        "2026-07": "207800.00",
+                        "2026-08": "427335.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 10,
+            "codigoPrincipal": "029",
+            "vendedorNombre": "GABRIELA VALENZUELA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "4533.33",
+                    "meses": {
+                        "2026-06": "13600.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "17623438.00",
+                    "meses": {
+                        "2026-06": "26775264.00",
+                        "2026-07": "885000.00",
+                        "2026-08": "25210050.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2074820.00",
+                    "meses": {
+                        "2026-06": "2051980.00",
+                        "2026-07": "3902000.00",
+                        "2026-08": "270480.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "1144287.67",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "3432863.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 11,
+            "codigoPrincipal": "199",
+            "vendedorNombre": "GERALDINE VALDIVIESO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "272954.33",
+                    "meses": {
+                        "2026-06": "319483.00",
+                        "2026-07": "227168.00",
+                        "2026-08": "272212.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "10573.33",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "31720.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1815984.67",
+                    "meses": {
+                        "2026-06": "1313621.00",
+                        "2026-07": "1607533.00",
+                        "2026-08": "2526800.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 12,
+            "codigoPrincipal": "004",
+            "vendedorNombre": "INELIA CID",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "2676661.67",
+                    "meses": {
+                        "2026-06": "2982984.00",
+                        "2026-07": "1985946.00",
+                        "2026-08": "3061055.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2159545.33",
+                    "meses": {
+                        "2026-06": "516280.00",
+                        "2026-07": "5622476.00",
+                        "2026-08": "339880.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 13,
+            "codigoPrincipal": "009",
+            "vendedorNombre": "JACQUELINE ESPARZA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "1119953.33",
+                    "meses": {
+                        "2026-06": "1642238.00",
+                        "2026-07": "560134.00",
+                        "2026-08": "1157488.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "7521273.33",
+                    "meses": {
+                        "2026-06": "4616039.00",
+                        "2026-07": "9596262.00",
+                        "2026-08": "8351519.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "143463955.67",
+                    "meses": {
+                        "2026-06": "133200106.00",
+                        "2026-07": "142179148.00",
+                        "2026-08": "155012613.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "4949900.99",
+                    "meses": {
+                        "2026-06": "6418271.00",
+                        "2026-07": "4354427.77",
+                        "2026-08": "4077004.20"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 14,
+            "codigoPrincipal": "370",
+            "vendedorNombre": "JOSSELYN MIRANDA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "2066432.33",
+                    "meses": {
+                        "2026-06": "1704219.00",
+                        "2026-07": "2271325.00",
+                        "2026-08": "2223753.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "2101958.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "5271634.00",
+                        "2026-08": "1034240.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "32262402.67",
+                    "meses": {
+                        "2026-06": "33154425.00",
+                        "2026-07": "38820944.00",
+                        "2026-08": "24811839.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "1415003.83",
+                    "meses": {
+                        "2026-06": "1929870.00",
+                        "2026-07": "686850.00",
+                        "2026-08": "1628291.50"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 15,
+            "codigoPrincipal": "002",
+            "vendedorNombre": "LORENA CARTER",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "750010.33",
+                    "meses": {
+                        "2026-06": "609891.00",
+                        "2026-07": "430352.00",
+                        "2026-08": "1209788.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "248722.00",
+                    "meses": {
+                        "2026-06": "112194.00",
+                        "2026-07": "633972.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "8362394.00",
+                    "meses": {
+                        "2026-06": "12554928.00",
+                        "2026-07": "8532466.00",
+                        "2026-08": "3999788.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "3112480.17",
+                    "meses": {
+                        "2026-06": "6515217.50",
+                        "2026-07": "642518.00",
+                        "2026-08": "2179705.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 16,
+            "codigoPrincipal": "177",
+            "vendedorNombre": "LORENA MANZARRAGA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "17145.33",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "51436.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "479459.00",
+                    "meses": {
+                        "2026-06": "914055.00",
+                        "2026-07": "339800.00",
+                        "2026-08": "184522.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "153395.00",
+                    "meses": {
+                        "2026-06": "460185.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 17,
+            "codigoPrincipal": "019",
+            "vendedorNombre": "MARCELA ROJAS",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "1744012.00",
+                    "meses": {
+                        "2026-06": "390204.00",
+                        "2026-07": "3693486.00",
+                        "2026-08": "1148346.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "5275591.00",
+                    "meses": {
+                        "2026-06": "710400.00",
+                        "2026-07": "7835115.00",
+                        "2026-08": "7281258.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 18,
+            "codigoPrincipal": "605",
+            "vendedorNombre": "MARIANNE HIEGEMANN",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "322809.00",
+                    "meses": {
+                        "2026-06": "15277.00",
+                        "2026-07": "953150.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "159893.33",
+                    "meses": {
+                        "2026-06": "239840.00",
+                        "2026-07": "0.00",
+                        "2026-08": "239840.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1313445.67",
+                    "meses": {
+                        "2026-06": "1046620.00",
+                        "2026-07": "444445.00",
+                        "2026-08": "2449272.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 19,
+            "codigoPrincipal": "398",
+            "vendedorNombre": "MARIELA MIRANDA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "287386.00",
+                    "meses": {
+                        "2026-06": "506414.00",
+                        "2026-07": "0.00",
+                        "2026-08": "355744.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "24941186.29",
+                    "meses": {
+                        "2026-06": "20252237.50",
+                        "2026-07": "34205171.00",
+                        "2026-08": "20366150.38"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 20,
+            "codigoPrincipal": "362",
+            "vendedorNombre": "MARITZA FRANCO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "163710.33",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "491131.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "132111.00",
+                    "meses": {
+                        "2026-06": "14679.00",
+                        "2026-07": "381654.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "1808591.00",
+                    "meses": {
+                        "2026-06": "402000.00",
+                        "2026-07": "1180615.00",
+                        "2026-08": "3843158.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "67958.50",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "203875.50",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 21,
+            "codigoPrincipal": "07",
+            "vendedorNombre": "MONICA ALEGRIA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "993285.33",
+                    "meses": {
+                        "2026-06": "35937.00",
+                        "2026-07": "350827.00",
+                        "2026-08": "2593092.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "2628587.67",
+                    "meses": {
+                        "2026-06": "1427758.00",
+                        "2026-07": "5458617.00",
+                        "2026-08": "999388.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "12652914.67",
+                    "meses": {
+                        "2026-06": "13785430.00",
+                        "2026-07": "9190956.00",
+                        "2026-08": "14982358.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "784183.33",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "2352550.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 22,
+            "codigoPrincipal": "343",
+            "vendedorNombre": "NADIA ROJAS",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "137962.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "413886.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "671462.67",
+                    "meses": {
+                        "2026-06": "959913.00",
+                        "2026-07": "143165.00",
+                        "2026-08": "911310.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "22458251.67",
+                    "meses": {
+                        "2026-06": "28868453.50",
+                        "2026-07": "16395046.50",
+                        "2026-08": "22111255.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 23,
+            "codigoPrincipal": "629",
+            "vendedorNombre": "NORELBYS OLIVEROS",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "8996.67",
+                    "meses": {
+                        "2026-06": "26990.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "788052.00",
+                    "meses": {
+                        "2026-06": "1106642.00",
+                        "2026-07": "1235513.00",
+                        "2026-08": "22001.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "27248036.85",
+                    "meses": {
+                        "2026-06": "17506412.10",
+                        "2026-07": "28396629.45",
+                        "2026-08": "35841069.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 24,
+            "codigoPrincipal": "065",
+            "vendedorNombre": "PATRICIA OLIVOS",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "118000.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "354000.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "302256.00",
+                    "meses": {
+                        "2026-06": "226692.00",
+                        "2026-07": "453384.00",
+                        "2026-08": "226692.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2764035.33",
+                    "meses": {
+                        "2026-06": "3126856.00",
+                        "2026-07": "1286340.00",
+                        "2026-08": "3878910.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 25,
+            "codigoPrincipal": "246",
+            "vendedorNombre": "PAULINA QUIROZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "772390.67",
+                    "meses": {
+                        "2026-06": "890787.00",
+                        "2026-07": "1060382.00",
+                        "2026-08": "366003.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "1445519.33",
+                    "meses": {
+                        "2026-06": "1487152.00",
+                        "2026-07": "627720.00",
+                        "2026-08": "2221686.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2321369.33",
+                    "meses": {
+                        "2026-06": "3604510.00",
+                        "2026-07": "2147436.00",
+                        "2026-08": "1212162.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "1661525.00",
+                    "meses": {
+                        "2026-06": "1661525.00",
+                        "2026-07": "396375.00",
+                        "2026-08": "2926675.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 27,
+            "codigoPrincipal": "432",
+            "vendedorNombre": "SERGIO VILLAGRAN",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "7560392.87",
+                    "meses": {
+                        "2026-06": "16734241.62",
+                        "2026-07": "3599752.00",
+                        "2026-08": "2347185.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 28,
+            "codigoPrincipal": "005",
+            "vendedorNombre": "TERESA GONZALEZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "533365.00",
+                    "meses": {
+                        "2026-06": "204915.00",
+                        "2026-07": "1395180.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "431366.67",
+                    "meses": {
+                        "2026-06": "552780.00",
+                        "2026-07": "596780.00",
+                        "2026-08": "144540.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "231522.00",
+                    "meses": {
+                        "2026-06": "231522.00",
+                        "2026-07": "231522.00",
+                        "2026-08": "231522.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 29,
+            "codigoPrincipal": "488",
+            "vendedorNombre": "VERONICA ESPINA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "677458.00",
+                    "meses": {
+                        "2026-06": "895530.00",
+                        "2026-07": "189814.00",
+                        "2026-08": "947030.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "70452.00",
+                    "meses": {
+                        "2026-06": "211356.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "4864766.67",
+                    "meses": {
+                        "2026-06": "5045075.00",
+                        "2026-07": "5731755.00",
+                        "2026-08": "3817470.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 30,
+            "codigoPrincipal": "012",
+            "vendedorNombre": "XIMENA CUEVAS",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "130693.33",
+                    "meses": {
+                        "2026-06": "84598.00",
+                        "2026-07": "252698.00",
+                        "2026-08": "54784.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "19317833.67",
+                    "meses": {
+                        "2026-06": "13542148.00",
+                        "2026-07": "18983714.00",
+                        "2026-08": "25427639.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "3844240.67",
+                    "meses": {
+                        "2026-06": "5435257.00",
+                        "2026-07": "4382254.00",
+                        "2026-08": "1715211.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "2369655.67",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "1863195.50",
+                        "2026-08": "5245771.50"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 36,
+            "codigoPrincipal": "24",
+            "vendedorNombre": "CARLOS MUÑOZ PQ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "317803.33",
+                    "meses": {
+                        "2026-06": "34608.00",
+                        "2026-07": "359924.00",
+                        "2026-08": "558878.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "49162.67",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "147488.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "7810321.00",
+                    "meses": {
+                        "2026-06": "6829892.00",
+                        "2026-07": "9025469.00",
+                        "2026-08": "7575602.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "15006.67",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "45020.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 37,
+            "codigoPrincipal": "417",
+            "vendedorNombre": "CARLOS MUÑOZ TA",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "97500.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "292500.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "412720.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "1238160.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "1821576.00",
+                    "meses": {
+                        "2026-06": "4178000.00",
+                        "2026-07": "953132.00",
+                        "2026-08": "333596.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 38,
+            "codigoPrincipal": "647",
+            "vendedorNombre": "LUSBY RAMIREZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "1005749.33",
+                    "meses": {
+                        "2026-06": "693223.00",
+                        "2026-07": "1661246.00",
+                        "2026-08": "662779.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "130302.00",
+                    "meses": {
+                        "2026-06": "30204.00",
+                        "2026-07": "360702.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "2395741.67",
+                    "meses": {
+                        "2026-06": "2905991.00",
+                        "2026-07": "1604005.00",
+                        "2026-08": "2677229.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "471261.00",
+                    "meses": {
+                        "2026-06": "366807.00",
+                        "2026-07": "665043.00",
+                        "2026-08": "381933.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 39,
+            "codigoPrincipal": "651",
+            "vendedorNombre": "MACARENA SANCHEZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "121316.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "312512.00",
+                        "2026-08": "51436.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "3889215.67",
+                    "meses": {
+                        "2026-06": "4640824.00",
+                        "2026-07": "5050214.00",
+                        "2026-08": "1976609.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 40,
+            "codigoPrincipal": "650",
+            "vendedorNombre": "MARIO ALVAREZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "1054133.33",
+                    "meses": {
+                        "2026-06": "1384800.00",
+                        "2026-07": "1777600.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "380717.33",
+                    "meses": {
+                        "2026-06": "183960.00",
+                        "2026-07": "0.00",
+                        "2026-08": "958192.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 41,
+            "codigoPrincipal": "652",
+            "vendedorNombre": "ROSANGEL GUTIERREZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "31146.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "93438.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "35090.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "105270.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "217747.33",
+                    "meses": {
+                        "2026-06": "267020.00",
+                        "2026-07": "193102.00",
+                        "2026-08": "193120.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 42,
+            "codigoPrincipal": "01",
+            "vendedorNombre": "TEXPRO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "87308.67",
+                    "meses": {
+                        "2026-06": "195731.00",
+                        "2026-07": "46514.00",
+                        "2026-08": "19681.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "2417043.00",
+                    "meses": {
+                        "2026-06": "291350.00",
+                        "2026-07": "6690160.00",
+                        "2026-08": "269619.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "3643450.00",
+                    "meses": {
+                        "2026-06": "3021851.00",
+                        "2026-07": "3767498.00",
+                        "2026-08": "4141001.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "3195071.33",
+                    "meses": {
+                        "2026-06": "5492492.00",
+                        "2026-07": "3457248.00",
+                        "2026-08": "635474.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 43,
+            "codigoPrincipal": "69",
+            "vendedorNombre": "MIRTA SOTELO",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "1516000.00",
+                    "meses": {
+                        "2026-06": "600000.00",
+                        "2026-07": "3948000.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "8589000.00",
+                    "meses": {
+                        "2026-06": "12243000.00",
+                        "2026-07": "0.00",
+                        "2026-08": "13524000.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        },
+        {
+            "usuarioId": 49,
+            "codigoPrincipal": "8479",
+            "vendedorNombre": "OLGA GUTIERREZ",
+            "categorias": {
+                "ACCESORIOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "AEROSOLES": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "QUIMICOS": {
+                    "promedioBase": "0.00",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "0.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                },
+                "TRAT_AGUA": {
+                    "promedioBase": "60083.33",
+                    "meses": {
+                        "2026-06": "0.00",
+                        "2026-07": "0.00",
+                        "2026-08": "180250.00"
+                    },
+                    "fechaCalculo": "2026-09-25 09:22:15",
+                    "fechaBloqueo": "2026-09-25 09:22:20"
+                }
+            }
+        }
+    ]
+}

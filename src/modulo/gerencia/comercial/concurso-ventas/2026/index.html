@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Concurso de Ventas 2026</title>
+  <link rel="icon" type="image/png" href="../../../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../../../assets/styles/tokens.css?v=2.1.0" />
+  <link rel="stylesheet" href="../../../gerencia.css?v=1.1.0" />
+  <link rel="stylesheet" href="./concurso-ventas.css?v=1.3.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Gerencia</span>
+          <span class="user-area" id="userArea">Comercial</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <span>⎋</span><span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <h1 class="header-title">Concurso de Ventas 2026</h1>
+      </div>
+      <div class="header-right"></div>
+    </header>
+
+    <main class="gerencia-page concurso-page">
+      <section class="hero-panel" aria-labelledby="tituloConcurso">
+        <div><p class="eyebrow">Gerencia comercial</p><h2 id="tituloConcurso">Concurso de Ventas 2026</h2><p class="hero-description">Seguimiento mensual de resultados y puntajes del concurso comercial.</p></div>
+      </section>
+      <form class="gerencia-filtros" id="concursoFiltros" aria-label="Período del concurso">
+        <div class="gerencia-filtro"><label for="monthFilter">MES</label><select class="filtro-select" id="monthFilter" required></select></div>
+        <div class="gerencia-filtro"><label for="yearFilter">AÑO</label><select class="filtro-select" id="yearFilter" disabled><option value="2026" selected>2026</option></select></div>
+        <button class="btn-buscar" type="submit">Actualizar</button>
+      </form>
+      <p id="concursoCierreEstado" class="gerencia-subtitulo" role="status" aria-live="polite"></p>
+      <div id="concursoResultados" aria-busy="true">
+      <div id="concursoLoading" role="status" aria-live="polite"><div class="gerencia-loading-card"><div class="gerencia-loading-spinner" aria-hidden="true"></div><div class="gerencia-loading-copy"><strong>Cargando datos...</strong></div></div></div>
+      <p id="concursoEstado" class="gerencia-mensaje" role="status" aria-live="polite"></p>
+      <section class="kpis-grid concurso-kpis" aria-label="Indicadores del concurso">
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Vendedores participantes</span><strong class="kpi-valor">0</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Puntos otorgados mes</span><strong class="kpi-valor">0</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Clientes nuevos válidos</span><strong class="kpi-valor">0</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Clientes recuperados</span><strong class="kpi-valor">0</strong></div></article>
+        <article class="kpi-card"><div class="kpi-info"><span class="kpi-label">Puntos acumulados</span><strong class="kpi-valor">0</strong></div></article>
+      </section>
+      <div class="concurso-vistas" role="group" aria-label="Vista de resultados">
+        <button class="btn-buscar" type="button" data-view="mes" aria-pressed="true">Detalle Mes</button>
+        <button class="btn-buscar" type="button" data-view="acumulado" aria-pressed="false">Acumulado</button>
+        <button class="btn-buscar concurso-exportar" id="exportarConcurso" type="button" disabled>Exportar Excel</button>
+      </div>
+      <section class="tabla-seccion" aria-labelledby="tituloResultados">
+        <div class="tabla-card">
+          <div class="tabla-header"><div><h3 class="tabla-titulo" id="tituloResultados">Resultados por vendedor</h3><p class="gerencia-subtitulo" id="periodoResultados" role="status" aria-live="polite"></p></div></div>
+          <div class="tabla-wrapper" tabindex="0" role="region" aria-label="Resultados por vendedor, tabla desplazable">
+            <table class="dash-tabla concurso-tabla">
+              <thead id="concursoHead"><tr>
+                <th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipo">Tipo</th>
+                <th scope="col" class="numero" data-sort="meta">Meta</th><th scope="col" class="numero" data-sort="venta">Venta</th>
+                <th scope="col" class="numero" data-sort="porcentajeMeta">% Meta</th><th scope="col" class="numero" data-sort="metaPuntos">Meta pts</th>
+                <th scope="col" class="numero" data-sort="nuevosPuntos">Nuevos pts</th><th scope="col" class="numero" data-sort="recuperadosPuntos">Recuperados pts</th>
+                <th scope="col" class="numero" data-sort="productosPuntos">Productos pts</th><th scope="col" class="numero" data-sort="totalMes">Total mes</th><th scope="col" class="numero" data-sort="acumulado">Acumulado</th>
+              </tr></thead>
+              <tbody id="concursoBody"><tr><td colspan="11" class="gerencia-empty">No existen resultados calculados para el período seleccionado.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <dialog id="detalle-vendedor" class="concurso-modal" aria-labelledby="tituloDetalleVendedor">
+        <header class="concurso-modal-header"><h3 id="tituloDetalleVendedor">Detalle Concurso — <span id="detalleNombre"></span> — <span id="detallePeriodo"></span></h3><button class="btn-buscar" id="cerrarDetalleX" type="button" aria-label="Cerrar detalle del vendedor">×</button></header>
+        <nav id="concursoTabs" class="concurso-tabs" aria-label="Categorías del concurso">
+          <button class="btn-buscar" type="button" data-tab="cumplimiento" aria-pressed="true" aria-controls="detalleCumplimiento">Cumplimiento</button>
+          <button class="btn-buscar" type="button" data-tab="nuevos" aria-pressed="false" aria-controls="detalleClientes">Clientes Nuevos</button>
+          <button class="btn-buscar" type="button" data-tab="recuperados" aria-pressed="false" aria-controls="detalleClientes">Clientes Recuperados</button>
+          <button class="btn-buscar" type="button" data-tab="productos" aria-pressed="false" aria-controls="detalleProductos">Productos</button>
+        </nav>
+        <p id="categoriaResumen" class="gerencia-subtitulo"></p>
+        <section id="detalleAcumulado" class="tabla-card" hidden aria-label="Resumen por mes"><h4>Resumen por mes</h4><div class="tabla-wrapper" tabindex="0" role="region" aria-label="Puntajes mensuales del vendedor"><table class="dash-tabla"><thead><tr><th>Mes</th><th>Tipo</th><th class="numero">Meta pts</th><th class="numero">Nuevos pts</th><th class="numero">Recuperados pts</th><th class="numero">Productos pts</th><th class="numero">Total mes</th><th class="numero">Acumulado</th></tr></thead><tbody id="detalleAcumuladoBody"></tbody></table></div></section>
+        <div id="detalleCumplimiento" class="tabla-card" hidden></div>
+        <section id="detalleClientes" class="tabla-card" hidden aria-labelledby="clientesTitulo">
+          <h4 id="clientesTitulo"></h4><div id="clientesEstado" role="status" aria-live="polite"></div>
+          <div class="tabla-wrapper" tabindex="0" role="region" aria-label="Clientes del concurso"><table class="dash-tabla"><thead id="clientesHead"></thead><tbody id="clientesBody"></tbody></table></div>
+        </section>
+        <section id="detalleProductos" class="tabla-card" hidden aria-label="Puntos por productos">
+          <p id="productosEstado" role="status" aria-live="polite"></p>
+          <div class="tabla-wrapper" tabindex="0" role="region" aria-label="Categorías de productos"><table class="dash-tabla"><thead><tr><th>Categoría</th><th class="numero">Promedio base</th><th class="numero">Venta mes</th><th class="numero">Superación</th><th class="numero">Puntos</th><th>Acción</th></tr></thead><tbody id="productosBody"></tbody></table></div>
+          <div id="productoDetalle" hidden><h4 id="productoDetalleTitulo"></h4><div id="productoDetalleEstado" role="status" aria-live="polite"></div><div class="tabla-wrapper" tabindex="0" role="region" aria-label="Detalle de productos"><table class="dash-tabla"><thead id="productoDetalleHead"></thead><tbody id="productoDetalleBody"></tbody></table></div></div>
+        </section>
+        <section id="detalleFolios" class="tabla-card" hidden aria-labelledby="foliosTitulo">
+          <h4 id="foliosTitulo"></h4><div id="foliosEstado" role="status" aria-live="polite"></div>
+          <div class="tabla-wrapper" tabindex="0" role="region" aria-label="Folios del cliente"><table class="dash-tabla"><thead><tr><th>Tipo</th><th>Folio</th><th>Fecha</th><th>Código vendedor</th><th>Atribución</th><th class="numero">Venta original</th><th class="numero">% atribuido</th><th class="numero">Venta atribuida</th></tr></thead><tbody id="foliosBody"></tbody></table></div>
+          <p id="foliosTotal"></p>
+        </section>
+        <button class="btn-buscar" id="cerrarDetalle" type="button">Cerrar</button>
+      </dialog>
+      </div>
+    </main>
+  </div>
+  <script src="../../../../../assets/js/app-sidebar.js?v=1.2.2"></script>
+  <script src="./concurso-ventas.js?v=1.3.0"></script>
+  <script src="../../../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>
