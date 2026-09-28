@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/ConcursoReglasMeta.php';
 
 final class ConcursoVentasService
 {
@@ -7,24 +8,6 @@ final class ConcursoVentasService
 
     private const CONFIG = [
         'fechaInicio' => '2026-10-01',
-        'tramos' => [
-            'C' => ['min' => 0, 'max' => 10000000],
-            'B' => ['min' => 10000001, 'max' => 25000000],
-            'A' => ['min' => 25000001, 'max' => null],
-        ],
-        'rangosProgreso' => [
-            '70_79' => ['min' => 70, 'max' => 80, 'maxInclusive' => false],
-            '80_89' => ['min' => 80, 'max' => 90, 'maxInclusive' => false],
-            '90_100' => ['min' => 90, 'max' => 100, 'maxInclusive' => true],
-            '101_110' => ['min' => 100, 'max' => 110, 'minExclusive' => true, 'maxInclusive' => true],
-            '111_120' => ['min' => 110, 'max' => 120, 'minExclusive' => true, 'maxInclusive' => true],
-            '121_mas' => ['min' => 120, 'max' => null, 'minExclusive' => true],
-        ],
-        'puntosPorTramo' => [
-            'A' => ['70_79' => 10, '80_89' => 13, '90_100' => 14, '101_110' => 17, '111_120' => 20, '121_mas' => 23],
-            'B' => ['70_79' => 5, '80_89' => 7, '90_100' => 9, '101_110' => 12, '111_120' => 15, '121_mas' => 18],
-            'C' => ['70_79' => 2, '80_89' => 4, '90_100' => 6, '101_110' => 9, '111_120' => 12, '121_mas' => 15],
-        ],
         'montoMinimoNuevo' => 200000,
         'puntosNuevo' => 5,
         'montoMinimoRecuperado' => 200000,
@@ -80,17 +63,7 @@ final class ConcursoVentasService
 
     public static function progressPoints(float $meta, float $ventas): int
     {
-        if ($meta <= 0) {
-            return 0;
-        }
-
-        $tramo = self::tramoPorMeta($meta);
-        $rango = self::rangoProgreso(($ventas / $meta) * 100);
-        if ($tramo === null || $rango === null) {
-            return 0;
-        }
-
-        return (int)(self::CONFIG['puntosPorTramo'][$tramo][$rango] ?? 0);
+        return ConcursoReglasMeta::evaluate($meta, $ventas)['puntosMeta'];
     }
 
     public static function countEligibleGroupedPurchases(array $rows, float $minimumAmount): int
@@ -124,34 +97,6 @@ final class ConcursoVentasService
         $previous = new DateTimeImmutable(substr($previousDate, 0, 10));
         $recovery = new DateTimeImmutable(substr($recoveryDate, 0, 10));
         return (int)$previous->diff($recovery)->days > $daysThreshold;
-    }
-
-    private static function tramoPorMeta(float $meta): ?string
-    {
-        foreach (self::CONFIG['tramos'] as $tramo => $limits) {
-            $min = (float)$limits['min'];
-            $max = $limits['max'] === null ? null : (float)$limits['max'];
-            if ($meta >= $min && ($max === null || $meta <= $max)) {
-                return (string)$tramo;
-            }
-        }
-        return null;
-    }
-
-    private static function rangoProgreso(float $percentage): ?string
-    {
-        foreach (self::CONFIG['rangosProgreso'] as $key => $range) {
-            $min = (float)$range['min'];
-            $max = $range['max'] === null ? null : (float)$range['max'];
-            $minOk = !empty($range['minExclusive']) ? $percentage > $min : $percentage >= $min;
-            $maxOk = $max === null
-                ? true
-                : (!empty($range['maxInclusive']) ? $percentage <= $max : $percentage < $max);
-            if ($minOk && $maxOk) {
-                return (string)$key;
-            }
-        }
-        return null;
     }
 
     private function fetchMetaMes(int $userId, int $anio, int $mes): float

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "anioConcurso": 2026,
+  "fechaActualizacion": "2026-09-27",
+  "tiposMeta": {
+    "A": { "minimoInclusivo": 25000000 },
+    "B": { "minimoInclusivo": 10000000 },
+    "C": { "minimoExclusivo": 0 },
+    "SIN META": { "maximoInclusivo": 0, "puntos": 0 }
+  },
+  "tramos": [
+    { "nombre": "<70%", "desde": null, "hasta": 70, "incluyeHasta": false, "puntos": { "A": 0, "B": 0, "C": 0 } },
+    { "nombre": ">=70% y <80%", "desde": 70, "incluyeDesde": true, "hasta": 80, "incluyeHasta": false, "puntos": { "A": 10, "B": 5, "C": 2 } },
+    { "nombre": ">=80% y <90%", "desde": 80, "incluyeDesde": true, "hasta": 90, "incluyeHasta": false, "puntos": { "A": 13, "B": 7, "C": 4 } },
+    { "nombre": ">=90% y <=100%", "desde": 90, "incluyeDesde": true, "hasta": 100, "incluyeHasta": true, "puntos": { "A": 14, "B": 9, "C": 6 } },
+    { "nombre": ">100% y <=110%", "desde": 100, "incluyeDesde": false, "hasta": 110, "incluyeHasta": true, "puntos": { "A": 17, "B": 12, "C": 9 } },
+    { "nombre": ">110% y <=120%", "desde": 110, "incluyeDesde": false, "hasta": 120, "incluyeHasta": true, "puntos": { "A": 20, "B": 15, "C": 12 } },
+    { "nombre": ">120%", "desde": 120, "incluyeDesde": false, "hasta": null, "puntos": { "A": 23, "B": 18, "C": 15 } }
+  ]
+}

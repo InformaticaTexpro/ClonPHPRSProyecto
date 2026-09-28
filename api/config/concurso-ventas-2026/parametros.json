@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "anioConcurso": 2026,
+  "fechaActualizacion": "2026-09-27",
+  "actualizadoPor": null,
+  "ventas": {
+    "tiposMeta": {
+      "A": { "minimoInclusivo": 25000000 },
+      "B": { "minimoInclusivo": 10000000 },
+      "C": { "minimoExclusivo": 0 },
+      "SIN META": { "maximoInclusivo": 0, "puntos": 0 }
+    },
+    "tramosCumplimiento": [
+      { "desde": null, "hasta": 70, "incluyeHasta": false, "puntos": { "A": 0, "B": 0, "C": 0 } },
+      { "desde": 70, "incluyeDesde": true, "hasta": 80, "incluyeHasta": false, "puntos": { "A": 10, "B": 5, "C": 2 } },
+      { "desde": 80, "incluyeDesde": true, "hasta": 90, "incluyeHasta": false, "puntos": { "A": 13, "B": 7, "C": 4 } },
+      { "desde": 90, "incluyeDesde": true, "hasta": 100, "incluyeHasta": true, "puntos": { "A": 14, "B": 9, "C": 6 } },
+      { "desde": 100, "incluyeDesde": false, "hasta": 110, "incluyeHasta": true, "puntos": { "A": 17, "B": 12, "C": 9 } },
+      { "desde": 110, "incluyeDesde": false, "hasta": 120, "incluyeHasta": true, "puntos": { "A": 20, "B": 15, "C": 12 } },
+      { "desde": 120, "incluyeDesde": false, "hasta": null, "puntos": { "A": 23, "B": 18, "C": 15 } }
+    ]
+  },
+  "clientesNuevos": { "ventaMinima": 200000, "puntos": 5 },
+  "clientesRecuperados": { "diasMinimosSinCompra": 180, "ventaMinima": 200000, "puntos": 3 },
+  "productos": {
+    "tramosSuperacion": [
+      { "desde": null, "hasta": 50000, "incluyeHasta": false, "puntos": 0 },
+      { "desde": 50000, "incluyeDesde": true, "hasta": 200000, "incluyeHasta": true, "puntos": 2 },
+      { "desde": 200000, "incluyeDesde": false, "hasta": 1000000, "incluyeHasta": true, "puntos": 4 },
+      { "desde": 1000000, "incluyeDesde": false, "hasta": null, "puntos": 6 }
+    ]
+  }
+}

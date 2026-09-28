@@ -1,0 +1,107 @@
+.concurso-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+.concurso-page #concursoResultados, .concurso-page .tabla-seccion, .concurso-modal .tabla-card { min-width: 0; max-width: 100%; }
+.concurso-page .gerencia-filtros { min-width: 0; flex-wrap: wrap; }
+.concurso-page .gerencia-filtros .gerencia-filtro { min-width: 0; }
+.concurso-page #concursoCierreEstado { min-width: 0; overflow-wrap: anywhere; }
+
+.concurso-kpis {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+#concursoLoading { display: none; }
+#concursoResultados[aria-busy="true"] > :not(#concursoLoading) { display: none; }
+#concursoResultados[aria-busy="true"] #concursoLoading { display: grid; place-items: center; min-height: 280px; }
+
+.concurso-kpis .kpi-card,
+.concurso-page .tabla-card {
+  min-width: 0;
+}
+
+.concurso-kpis .kpi-label {
+  overflow-wrap: anywhere;
+}
+
+.concurso-vistas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.concurso-exportar { margin-left: auto; }
+
+.concurso-page button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.concurso-page .tabla-wrapper {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+.concurso-modal .tabla-wrapper { max-width: 100%; min-width: 0; overflow-x: auto; }
+.concurso-page .dash-tabla th, .concurso-page .dash-tabla td, .concurso-modal .dash-tabla th, .concurso-modal .dash-tabla td { vertical-align: middle; }
+.concurso-page .dash-tabla .numero, .concurso-modal .dash-tabla .numero { text-align: right; white-space: nowrap; }
+
+.concurso-tabla {
+  min-width: 1120px;
+}
+.concurso-tabla th[data-sort] { cursor: pointer; white-space: nowrap; }
+.concurso-tabla th[data-sort]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.concurso-tabla th[data-sort]::after { content: attr(data-sort-indicator); }
+
+.concurso-tipo { display: inline-block; padding: .25rem .6rem; border-radius: var(--radius-full); background: var(--color-gray-light); color: var(--color-gray-dark); }
+.concurso-vendedor { border: 0; background: transparent; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; min-height: 44px; text-align: left; }
+.concurso-desglose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); }
+.concurso-desglose dd { margin: 0; overflow-wrap: anywhere; }
+#detalleClientes, #detalleFolios { margin-top: var(--space-4); padding: var(--space-4); }
+#detalleProductos { margin-top: var(--space-4); padding: var(--space-4); }
+#detalleAcumulado { margin-top: var(--space-4); padding: var(--space-4); }
+#detalleAcumulado table { min-width: 850px; }
+#productoDetalle { margin-top: var(--space-4); }
+#detalleProductos .tabla-wrapper { overflow: auto; max-height: 60vh; }
+#productoDetalle table { min-width: 1500px; }
+#detalleClientes .tabla-wrapper, #detalleFolios .tabla-wrapper { max-height: 60vh; overflow: auto; }
+#detalleClientes table, #detalleFolios table { min-width: 1000px; }
+.concurso-detail-loading { display: grid; place-items: center; min-height: 160px; }
+.concurso-modal [aria-busy="true"] > .tabla-wrapper { display: none; }
+.concurso-modal #detalleFolios[aria-busy="true"] > #foliosTotal { display: none; }
+#concursoResultados[aria-busy="true"] .tabla-card, #concursoResultados[aria-busy="true"] .concurso-kpis { opacity: .5; pointer-events: none; }
+
+.concurso-modal { box-sizing: border-box; width: min(1280px, calc(100% - 24px)); max-width: calc(100% - 24px); max-height: calc(100dvh - 32px); margin: auto; padding: var(--space-4); border: 0; border-radius: var(--radius-md); background: var(--color-white); color: var(--color-black); overflow: auto; }
+.concurso-modal::backdrop { background: rgba(15, 23, 42, .5); }
+.concurso-modal-header { position: sticky; top: calc(-1 * var(--space-4)); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); background: var(--color-white); padding-block: var(--space-3); }
+.concurso-modal-header h3 { min-width: 0; overflow-wrap: anywhere; }
+.concurso-modal-header button { flex-shrink: 0; }
+.concurso-tabs { display: flex; gap: var(--space-2); overflow-x: auto; padding-block: var(--space-3); }
+.concurso-tabs { max-width: 100%; white-space: nowrap; }
+.concurso-tabs[hidden] { display: none; }
+.concurso-tabs button { flex-shrink: 0; }
+.concurso-tabs [aria-pressed="true"] { background: var(--color-success-light); color: var(--color-success); box-shadow: inset 0 -3px var(--color-success); }
+.concurso-page #concursoBody > .concurso-seleccionado > td { background: var(--color-success-light); }
+.concurso-folios-fila > td { padding: var(--space-3); background: var(--color-gray-light); }
+.concurso-folios-fila #detalleFolios { box-sizing: border-box; width: 0; min-width: 100%; margin-top: 0; }
+body:has(.concurso-modal[open]) { overflow: hidden; }
+
+@media (max-width: 1100px) {
+  .concurso-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .concurso-exportar { margin-left: 0; }
+  .concurso-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .concurso-page #concursoFiltros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .concurso-page #concursoFiltros > .btn-buscar { grid-column: 1 / -1; }
+  .concurso-modal { width: calc(100% - 16px); max-width: calc(100% - 16px); max-height: calc(100dvh - 16px); padding: var(--space-3); }
+  .concurso-modal-header { top: calc(-1 * var(--space-3)); }
+  .concurso-desglose { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 380px) {
+  .concurso-kpis { grid-template-columns: minmax(0, 1fr); }
+}
