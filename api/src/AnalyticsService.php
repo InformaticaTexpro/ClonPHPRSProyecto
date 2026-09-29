@@ -292,7 +292,7 @@ final class AnalyticsService
             $summary[$id] = ['clientesNuevos' => 0, 'puntosNuevos' => 0, 'clientesRecuperados' => 0, 'puntosRecuperados' => 0];
         }
         if (!$owners) return ['resumen' => [], 'clientes' => []];
-        // Candidatos en bloque; histórico corporativo F/D/N, igual a PrimeraCompra del calendario.
+
         $candidateSql = "SELECT DISTINCT CodAux FROM [PRODIN].[softland].[iw_gsaen]
             WHERE Tipo IN ('F','N','D') AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
         $filterClient = $clientCode === null ? '' : ' AND LTRIM(RTRIM(h.CodAux)) = ?';
