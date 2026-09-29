@@ -1448,7 +1448,8 @@
       const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
-      if (card) card.hidden = data.activo !== true;
+      const visible = data.visible === true || data.activo === true;
+      if (card) card.hidden = !visible;
       setText('kpiConcursoPuntos', Number(data.puntos || 0).toLocaleString('es-CL'));
     } catch (err) {
       console.error('[cargarPuntajeConcurso]', err);

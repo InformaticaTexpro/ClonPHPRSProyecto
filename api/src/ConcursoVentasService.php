@@ -18,7 +18,11 @@ final class ConcursoVentasService
         ],
     ];
 
-    public function __construct(private Database $db, private AnalyticsService $analytics)
+    public function __construct(
+        private Database $db,
+        private AnalyticsService $analytics,
+        private ?GerenciaService $gerencia = null
+    )
     {
     }
 
@@ -29,17 +33,32 @@ final class ConcursoVentasService
         $mes = $periodo['mes'];
         $anio = $periodo['anio'];
 
-        if (!self::isActiveForPeriod($anio, $mes)) {
-            return ['ok' => true, 'activo' => false, 'puntos' => 0];
+        $modoValidacion = self::isValidationPeriod($anio, $mes);
+        $activoOficial = self::isActiveForPeriod($anio, $mes);
+
+        if (!self::isVisibleForPeriod($anio, $mes)) {
+            return ['ok' => true, 'activo' => false, 'visible' => false, 'modoValidacion' => false, 'puntos' => 0];
         }
 
         if ($unavailable = $this->softlandUnavailable('el puntaje de concurso')) {
             return $unavailable;
         }
 
+        if ($this->gerencia !== null) {
+            $puntaje = $this->gerencia->concursoPuntajeUsuario($payload, ['anio' => (string)$anio, 'mes' => (string)$mes]);
+            if ($puntaje !== null) {
+                return array_merge([
+                    'ok' => true,
+                    'activo' => $activoOficial,
+                    'visible' => true,
+                    'modoValidacion' => $modoValidacion,
+                ], $puntaje);
+            }
+        }
+
         $vendorCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
         if (!$vendorCodes) {
-            return ['ok' => true, 'activo' => true, 'puntos' => 0];
+            return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => 0];
         }
 
         $meta = $this->fetchMetaMes($userId, $anio, $mes);
@@ -51,7 +70,7 @@ final class ConcursoVentasService
             + ($this->clientesNuevosPuntuables($vendorCodes, $anio, $mes) * (int)self::CONFIG['puntosNuevo'])
             + ($this->clientesRecuperadosPuntuables($vendorCodes, $anio, $mes, $diasRecuperacion) * (int)self::CONFIG['puntosRecuperado']);
 
-        return ['ok' => true, 'activo' => true, 'puntos' => $puntos];
+        return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => $puntos];
     }
 
     public static function isActiveForPeriod(int $anio, int $mes): bool
@@ -59,6 +78,16 @@ final class ConcursoVentasService
         $periodStart = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));
         $contestStart = new DateTimeImmutable((string)self::CONFIG['fechaInicio']);
         return $periodStart >= $contestStart;
+    }
+
+    public static function isValidationPeriod(int $anio, int $mes): bool
+    {
+        return $anio === 2026 && $mes === 9;
+    }
+
+    public static function isVisibleForPeriod(int $anio, int $mes): bool
+    {
+        return self::isValidationPeriod($anio, $mes) || self::isActiveForPeriod($anio, $mes);
     }
 
     public static function progressPoints(float $meta, float $ventas): int
@@ -147,7 +176,7 @@ final class ConcursoVentasService
                        MIN(CAST(h.Fecha AS date)) AS FechaPrimeraCompra
                 FROM [PRODIN].[softland].[iw_gsaen] h
                 INNER JOIN ClientesAsignados ca ON ca.CodAux = LTRIM(RTRIM(h.CodAux))
-                WHERE h.Tipo IN ('F','N','D')
+                WHERE h.Tipo = 'F'
                   AND h.Estado <> 'A'
                   AND h.Fecha < ?
                 GROUP BY LTRIM(RTRIM(h.CodAux))
@@ -163,7 +192,7 @@ final class ConcursoVentasService
                 INNER JOIN [PRODIN].[softland].[iw_gmovi] m
                    ON m.NroInt = h.NroInt
                   AND m.Tipo = h.Tipo
-                WHERE h.Tipo IN ('F','N','D')
+                WHERE h.Tipo = 'F'
                   AND h.Estado <> 'A'
                   AND pc.FechaPrimeraCompra >= ?
                   AND pc.FechaPrimeraCompra < ?
@@ -199,7 +228,7 @@ final class ConcursoVentasService
                 INNER JOIN [PRODIN].[softland].[iw_gmovi] m
                    ON m.NroInt = h.NroInt
                   AND m.Tipo = h.Tipo
-                WHERE h.Tipo IN ('F','N','D')
+                WHERE h.Tipo = 'F'
                   AND h.Estado <> 'A'
                   AND h.Fecha >= ?
                   AND h.Fecha < ?
@@ -222,7 +251,7 @@ final class ConcursoVentasService
                     SELECT TOP 1 CAST(hPrev.Fecha AS date) AS FechaCompraAnterior
                     FROM [PRODIN].[softland].[iw_gsaen] hPrev
                     WHERE LTRIM(RTRIM(hPrev.CodAux)) = ca.CodAux
-                      AND hPrev.Tipo IN ('F','N','D')
+                      AND hPrev.Tipo = 'F'
                       AND hPrev.Estado <> 'A'
                       AND hPrev.Fecha < ca.FechaRecuperacion
                     ORDER BY hPrev.Fecha DESC, hPrev.NroInt DESC, hPrev.Folio DESC
