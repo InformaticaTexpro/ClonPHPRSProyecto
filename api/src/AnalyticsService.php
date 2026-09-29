@@ -294,16 +294,17 @@ final class AnalyticsService
         if (!$owners) return ['resumen' => [], 'clientes' => []];
 
         $candidateSql = "SELECT DISTINCT CodAux FROM [PRODIN].[softland].[iw_gsaen]
-            WHERE Tipo IN ('F','N','D') AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
+            WHERE Tipo = 'F' AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
         $filterClient = $clientCode === null ? '' : ' AND LTRIM(RTRIM(h.CodAux)) = ?';
-        $params = [$desde, $hasta, $hasta];
+        $params = [$desde, $hasta, $desde, $hasta];
         if ($clientCode !== null) $params[] = $clientCode;
         $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
             SELECT LTRIM(RTRIM(h.CodAux)) AS clienteCodigo, MIN(CONVERT(varchar(10), h.Fecha, 23)) AS primera,
+                MAX(CASE WHEN h.Fecha < ? THEN CONVERT(varchar(10), h.Fecha, 23) END) AS ultimaPrevia,
                 MAX(RTRIM(COALESCE(cli.NomAux, h.NomAux, h.CodAux))) AS cliente
             FROM [PRODIN].[softland].[iw_gsaen] h INNER JOIN Candidatos c ON c.CodAux = h.CodAux
             LEFT JOIN [PRODIN].[softland].[cwtauxi] cli ON cli.CodAux = h.CodAux
-            WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A' AND h.Fecha < ? $filterClient
+            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha < ? $filterClient
             GROUP BY LTRIM(RTRIM(h.CodAux))");
         $stmt->execute($params);
         $clients = [];
@@ -344,24 +345,13 @@ final class AnalyticsService
             INNER JOIN Candidatos c ON c.CodAux = h.CodAux
             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-            WHERE h.Tipo IN ('F','N','D') AND h.Estado <> 'A' AND h.Fecha >= ? AND h.Fecha < ? $filterClient $filterVendor
-            GROUP BY h.CodAux, h.CodVendedor, h.NroInt, h.Tipo, h.Folio, CONVERT(varchar(10), h.Fecha, 23)
-            UNION ALL
-            SELECT LTRIM(RTRIM(h.CodAux)), LTRIM(RTRIM(h.CodVendedor)), h.NroInt, h.Tipo, h.Folio,
-                CONVERT(varchar(10), h.Fecha, 23), 1 AS original
-            FROM [PRODIN].[softland].[iw_gsaen] h INNER JOIN Candidatos c ON c.CodAux = h.CodAux
-            WHERE h.Tipo IN ('F','D') AND h.Estado <> 'A' AND h.Fecha < ? $filterClient $filterVendor
-                AND EXISTS (SELECT 1 FROM [PRODIN].[softland].[iw_gmovi] m
-                    INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-                    WHERE m.NroInt = h.NroInt AND m.Tipo = h.Tipo AND m.TotLinea <> 0)");
+            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha >= ? AND h.Fecha < ? $filterClient $filterVendor
+            GROUP BY h.CodAux, h.CodVendedor, h.NroInt, h.Tipo, h.Folio, CONVERT(varchar(10), h.Fecha, 23)");
         $documentParams = [$desde, $hasta, $desde, $hasta];
         if ($clientCode !== null) $documentParams[] = $clientCode;
         $documentParams = array_merge($documentParams, $detailCodes);
-        $documentParams[] = $desde;
-        if ($clientCode !== null) $documentParams[] = $clientCode;
-        $documentParams = array_merge($documentParams, $detailCodes);
         $stmt->execute($documentParams);
-        $monthly = $previous = [];
+        $monthly = [];
         while ($doc = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $client = trim((string)$doc['clienteCodigo']);
             if ($client === '') continue;
@@ -388,12 +378,8 @@ final class AnalyticsService
                 }
                 if (abs($factor) < 0.000000001) continue;
                 $amount = (float)$doc['original'] * $factor;
-                // Una N resta dinero, pero no constituye una compra/reingreso.
+                // Solo una factura F constituye venta para nuevo/recuperado.
                 $purchase = $doc['tipo'] !== 'N' && $amount > 0;
-                if ($doc['fecha'] < $desde) {
-                    if ($purchase && $doc['fecha'] > ($previous[$id][$client] ?? '')) $previous[$id][$client] = $doc['fecha'];
-                    continue;
-                }
                 $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => []];
                 $entry = &$monthly[$id][$client];
                 $entry['ventaMes'] += $amount;
@@ -410,7 +396,7 @@ final class AnalyticsService
         foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
             if ($entry['cantidadFolios'] === 0 && $entry['ventaMes'] == 0.0) continue;
             $first = new DateTimeImmutable($clients[$client]['primera']);
-            $last = isset($previous[$id][$client]) ? new DateTimeImmutable($previous[$id][$client]) : null;
+            $last = !empty($clients[$client]['ultimaPrevia']) ? new DateTimeImmutable((string)$clients[$client]['ultimaPrevia']) : null;
             $current = $entry['primeraMes'] ? new DateTimeImmutable($entry['primeraMes']) : null;
             $classification = $this->clasificarClienteCartera($first, $last, $current,
                 new DateTimeImmutable($desde), (new DateTimeImmutable($hasta))->modify('-1 day'), $recoveredRules['diasMinimosSinCompra']);
@@ -2855,7 +2841,7 @@ final class AnalyticsService
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = h.CodAux
              WHERE h.CodAux IN ($inPurchases)
-               AND h.Tipo IN ('F','N','D')
+               AND h.Tipo = 'F'
                AND h.Estado <> 'A'
                AND h.Fecha <= ?
              GROUP BY h.CodAux
@@ -2929,7 +2915,7 @@ final class AnalyticsService
                     MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.EMail))), '')) AS EMail
                 FROM [PRODIN].[softland].[iw_gsaen] h
                 LEFT JOIN [PRODIN].[softland].[cwtauxi] a ON a.CodAux = h.CodAux
-                WHERE h.Tipo IN ('F','N','D')
+                WHERE h.Tipo = 'F'
                   AND h.Estado <> 'A'
                   AND h.Fecha >= ?
                   AND h.Fecha < ?
@@ -2963,7 +2949,7 @@ final class AnalyticsService
                     SELECT TOP 1 CAST(hPrev.Fecha AS date) AS FechaCompraAnterior
                     FROM [PRODIN].[softland].[iw_gsaen] hPrev
                     WHERE LTRIM(RTRIM(hPrev.CodAux)) = ca.CodCliente
-                      AND hPrev.Tipo IN ('F','N','D')
+                      AND hPrev.Tipo = 'F'
                       AND hPrev.Estado <> 'A'
                       AND hPrev.Fecha < ca.FechaCompra
                     ORDER BY hPrev.Fecha DESC, hPrev.NroInt DESC, hPrev.Folio DESC

@@ -44,6 +44,30 @@
         <path d="M9 4.5h6"></path>
         <path d="M9 11l2.2 2.2L16 8.4"></path>
       </svg>`,
+    chart: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 19h16"></path>
+        <path d="M7 16V9"></path>
+        <path d="M12 16V5"></path>
+        <path d="M17 16v-4"></path>
+        <path d="M6 12l4-4 4 3 4-5"></path>
+      </svg>`,
+    flask: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M9 3h6"></path>
+        <path d="M10 3v6l-5 8.5A2.3 2.3 0 0 0 7 21h10a2.3 2.3 0 0 0 2-3.5L14 9V3"></path>
+        <path d="M8 15h8"></path>
+        <path d="M10 18h4"></path>
+      </svg>`,
+    trophy: `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z"></path>
+        <path d="M8 6H5a2 2 0 0 0 2 4h1"></path>
+        <path d="M16 6h3a2 2 0 0 1-2 4h-1"></path>
+        <path d="M12 12v4"></path>
+        <path d="M9 20h6"></path>
+        <path d="M10 16h4l1 4H9l1-4Z"></path>
+      </svg>`,
     tools: `
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M14.7 3.5a4.5 4.5 0 0 0-4.2 6L4 16l-1 4 4-1 6.5-6.5a4.5 4.5 0 0 0 6-4.2l-2.7 1-2.1-2.1 1-2.7z"></path>
@@ -428,6 +452,7 @@
         permisoCodigo: 'gerencia',
         nombre: 'Ventas por Vendedor',
         url: ventasVendedorUrl,
+        icono: 'chart',
         orden: 3,
         extra: false,
       });
@@ -442,6 +467,7 @@
         permisoCodigo: 'gerencia',
         nombre: 'Control de Muestras',
         url: controlMuestrasUrl,
+        icono: 'flask',
         orden: 4,
         extra: false,
       });
@@ -459,6 +485,7 @@
         permisoCodigo: concursoPermiso.codigo,
         nombre: '2026',
         url: concursoVentasUrl,
+        icono: 'trophy',
         orden: 5,
         extra: false,
       });
@@ -476,6 +503,7 @@
         permisoCodigo: administracionBase.codigo,
         nombre: '2026',
         url: adminConcursoUrl,
+        icono: 'trophy',
         orden: administracionBase.orden + 1,
         extra: false,
       });
@@ -1812,6 +1840,7 @@
         <div class="nav-subgroup ${active ? 'is-open' : ''}">
           <div class="nav-subgroup-row">
             <button class="nav-subgroup-link nav-subgroup-parent ${active ? 'active' : ''} ${permitido ? '' : 'is-locked'}" type="button" aria-expanded="${active ? 'true' : 'false'}">
+              ${renderIconMarkup(item.icono || 'trophy', '•', 'nav-item-icon')}
               <span class="nav-label">Concurso de Ventas</span>
               ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
             </button>

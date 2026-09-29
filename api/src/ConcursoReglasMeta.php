@@ -154,7 +154,7 @@ final class ConcursoReglasMeta
         $sales = $rules['ventas'];
         if (!self::keysMatch($sales, ['tiposMeta', 'tramosCumplimiento'])
             || !is_array($sales['tiposMeta'] ?? null) || !is_array($sales['tramosCumplimiento'] ?? null)
-            || !array_is_list($sales['tramosCumplimiento']) || count($sales['tramosCumplimiento']) !== 7) {
+            || !self::isListArray($sales['tramosCumplimiento']) || count($sales['tramosCumplimiento']) !== 7) {
             throw new RuntimeException('PARÁMETROS DEL CONCURSO INVÁLIDOS: ventas incompletas.', 409);
         }
         $types = $sales['tiposMeta'];
@@ -231,7 +231,7 @@ final class ConcursoReglasMeta
         }
         $productRanges = $rules['productos']['tramosSuperacion'] ?? null;
         if (!self::keysMatch($rules['productos'], ['tramosSuperacion'])
-            || !is_array($productRanges) || !array_is_list($productRanges) || count($productRanges) !== 4) {
+            || !is_array($productRanges) || !self::isListArray($productRanges) || count($productRanges) !== 4) {
             throw new RuntimeException('PARÁMETROS DEL CONCURSO INVÁLIDOS: tramos de Productos.', 409);
         }
         $previous = null;
@@ -272,6 +272,19 @@ final class ConcursoReglasMeta
     private static function number(mixed $value): bool
     {
         return (is_int($value) || is_float($value)) && is_finite((float)$value);
+    }
+
+    private static function isListArray(array $value): bool
+    {
+        if (function_exists('array_is_list')) {
+            return array_is_list($value);
+        }
+
+        if ($value === []) {
+            return true;
+        }
+
+        return array_keys($value) === range(0, count($value) - 1);
     }
 
     private static function keysMatch(mixed $value, array $expected): bool

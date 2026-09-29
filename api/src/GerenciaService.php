@@ -47,6 +47,31 @@ final class GerenciaService
         };
     }
 
+    public function concursoPuntajeUsuario(array $payload, array $query): ?array
+    {
+        $userId = $this->currentUserIdFromPayload($payload);
+        $resumen = $this->concursoCumplimiento($query);
+
+        foreach ($resumen['items'] ?? [] as $item) {
+            if ((int)($item['usuarioId'] ?? 0) !== $userId) {
+                continue;
+            }
+
+            return [
+                'puntos' => $item['acumulado'] ?? $item['totalMes'] ?? 0,
+                'puntosMes' => $item['totalMes'] ?? 0,
+                'puntosMeta' => $item['puntosMeta'] ?? 0,
+                'puntosNuevos' => $item['puntosNuevos'] ?? 0,
+                'puntosRecuperados' => $item['puntosRecuperados'] ?? 0,
+                'productosPuntos' => $item['productosPuntos'] ?? null,
+                'productosEstadoBase' => $item['productosEstadoBase'] ?? null,
+                'estadoMes' => $resumen['estadoMes'] ?? null,
+            ];
+        }
+
+        return null;
+    }
+
     public static function evaluarMetaConcurso(float $meta, float $venta, ?array $reglas = null): array
     {
         return ConcursoReglasMeta::evaluate($meta, $venta, $reglas);
