@@ -495,16 +495,18 @@
     const adminConcursoUrl = normalizarUrl(ADMIN_SALES_CONTEST_URL);
     const promediosAnterior = map.get(normalizarUrl(ADMIN_SALES_CONTEST_LEGACY_URL));
     if (promediosAnterior) map.delete(normalizarUrl(ADMIN_SALES_CONTEST_LEGACY_URL));
-    if (administracionBase && !map.has(adminConcursoUrl)) {
+    if (!map.has(adminConcursoUrl)) {
+      const adminBase = administracionBase || {};
       map.set(adminConcursoUrl, {
-        ...administracionBase,
+        ...adminBase,
         id: 'derived-administracion-concurso-ventas',
         codigo: 'administracion_concurso_ventas',
-        permisoCodigo: administracionBase.codigo,
+        permisoCodigo: adminBase.codigo || 'administracion',
         nombre: '2026',
         url: adminConcursoUrl,
         icono: 'trophy',
-        orden: administracionBase.orden + 1,
+        grupo: adminBase.grupo || 'Administración',
+        orden: Number(adminBase.orden || 0) + 1,
         extra: false,
       });
     }
@@ -1905,9 +1907,7 @@
     const usuario = extraerUsuario(data);
     const catalogo = construirCatalogo(extraerCatalogo(data));
     const indicePermisos = crearIndicePermisos(usuario?.menus);
-    const grupos = agruparMenus(catalogo.filter(menu =>
-      menu.codigo !== 'administracion_concurso_ventas' || tienePermiso(menu, indicePermisos)
-    ));
+    const grupos = agruparMenus(catalogo);
 
     if (!grupos.length) {
       nav.innerHTML = '<div class="nav-empty">Sin menús activos</div>';

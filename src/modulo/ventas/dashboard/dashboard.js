@@ -1450,12 +1450,75 @@
       if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
       const visible = data.visible === true || data.activo === true;
       if (card) card.hidden = !visible;
-      setText('kpiConcursoPuntos', Number(data.puntos || 0).toLocaleString('es-CL'));
+      setText('kpiConcursoPuntos', Number(data.puntosMes ?? data.puntos ?? 0).toLocaleString('es-CL'));
+      renderDetalleConcurso(data);
     } catch (err) {
       console.error('[cargarPuntajeConcurso]', err);
       if (card) card.hidden = true;
       setText('kpiConcursoPuntos', '0');
+      renderDetalleConcurso(null);
     }
+  }
+
+  function renderDetalleConcurso(data) {
+    const desglose = document.getElementById('kpiConcursoDesglose');
+    const historial = document.getElementById('kpiConcursoHistorial');
+    if (!desglose || !historial) return;
+
+    const puntosProductos = data?.productosPuntos == null ? 0 : Number(data.productosPuntos || 0);
+    const filas = [
+      ['Meta', data?.puntosMeta],
+      ['Clientes nuevos', data?.puntosNuevos],
+      ['Clientes recuperados', data?.puntosRecuperados],
+      ['Productos / otras reglas', puntosProductos],
+      ['Total del mes', data?.puntosMes ?? data?.puntos],
+    ];
+
+    desglose.innerHTML = filas.map(([label, value]) => `
+      <div class="kpi-concurso-row">
+        <span>${escHtml(label)}</span>
+        <strong>${Number(value || 0).toLocaleString('es-CL')} pts</strong>
+      </div>
+    `).join('');
+
+    const meses = Array.isArray(data?.historialMensual) ? data.historialMensual : [];
+    historial.innerHTML = meses.length
+      ? meses.map(item => {
+          const mes = Number(item.mes || 0);
+          const nombreMes = MESES_NOMBRE[mes - 1] || `Mes ${mes || '-'}`;
+          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026</span><strong>${Number(item.totalMes || 0).toLocaleString('es-CL')} pts</strong></div>`;
+        }).join('')
+      : '<span class="kpi-concurso-empty">Sin historial mensual disponible.</span>';
+  }
+
+  function initConcursoCard() {
+    const card = document.getElementById('kpiConcursoCard');
+    const toggle = document.getElementById('kpiConcursoToggle');
+    const detalle = document.getElementById('kpiConcursoDetalle');
+    if (!card || !toggle || !detalle || toggle.dataset.bound === '1') return;
+    const setLoading = (loading) => {
+      card.classList.toggle('is-loading', loading);
+      card.setAttribute('aria-busy', String(loading));
+      toggle.disabled = loading;
+      const chevron = card.querySelector('.kpi-concurso-chevron');
+      if (chevron) chevron.textContent = loading ? 'Cargando' : 'Ver';
+    };
+    toggle.addEventListener('click', async () => {
+      if (card.hidden || !window.ConcursoDetalleModal) return;
+      try {
+        setLoading(true);
+        await window.ConcursoDetalleModal.openFromEndpoint({
+          apiBase: '/api/dashboard/concurso-detalle',
+          params: getParams(),
+        });
+      } catch (error) {
+        console.error('[ConcursoDetalleModal]', error);
+        mostrarEstado(error.message || 'No se pudo abrir el detalle del concurso.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+    toggle.dataset.bound = '1';
   }
 
   function detalleRecuperado(c) {
@@ -1706,6 +1769,7 @@
     cargarSidebar(usuario);
     initSelectores();
     initCarteraCards();
+    initConcursoCard();
     ensureCotizacionesSection();
     ensureGuiasSection();
     setCotizacionesPreview('month', false);

@@ -66,10 +66,40 @@ final class GerenciaService
                 'productosPuntos' => $item['productosPuntos'] ?? null,
                 'productosEstadoBase' => $item['productosEstadoBase'] ?? null,
                 'estadoMes' => $resumen['estadoMes'] ?? null,
+                'historialMensual' => $item['mesesOficiales'] ?? [],
             ];
         }
 
         return null;
+    }
+
+    public function concursoDetalleUsuario(array $payload, array $query): array
+    {
+        $userId = $this->currentUserIdFromPayload($payload);
+        $resumen = $this->concursoCumplimiento($query);
+        foreach ($resumen['items'] ?? [] as $item) {
+            if ((int)($item['usuarioId'] ?? 0) === $userId) {
+                return [
+                    'ok' => true,
+                    'row' => $item,
+                    'rendered' => ['mes' => $resumen['mes'], 'anio' => $resumen['anio']],
+                    'estadoMes' => $resumen['estadoMes'] ?? null,
+                ];
+            }
+        }
+        return ['ok' => true, 'row' => null, 'rendered' => ['mes' => $resumen['mes'], 'anio' => $resumen['anio']], 'estadoMes' => $resumen['estadoMes'] ?? null];
+    }
+
+    public function concursoClientesUsuario(array $payload, array $query): array
+    {
+        $query['vendedorId'] = (string)$this->currentUserIdFromPayload($payload);
+        return $this->concursoDetalleClientes($query);
+    }
+
+    public function concursoProductosUsuario(array $payload, array $query): array
+    {
+        $query['vendedorId'] = (string)$this->currentUserIdFromPayload($payload);
+        return $this->concursoDetalleProductos($query);
     }
 
     public static function evaluarMetaConcurso(float $meta, float $venta, ?array $reglas = null): array
@@ -217,9 +247,14 @@ final class GerenciaService
                 $categories[] = ['categoria' => $category, 'promedioBase' => $average, 'ventaMes' => $sale,
                     'superacion' => $difference, 'puntos' => $hasBase ? self::puntosProductosConcurso($difference, $reglasMeta) : null];
             }
+            $categorySales = array_sum(array_column($categories, 'ventaMes'));
+            $otrosSale = round($vendor['venta'] - $categorySales, 2);
+            $categories[] = ['categoria' => 'OTROS', 'promedioBase' => null, 'ventaMes' => $otrosSale,
+                'superacion' => null, 'puntos' => 0, 'informativo' => true, 'estado' => 'NO_PUNTUA'];
             $vendor['productosEstadoBase'] = $available ? 'DISPONIBLE' : ($baseError ?: ($bases[$id] ?? false ? 'BASE INCOMPLETA' : 'BASE NO DISPONIBLE'));
             $vendor['productos'] = $categories;
-            $vendor['productosPuntos'] = $available ? array_sum(array_column($categories, 'puntos')) : null;
+            $vendor['productosPuntos'] = $available ? array_sum(array_column(array_filter($categories,
+                static fn(array $category): bool => empty($category['informativo'])), 'puntos')) : null;
             $vendor['totalMes'] = $available
                 ? $vendor['puntosMeta'] + $vendor['puntosNuevos'] + $vendor['puntosRecuperados'] + $vendor['productosPuntos'] : null;
             if (!$available) $allBasesAvailable = false;
@@ -314,6 +349,7 @@ final class GerenciaService
                 }
                 foreach ($item['productos'] as &$category) {
                     $name = $category['categoria'];
+                    if ($name === 'OTROS' || !empty($category['informativo'])) continue;
                     $values = $vendorBase['categorias'][$name] ?? null;
                     if ($values === null) throw new RuntimeException('Categoría de Base Oficial faltante.', 409);
                     if (abs((float)$values['promedioBase'] - (float)$category['promedioBase']) > .011) {
@@ -327,6 +363,8 @@ final class GerenciaService
                     $category['documentos'] = $detail['documentos'];
                 }
                 unset($category);
+                $item['productos'] = array_values(array_filter($item['productos'],
+                    static fn(array $category): bool => $category['categoria'] !== 'OTROS' && empty($category['informativo'])));
                 $vendors[] = $item;
             }
             if ((new ConcursoBaseOficialStore())->load() !== $base) {
@@ -380,11 +418,14 @@ final class GerenciaService
         }
         $id = Security::validate_id($query['vendedorId'] ?? null);
         $category = (string)($query['categoria'] ?? '');
-        if (!in_array($category, ['QUIMICOS', 'ACCESORIOS', 'TRAT_AGUA', 'AEROSOLES'], true)) throw new RuntimeException('Categoría inválida.', 400);
+        if (!in_array($category, ['QUIMICOS', 'ACCESORIOS', 'TRAT_AGUA', 'AEROSOLES', 'OTROS'], true)) throw new RuntimeException('Categoría inválida.', 400);
         $detail = $query['detalle'] ?? '';
         if (!in_array($detail, ['base', 'venta'], true)) throw new RuntimeException('Detalle inválido.', 400);
         $mes = (int)$query['mes'];
-        if ($mes >= 10) {
+        if ($category === 'OTROS' && $detail === 'base') {
+            return ['ok' => true, 'meses' => [], 'fuenteBase' => 'INFORMATIVO'];
+        }
+        if ($mes >= 10 && $category !== 'OTROS') {
             $saved = (new ConcursoCierreStore())->load($mes);
             if (($saved['estado'] ?? null) === 'CERRADO') {
                 foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) {
@@ -1135,6 +1176,7 @@ final class GerenciaService
                 u.id AS usuarioId,
                 u.codigo AS codigoPrincipal,
                 u.nombre AS vendedor,
+                u.area AS area,
                 uv.cod_vendedor AS codigoAsociado,
                 uv.tipo
              FROM usuario u
@@ -1148,6 +1190,7 @@ final class GerenciaService
                 'usuarioId' => (int)($row['usuarioId'] ?? 0),
                 'codigoPrincipal' => trim((string)($row['codigoPrincipal'] ?? '')),
                 'vendedor' => trim((string)($row['vendedor'] ?? '')),
+                'area' => trim((string)($row['area'] ?? '')),
                 'codigoAsociado' => trim((string)($row['codigoAsociado'] ?? '')),
                 'tipo' => strtoupper(trim((string)($row['tipo'] ?? ''))),
             ];

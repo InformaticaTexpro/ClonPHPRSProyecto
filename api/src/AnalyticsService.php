@@ -283,13 +283,16 @@ final class AnalyticsService
         $recoveredRules = $parameters['clientesRecuperados'];
         $desde = sprintf('2026-%02d-01', $mes);
         $hasta = (new DateTimeImmutable($desde))->modify('+1 month')->format('Y-m-d');
-        $owners = $types = $summary = [];
+        $owners = $types = $summary = $recoveredDaysByUser = [];
+        $defaultRecoveredDays = (int)$recoveredRules['diasMinimosSinCompra'];
         foreach ($relations as $relation) {
             $id = (int)$relation['usuarioId'];
             $code = $this->sharedCodeKey($relation['codigoAsociado']);
             $owners[$code][$id] = true;
             $types[$id][$code] = $relation['tipo'];
             $summary[$id] = ['clientesNuevos' => 0, 'puntosNuevos' => 0, 'clientesRecuperados' => 0, 'puntosRecuperados' => 0];
+            $recoveredDaysByUser[$id] = max($recoveredDaysByUser[$id] ?? $defaultRecoveredDays,
+                $this->concursoRecoveredDaysForArea((string)($relation['area'] ?? ''), $defaultRecoveredDays));
         }
         if (!$owners) return ['resumen' => [], 'clientes' => []];
 
@@ -398,8 +401,9 @@ final class AnalyticsService
             $first = new DateTimeImmutable($clients[$client]['primera']);
             $last = !empty($clients[$client]['ultimaPrevia']) ? new DateTimeImmutable((string)$clients[$client]['ultimaPrevia']) : null;
             $current = $entry['primeraMes'] ? new DateTimeImmutable($entry['primeraMes']) : null;
+            $diasRecuperacion = $recoveredDaysByUser[$id] ?? $defaultRecoveredDays;
             $classification = $this->clasificarClienteCartera($first, $last, $current,
-                new DateTimeImmutable($desde), (new DateTimeImmutable($hasta))->modify('-1 day'), $recoveredRules['diasMinimosSinCompra']);
+                new DateTimeImmutable($desde), (new DateTimeImmutable($hasta))->modify('-1 day'), $diasRecuperacion);
             $new = $classification['nuevo'] && isset($assigned[$id][$client]);
             $kind = $new ? 'nuevos' : ($classification['recuperado'] ? 'recuperados' : null);
             if ($kind === null) continue;
@@ -416,6 +420,11 @@ final class AnalyticsService
                 'motivo' => $entry['ventaMes'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
         }
         return ['resumen' => $summary, 'clientes' => $details];
+    }
+
+    private function concursoRecoveredDaysForArea(string $area, int $defaultDays): int
+    {
+        return $this->normalizeAreaCode($area) === 'TRATAMIENTO_AGUA' ? 365 : $defaultDays;
     }
 
     public function clientesNuevosCalendarioForUser(int $userId, array $query): array

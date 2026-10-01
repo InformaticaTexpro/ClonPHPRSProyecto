@@ -205,6 +205,10 @@
     return (usuario.vendedores || []).some(v => String(v.tipo || '').trim().toUpperCase() === 'C');
   }
 
+  function esAsignadorVentasCompartidas(usuario) {
+    return esCoordinador(usuario);
+  }
+
   // -- Detalle de productos por folio ----------------------------------------
   const _detalleCache = {};
 
@@ -1520,6 +1524,16 @@
     const btn = document.getElementById('btnConfirmarReporteCompartido');
     if (!btn) return;
 
+    if (esAsignadorVentasCompartidas(_usuarioActual)) {
+      btn.disabled = true;
+      btn.classList.add('is-confirmed');
+      btn.title = 'Los vendedores asignadores no deben confirmar ventas compartidas.';
+      setTextoBotonReporteCompartido('Confirmación no requerida');
+      setEstadoReporteCompartido('Confirmación deshabilitada para vendedores asignadores', 'muted');
+      return;
+    }
+
+    btn.title = '';
     const filas = Array.isArray(foliosAsignados) ? foliosAsignados : [];
     const totalFolios = filas.length;
     const totalPendientes = 0;
@@ -1578,6 +1592,8 @@
   }
 
   function abrirModalReporteCompartido() {
+    const btn = document.getElementById('btnConfirmarReporteCompartido');
+    if (btn?.disabled || esAsignadorVentasCompartidas(_usuarioActual)) return;
     if (!_ultimosAsignados.length) return;
     const modal = document.getElementById('modalConfirmarCompartidos');
     if (!modal) return;

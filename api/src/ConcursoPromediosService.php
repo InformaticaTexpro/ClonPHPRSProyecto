@@ -223,7 +223,12 @@ final class ConcursoPromediosService
                 if (abs($factor) < 0.000000001) continue;
                 // Regla exclusiva del concurso, aplicada después de determinar la participación.
                 $category = isset($attribution[$key][$id]) ? 'TRAT_AGUA' : $this->categoria($categoryName);
-                if ($category === null || ($detailCategory !== null && $category !== $detailCategory)) continue;
+                if ($detailCategory === 'OTROS') {
+                    if ($category !== null) continue;
+                    $category = 'OTROS';
+                } elseif ($category === null || ($detailCategory !== null && $category !== $detailCategory)) {
+                    continue;
+                }
                 $amountCents = (int)round((float)$row['original'] * $factor * 100);
                 $month = (int)$row['mes'];
                 $cents[$id][$category][$month] = ($cents[$id][$category][$month] ?? 0) + $amountCents;
