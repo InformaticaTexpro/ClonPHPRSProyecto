@@ -58,7 +58,7 @@ final class ConcursoVentasService
 
         $vendorCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
         if (!$vendorCodes) {
-            return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => 0];
+            return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => 0, 'puntosMes' => 0, 'historialMensual' => []];
         }
 
         $meta = $this->fetchMetaMes($userId, $anio, $mes);
@@ -70,7 +70,7 @@ final class ConcursoVentasService
             + ($this->clientesNuevosPuntuables($vendorCodes, $anio, $mes) * (int)self::CONFIG['puntosNuevo'])
             + ($this->clientesRecuperadosPuntuables($vendorCodes, $anio, $mes, $diasRecuperacion) * (int)self::CONFIG['puntosRecuperado']);
 
-        return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => $puntos];
+        return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => $puntos, 'puntosMes' => $puntos, 'historialMensual' => []];
     }
 
     public static function isActiveForPeriod(int $anio, int $mes): bool

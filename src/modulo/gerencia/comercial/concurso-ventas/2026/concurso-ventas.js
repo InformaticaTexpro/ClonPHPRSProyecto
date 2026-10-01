@@ -275,32 +275,22 @@
     const row = items.find(item => item.usuarioId === id);
     if (!row) return;
     selectedUser = id;
-    clearClients();
-    $('detalleNombre').textContent = row.vendedor;
-    $('detallePeriodo').textContent = activeView === 'acumulado' ? `Octubre–${periodo}` : periodo;
-    $('detalleAcumulado').hidden = activeView !== 'acumulado';
-    $('concursoTabs').hidden = activeView === 'acumulado';
-    $('categoriaResumen').hidden = activeView === 'acumulado';
-    if (activeView === 'acumulado') {
-      $('detalleCumplimiento').hidden = true;
-      $('detalleProductos').hidden = true;
-      $('detalleAcumuladoBody').innerHTML = row.mesesOficiales.map(month => `<tr><th scope="row">${meses[month.mes - 1]}</th><td>${esc(month.tipo)}</td><td class="numero">${month.puntosMeta}</td><td class="numero">${month.puntosNuevos}</td><td class="numero">${month.puntosRecuperados}</td><td class="numero">${month.productosPuntos ?? '—'}</td><td class="numero">${month.totalMes ?? '—'}</td><td class="numero">${month.acumulado ?? '—'}</td></tr>`).join('');
-      $('concursoBody').querySelector('.concurso-seleccionado')?.classList.remove('concurso-seleccionado');
-      $('concursoBody').querySelector(`[data-vendedor="${id}"]`).closest('tr').classList.add('concurso-seleccionado');
-      $('detalle-vendedor').showModal();
+    $('concursoBody').querySelector('.concurso-seleccionado')?.classList.remove('concurso-seleccionado');
+    $('concursoBody').querySelector(`[data-vendedor="${id}"]`)?.closest('tr')?.classList.add('concurso-seleccionado');
+    if (window.ConcursoDetalleModal) {
+      window.ConcursoDetalleModal.openFromRow({
+        row,
+        rendered,
+        periodo,
+        activeView,
+        apiBase: '/api/gerencia/comercial/concurso-ventas',
+        onClose: () => {
+          selectedUser = null;
+          $('concursoBody').querySelector('.concurso-seleccionado')?.classList.remove('concurso-seleccionado');
+        },
+      });
       return;
     }
-    const values = [['Vendedor', row.vendedor], ['Tipo', row.tipo], ['Meta', money(row.meta)], ['Venta atribuida', money(row.venta)],
-      ['Cumplimiento', percent(row.cumplimiento)], ['Tramo aplicado', row.tramo], ['Puntos', row.puntosMeta]];
-    const breakdown = row.desgloseVenta;
-    values.push(['Venta base de códigos asociados (incluye participación origen)', money(breakdown.baseAsociada)],
-      ['Compartida recibida (+)', money(breakdown.compartidaRecibida)], ['Compartida cedida (−)', money(breakdown.compartidaCedida)],
-      ['Total atribuido = base + recibida − cedida', money(row.venta)]);
-    $('detalleCumplimiento').innerHTML = `<dl class="concurso-desglose">${values.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join('')}</dl>`;
-    selectTab('cumplimiento');
-    $('concursoBody').querySelector('.concurso-seleccionado')?.classList.remove('concurso-seleccionado');
-    $('concursoBody').querySelector(`[data-vendedor="${id}"]`).closest('tr').classList.add('concurso-seleccionado');
-    $('detalle-vendedor').showModal();
   }
   function renderView() {
     document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === activeView)));
@@ -342,6 +332,7 @@
     $('exportarConcurso').disabled = true;
     $('concursoLoading').querySelector('strong').textContent = 'Cargando datos...';
     $('concursoCierreEstado').textContent = '';
+    window.ConcursoDetalleModal?.close();
     if ($('detalle-vendedor').open) $('detalle-vendedor').close();
     $('concursoEstado').textContent = 'Calculando puntaje…';
     try {

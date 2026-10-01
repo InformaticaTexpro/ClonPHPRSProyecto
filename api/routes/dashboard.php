@@ -14,6 +14,8 @@ return static function (
     $dashboardService = $services['dashboard'];
     /** @var ConcursoVentasService $concursoVentasService */
     $concursoVentasService = $services['concurso_ventas'];
+    /** @var GerenciaService $gerenciaService */
+    $gerenciaService = $services['gerencia'];
     $payload = require_auth_payload();
 
     if ($method === 'GET' && $path === '/resumen') {
@@ -61,6 +63,15 @@ return static function (
     }
     if ($method === 'GET' && $path === '/concurso-puntaje') {
         json_response($concursoVentasService->puntaje($payload, $query));
+    }
+    if ($method === 'GET' && $path === '/concurso-detalle') {
+        json_response($gerenciaService->concursoDetalleUsuario($payload, $query));
+    }
+    if ($method === 'GET' && $path === '/concurso-detalle/clientes') {
+        json_response($gerenciaService->concursoClientesUsuario($payload, $query));
+    }
+    if ($method === 'GET' && $path === '/concurso-detalle/productos') {
+        json_response($gerenciaService->concursoProductosUsuario($payload, $query));
     }
     if ($method === 'POST' && $path === '/compartir') {
         json_response($dashboardService->route($payload, $method, $path, $query, $body));

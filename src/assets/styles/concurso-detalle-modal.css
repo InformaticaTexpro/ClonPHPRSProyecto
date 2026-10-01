@@ -1,0 +1,170 @@
+.concurso-modal {
+  box-sizing: border-box;
+  width: min(1180px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: var(--color-white, #fff);
+  color: var(--color-black, #1A1D23);
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+.concurso-detalle-modal {
+  max-height: min(90vh, calc(100dvh - 24px));
+}
+.concurso-detalle-modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+.concurso-modal::backdrop { background: rgba(15, 23, 42, .58); backdrop-filter: blur(2px); }
+.concurso-modal-header {
+  flex: 0 0 auto;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--color-gray-light, #E8EAF0);
+  background: linear-gradient(135deg, rgba(0,226,167,.10), rgba(255,255,255,.98) 55%);
+}
+.concurso-modal-title h3 { margin: 0; font-family: var(--font-primary, Montserrat, sans-serif); font-size: 1.15rem; font-weight: 800; }
+.concurso-modal-title p { margin: 4px 0 0; color: var(--color-gray-dark, #6B7280); font-size: .88rem; font-weight: 600; }
+.concurso-modal-close { min-width: 42px; padding-inline: 12px; flex-shrink: 0; }
+.concurso-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 24px 18px;
+  scrollbar-gutter: stable;
+}
+.concurso-resumen-puntos {
+  display: grid;
+  grid-template-columns: minmax(180px, .8fr) minmax(0, 2fr);
+  gap: 14px;
+  padding: 18px 0;
+}
+.concurso-total-card, .concurso-resumen-grid article {
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.concurso-total-card { padding: 18px; display: flex; flex-direction: column; justify-content: center; }
+.concurso-total-card span, .concurso-resumen-grid span {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--color-gray-dark, #6B7280);
+}
+.concurso-total-card strong { margin-top: 6px; font-size: 2rem; line-height: 1; color: var(--color-primary, #00C896); }
+.concurso-resumen-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.concurso-resumen-grid article { padding: 14px; }
+.concurso-resumen-grid strong { display: block; margin-top: 6px; font-size: 1.05rem; }
+.concurso-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-gray-light, #E8EAF0);
+  border-bottom: 1px solid var(--color-gray-light, #E8EAF0);
+}
+.concurso-tabs[hidden] { display: none; }
+.concurso-tabs .btn-buscar {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  background: #fff;
+}
+.concurso-tabs [aria-pressed="true"] {
+  border-color: var(--color-primary, #00E2A7);
+  background: rgba(0,226,167,.12);
+  color: #047857;
+  box-shadow: inset 0 -2px var(--color-primary, #00E2A7);
+}
+.concurso-tabs .btn-buscar:hover { border-color: var(--color-primary, #00E2A7); background: rgba(0,226,167,.08); }
+.concurso-tab-summary { margin-block: 12px; font-weight: 700; }
+.concurso-detail-section {
+  margin-block: 10px 14px;
+  padding: 12px;
+  border-radius: 16px;
+}
+.concurso-detail-section h4 { margin-block: 0 4px; }
+.concurso-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.concurso-info-block {
+  padding: 16px;
+  border: 1px solid var(--color-gray-light, #E8EAF0);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff, rgba(248,250,252,.8));
+}
+.concurso-info-block h4 { margin: 0 0 12px; font-family: var(--font-primary, Montserrat, sans-serif); font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; }
+.concurso-info-block dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.concurso-info-block div { padding: 10px; border-radius: 12px; background: rgba(244,246,250,.8); }
+.concurso-info-block dt { color: var(--color-gray-dark, #6B7280); font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+.concurso-info-block dd { margin: 4px 0 0; font-size: 1rem; font-weight: 800; overflow-wrap: anywhere; }
+.concurso-modal .tabla-wrapper { max-width: 100%; overflow: auto; }
+.concurso-modal .dash-tabla { border-collapse: separate; border-spacing: 0; }
+.concurso-modal .dash-tabla th { background: #F1F5F9; font-size: .68rem; letter-spacing: .035em; text-transform: uppercase; }
+.concurso-modal .dash-tabla th, .concurso-modal .dash-tabla td { padding: 8px 10px; vertical-align: middle; }
+.concurso-modal .dash-tabla td { font-size: .82rem; line-height: 1.28; }
+.concurso-modal .dash-tabla tbody tr + tr td, .concurso-modal .dash-tabla tbody tr + tr th { border-top: 1px solid rgba(226,232,240,.85); }
+.concurso-modal .numero { text-align: right; white-space: nowrap; }
+.concurso-clientes-wrapper { max-height: 50vh; }
+.concurso-clientes-wrapper table { min-width: 980px; }
+#cdmClientes:has(th:nth-child(10)) .concurso-clientes-wrapper table { min-width: 1280px; }
+#cdmProductoDetalle { margin-top: 16px; }
+#cdmProductoDetalle table { min-width: 1450px; }
+#cdmFolios table { min-width: 980px; }
+.concurso-vendedor { border: 0; background: transparent; color: var(--color-primary, #00C896); font: inherit; text-decoration: underline; cursor: pointer; text-align: left; }
+.concurso-vendedor:disabled { color: var(--color-gray-dark, #6B7280); cursor: not-allowed; text-decoration: none; }
+.btn-buscar--sm { min-height: 32px; padding: 6px 10px; font-size: .78rem; }
+.concurso-tipo, .concurso-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 800;
+}
+.concurso-tipo { background: var(--color-gray-light, #E8EAF0); color: var(--color-gray-dark, #6B7280); }
+.concurso-badge--ok { background: rgba(0,226,167,.14); color: #047857; }
+.concurso-badge--no { background: rgba(239,68,68,.10); color: #B91C1C; }
+.concurso-motivo { display: block; margin-top: 4px; color: var(--color-gray-dark, #6B7280); }
+.concurso-positive { color: #047857; font-weight: 800; }
+.concurso-productos-otros th,
+.concurso-productos-otros td { background: rgba(239,68,68,.07); }
+.concurso-productos-otros th { color: #B91C1C; }
+.concurso-productos-otros .concurso-vendedor { color: #DC2626; font-weight: 800; }
+.concurso-no-puntua { color: #B91C1C; font-weight: 800; }
+.concurso-total-row th, .concurso-total-row td { background: rgba(0,226,167,.08); font-weight: 800; }
+.concurso-folios-fila > td { padding: 12px; background: #F8FAFC; }
+.concurso-folios-fila #cdmFolios { width: 0; min-width: 100%; margin: 0; }
+.concurso-modal-footer {
+  flex: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--color-gray-light, #E8EAF0);
+  background: rgba(255,255,255,.96);
+}
+.concurso-detail-loading { display: grid; place-items: center; min-height: 140px; }
+.concurso-modal [aria-busy="true"] > .tabla-wrapper { display: none; }
+body:has(.concurso-modal[open]) { overflow: hidden; }
+
+@media (max-width: 900px) {
+  .concurso-resumen-puntos, .concurso-info-grid { grid-template-columns: 1fr; }
+  .concurso-resumen-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .concurso-modal { width: calc(100% - 12px); max-width: calc(100% - 12px); max-height: calc(100dvh - 12px); border-radius: 16px; }
+  .concurso-modal-header { padding: 16px; }
+  .concurso-modal-body { padding-inline: 16px; }
+  .concurso-resumen-grid, .concurso-info-block dl { grid-template-columns: 1fr; }
+  .concurso-modal-footer { padding-inline: 16px; }
+}
