@@ -6,7 +6,9 @@
   const $ = id => document.getElementById(id);
   const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value) || 0);
   const signedMoney = value => Number(value) > 0 ? `+${money(value)}` : money(value);
-  const percent = value => `${Number(value || 0).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  const percent = value => `${Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`;
+  const metaPercent = value => `${Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}%`;
+  const formatPoints = value => Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 });
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const loadingMarkup = '<div class="concurso-detail-loading"><div class="gerencia-loading-card"><div class="gerencia-loading-spinner" aria-hidden="true"></div><div class="gerencia-loading-copy"><strong>Cargando datos...</strong></div></div></div>';
 
@@ -105,7 +107,7 @@
   }
 
   function points(value) {
-    return `${value ?? '—'} pts`;
+    return `${value == null ? '—' : formatPoints(value)} pts`;
   }
 
   function renderSummary() {
@@ -121,7 +123,7 @@
     const breakdown = row.desgloseVenta || {};
     const meta = [
       ['Meta', money(row.meta)], ['Venta atribuida', money(row.venta)],
-      ['Cumplimiento', percent(row.cumplimiento)], ['Tramo aplicado', row.tramo || '—'], ['Puntos', points(row.puntosMeta)],
+      ['Cumplimiento', metaPercent(row.cumplimiento)], ['Tramo aplicado', row.tramo || '—'], ['Puntos', points(row.puntosMeta)],
     ];
     const attribution = [
       ['Venta base', money(breakdown.baseAsociada)], ['Compartida recibida', money(breakdown.compartidaRecibida)],
@@ -247,7 +249,7 @@
       $('cdmClientesHead').innerHTML = `<tr>${headers.map(label => `<th scope="col">${label}</th>`).join('')}</tr>`;
       $('cdmClientesBody').innerHTML = data.map((item, index) => {
         const qualify = item.califica ? '<span class="concurso-badge concurso-badge--ok">Sí</span>' : `<span class="concurso-badge concurso-badge--no">No</span><small class="concurso-motivo">${esc(item.motivo)}</small>`;
-        return `<tr><td>${esc(item.cliente)}</td><td><code>${esc(item.clienteCodigo)}</code></td>${recovered ? `<td>${esc(item.ultimaCompra)}</td><td>${esc(item.primeraMes)}</td><td class="numero">${item.dias}</td>` : ''}<td class="numero">${item.cantidadFolios}</td><td class="numero">${money(item.ventaMes)}</td><td>${qualify}</td><td class="numero">${item.puntos}</td><td><button class="btn-buscar btn-buscar--sm" type="button" data-folios="${index}" aria-expanded="false" ${item.cantidadFolios ? '' : 'disabled'}>Ver folios</button></td></tr>`;
+        return `<tr><td>${esc(item.cliente)}</td><td><code>${esc(item.clienteCodigo)}</code></td>${recovered ? `<td>${esc(item.ultimaCompra)}</td><td>${esc(item.primeraMes)}</td><td class="numero">${item.dias}</td>` : ''}<td class="numero">${item.cantidadFolios}</td><td class="numero">${money(item.ventaMes)}</td><td>${qualify}</td><td class="numero">${formatPoints(item.puntos)}</td><td><button class="btn-buscar btn-buscar--sm" type="button" data-folios="${index}" aria-expanded="false" ${item.cantidadFolios ? '' : 'disabled'}>Ver folios</button></td></tr>`;
       }).join('') || `<tr><td colspan="${headers.length}" class="gerencia-empty">No hay clientes para mostrar.</td></tr>`;
       $('cdmClientesEstado').textContent = 'Valores actuales de la fuente; incluye clientes que no califican.';
     } catch (error) { if (requestId === detailSequence) $('cdmClientesEstado').textContent = error.message; }
@@ -311,7 +313,7 @@
     $('cdmCategoriaResumen').hidden = activeView === 'acumulado';
     if (activeView === 'acumulado') {
       $('cdmAcumulado').hidden = false;
-      $('cdmAcumuladoBody').innerHTML = (row.mesesOficiales || []).map(month => `<tr><th scope="row">${meses[month.mes - 1]}</th><td>${esc(month.tipo)}</td><td class="numero">${month.puntosMeta}</td><td class="numero">${month.puntosNuevos}</td><td class="numero">${month.puntosRecuperados}</td><td class="numero">${month.productosPuntos ?? '—'}</td><td class="numero">${month.totalMes ?? '—'}</td><td class="numero">${month.acumulado ?? '—'}</td></tr>`).join('');
+      $('cdmAcumuladoBody').innerHTML = (row.mesesOficiales || []).map(month => `<tr><th scope="row">${meses[month.mes - 1]}</th><td>${esc(month.tipo)}</td><td class="numero">${formatPoints(month.puntosMeta)}</td><td class="numero">${formatPoints(month.puntosNuevos)}</td><td class="numero">${formatPoints(month.puntosRecuperados)}</td><td class="numero">${month.productosPuntos == null ? '—' : formatPoints(month.productosPuntos)}</td><td class="numero">${month.totalMes == null ? '—' : formatPoints(month.totalMes)}</td><td class="numero">${month.acumulado == null ? '—' : formatPoints(month.acumulado)}</td></tr>`).join('');
     } else {
       selectTab('cumplimiento');
     }

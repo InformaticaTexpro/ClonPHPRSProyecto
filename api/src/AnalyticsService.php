@@ -289,7 +289,7 @@ final class AnalyticsService
             $id = (int)$relation['usuarioId'];
             $code = $this->sharedCodeKey($relation['codigoAsociado']);
             $owners[$code][$id] = true;
-            $types[$id][$code] = $relation['tipo'];
+            $types[$id][$code] = strtoupper(trim((string)$relation['tipo']));
             $summary[$id] = ['clientesNuevos' => 0, 'puntosNuevos' => 0, 'clientesRecuperados' => 0, 'puntosRecuperados' => 0];
             $recoveredDaysByUser[$id] = max($recoveredDaysByUser[$id] ?? $defaultRecoveredDays,
                 $this->concursoRecoveredDaysForArea((string)($relation['area'] ?? ''), $defaultRecoveredDays));
@@ -364,7 +364,6 @@ final class AnalyticsService
             $participants = $owners[$code] ?? [];
             foreach ($shares as $share) $participants += $owners[$this->sharedCodeKey($share['destino'])] ?? [];
             foreach ($participants as $id => $_) {
-                if ($detailUser !== null && $detailUser !== $id) continue;
                 $type = $types[$id][$code] ?? '';
                 $factor = isset($owners[$code][$id]) ? $this->vendorCodeParticipationFactor($type) : 0.0;
                 $labels = [];
@@ -383,19 +382,24 @@ final class AnalyticsService
                 $amount = (float)$doc['original'] * $factor;
                 // Solo una factura F constituye venta para nuevo/recuperado.
                 $purchase = $doc['tipo'] !== 'N' && $amount > 0;
-                $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => []];
+                $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => [],
+                    'pointWeight' => 0.0, 'hasSharedSale' => false, 'hasTypeC' => false];
                 $entry = &$monthly[$id][$client];
                 $entry['ventaMes'] += $amount;
                 $entry['cantidadFolios']++;
+                $entry['pointWeight'] += max(0.0, $factor);
+                $entry['hasSharedSale'] = $entry['hasSharedSale'] || count($shares) > 0;
+                $entry['hasTypeC'] = $entry['hasTypeC'] || $type === 'C';
                 if ($purchase && ($entry['primeraMes'] === null || $doc['fecha'] < $entry['primeraMes'])) $entry['primeraMes'] = $doc['fecha'];
-                if ($detailUser !== null && ($clientCode !== null || $includeFolios)) $entry['folios'][] = [
+                if ($detailUser !== null && $detailUser === $id && ($clientCode !== null || $includeFolios)) $entry['folios'][] = [
                     'tipo' => $doc['tipo'], 'folio' => $doc['folio'], 'fecha' => $doc['fecha'], 'codigoVendedor' => $doc['codigoVendedor'],
                     'original' => (float)$doc['original'], 'porcentaje' => $factor * 100, 'atribuida' => $amount,
                     'atribucion' => array_keys($labels) ?: ['DIRECTA']];
                 unset($entry);
             }
         }
-        $details = [];
+        $classified = [];
+        $pointParticipants = ['nuevos' => [], 'recuperados' => []];
         foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
             if ($entry['cantidadFolios'] === 0 && $entry['ventaMes'] == 0.0) continue;
             $first = new DateTimeImmutable($clients[$client]['primera']);
@@ -409,17 +413,68 @@ final class AnalyticsService
             if ($kind === null) continue;
             $minimum = $new ? $newRules['ventaMinima'] : $recoveredRules['ventaMinima'];
             $qualifies = $entry['ventaMes'] >= $minimum && ($new || $classification['recuperado']);
-            $points = $qualifies ? ($new ? $newRules['puntos'] : $recoveredRules['puntos']) : 0;
-            if ($qualifies) {
-                $summary[$id][$new ? 'clientesNuevos' : 'clientesRecuperados']++;
-                $summary[$id][$new ? 'puntosNuevos' : 'puntosRecuperados'] += $points;
-            }
-            if ($detailUser !== null) $details[] = $entry + ['clienteCodigo' => (string)$client, 'cliente' => $clients[$client]['cliente'],
+            $basePoints = $new ? (float)$newRules['puntos'] : (float)$recoveredRules['puntos'];
+            $classified[] = $entry + ['usuarioId' => $id, 'clienteCodigo' => (string)$client, 'cliente' => $clients[$client]['cliente'],
                 'categoria' => $kind, 'ultimaCompra' => $last?->format('Y-m-d'), 'dias' => $classification['diasInactividad'],
-                'califica' => $qualifies, 'puntos' => $points,
+                'califica' => $qualifies, 'puntosBase' => $basePoints, 'puntos' => 0.0,
                 'motivo' => $entry['ventaMes'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
+            if ($qualifies) {
+                $pointParticipants[$kind][$client][$id] = [
+                    'typeC' => !empty($entry['hasTypeC']),
+                    'shared' => !empty($entry['hasSharedSale']),
+                    'weight' => (float)$entry['pointWeight'],
+                    'basePoints' => $basePoints,
+                ];
+            }
+        }
+        $distributedPoints = ['nuevos' => [], 'recuperados' => []];
+        foreach ($pointParticipants as $kind => $clientsByKind) {
+            foreach ($clientsByKind as $client => $participants) {
+                $firstParticipant = reset($participants);
+                $basePoints = (float)($firstParticipant['basePoints'] ?? 0);
+                $distributedPoints[$kind][$client] = self::splitSharedTypeCClientPoints($participants, $basePoints);
+            }
+        }
+        $details = [];
+        foreach ($classified as $row) {
+            $id = (int)$row['usuarioId'];
+            $kind = (string)$row['categoria'];
+            $client = (string)$row['clienteCodigo'];
+            $points = !empty($row['califica']) ? (float)($distributedPoints[$kind][$client][$id] ?? $row['puntosBase']) : 0.0;
+            $row['puntos'] = $points;
+            unset($row['puntosBase'], $row['pointWeight'], $row['hasSharedSale'], $row['hasTypeC']);
+            if (!empty($row['califica'])) {
+                $summary[$id][$kind === 'nuevos' ? 'clientesNuevos' : 'clientesRecuperados']++;
+                $summary[$id][$kind === 'nuevos' ? 'puntosNuevos' : 'puntosRecuperados'] += $points;
+            }
+            if ($detailUser !== null && $id === $detailUser) $details[] = $row;
         }
         return ['resumen' => $summary, 'clientes' => $details];
+    }
+
+    public static function splitSharedTypeCClientPoints(array $participants, float $basePoints): array
+    {
+        $hasSharedTypeC = count(array_filter($participants, static fn(array $row): bool => !empty($row['typeC']) && !empty($row['shared']))) > 0;
+        if (!$hasSharedTypeC || count($participants) <= 1) {
+            return array_fill_keys(array_keys($participants), $basePoints);
+        }
+
+        $weights = [];
+        foreach ($participants as $id => $row) {
+            $weight = (float)($row['weight'] ?? 0);
+            $weights[$id] = $weight > 0 ? $weight : 1.0;
+        }
+        $totalWeight = array_sum($weights);
+        if ($totalWeight <= 0) {
+            $totalWeight = count($weights);
+            $weights = array_fill_keys(array_keys($weights), 1.0);
+        }
+
+        $points = array_fill_keys(array_keys($participants), $basePoints);
+        foreach ($weights as $id => $weight) {
+            $points[$id] = $basePoints * ($weight / $totalWeight);
+        }
+        return $points;
     }
 
     private function concursoRecoveredDaysForArea(string $area, int $defaultDays): int

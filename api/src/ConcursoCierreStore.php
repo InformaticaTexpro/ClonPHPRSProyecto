@@ -165,12 +165,13 @@ final class ConcursoCierreStore
             if (count($categories) !== 4 || $sumProducts !== ($vendor['productosPuntos'] ?? null)) {
                 throw new RuntimeException('Puntos o categorías de productos no cuadran.', 409);
             }
-            foreach (['nuevos' => ['clientesNuevos', 'puntosNuevos', 5], 'recuperados' => ['clientesRecuperados', 'puntosRecuperados', 3]] as $kind => [$countKey, $pointsKey, $factor]) {
+            foreach (['nuevos' => ['clientesNuevos', 'puntosNuevos'], 'recuperados' => ['clientesRecuperados', 'puntosRecuperados']] as $kind => [$countKey, $pointsKey]) {
                 if (!is_array($vendor['clientes'][$kind] ?? null)) throw new RuntimeException('Clientes incompletos.', 409);
                 $qualified = 0;
+                $pointsTotal = 0.0;
                 foreach ($vendor['clientes'][$kind] as $client) {
                     if (!is_array($client['folios'] ?? null) || !self::number($client['ventaMes'] ?? null)
-                        || !is_bool($client['califica'] ?? null) || !is_int($client['puntos'] ?? null)
+                        || !is_bool($client['califica'] ?? null) || !self::number($client['puntos'] ?? null)
                         || !is_string($client['clienteCodigo'] ?? null) || !is_string($client['cliente'] ?? null)
                         || ($client['cantidadFolios'] ?? null) !== count($client['folios'])
                         || ($client['cantidadFolios'] === 0 && self::same((float)$client['ventaMes'], 0.0))
@@ -183,15 +184,17 @@ final class ConcursoCierreStore
                         $total += (float)$folio['atribuida'];
                     }
                     if (!self::same($total, (float)$client['ventaMes'])) throw new RuntimeException('Folios no cuadran.', 409);
-                    if ($client['califica']) $qualified++;
-                    if ($client['puntos'] !== ($client['califica'] ? $factor : 0)) throw new RuntimeException('Puntos de cliente inválidos.', 409);
+                    if ($client['califica']) {
+                        $qualified++;
+                        $pointsTotal += (float)$client['puntos'];
+                    } elseif (!self::same((float)$client['puntos'], 0.0)) throw new RuntimeException('Puntos de cliente inválidos.', 409);
                 }
-                if ($qualified !== ($vendor[$countKey] ?? null) || $qualified * $factor !== ($vendor[$pointsKey] ?? null)) {
+                if ($qualified !== ($vendor[$countKey] ?? null) || !self::same($pointsTotal, (float)($vendor[$pointsKey] ?? -1))) {
                     throw new RuntimeException('Puntos de clientes no cuadran.', 409);
                 }
             }
-            if (!is_int($vendor['puntosMeta'] ?? null) || !is_int($vendor['totalMes'] ?? null)
-                || $vendor['puntosMeta'] + $vendor['puntosNuevos'] + $vendor['puntosRecuperados'] + $vendor['productosPuntos'] !== $vendor['totalMes']) {
+            if (!is_int($vendor['puntosMeta'] ?? null) || !self::number($vendor['totalMes'] ?? null)
+                || !self::same((float)$vendor['puntosMeta'] + (float)$vendor['puntosNuevos'] + (float)$vendor['puntosRecuperados'] + (float)$vendor['productosPuntos'], (float)$vendor['totalMes'])) {
                 throw new RuntimeException('Total Mes no cuadra.', 409);
             }
         }
