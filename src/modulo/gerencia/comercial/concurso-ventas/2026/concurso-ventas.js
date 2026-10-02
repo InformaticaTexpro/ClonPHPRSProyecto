@@ -3,7 +3,9 @@
   const $ = id => document.getElementById(id);
   const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(value);
   const signedMoney = value => Number(value) > 0 ? `+${money(value)}` : money(value);
-  const percent = value => `${Number(value).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  const percent = value => `${Number(value).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`;
+  const metaPercent = value => `${Number(value).toLocaleString('es-CL', { maximumFractionDigits: 0 })}%`;
+  const points = value => value == null ? '—' : Number(value).toLocaleString('es-CL', { maximumFractionDigits: 2 });
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const loadingMarkup = '<div class="concurso-detail-loading"><div class="gerencia-loading-card"><div class="gerencia-loading-spinner" aria-hidden="true"></div><div class="gerencia-loading-copy"><strong>Cargando datos...</strong></div></div></div>';
@@ -110,7 +112,7 @@
     const header = `<Row>${columns.map(([label]) => cell(label)).join('')}</Row>`;
     const rows = sortedRows().map(row => `<Row>${columns.map(([, value, style]) => cell(value(row), style)).join('')}</Row>`).join('');
     const sheet = activeView === 'mes' ? 'Detalle Mes' : 'Acumulado';
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Currency"><NumberFormat ss:Format="$#,##0"/></Style><Style ss:ID="Percent"><NumberFormat ss:Format="0.0&quot;%&quot;"/></Style><Style ss:ID="Number"><NumberFormat ss:Format="0"/></Style></Styles><Worksheet ss:Name="${sheet}"><Table>${header}${rows}</Table></Worksheet></Workbook>`;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Currency"><NumberFormat ss:Format="$#,##0"/></Style><Style ss:ID="Percent"><NumberFormat ss:Format="0&quot;%&quot;"/></Style><Style ss:ID="Number"><NumberFormat ss:Format="0.##"/></Style></Styles><Worksheet ss:Name="${sheet}"><Table>${header}${rows}</Table></Worksheet></Workbook>`;
     const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -139,18 +141,18 @@
     $('detalleProductos').hidden = kind !== 'productos';
     document.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tab === kind)));
     const row = items.find(item => item.usuarioId === selectedUser);
-    $('categoriaResumen').textContent = kind === 'cumplimiento' ? `${row.puntosMeta} puntos`
-      : kind === 'nuevos' ? `${row.clientesNuevos} clientes válidos · ${row.puntosNuevos} puntos`
-        : kind === 'recuperados' ? `${row.clientesRecuperados} clientes válidos · ${row.puntosRecuperados} puntos`
-          : row.productosPuntos === null ? row.productosEstadoBase : `${row.productosPuntos} puntos`;
+    $('categoriaResumen').textContent = kind === 'cumplimiento' ? `${points(row.puntosMeta)} puntos`
+      : kind === 'nuevos' ? `${row.clientesNuevos} clientes válidos · ${points(row.puntosNuevos)} puntos`
+        : kind === 'recuperados' ? `${row.clientesRecuperados} clientes válidos · ${points(row.puntosRecuperados)} puntos`
+          : row.productosPuntos === null ? row.productosEstadoBase : `${points(row.productosPuntos)} puntos`;
     if (kind === 'productos') showProducts(row);
     else if (kind !== 'cumplimiento') showClients(kind);
   }
   const categoryLabels = { QUIMICOS: 'Químicos', ACCESORIOS: 'Accesorios', TRAT_AGUA: 'Trat. Agua', AEROSOLES: 'Aerosoles' };
   function showProducts(row) {
     $('productosEstado').textContent = row.productosEstadoBase === 'DISPONIBLE' ? '' : row.productosEstadoBase;
-    $('productosBody').innerHTML = row.productos.map(category => `<tr><th scope="row">${categoryLabels[category.categoria]}</th><td class="numero">${category.promedioBase === null ? '—' : money(category.promedioBase)}</td><td class="numero"><button class="concurso-vendedor" type="button" data-product-sale="${category.categoria}">${money(category.ventaMes)}</button></td><td class="numero">${category.superacion === null ? '—' : signedMoney(category.superacion)}</td><td class="numero">${category.puntos ?? '—'}</td><td><button class="btn-buscar" type="button" data-product-base="${category.categoria}" ${category.promedioBase === null ? 'disabled' : ''}>Ver base</button></td></tr>`).join('')
-      + `<tr><th scope="row" colspan="4">TOTAL PRODUCTOS PTS</th><td class="numero">${row.productosPuntos ?? '—'}</td><td></td></tr>`;
+    $('productosBody').innerHTML = row.productos.map(category => `<tr><th scope="row">${categoryLabels[category.categoria]}</th><td class="numero">${category.promedioBase === null ? '—' : money(category.promedioBase)}</td><td class="numero"><button class="concurso-vendedor" type="button" data-product-sale="${category.categoria}">${money(category.ventaMes)}</button></td><td class="numero">${category.superacion === null ? '—' : signedMoney(category.superacion)}</td><td class="numero">${points(category.puntos)}</td><td><button class="btn-buscar" type="button" data-product-base="${category.categoria}" ${category.promedioBase === null ? 'disabled' : ''}>Ver base</button></td></tr>`).join('')
+      + `<tr><th scope="row" colspan="4">TOTAL PRODUCTOS PTS</th><td class="numero">${points(row.productosPuntos)}</td><td></td></tr>`;
   }
   async function showProductDetail(category, kind, button) {
     if (button?.disabled) return;
@@ -223,7 +225,7 @@
       const recovered = kind === 'recuperados';
       const headers = ['Cliente', 'Código cliente', ...(recovered ? ['Última compra anterior', 'Primera compra del mes', 'Días transcurridos'] : []), 'Cantidad folios', 'Venta mes atribuida', 'Califica / motivo', 'Puntos', 'Acción'];
       $('clientesHead').innerHTML = `<tr>${headers.map(label => `<th scope="col">${label}</th>`).join('')}</tr>`;
-      $('clientesBody').innerHTML = data.map((row, index) => `<tr><td>${esc(row.cliente)}</td><td>${esc(row.clienteCodigo)}</td>${recovered ? `<td>${esc(row.ultimaCompra)}</td><td>${esc(row.primeraMes)}</td><td class="numero">${row.dias}</td>` : ''}<td class="numero">${row.cantidadFolios}</td><td class="numero">${money(row.ventaMes)}</td><td>${row.califica ? 'Sí' : `No · ${esc(row.motivo)}`}</td><td class="numero">${row.puntos}</td><td><button class="btn-buscar" type="button" data-folios="${index}" aria-expanded="false" aria-controls="detalleFolios" ${row.cantidadFolios ? '' : 'disabled'}>Ver folios</button></td></tr>`).join('') || `<tr><td colspan="${headers.length}" class="gerencia-empty">No hay clientes para mostrar.</td></tr>`;
+      $('clientesBody').innerHTML = data.map((row, index) => `<tr><td>${esc(row.cliente)}</td><td>${esc(row.clienteCodigo)}</td>${recovered ? `<td>${esc(row.ultimaCompra)}</td><td>${esc(row.primeraMes)}</td><td class="numero">${row.dias}</td>` : ''}<td class="numero">${row.cantidadFolios}</td><td class="numero">${money(row.ventaMes)}</td><td>${row.califica ? 'Sí' : `No · ${esc(row.motivo)}`}</td><td class="numero">${points(row.puntos)}</td><td><button class="btn-buscar" type="button" data-folios="${index}" aria-expanded="false" aria-controls="detalleFolios" ${row.cantidadFolios ? '' : 'disabled'}>Ver folios</button></td></tr>`).join('') || `<tr><td colspan="${headers.length}" class="gerencia-empty">No hay clientes para mostrar.</td></tr>`;
       $('clientesEstado').textContent = 'Valores actuales de la fuente; incluye clientes que no califican.';
     } catch (error) { if (requestId === detailSequence) $('clientesEstado').textContent = error.message; }
     finally {
@@ -306,7 +308,7 @@
         $('concursoBody').innerHTML = `<tr><td colspan="4" class="gerencia-empty">No hay acumulado oficial para este mes.</td></tr>`;
       } else {
         $('concursoEstado').textContent = '';
-        $('concursoBody').innerHTML = sortedRows().map(row => `<tr><td>${esc(row.vendedor)}</td><td><span class="concurso-tipo">${esc(row.tipo)}</span></td>${officialMonths.map(month => `<td class="numero">${row.mesesOficiales.find(value => value.mes === month)?.totalMes ?? '—'}</td>`).join('')}<td class="numero">${row.acumulado ?? '—'}</td><td><button type="button" class="btn-buscar" data-vendedor="${row.usuarioId}" aria-haspopup="dialog" aria-controls="detalle-vendedor">Ver detalle</button></td></tr>`).join('') || `<tr><td colspan="${officialMonths.length + 4}" class="gerencia-empty">No existen vendedores para el período seleccionado.</td></tr>`;
+        $('concursoBody').innerHTML = sortedRows().map(row => `<tr><td>${esc(row.vendedor)}</td><td><span class="concurso-tipo">${esc(row.tipo)}</span></td>${officialMonths.map(month => `<td class="numero">${points(row.mesesOficiales.find(value => value.mes === month)?.totalMes)}</td>`).join('')}<td class="numero">${points(row.acumulado)}</td><td><button type="button" class="btn-buscar" data-vendedor="${row.usuarioId}" aria-haspopup="dialog" aria-controls="detalle-vendedor">Ver detalle</button></td></tr>`).join('') || `<tr><td colspan="${officialMonths.length + 4}" class="gerencia-empty">No existen vendedores para el período seleccionado.</td></tr>`;
         if (selectedUser !== null) $('concursoBody').querySelector(`[data-vendedor="${selectedUser}"]`)?.closest('tr').classList.add('concurso-seleccionado');
       }
       $('periodoResultados').textContent = `Acumulado oficial · Octubre–${periodo}`;
@@ -314,7 +316,7 @@
     }
     $('concursoHead').innerHTML = '<tr><th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipo">Tipo</th><th scope="col" class="numero" data-sort="meta">Meta</th><th scope="col" class="numero" data-sort="venta">Venta</th><th scope="col" class="numero" data-sort="porcentajeMeta">% Meta</th><th scope="col" class="numero" data-sort="metaPuntos">Meta pts</th><th scope="col" class="numero" data-sort="nuevosPuntos">Nuevos pts</th><th scope="col" class="numero" data-sort="recuperadosPuntos">Recuperados pts</th><th scope="col" class="numero" data-sort="productosPuntos">Productos pts</th><th scope="col" class="numero" data-sort="totalMes">Total mes</th><th scope="col" class="numero" data-sort="acumulado">Acumulado</th></tr>';
     updateSortHeaders();
-    $('concursoBody').innerHTML = sortedRows().map(row => `<tr><td><button type="button" class="concurso-vendedor" data-vendedor="${row.usuarioId}" aria-haspopup="dialog" aria-controls="detalle-vendedor" title="Ver detalle del vendedor">${esc(row.vendedor)}</button></td><td><span class="concurso-tipo">${esc(row.tipo)}</span></td><td class="numero">${money(row.meta)}</td><td class="numero">${money(row.venta)}</td><td class="numero">${percent(row.cumplimiento)}</td><td class="numero">${row.puntosMeta}</td><td class="numero">${row.puntosNuevos}</td><td class="numero">${row.puntosRecuperados}</td><td class="numero" title="${esc(row.productosEstadoBase)}">${row.productosPuntos ?? '—'}</td><td class="numero">${row.totalMes ?? '—'}</td><td class="numero">${row.acumulado ?? '—'}</td></tr>`).join('') || '<tr><td colspan="11" class="gerencia-empty">No existen vendedores para el período seleccionado.</td></tr>';
+    $('concursoBody').innerHTML = sortedRows().map(row => `<tr><td><button type="button" class="concurso-vendedor" data-vendedor="${row.usuarioId}" aria-haspopup="dialog" aria-controls="detalle-vendedor" title="Ver detalle del vendedor">${esc(row.vendedor)}</button></td><td><span class="concurso-tipo">${esc(row.tipo)}</span></td><td class="numero">${money(row.meta)}</td><td class="numero">${money(row.venta)}</td><td class="numero">${metaPercent(row.cumplimiento)}</td><td class="numero">${points(row.puntosMeta)}</td><td class="numero">${points(row.puntosNuevos)}</td><td class="numero">${points(row.puntosRecuperados)}</td><td class="numero" title="${esc(row.productosEstadoBase)}">${points(row.productosPuntos)}</td><td class="numero">${points(row.totalMes)}</td><td class="numero">${points(row.acumulado)}</td></tr>`).join('') || '<tr><td colspan="11" class="gerencia-empty">No existen vendedores para el período seleccionado.</td></tr>';
     if (selectedUser !== null) $('concursoBody').querySelector(`[data-vendedor="${selectedUser}"]`)?.closest('tr').classList.add('concurso-seleccionado');
     $('concursoEstado').textContent = Number(rendered.mes) === 9 ? 'Mes de prueba — fuera del período oficial del concurso.' : '';
     $('periodoResultados').textContent = `${periodo} · Puntaje mes: Meta + Nuevos + Recuperados + Productos`;

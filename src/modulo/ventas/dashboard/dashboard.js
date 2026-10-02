@@ -1450,7 +1450,7 @@
       if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
       const visible = data.visible === true || data.activo === true;
       if (card) card.hidden = !visible;
-      setText('kpiConcursoPuntos', Number(data.puntosMes ?? data.puntos ?? 0).toLocaleString('es-CL'));
+      setText('kpiConcursoPuntos', Number(data.puntosMes ?? data.puntos ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 2 }));
       renderDetalleConcurso(data);
     } catch (err) {
       console.error('[cargarPuntajeConcurso]', err);
@@ -1464,6 +1464,7 @@
     const desglose = document.getElementById('kpiConcursoDesglose');
     const historial = document.getElementById('kpiConcursoHistorial');
     if (!desglose || !historial) return;
+    const formatPoints = value => Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 });
 
     const puntosProductos = data?.productosPuntos == null ? 0 : Number(data.productosPuntos || 0);
     const filas = [
@@ -1477,7 +1478,7 @@
     desglose.innerHTML = filas.map(([label, value]) => `
       <div class="kpi-concurso-row">
         <span>${escHtml(label)}</span>
-        <strong>${Number(value || 0).toLocaleString('es-CL')} pts</strong>
+        <strong>${formatPoints(value)} pts</strong>
       </div>
     `).join('');
 
@@ -1486,7 +1487,7 @@
       ? meses.map(item => {
           const mes = Number(item.mes || 0);
           const nombreMes = MESES_NOMBRE[mes - 1] || `Mes ${mes || '-'}`;
-          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026</span><strong>${Number(item.totalMes || 0).toLocaleString('es-CL')} pts</strong></div>`;
+          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026</span><strong>${formatPoints(item.totalMes)} pts</strong></div>`;
         }).join('')
       : '<span class="kpi-concurso-empty">Sin historial mensual disponible.</span>';
   }

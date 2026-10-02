@@ -34,13 +34,12 @@ final class ConcursoReglasMeta
         if ($tipo === 'SIN META') {
             return ['tipo' => $tipo, 'cumplimiento' => 0.0, 'tramo' => 'SIN META', 'puntosMeta' => $types['SIN META']['puntos']];
         }
-        $cumplimiento = $venta / $meta * 100;
+        $cumplimiento = (int)round($venta / $meta * 100);
         foreach ($rules['ventas']['tramosCumplimiento'] as $range) {
-            // Comparar importes conserva las fronteras exactas del cálculo anterior.
-            $minimum = $range['desde'] === null ? null : $meta * ($range['desde'] / 100);
-            $maximum = $range['hasta'] === null ? null : $meta * ($range['hasta'] / 100);
-            $above = $minimum === null || (!empty($range['incluyeDesde']) ? $venta >= $minimum : $venta > $minimum);
-            $below = $maximum === null || (!empty($range['incluyeHasta']) ? $venta <= $maximum : $venta < $maximum);
+            $minimum = $range['desde'] ?? null;
+            $maximum = $range['hasta'] ?? null;
+            $above = $minimum === null || (!empty($range['incluyeDesde']) ? $cumplimiento >= $minimum : $cumplimiento > $minimum);
+            $below = $maximum === null || (!empty($range['incluyeHasta']) ? $cumplimiento <= $maximum : $cumplimiento < $maximum);
             if ($above && $below) {
                 return ['tipo' => $tipo, 'cumplimiento' => $cumplimiento, 'tramo' => self::rangeLabel($range, '%'), 'puntosMeta' => $range['puntos'][$tipo]];
             }
@@ -154,7 +153,7 @@ final class ConcursoReglasMeta
         $sales = $rules['ventas'];
         if (!self::keysMatch($sales, ['tiposMeta', 'tramosCumplimiento'])
             || !is_array($sales['tiposMeta'] ?? null) || !is_array($sales['tramosCumplimiento'] ?? null)
-            || !self::isListArray($sales['tramosCumplimiento']) || count($sales['tramosCumplimiento']) !== 7) {
+            || !self::isListArray($sales['tramosCumplimiento']) || count($sales['tramosCumplimiento']) !== 6) {
             throw new RuntimeException('PARÁMETROS DEL CONCURSO INVÁLIDOS: ventas incompletas.', 409);
         }
         $types = $sales['tiposMeta'];
@@ -180,7 +179,7 @@ final class ConcursoReglasMeta
         foreach ($sales['tramosCumplimiento'] as $index => $range) {
             if (!is_array($range) || !self::keysMatch($range,
                     $index === 0 ? ['desde', 'hasta', 'incluyeHasta', 'puntos']
-                        : ($index === 6 ? ['desde', 'incluyeDesde', 'hasta', 'puntos']
+                        : ($index === count($sales['tramosCumplimiento']) - 1 ? ['desde', 'incluyeDesde', 'hasta', 'puntos']
                             : ['desde', 'incluyeDesde', 'hasta', 'incluyeHasta', 'puntos']))
                 || !array_key_exists('desde', $range) || !array_key_exists('hasta', $range)
                 || ($range['desde'] !== null && !self::number($range['desde']))
