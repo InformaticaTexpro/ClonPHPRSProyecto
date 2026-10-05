@@ -42,7 +42,7 @@
       <section class="concurso-resumen-puntos" aria-label="Resumen de puntos">
         <article class="concurso-total-card"><span>Puntos del mes</span><strong id="cdmTotalMes">0 pts</strong></article>
         <div class="concurso-resumen-grid">
-          <article><span>Cumplimiento</span><strong id="cdmPuntosMeta">0 pts</strong><small id="cdmTramoMes">Tramo: —</small></article>
+          <article><span>Cumplimiento</span><strong id="cdmPuntosMeta">0 pts</strong><small id="cdmTramoMes">Cumplimiento: — · Tramo vendedor: —</small></article>
           <article><span>Clientes Nuevos</span><strong id="cdmPuntosNuevos">0 pts</strong></article>
           <article><span>Clientes Recuperados</span><strong id="cdmPuntosRecuperados">0 pts</strong></article>
           <article><span>Productos</span><strong id="cdmPuntosProductos">0 pts</strong></article>
@@ -114,7 +114,7 @@
     const total = row?.totalMes ?? row?.puntosMes ?? 0;
     $('cdmTotalMes').textContent = points(total);
     $('cdmPuntosMeta').textContent = points(row?.puntosMeta ?? 0);
-    $('cdmTramoMes').textContent = `Tramo: ${row?.tramo || row?.tipo || '—'}`;
+    $('cdmTramoMes').textContent = `Cumplimiento: ${metaPercent(row?.cumplimiento)} · Tramo vendedor: ${row?.tipo || '—'}`;
     $('cdmPuntosNuevos').textContent = points(row?.puntosNuevos ?? 0);
     $('cdmPuntosRecuperados').textContent = points(row?.puntosRecuperados ?? 0);
     $('cdmPuntosProductos').textContent = points(row?.productosPuntos ?? 0);
