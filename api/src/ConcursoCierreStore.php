@@ -145,7 +145,7 @@ final class ConcursoCierreStore
                 foreach ($category['baseMeses'] as $baseSale) if (!self::number($baseSale)) {
                     throw new RuntimeException('Venta de Base Oficial inválida.', 409);
                 }
-                if (!self::same(round(array_sum($category['baseMeses']) / count($baseMonths), 2), (float)$category['promedioBase'])) {
+                if (!self::same(max(0.0, round(array_sum($category['baseMeses']) / count($baseMonths), 2)), (float)$category['promedioBase'])) {
                     throw new RuntimeException('Promedio de Base Oficial no cuadra.', 409);
                 }
                 $categories[$name] = true;

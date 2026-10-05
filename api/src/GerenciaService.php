@@ -107,6 +107,11 @@ final class GerenciaService
         return ConcursoReglasMeta::evaluate($meta, $venta, $reglas);
     }
 
+    private static function concursoPromedioBaseNormalizado(mixed $value): float
+    {
+        return max(0.0, (float)$value);
+    }
+
     private function concursoCumplimiento(array $query): array
     {
         $current = $this->concursoResumenMes($query);
@@ -229,7 +234,7 @@ final class GerenciaService
         }
         $bases = [];
         foreach ($base['vendedores'] ?? [] as $vendorBase) foreach ($vendorBase['categorias'] as $category => $values) {
-            $bases[$vendorBase['usuarioId']][$category] = (float)$values['promedioBase'];
+            $bases[$vendorBase['usuarioId']][$category] = self::concursoPromedioBaseNormalizado($values['promedioBase']);
         }
         $allBasesAvailable = true;
         foreach ($vendors as &$vendor) {
@@ -352,7 +357,7 @@ final class GerenciaService
                     if ($name === 'OTROS' || !empty($category['informativo'])) continue;
                     $values = $vendorBase['categorias'][$name] ?? null;
                     if ($values === null) throw new RuntimeException('Categoría de Base Oficial faltante.', 409);
-                    if (abs((float)$values['promedioBase'] - (float)$category['promedioBase']) > .011) {
+                    if (abs(self::concursoPromedioBaseNormalizado($values['promedioBase']) - (float)$category['promedioBase']) > .011) {
                         throw new RuntimeException('La Base Oficial cambió durante el cálculo.', 409);
                     }
                     $category['baseMeses'] = array_map('floatval', $values['meses']);
@@ -433,7 +438,7 @@ final class GerenciaService
                         if ($detail === 'venta') return ['ok' => true, 'documentos' => $product['documentos'], 'total' => $product['ventaMes']];
                         $months = [];
                         foreach ($product['baseMeses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => $sale];
-                        return ['ok' => true, 'meses' => $months, 'promedioBase' => $product['promedioBase'],
+                        return ['ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($product['promedioBase']),
                             'fuenteBase' => 'JSON', 'versionBase' => $saved['baseOficial']['version']];
                     }
                 }
@@ -449,7 +454,7 @@ final class GerenciaService
             if ($values === null) return ['ok' => true, 'meses' => [], 'fuenteBase' => 'JSON'];
             $months = [];
             foreach ($values['meses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => (float)$sale];
-            return ['ok' => true, 'meses' => $months, 'promedioBase' => (float)$values['promedioBase'],
+            return ['ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($values['promedioBase']),
                 'fuenteBase' => 'JSON', 'versionBase' => $base['version']];
         }
         $periodo = sprintf('2026-%02d', $mes);

@@ -151,7 +151,7 @@ final class ConcursoPromediosService
         foreach ($base['vendedores'] as $vendor) foreach ($vendor['categorias'] as $category => $values) {
             $rows[] = ['usuario_id' => $vendor['usuarioId'], 'codigo_principal' => $vendor['codigoPrincipal'],
                 'vendedor_nombre' => $vendor['vendedorNombre'], 'categoria' => $category,
-                'promedio_base' => (float)$values['promedioBase'],
+                'promedio_base' => max(0.0, (float)$values['promedioBase']),
                 'ventas_mensuales' => array_map('floatval', $values['meses']),
                 'periodo_desde' => $base['periodoDesde'], 'periodo_hasta' => $base['periodoHasta'],
                 'cantidad_meses' => $base['cantidadMeses']];
@@ -262,7 +262,7 @@ final class ConcursoPromediosService
                 $monthly = [];
                 foreach ($period['meses'] as $month) $monthly[$month] = ($months[(int)substr($month, 5)] ?? 0) / 100;
                 $records[] = $vendor + ['categoria' => $category, 'ventas_mensuales' => $monthly,
-                    'promedio_base' => round(array_sum($monthly) / $period['cantidad_meses'], 2)];
+                    'promedio_base' => max(0.0, round(array_sum($monthly) / $period['cantidad_meses'], 2))];
             }
         }
         return ['registros' => $records, 'vendedores' => count($vendors), 'periodo' => $period];
@@ -296,7 +296,7 @@ final class ConcursoPromediosService
                     throw new RuntimeException('Importes preliminares inválidos.', 400);
                 }
             }
-            if (abs(round(array_sum($row['ventas_mensuales']) / $period['cantidad_meses'], 2) - (float)$row['promedio_base']) > 0.001) throw new RuntimeException('El promedio no coincide con el detalle mensual.', 400);
+            if (abs(max(0.0, round(array_sum($row['ventas_mensuales']) / $period['cantidad_meses'], 2)) - (float)$row['promedio_base']) > 0.001) throw new RuntimeException('El promedio no coincide con el detalle mensual.', 400);
             $categoriesByVendor[$row['usuario_id']][$row['categoria']] = true;
         }
         foreach ($categoriesByVendor as $categories) {
@@ -318,7 +318,7 @@ final class ConcursoPromediosService
             $monthly = [];
             foreach ($row['ventas_mensuales'] as $month => $amount) $monthly[$month] = number_format((float)$amount, 2, '.', '');
             $vendors[$vendorId]['categorias'][$row['categoria']] = [
-                'promedioBase' => number_format((float)$row['promedio_base'], 2, '.', ''), 'meses' => $monthly,
+                'promedioBase' => number_format(max(0.0, (float)$row['promedio_base']), 2, '.', ''), 'meses' => $monthly,
                 'fechaCalculo' => $snapshot['fecha'], 'fechaBloqueo' => date('Y-m-d H:i:s')];
         }
         $data = ['schemaVersion' => 1, 'anioConcurso' => 2026, 'version' => 1,
