@@ -65,6 +65,7 @@
 .concurso-resumen-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .concurso-resumen-grid article { padding: 14px; }
 .concurso-resumen-grid strong { display: block; margin-top: 6px; font-size: 1.05rem; }
+.concurso-resumen-grid small { display: block; margin-top: 4px; color: var(--color-gray-dark, #6B7280); font-size: .78rem; font-weight: 700; }
 .concurso-tabs {
   display: flex;
   flex-wrap: wrap;

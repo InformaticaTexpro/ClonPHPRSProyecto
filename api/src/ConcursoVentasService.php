@@ -82,12 +82,12 @@ final class ConcursoVentasService
 
     public static function isValidationPeriod(int $anio, int $mes): bool
     {
-        return $anio === 2026 && $mes === 9;
+        return false;
     }
 
     public static function isVisibleForPeriod(int $anio, int $mes): bool
     {
-        return self::isValidationPeriod($anio, $mes) || self::isActiveForPeriod($anio, $mes);
+        return self::isActiveForPeriod($anio, $mes);
     }
 
     public static function progressPoints(float $meta, float $ventas): int

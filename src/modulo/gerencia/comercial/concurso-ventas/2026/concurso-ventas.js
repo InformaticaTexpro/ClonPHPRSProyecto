@@ -82,12 +82,12 @@
   }
   function exportColumns() {
     if (activeView === 'acumulado') return [
-      ['Vendedor', row => row.vendedor], ['Tipo mes', row => row.tipo],
+      ['Vendedor', row => row.vendedor], ['Tramo mes', row => row.tipo],
       ...visibleOfficialMonths().map(month => [meses[month - 1].slice(0, 3).toUpperCase(), row => row.mesesOficiales.find(value => value.mes === month)?.totalMes, 'Number']),
       ['Total acumulado', row => row.acumulado, 'Number'],
     ];
     return [
-      ['Vendedor', row => row.vendedor], ['Tipo', row => row.tipo],
+      ['Vendedor', row => row.vendedor], ['Tramo', row => row.tipo],
       ['Meta', row => row.meta, 'Currency'], ['Venta', row => row.venta, 'Currency'],
       ['% Meta', row => row.cumplimiento, 'Percent'], ['Meta pts', row => row.puntosMeta, 'Number'],
       ['Nuevos pts', row => row.puntosNuevos, 'Number'], ['Recuperados pts', row => row.puntosRecuperados, 'Number'],
@@ -299,7 +299,7 @@
     if (!rendered) return;
     const officialMonths = visibleOfficialMonths();
     if (activeView === 'acumulado') {
-      $('concursoHead').innerHTML = `<tr><th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipoMes">Tipo mes</th>${officialMonths.map(month => `<th scope="col" class="numero" data-sort="mes-${month}">${['OCT', 'NOV', 'DIC'][month - 10]}</th>`).join('')}<th scope="col" class="numero" data-sort="acumulado">Total acumulado</th><th scope="col">Acción</th></tr>`;
+      $('concursoHead').innerHTML = `<tr><th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipoMes">Tramo mes</th>${officialMonths.map(month => `<th scope="col" class="numero" data-sort="mes-${month}">${['OCT', 'NOV', 'DIC'][month - 10]}</th>`).join('')}<th scope="col" class="numero" data-sort="acumulado">Total acumulado</th><th scope="col">Acción</th></tr>`;
       updateSortHeaders();
       if (!officialMonths.length) {
         $('concursoEstado').textContent = Number(rendered.mes) === 9
@@ -314,7 +314,7 @@
       $('periodoResultados').textContent = `Acumulado oficial · Octubre–${periodo}`;
       return;
     }
-    $('concursoHead').innerHTML = '<tr><th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipo">Tipo</th><th scope="col" class="numero" data-sort="meta">Meta</th><th scope="col" class="numero" data-sort="venta">Venta</th><th scope="col" class="numero" data-sort="porcentajeMeta">% Meta</th><th scope="col" class="numero" data-sort="metaPuntos">Meta pts</th><th scope="col" class="numero" data-sort="nuevosPuntos">Nuevos pts</th><th scope="col" class="numero" data-sort="recuperadosPuntos">Recuperados pts</th><th scope="col" class="numero" data-sort="productosPuntos">Productos pts</th><th scope="col" class="numero" data-sort="totalMes">Total mes</th><th scope="col" class="numero" data-sort="acumulado">Acumulado</th></tr>';
+    $('concursoHead').innerHTML = '<tr><th scope="col" data-sort="vendedor">Vendedor</th><th scope="col" data-sort="tipo">Tramo</th><th scope="col" class="numero" data-sort="meta">Meta</th><th scope="col" class="numero" data-sort="venta">Venta</th><th scope="col" class="numero" data-sort="porcentajeMeta">% Meta</th><th scope="col" class="numero" data-sort="metaPuntos">Meta pts</th><th scope="col" class="numero" data-sort="nuevosPuntos">Nuevos pts</th><th scope="col" class="numero" data-sort="recuperadosPuntos">Recuperados pts</th><th scope="col" class="numero" data-sort="productosPuntos">Productos pts</th><th scope="col" class="numero" data-sort="totalMes">Total mes</th><th scope="col" class="numero" data-sort="acumulado">Acumulado</th></tr>';
     updateSortHeaders();
     $('concursoBody').innerHTML = sortedRows().map(row => `<tr><td><button type="button" class="concurso-vendedor" data-vendedor="${row.usuarioId}" aria-haspopup="dialog" aria-controls="detalle-vendedor" title="Ver detalle del vendedor">${esc(row.vendedor)}</button></td><td><span class="concurso-tipo">${esc(row.tipo)}</span></td><td class="numero">${money(row.meta)}</td><td class="numero">${money(row.venta)}</td><td class="numero">${metaPercent(row.cumplimiento)}</td><td class="numero">${points(row.puntosMeta)}</td><td class="numero">${points(row.puntosNuevos)}</td><td class="numero">${points(row.puntosRecuperados)}</td><td class="numero" title="${esc(row.productosEstadoBase)}">${points(row.productosPuntos)}</td><td class="numero">${points(row.totalMes)}</td><td class="numero">${points(row.acumulado)}</td></tr>`).join('') || '<tr><td colspan="11" class="gerencia-empty">No existen vendedores para el período seleccionado.</td></tr>';
     if (selectedUser !== null) $('concursoBody').querySelector(`[data-vendedor="${selectedUser}"]`)?.closest('tr').classList.add('concurso-seleccionado');

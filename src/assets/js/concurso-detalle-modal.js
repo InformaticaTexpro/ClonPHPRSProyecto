@@ -42,7 +42,7 @@
       <section class="concurso-resumen-puntos" aria-label="Resumen de puntos">
         <article class="concurso-total-card"><span>Puntos del mes</span><strong id="cdmTotalMes">0 pts</strong></article>
         <div class="concurso-resumen-grid">
-          <article><span>Cumplimiento</span><strong id="cdmPuntosMeta">0 pts</strong></article>
+          <article><span>Cumplimiento</span><strong id="cdmPuntosMeta">0 pts</strong><small id="cdmTramoMes">Cumplimiento: — · Tramo vendedor: —</small></article>
           <article><span>Clientes Nuevos</span><strong id="cdmPuntosNuevos">0 pts</strong></article>
           <article><span>Clientes Recuperados</span><strong id="cdmPuntosRecuperados">0 pts</strong></article>
           <article><span>Productos</span><strong id="cdmPuntosProductos">0 pts</strong></article>
@@ -57,7 +57,7 @@
       <p id="cdmCategoriaResumen" class="gerencia-subtitulo concurso-tab-summary"></p>
       <section id="cdmAcumulado" class="tabla-card concurso-detail-section" hidden aria-label="Resumen por mes">
         <h4>Resumen por mes</h4>
-        <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Mes</th><th>Tipo</th><th class="numero">Meta pts</th><th class="numero">Nuevos pts</th><th class="numero">Recuperados pts</th><th class="numero">Productos pts</th><th class="numero">Total mes</th><th class="numero">Acumulado</th></tr></thead><tbody id="cdmAcumuladoBody"></tbody></table></div>
+        <div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Mes</th><th>Tramo</th><th class="numero">Meta pts</th><th class="numero">Nuevos pts</th><th class="numero">Recuperados pts</th><th class="numero">Productos pts</th><th class="numero">Total mes</th><th class="numero">Acumulado</th></tr></thead><tbody id="cdmAcumuladoBody"></tbody></table></div>
       </section>
       <section id="cdmCumplimiento" class="tabla-card concurso-detail-section" hidden></section>
       <section id="cdmClientes" class="tabla-card concurso-detail-section" hidden>
@@ -114,6 +114,7 @@
     const total = row?.totalMes ?? row?.puntosMes ?? 0;
     $('cdmTotalMes').textContent = points(total);
     $('cdmPuntosMeta').textContent = points(row?.puntosMeta ?? 0);
+    $('cdmTramoMes').textContent = `Cumplimiento: ${metaPercent(row?.cumplimiento)} · Tramo vendedor: ${row?.tipo || '—'}`;
     $('cdmPuntosNuevos').textContent = points(row?.puntosNuevos ?? 0);
     $('cdmPuntosRecuperados').textContent = points(row?.puntosRecuperados ?? 0);
     $('cdmPuntosProductos').textContent = points(row?.productosPuntos ?? 0);
