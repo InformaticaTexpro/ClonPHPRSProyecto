@@ -20,6 +20,7 @@
     loading: true,
     error: '',
     activeTab: 'resumen',
+    activeAnchor: '',
     users: [],
     menus: [],
     profiles: [],
@@ -49,6 +50,7 @@
     permissionLoading: false,
     permissionError: '',
     permissionRequestSeq: 0,
+    permissionSavingMenuId: null,
     profileMenuDraft: new Set(),
     profileUserDraft: new Set(),
     vendorEditCode: '',
@@ -1063,7 +1065,8 @@
   }
   function renderTabs() {
     document.querySelectorAll('.admin-tab').forEach(button => {
-      button.classList.toggle('is-active', button.dataset.tab === state.activeTab);
+      const anchor = button.dataset.permissionAnchor || '';
+      button.classList.toggle('is-active', button.dataset.tab === state.activeTab && anchor === (state.activeAnchor || ''));
     });
 
     document.querySelectorAll('.admin-panel').forEach(panel => {
@@ -1071,6 +1074,16 @@
       panel.hidden = !visible;
       panel.classList.toggle('is-active', visible);
     });
+  }
+
+  function scrollToActiveAdminAnchor() {
+    if (!state.activeAnchor) return;
+    window.setTimeout(() => {
+      document.getElementById(state.activeAnchor)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 160);
   }
 
   function filteredUsers() {
@@ -1700,6 +1713,16 @@
       }
     }
 
+    const specificUserSelect = document.getElementById('permSpecificUserSelect');
+    if (specificUserSelect) {
+      specificUserSelect.innerHTML = state.users.map(user => `
+        <option value="${escHtml(user.id)}">${escHtml(user.nombre)} - ${escHtml(user.email || 'sin correo')} - ${escHtml(formatAreaLabel(user.area))}</option>
+      `).join('');
+      if (state.selectedPermUserId) {
+        specificUserSelect.value = String(state.selectedPermUserId);
+      }
+    }
+
     const areaSelect = document.getElementById('permAreaSelect');
     if (areaSelect && !areaSelect.dataset.ready) {
       areaSelect.innerHTML = [
@@ -1724,6 +1747,7 @@
     renderPermissionSelectedUser();
     renderPermissionSummary();
     renderPermissionGroups();
+    renderSpecificAccessPanel();
 
     try {
       const response = await apiFetch(`/usuarios/${userId}/menus`);
@@ -1739,12 +1763,14 @@
       renderPermissionGroupOptions();
       renderPermissionSummary();
       renderPermissionGroups();
+      renderSpecificAccessPanel();
     } catch (error) {
       if (requestSeq !== state.permissionRequestSeq) return;
       state.permissionLoading = false;
       state.permissionError = error.message || 'No se pudieron cargar los accesos.';
       renderPermissionSummary();
       renderPermissionGroups();
+      renderSpecificAccessPanel();
       toast('Permisos', error.message, 'error');
     }
   }
@@ -1767,17 +1793,21 @@
 
   function renderPermissionSelectedUser() {
     const container = document.getElementById('permSelectedUserInfo');
-    if (!container) return;
+    const specificContainer = document.getElementById('permSpecificSelectedUserInfo');
     const apiUser = state.permissionAccess?.usuario || null;
     const selected = apiUser || selectedPermissionUser();
     if (!selected) {
-      container.innerHTML = '<strong>Selecciona un usuario</strong><span>Nombre, correo y área aparecerán aquí.</span>';
+      const emptyHtml = '<strong>Selecciona un usuario</strong><span>Nombre, correo y área aparecerán aquí.</span>';
+      if (container) container.innerHTML = emptyHtml;
+      if (specificContainer) specificContainer.innerHTML = '<strong>Selecciona un usuario</strong><span>Los accesos específicos se aplicarán solo a este usuario.</span>';
       return;
     }
-    container.innerHTML = `
+    const userHtml = `
       <strong>${escHtml(selected.nombre || 'Usuario sin nombre')}</strong>
       <span>${escHtml(selected.email || 'sin correo')} · ${escHtml(formatAreaLabel(selected.area))}</span>
     `;
+    if (container) container.innerHTML = userHtml;
+    if (specificContainer) specificContainer.innerHTML = userHtml;
   }
 
   function getPermissionFilters() {
@@ -1838,6 +1868,20 @@
     }
   }
 
+  function renderSpecificGroupOptions() {
+    const select = document.getElementById('permSpecificGroup');
+    if (!select) return;
+    const current = select.value;
+    const groups = groupMenus(permissionSourceMenus()).map(group => group.group);
+    select.innerHTML = [
+      '<option value="">Todos los módulos</option>',
+      ...groups.map(group => `<option value="${escHtml(group)}">${escHtml(group)}</option>`),
+    ].join('');
+    if (groups.includes(current)) {
+      select.value = current;
+    }
+  }
+
   function renderPermissionResultCount(count, total) {
     const counter = document.getElementById('permResultCount');
     if (!counter) return;
@@ -1855,6 +1899,170 @@
       return { label: 'Directo', className: 'user-access-status--direct' };
     }
     return { label: 'Heredado', className: 'user-access-status--inherited' };
+  }
+
+  function specificAccessStatusInfo(menu) {
+    const direct = Boolean(menu.directo);
+    const inherited = Array.isArray(menu.perfiles) && menu.perfiles.length > 0;
+    if (direct && inherited) {
+      return { label: 'Directo y heredado', className: 'user-access-status--mixed' };
+    }
+    if (direct) {
+      return { label: 'Directo', className: 'user-access-status--direct' };
+    }
+    if (inherited) {
+      return { label: 'Heredado', className: 'user-access-status--inherited' };
+    }
+    return { label: 'Sin acceso', className: 'user-access-status--blocked' };
+  }
+
+  function getSpecificAccessFilters() {
+    return {
+      search: normalizeKey(document.getElementById('permSpecificSearch')?.value || ''),
+      group: document.getElementById('permSpecificGroup')?.value || '',
+    };
+  }
+
+  function specificAccessMatchesFilters(menu, groupName, filters) {
+    const profiles = Array.isArray(menu.perfiles)
+      ? menu.perfiles.map(perfil => `${perfil?.nombre || ''} ${perfil?.codigo || ''}`).join(' ')
+      : '';
+    const searchable = normalizeKey([
+      groupName,
+      menu.nombre,
+      menu.codigo,
+      menu.url,
+      profiles,
+    ].filter(Boolean).join(' '));
+    if (filters.search && !searchable.includes(filters.search)) return false;
+    if (filters.group && groupName !== filters.group) return false;
+    return true;
+  }
+
+  function renderSpecificAccessCount(count, total) {
+    const counter = document.getElementById('permSpecificResultCount');
+    if (!counter) return;
+    counter.textContent = `${count} de ${total} submenús`;
+  }
+
+  function renderSpecificAccessPanel() {
+    const container = document.getElementById('permSpecificAccess');
+    if (!container) return;
+
+    renderSpecificGroupOptions();
+
+    if (state.permissionLoading) {
+      renderSpecificAccessCount(0, 0);
+      container.innerHTML = '<div class="user-access-state">Cargando accesos específicos...</div>';
+      return;
+    }
+
+    if (state.permissionError) {
+      renderSpecificAccessCount(0, 0);
+      container.innerHTML = '<div class="user-access-state user-access-state--error">No se pueden administrar accesos específicos hasta recargar el usuario.</div>';
+      return;
+    }
+
+    const sourceMenus = permissionSourceMenus().filter(menu => menu.activo !== false);
+    const filters = getSpecificAccessFilters();
+    const grouped = groupMenus(sourceMenus)
+      .map(group => ({
+        ...group,
+        totalItems: group.items.length,
+        items: group.items.filter(menu => specificAccessMatchesFilters(menu, group.group, filters)),
+      }))
+      .filter(group => group.items.length);
+    const visibleCount = grouped.reduce((total, group) => total + group.items.length, 0);
+    renderSpecificAccessCount(visibleCount, sourceMenus.length);
+
+    if (!grouped.length) {
+      container.innerHTML = '<div class="user-access-state">Sin submenús para mostrar con los filtros actuales.</div>';
+      return;
+    }
+
+    container.innerHTML = grouped.map(group => `
+      <article class="specific-access-group">
+        <div class="specific-access-group__header">
+          <h5>${escHtml(group.group)}</h5>
+          <span>${group.items.length}/${group.totalItems}</span>
+        </div>
+        <div class="specific-access-items">
+          ${group.items.map(menu => renderSpecificAccessItem(menu)).join('')}
+        </div>
+      </article>
+    `).join('');
+  }
+
+  function renderSpecificAccessItem(menu) {
+    const status = specificAccessStatusInfo(menu);
+    const perfiles = Array.isArray(menu.perfiles) && menu.perfiles.length
+      ? menu.perfiles.map(perfil => perfil.nombre || perfil.codigo).filter(Boolean).join(', ')
+      : '';
+    const isSaving = Number(state.permissionSavingMenuId) === Number(menu.id);
+    const canGrant = !menu.directo && !perfiles;
+    const actionHtml = menu.directo
+      ? `<button class="btn-secondary btn-specific-access" data-specific-access-action="revoke" data-menu-id="${escHtml(menu.id)}" type="button" ${isSaving ? 'disabled' : ''}>${isSaving ? 'Guardando...' : 'Quitar acceso directo'}</button>`
+      : canGrant
+        ? `<button class="btn-primary btn-specific-access" data-specific-access-action="grant" data-menu-id="${escHtml(menu.id)}" type="button" ${isSaving ? 'disabled' : ''}>${isSaving ? 'Guardando...' : 'Conceder acceso'}</button>`
+        : '<span class="specific-access-note">Ya tiene acceso por perfil</span>';
+
+    return `
+      <div class="specific-access-item" data-menu-id="${escHtml(menu.id)}">
+        <div class="specific-access-item__main">
+          <strong>${escHtml(menu.nombre)}</strong>
+          <small>${escHtml(menu.codigo || 'sin-codigo')}${perfiles ? ` · Perfil(es): ${escHtml(perfiles)}` : ''}</small>
+        </div>
+        <span class="user-access-status ${status.className}">${escHtml(status.label)}</span>
+        <div class="specific-access-item__actions">
+          ${actionHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  async function changeSpecificAccess(menuId, action) {
+    const user = selectedPermissionUser();
+    if (!user) {
+      toast('Accesos específicos', 'Selecciona un usuario antes de modificar accesos.', 'warn');
+      return;
+    }
+
+    const menu = permissionSourceMenus().find(item => Number(item.id) === Number(menuId));
+    if (!menu) {
+      toast('Accesos específicos', 'Menú no encontrado en el catálogo cargado.', 'error');
+      return;
+    }
+
+    const grant = action === 'grant';
+    const verb = grant ? 'conceder acceso directo a' : 'quitar el acceso directo a';
+    const confirmed = window.confirm(`Confirma ${verb} "${menu.nombre}" para ${user.nombre || user.email || 'este usuario'}.`);
+    if (!confirmed) return;
+
+    state.permissionSavingMenuId = Number(menuId);
+    renderSpecificAccessPanel();
+
+    try {
+      await apiFetch(`/usuarios/${user.id}/menus/${menuId}`, {
+        method: grant ? 'POST' : 'DELETE',
+      });
+      const hadInherited = Array.isArray(menu.perfiles) && menu.perfiles.length > 0;
+      await syncPermissionDraft(user.id);
+      toast(
+        'Accesos específicos',
+        grant
+          ? `Acceso directo concedido a ${menu.nombre}.`
+          : hadInherited
+            ? 'Se quitó el acceso directo; conserva acceso por perfil.'
+            : `Acceso directo retirado de ${menu.nombre}.`,
+        'success'
+      );
+    } catch (error) {
+      toast('Accesos específicos', error.message || 'No se pudo actualizar el acceso específico.', 'error');
+      renderSpecificAccessPanel();
+    } finally {
+      state.permissionSavingMenuId = null;
+      renderSpecificAccessPanel();
+    }
   }
 
   function renderPermissionGroups() {
@@ -1931,8 +2139,10 @@
     renderPermissionSelects();
     renderPermissionSelectedUser();
     renderPermissionGroupOptions();
+    renderSpecificGroupOptions();
     renderPermissionSummary();
     renderPermissionGroups();
+    renderSpecificAccessPanel();
     const selected = selectedPermissionUser();
     if (selected) {
       await syncPermissionDraft(selected.id);
@@ -3170,6 +3380,7 @@
     renderPermissionSelects();
     syncPermissionDraft(id);
     state.activeTab = 'permisos';
+    state.activeAnchor = '';
     renderTabs();
   }
 
@@ -3178,6 +3389,7 @@
     renderVendorSelect();
     loadVendorRows(id);
     state.activeTab = 'asignaciones';
+    state.activeAnchor = '';
     renderTabs();
   }
 
@@ -3186,6 +3398,7 @@
     renderProfileMenuSummary();
     syncProfileMenuDraft(id);
     state.activeTab = 'perfiles';
+    state.activeAnchor = '';
     renderTabs();
   }
 
@@ -3200,6 +3413,7 @@
     renderProfileUserSummary();
     renderProfileUserList();
     state.activeTab = 'perfiles';
+    state.activeAnchor = '';
     renderTabs();
   }
 
@@ -3249,6 +3463,17 @@
       permUserSelect.dataset.bound = '1';
     }
 
+    const permSpecificUserSelect = document.getElementById('permSpecificUserSelect');
+    if (permSpecificUserSelect && !permSpecificUserSelect.dataset.bound) {
+      permSpecificUserSelect.addEventListener('change', event => {
+        state.selectedPermUserId = Number(event.target.value);
+        const mainSelect = document.getElementById('permUserSelect');
+        if (mainSelect) mainSelect.value = String(state.selectedPermUserId);
+        syncPermissionDraft(state.selectedPermUserId);
+      });
+      permSpecificUserSelect.dataset.bound = '1';
+    }
+
     const permSearchInput = document.getElementById('permSearchInput');
     if (permSearchInput && !permSearchInput.dataset.bound) {
       permSearchInput.addEventListener('input', renderPermissionGroups);
@@ -3279,6 +3504,30 @@
         renderPermissionGroups();
       });
       permClearFilters.dataset.bound = '1';
+    }
+
+    const permSpecificSearch = document.getElementById('permSpecificSearch');
+    if (permSpecificSearch && !permSpecificSearch.dataset.bound) {
+      permSpecificSearch.addEventListener('input', renderSpecificAccessPanel);
+      permSpecificSearch.dataset.bound = '1';
+    }
+
+    const permSpecificGroup = document.getElementById('permSpecificGroup');
+    if (permSpecificGroup && !permSpecificGroup.dataset.bound) {
+      permSpecificGroup.addEventListener('change', renderSpecificAccessPanel);
+      permSpecificGroup.dataset.bound = '1';
+    }
+
+    const permSpecificClear = document.getElementById('permSpecificClear');
+    if (permSpecificClear && !permSpecificClear.dataset.bound) {
+      permSpecificClear.addEventListener('click', () => {
+        const search = document.getElementById('permSpecificSearch');
+        const group = document.getElementById('permSpecificGroup');
+        if (search) search.value = '';
+        if (group) group.value = '';
+        renderSpecificAccessPanel();
+      });
+      permSpecificClear.dataset.bound = '1';
     }
 
     const permAreaSelect = document.getElementById('permAreaSelect');
@@ -3340,6 +3589,12 @@
 
     if (!document.body.dataset.adminBindings) {
       document.body.addEventListener('click', event => {
+        const specificAction = event.target.closest('[data-specific-access-action]');
+        if (specificAction) {
+          changeSpecificAccess(Number(specificAction.dataset.menuId), specificAction.dataset.specificAccessAction).catch(handleAdminError);
+          return;
+        }
+
         const permissionRetry = event.target.closest('#permRetryLoad');
         if (permissionRetry) {
           const selected = selectedPermissionUser();
@@ -3350,9 +3605,13 @@
         const tabButton = event.target.closest('[data-tab]');
         if (tabButton) {
           state.activeTab = tabButton.dataset.tab;
+          state.activeAnchor = tabButton.dataset.permissionAnchor || '';
           renderTabs();
           if (state.activeTab === 'resumen') renderResumen();
-          if (state.activeTab === 'permisos') renderPermissionPanel();
+          if (state.activeTab === 'permisos') {
+            renderPermissionPanel();
+            scrollToActiveAdminAnchor();
+          }
           if (state.activeTab === 'perfiles') renderProfilePanel();
           if (state.activeTab === 'asignaciones') {
             renderVendorSelect();
@@ -3429,6 +3688,7 @@
           if (areaAction.dataset.areaAction === 'users') {
             state.filters.area = areaCode;
             state.activeTab = 'usuarios';
+            state.activeAnchor = '';
             renderTabs();
             renderUsers();
             return;
@@ -3439,6 +3699,7 @@
           }
           if (areaAction.dataset.areaAction === 'view') {
             state.activeTab = 'permisos';
+            state.activeAnchor = '';
             renderTabs();
             const permAreaSelect = document.getElementById('permAreaSelect');
             if (permAreaSelect) permAreaSelect.value = areaCode;
@@ -3483,6 +3744,7 @@
           if (action === 'create-area') openAreaDrawer(null, 'new');
           if (action === 'area-access') {
             state.activeTab = 'areas';
+            state.activeAnchor = '';
             renderTabs();
           }
           return;

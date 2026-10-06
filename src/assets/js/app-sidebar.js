@@ -2014,17 +2014,16 @@
     const renderSubmenu = submenu => {
       const submenuAbierto = submenu.items.some(itemActivo);
       const destino = submenu.items[0];
-      const permitido = destino.extra ? true : tienePermiso(destino, indicePermisos);
-      const href = permitido ? destino.url : urlSinAcceso(destino, rutaActual());
+      const permitido = submenu.items.some(item => item.extra ? true : tienePermiso(item, indicePermisos));
       const esConcurso = grupo.nombre === 'Gerencia' && submenu.id === 'comercial';
       return `
         <div class="nav-subgroup ${submenuAbierto ? 'is-open' : ''}">
           <div class="nav-subgroup-row">
-            <a class="nav-subgroup-link ${submenuAbierto ? 'active' : ''} ${permitido ? '' : 'is-locked'}" href="${href}">
+            <button class="nav-subgroup-link nav-subgroup-parent ${submenuAbierto ? 'active' : ''} ${permitido ? '' : 'is-locked'}" type="button" aria-expanded="${submenuAbierto ? 'true' : 'false'}">
               ${renderIconMarkup(submenu.icono || destino.icono, '•', 'nav-item-icon')}
               <span class="nav-label">${submenu.nombre}</span>
               ${permitido ? '' : '<span class="nav-module-lock" title="Sin acceso">🔒</span>'}
-            </a>
+            </button>
             <button class="nav-subgroup-toggle" type="button" aria-label="Desplegar ${submenu.nombre}" aria-expanded="${submenuAbierto ? 'true' : 'false'}">
               <span class="nav-module-chevron">▶</span>
             </button>

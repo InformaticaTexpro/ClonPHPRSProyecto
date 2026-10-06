@@ -20,7 +20,7 @@ final class GerenciaService
         if ($method === 'POST' && in_array($path, ['/comercial/concurso-ventas/cerrar', '/comercial/concurso-ventas/reabrir'], true)) {
             (new ConcursoPromediosService($this->db, $this->analytics))->assertAccess($payload);
         } else {
-            $this->assertGerenciaOrAdmin($payload);
+            $this->assertGerenciaOrAdmin($payload, $this->menuCodesForPath($method, $path));
         }
 
         return match (true) {
@@ -949,16 +949,76 @@ final class GerenciaService
         return $usuarioId;
     }
 
-    private function assertGerenciaOrAdmin(array $payload): void
+    private function assertGerenciaOrAdmin(array $payload, array $menuCodes = []): void
     {
         if ((bool)($payload['is_admin'] ?? false)) {
             return;
         }
 
         $area = $this->normalizeArea($payload['area'] ?? '');
-        if (!in_array($area, ['gerencia', 'admin', 'administracion'], true)) {
-            throw new RuntimeException('Acceso restringido a Gerencia o administradores.', 403);
+        if (in_array($area, ['gerencia', 'admin', 'administracion'], true)) {
+            return;
         }
+
+        if ($menuCodes !== [] && $this->payloadHasMenuAccess($payload, $menuCodes)) {
+            return;
+        }
+
+        throw new RuntimeException('Acceso restringido a Gerencia o administradores.', 403);
+    }
+
+    private function menuCodesForPath(string $method, string $path): array
+    {
+        if ($method !== 'GET') {
+            return [];
+        }
+
+        return match ($path) {
+            '/comercial/dashboard/cliente-detalle',
+            '/comercial/dashboard/producto-detalle',
+            '/comercial/resumen',
+            '/comercial/mensual',
+            '/comercial/guias-pendientes' => ['gerencia'],
+
+            '/comercial/estadisticas-ventas' => ['gerencia_estadisticas_ventas'],
+
+            '/comercial/vendedores-principales',
+            '/comercial/ventas-vendedor/cotizaciones',
+            '/comercial/ventas-vendedor/guias-pendientes',
+            '/comercial/ventas-vendedor/clientes-nuevos',
+            '/comercial/ventas-vendedor/muestras-detalle',
+            '/comercial/ventas-vendedor' => ['gerencia_ventas_vendedor'],
+
+            '/comercial/control-muestras',
+            '/comercial/control-muestras/vendedor-detalle' => ['gerencia_control_muestras'],
+
+            '/comercial/concurso-ventas/resumen',
+            '/comercial/concurso-ventas/clientes',
+            '/comercial/concurso-ventas/productos' => ['gerencia_concurso_ventas'],
+
+            default => [],
+        };
+    }
+
+    private function payloadHasMenuAccess(array $payload, array $menuCodes): bool
+    {
+        $allowed = array_fill_keys(array_map(static fn($code): string => strtolower(trim((string)$code)), $menuCodes), true);
+
+        foreach (($payload['menus'] ?? []) as $menu) {
+            $code = strtolower(trim((string)($menu['codigo'] ?? '')));
+            if ($code !== '' && isset($allowed[$code])) {
+                return true;
+            }
+        }
+
+        foreach (($payload['menus_directos'] ?? []) as $menu) {
+            $code = strtolower(trim((string)($menu['codigo'] ?? '')));
+            if ($code !== '' && isset($allowed[$code])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeArea(mixed $value): string
