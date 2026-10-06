@@ -207,26 +207,55 @@
         </section>
 
         <section class="admin-panel" data-panel="permisos" hidden>
-          <div class="panel-card panel-card--split">
+          <div class="panel-card admin-permission-panel">
             <div class="panel-card__header">
               <div>
                 <h3>Accesos por usuario</h3>
-                <p>Consulta la herencia efectiva de cada usuario. La edición real se hace en perfiles y áreas.</p>
+                <p>Vista de consulta: los accesos efectivos se calculan en backend y se administran desde perfiles y áreas.</p>
               </div>
             </div>
-            <div class="form-section-note admin-explainer">
-              La autorización efectiva se calcula en backend y esta vista solo consulta el estado real de cada menú.
-            </div>
-            <div class="permission-topbar">
-              <select class="input-control" id="permUserSelect"></select>
-              <div class="permission-summary">
-                <span class="summary-chip">Efectivos: <strong id="permAllowedCount">0</strong></span>
-                <span class="summary-chip">Heredados: <strong id="permInheritedCount">0</strong></span>
-                <span class="summary-chip">Directos: <strong id="permDirectCount">0</strong></span>
-                <span class="summary-chip">Bloqueados: <strong id="permBlockedCount">0</strong></span>
+            <div class="user-access-toolbar">
+              <div class="permission-user-picker">
+                <label for="permUserSelect">Usuario</label>
+                <select class="input-control" id="permUserSelect"></select>
+              </div>
+              <div class="user-access-selected" id="permSelectedUserInfo">
+                <strong>Selecciona un usuario</strong>
+                <span>Nombre, correo y área aparecerán aquí.</span>
               </div>
             </div>
-            <div class="inline-help">Vista de consulta. Los permisos se editan en perfiles; aquí solo se muestra el resultado efectivo.</div>
+            <div class="permission-summary user-access-summary">
+              <span class="summary-chip">Efectivos: <strong id="permAllowedCount">0</strong></span>
+              <span class="summary-chip">Heredados: <strong id="permInheritedCount">0</strong></span>
+              <span class="summary-chip">Directos: <strong id="permDirectCount">0</strong></span>
+              <span class="summary-chip">Bloqueados: <strong id="permBlockedCount">0</strong></span>
+            </div>
+            <div class="user-access-filters">
+              <div class="permission-filters">
+                <label for="permSearchInput">Buscar menú</label>
+                <input class="input-control" id="permSearchInput" type="search" placeholder="Nombre o código..." />
+              </div>
+              <div class="permission-filters">
+                <label for="permGroupFilter">Grupo</label>
+                <select class="input-control" id="permGroupFilter">
+                  <option value="">Todos los grupos</option>
+                </select>
+              </div>
+              <div class="permission-filters">
+                <label for="permStatusFilter">Estado</label>
+                <select class="input-control" id="permStatusFilter">
+                  <option value="todos">Todos</option>
+                  <option value="permitidos">Con acceso</option>
+                  <option value="heredados">Heredados</option>
+                  <option value="directos">Directos</option>
+                  <option value="bloqueados">Bloqueados</option>
+                </select>
+              </div>
+              <div class="user-access-filter-actions">
+                <span id="permResultCount">0 resultados</span>
+                <button class="btn-secondary" id="permClearFilters" type="button">Limpiar filtros</button>
+              </div>
+            </div>
             <div class="permission-grid" id="permGroups"></div>
           </div>
         </section>
