@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Control de Notas de Venta</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.0.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user"><div class="user-avatar" id="userAvatar">C</div><div class="user-info"><span class="user-name" id="userName">Cargando...</span><span class="user-area" id="userArea"></span></div></div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión"><span aria-hidden="true">⎋</span><span class="btn-logout-text">Cerrar sesión</span></button>
+    </div>
+  </aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" type="button" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Control de Notas de Venta</h1>
+      </div>
+      <div class="header-right"><span class="header-date" id="headerDate"></span></div>
+    </header>
+    <main class="main-content">
+      <section class="module-hero">
+        <span class="module-kicker">Cobranza</span>
+        <h2>Control de Notas de Venta</h2>
+        <p>Página base preparada para el módulo. No contiene lógica de negocio ni consultas.</p>
+      </section>
+    </main>
+  </div>
+  <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
+  <script src="./control-notas-venta.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

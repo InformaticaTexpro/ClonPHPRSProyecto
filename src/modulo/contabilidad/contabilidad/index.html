@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Contabilidad</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../../bodega/bodega/bodega.css?v=1.0.0" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user"><div class="user-avatar" id="userAvatar">C</div><div class="user-info"><span class="user-name" id="userName">Cargando...</span><span class="user-area" id="userArea"></span></div></div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión"><span aria-hidden="true">⎋</span><span class="btn-logout-text">Cerrar sesión</span></button>
+    </div>
+  </aside>
+  <div class="main-wrapper" id="mainWrapper">
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" type="button" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Contabilidad</h1>
+      </div>
+      <div class="header-right"><span class="header-date" id="headerDate"></span></div>
+    </header>
+    <main class="main-content">
+      <section class="module-hero">
+        <span class="module-kicker">Módulo administrativo</span>
+        <h2>Contabilidad</h2>
+        <p>Vista inicial preparada para el módulo de contabilidad. No contiene lógica de negocio ni consultas.</p>
+      </section>
+      <section class="module-grid" aria-label="Estado del módulo">
+        <article class="module-card"><span>Estado</span><strong>Preparado</strong><p>Ruta y layout disponibles para navegación desde el sidebar.</p></article>
+        <article class="module-card"><span>Alcance</span><strong>Sin procesos</strong><p>Los flujos contables se incorporarán cuando sean definidos.</p></article>
+      </section>
+    </main>
+  </div>
+  <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
+  <script src="./contabilidad.js?v=1.0.0"></script>
+  <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-secondary, 'Open Sans', sans-serif);
+  color: var(--color-black, #1A1D23);
+  background: #f4f7fb;
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width, 260px);
+  z-index: 40;
+}
+
+.main-wrapper {
+  margin-left: var(--sidebar-width, 260px);
+  min-height: 100vh;
+}
+
+.main-header {
+  height: var(--header-height, 60px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  background: rgba(255, 255, 255, .95);
+  border-bottom: 1px solid rgba(17, 24, 39, .08);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, .04);
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.header-title {
+  margin: 0;
+  font-family: var(--font-primary, Montserrat, sans-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.header-date {
+  color: var(--color-gray-dark, #6B7280);
+  font-size: .88rem;
+}
+
+.header-menu-btn {
+  display: none;
+}
+
+.main-content {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.5rem 0;
+}
+
+.adq-hero,
+.adq-card {
+  background: #fff;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .07);
+}
+
+.adq-hero {
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(0, 226, 167, .13), #fff 58%);
+}
+
+.adq-kicker,
+.adq-card span {
+  display: block;
+  color: #00a983;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.adq-hero h2 {
+  margin: .55rem 0 .5rem;
+  font-family: var(--font-primary, Montserrat, sans-serif);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.adq-hero p,
+.adq-card p {
+  margin: 0;
+  color: var(--color-gray-dark, #6B7280);
+  line-height: 1.55;
+}
+
+.adq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.adq-card {
+  padding: 1.25rem;
+}
+
+.adq-card strong {
+  display: block;
+  margin: .45rem 0 .35rem;
+  font-family: var(--font-primary, Montserrat, sans-serif);
+  font-size: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .main-wrapper {
+    margin-left: 0;
+  }
+
+  .header-menu-btn {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-content {
+    width: min(100% - 1rem, 1180px);
+  }
+
+  .adq-grid {
+    grid-template-columns: 1fr;
+  }
+}

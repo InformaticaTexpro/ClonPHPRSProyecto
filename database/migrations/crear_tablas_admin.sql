@@ -115,7 +115,7 @@ VALUES
 (7,  'facturacion',       'Facturación',       'Facturación',      '/src/modulo/facturacion/facturacion/index.html',      '🧾', 1, 1),
 (8,  'rrhh',              'RRHH',              'General',          '/src/modulo/rrhh/rrhh/index.html',                    '👥', 1, 1),
 (9,  'contabilidad',      'Contabilidad',      'Contabilidad',     '/src/modulo/contabilidad/contabilidad/index.html',    '📜', 1, 1),
-(10, 'cobranza',          'Cobranza',          'Contabilidad',     '/src/modulo/cobranza/cobranza/index.html',            '💰', 2, 1),
+(10, 'cobranza',          'Cobranza',          'Cobranza',         '/src/modulo/cobranza/cobranza/index.html',            'chart', 1, 1),
 (11, 'administracion',    'Administración',    'Administración',   '/src/modulo/admin/admin/index.html',                  '🔧', 1, 1),
 (12, 'alertas',           'Alertas',           'General',          '/src/modulo/varios/alertas/index.html',               '🔔', 1, 1),
 (13, 'mensajeria',        'Chat',              'General',          '/src/modulo/varios/mensajeria/index.html',            '💬', 2, 1),
@@ -137,7 +137,7 @@ VALUES
 ('bodega', 'Bodega', 'Perfil base para el equipo de bodega', 'bodega', 1, 1),
 ('servicio-tecnico', 'Servicio Técnico', 'Perfil base para servicio técnico', 'servicio-tecnico', 1, 1),
 ('facturacion', 'Facturación', 'Perfil base para facturación', 'facturacion', 1, 1),
-('contabilidad', 'Contabilidad', 'Perfil base para contabilidad y cobranza', 'contabilidad', 1, 1),
+('contabilidad', 'Contabilidad', 'Perfil base para contabilidad', 'contabilidad', 1, 1),
 ('rrhh', 'RRHH', 'Perfil base para recursos humanos', 'rrhh', 1, 1),
 ('gerencia', 'Gerencia', 'Perfil base para gerencia', 'gerencia', 1, 1),
 ('administracion', 'Administración', 'Perfil base para administración', 'administracion', 1, 1),
@@ -233,7 +233,7 @@ INSERT INTO `perfil_menu` (`perfil_id`, `menu_id`, `activo`)
 SELECT p.`id`, m.`id`, 1
 FROM `perfil` p
 INNER JOIN `menu` m ON m.`codigo` = 'cobranza'
-WHERE p.`codigo` IN ('contabilidad', 'administracion', 'admin')
+WHERE p.`codigo` IN ('administracion', 'admin')
 ON DUPLICATE KEY UPDATE
   `activo` = VALUES(`activo`);
 
