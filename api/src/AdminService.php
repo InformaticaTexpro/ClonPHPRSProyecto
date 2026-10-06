@@ -2219,11 +2219,16 @@ final class AdminService
     {
         $this->assertAdmin($payload);
         $usuario = $this->withTransaction(function (PDO $pdo) use ($payload, $userId, $menuId) {
-            if (!$this->loadUser($pdo, $userId)) {
+            $targetUser = $this->loadUser($pdo, $userId);
+            if (!$targetUser) {
                 throw new RuntimeException('Usuario no encontrado', 404);
             }
-            if (!$this->loadMenuById($pdo, $menuId)) {
+            $menu = $this->loadMenuById($pdo, $menuId);
+            if (!$menu) {
                 throw new RuntimeException('Menú no encontrado', 404);
+            }
+            if (empty($menu['activo'])) {
+                throw new RuntimeException('El menú seleccionado no está activo.', 400);
             }
             $stmt = $pdo->prepare(
                 'INSERT INTO usuario_menu (usuario_id, menu_id, activo)
@@ -2231,6 +2236,20 @@ final class AdminService
                  ON DUPLICATE KEY UPDATE activo = VALUES(activo)'
             );
             $stmt->execute([$userId, $menuId]);
+            $this->auditAdmin(
+                $pdo,
+                $payload,
+                'Acceso directo concedido',
+                sprintf(
+                    'Se concedió acceso directo a "%s" (%s) para %s (%s).',
+                    (string)$menu['nombre'],
+                    (string)$menu['codigo'],
+                    (string)$targetUser['nombre'],
+                    (string)$targetUser['email']
+                ),
+                'usuario_menu',
+                $userId
+            );
             return $this->loadUser($pdo, $userId);
         });
 
@@ -2254,6 +2273,20 @@ final class AdminService
                 throw new RuntimeException('No puedes quitarte el acceso a Administración sin confirmación fuerte', 400);
             }
             $pdo->prepare('UPDATE usuario_menu SET activo = 0 WHERE usuario_id = ? AND menu_id = ?')->execute([$userId, $menuId]);
+            $this->auditAdmin(
+                $pdo,
+                $payload,
+                'Acceso directo retirado',
+                sprintf(
+                    'Se retiró el acceso directo a "%s" (%s) para %s (%s).',
+                    (string)$menu['nombre'],
+                    (string)$menu['codigo'],
+                    (string)$current['nombre'],
+                    (string)$current['email']
+                ),
+                'usuario_menu',
+                $userId
+            );
             return $this->loadUser($pdo, $userId);
         });
 

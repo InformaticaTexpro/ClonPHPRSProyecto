@@ -90,6 +90,7 @@
               <span class="admin-nav-group__label">USUARIOS Y ACCESOS</span>
               <button class="admin-tab" data-tab="usuarios" type="button">Usuarios</button>
               <button class="admin-tab" data-tab="permisos" type="button">Accesos por usuario</button>
+              <button class="admin-tab" data-tab="permisos" data-permission-anchor="specificAccessTitle" type="button">Accesos específicos</button>
               <button class="admin-tab" data-tab="perfiles" type="button">Perfiles</button>
             </div>
             <div class="admin-nav-group">
@@ -257,6 +258,41 @@
               </div>
             </div>
             <div class="permission-grid" id="permGroups"></div>
+            <section class="user-specific-access" aria-labelledby="specificAccessTitle">
+              <div class="user-specific-access__header">
+                <div>
+                  <h4 id="specificAccessTitle">Accesos específicos</h4>
+                  <p>Selecciona un usuario y concede o retira accesos directos a submenús concretos sin modificar perfiles ni permisos hermanos.</p>
+                </div>
+              </div>
+              <div class="specific-user-picker">
+                <div class="permission-filters">
+                  <label for="permSpecificUserSelect">Usuario a modificar</label>
+                  <select class="input-control" id="permSpecificUserSelect"></select>
+                </div>
+                <div class="user-access-selected" id="permSpecificSelectedUserInfo">
+                  <strong>Selecciona un usuario</strong>
+                  <span>Los accesos específicos se aplicarán solo a este usuario.</span>
+                </div>
+              </div>
+              <div class="user-access-filters user-specific-access__filters">
+                <div class="permission-filters">
+                  <label for="permSpecificSearch">Buscar submenú</label>
+                  <input class="input-control" id="permSpecificSearch" type="search" placeholder="Nombre o código..." />
+                </div>
+                <div class="permission-filters">
+                  <label for="permSpecificGroup">Módulo / grupo</label>
+                  <select class="input-control" id="permSpecificGroup">
+                    <option value="">Todos los módulos</option>
+                  </select>
+                </div>
+                <div class="user-access-filter-actions">
+                  <span id="permSpecificResultCount">0 resultados</span>
+                  <button class="btn-secondary" id="permSpecificClear" type="button">Limpiar filtros</button>
+                </div>
+              </div>
+              <div class="user-specific-access__list" id="permSpecificAccess"></div>
+            </section>
           </div>
         </section>
 
