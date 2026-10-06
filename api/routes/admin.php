@@ -12,9 +12,9 @@ return static function (
         require_once dirname(__DIR__) . '/src/ConcursoPromediosService.php';
         $db = new Database();
         $concurso = new ConcursoPromediosService($db, new AnalyticsService($db));
-        json_response($concurso->route(require_auth_payload(), $method, $path, $query, $body));
+        json_response($concurso->route(require_current_user(), $method, $path, $query, $body));
     }
     /** @var AdminService $adminService */
     $adminService = $services['admin'];
-    json_response($adminService->route(require_auth_payload(), $method, $path, $query, $body));
+    json_response($adminService->route(require_current_user(), $method, $path, $query, $body));
 };

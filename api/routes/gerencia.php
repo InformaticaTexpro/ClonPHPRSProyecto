@@ -11,5 +11,5 @@ return static function (
     /** @var GerenciaService $gerenciaService */
     $gerenciaService = $services['gerencia'];
 
-    json_response($gerenciaService->route(require_auth_payload(), $method, $path, $query, $body));
+    json_response($gerenciaService->route(require_current_user(), $method, $path, $query, $body));
 };

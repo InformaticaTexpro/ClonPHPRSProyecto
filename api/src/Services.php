@@ -78,6 +78,35 @@ final class AuthService
         ];
     }
 
+    public function current_user_payload(string $token): array
+    {
+        $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
+        $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
+        if ($userId <= 0) {
+            throw new RuntimeException('Token invalido.', 401);
+        }
+
+        $user = $this->db->fetchOne(
+            'SELECT u.id, u.email, u.nombre, u.area, u.is_admin, u.is_active
+             FROM usuario u WHERE u.id = ? LIMIT 1',
+            [$userId]
+        );
+        if (!$user || !(int)$user['is_active']) {
+            throw new RuntimeException('Sesion no valida', 401);
+        }
+
+        $vendedores = $this->load_vendedores($userId);
+        $menusData = $this->load_user_menus($userId);
+
+        return $this->build_payload(
+            $user,
+            $vendedores,
+            $menusData['perfiles'],
+            $menusData['menus'],
+            $menusData['menusDirectos'] ?? []
+        );
+    }
+
     public function refresh(string $token): array
     {
         $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''), true);
