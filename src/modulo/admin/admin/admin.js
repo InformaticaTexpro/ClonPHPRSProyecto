@@ -46,6 +46,9 @@
     selectedAreaProfileId: null,
     permissionsDraft: new Set(),
     permissionAccess: null,
+    permissionLoading: false,
+    permissionError: '',
+    permissionRequestSeq: 0,
     profileMenuDraft: new Set(),
     profileUserDraft: new Set(),
     vendorEditCode: '',
@@ -1710,17 +1713,38 @@
     const user = userById(userId);
     if (!user) return;
 
+    const requestSeq = state.permissionRequestSeq + 1;
+    state.permissionRequestSeq = requestSeq;
+    state.permissionLoading = true;
+    state.permissionError = '';
+    state.permissionAccess = null;
+    state.permissionsDraft = new Set();
+    state.selectedPermUserId = Number(userId);
+    renderPermissionSelects();
+    renderPermissionSelectedUser();
+    renderPermissionSummary();
+    renderPermissionGroups();
+
     try {
       const response = await apiFetch(`/usuarios/${userId}/menus`);
+      if (requestSeq !== state.permissionRequestSeq) return;
       const access = response.data || {};
       const menus = Array.isArray(access.menus) ? access.menus : [];
       state.permissionAccess = access;
       state.permissionsDraft = new Set(menus.filter(menu => menu.permitido).map(menu => Number(menu.id)));
-      state.selectedPermUserId = Number(userId);
+      state.permissionLoading = false;
+      state.permissionError = '';
       renderPermissionSelects();
+      renderPermissionSelectedUser();
+      renderPermissionGroupOptions();
       renderPermissionSummary();
       renderPermissionGroups();
     } catch (error) {
+      if (requestSeq !== state.permissionRequestSeq) return;
+      state.permissionLoading = false;
+      state.permissionError = error.message || 'No se pudieron cargar los accesos.';
+      renderPermissionSummary();
+      renderPermissionGroups();
       toast('Permisos', error.message, 'error');
     }
   }
@@ -1741,11 +1765,55 @@
     if (blockedCount) blockedCount.textContent = String(Math.max(blocked, 0));
   }
 
-  function renderPermissionGroups() {
-    const container = document.getElementById('permGroups');
+  function renderPermissionSelectedUser() {
+    const container = document.getElementById('permSelectedUserInfo');
     if (!container) return;
+    const apiUser = state.permissionAccess?.usuario || null;
+    const selected = apiUser || selectedPermissionUser();
+    if (!selected) {
+      container.innerHTML = '<strong>Selecciona un usuario</strong><span>Nombre, correo y área aparecerán aquí.</span>';
+      return;
+    }
+    container.innerHTML = `
+      <strong>${escHtml(selected.nombre || 'Usuario sin nombre')}</strong>
+      <span>${escHtml(selected.email || 'sin correo')} · ${escHtml(formatAreaLabel(selected.area))}</span>
+    `;
+  }
 
-    const sourceMenus = Array.isArray(state.permissionAccess?.menus) && state.permissionAccess.menus.length
+  function getPermissionFilters() {
+    return {
+      search: normalizeKey(document.getElementById('permSearchInput')?.value || ''),
+      group: document.getElementById('permGroupFilter')?.value || '',
+      status: document.getElementById('permStatusFilter')?.value || 'todos',
+    };
+  }
+
+  function permissionMatchesFilters(menu, groupName, filters) {
+    const checked = Boolean(menu.permitido);
+    const origin = normalizeKey(menu.origen || 'ninguno');
+    const direct = origin === 'directo' || menu.directo === true;
+    const profiles = Array.isArray(menu.perfiles)
+      ? menu.perfiles.map(perfil => `${perfil?.nombre || ''} ${perfil?.codigo || ''}`).join(' ')
+      : '';
+    const searchable = normalizeKey([
+      groupName,
+      menu.nombre,
+      menu.codigo,
+      menu.url,
+      profiles,
+    ].filter(Boolean).join(' '));
+
+    if (filters.search && !searchable.includes(filters.search)) return false;
+    if (filters.group && groupName !== filters.group) return false;
+    if (filters.status === 'permitidos') return checked;
+    if (filters.status === 'heredados') return checked && !direct;
+    if (filters.status === 'directos') return checked && direct;
+    if (filters.status === 'bloqueados') return !checked;
+    return true;
+  }
+
+  function permissionSourceMenus() {
+    return Array.isArray(state.permissionAccess?.menus) && state.permissionAccess.menus.length
       ? state.permissionAccess.menus
       : state.menus.map(menu => ({
           ...menu,
@@ -1754,39 +1822,101 @@
           perfiles: [],
           directo: false,
         }));
+  }
 
-    const grouped = groupMenus(sourceMenus);
+  function renderPermissionGroupOptions() {
+    const select = document.getElementById('permGroupFilter');
+    if (!select) return;
+    const current = select.value;
+    const groups = groupMenus(permissionSourceMenus()).map(group => group.group);
+    select.innerHTML = [
+      '<option value="">Todos los grupos</option>',
+      ...groups.map(group => `<option value="${escHtml(group)}">${escHtml(group)}</option>`),
+    ].join('');
+    if (groups.includes(current)) {
+      select.value = current;
+    }
+  }
+
+  function renderPermissionResultCount(count, total) {
+    const counter = document.getElementById('permResultCount');
+    if (!counter) return;
+    counter.textContent = `${count} de ${total} menús`;
+  }
+
+  function permissionStatusInfo(menu) {
+    const checked = Boolean(menu.permitido);
+    const origin = normalizeKey(menu.origen || 'ninguno');
+    const direct = origin === 'directo' || menu.directo === true;
+    if (!checked) {
+      return { label: 'Bloqueado', className: 'user-access-status--blocked' };
+    }
+    if (direct) {
+      return { label: 'Directo', className: 'user-access-status--direct' };
+    }
+    return { label: 'Heredado', className: 'user-access-status--inherited' };
+  }
+
+  function renderPermissionGroups() {
+    const container = document.getElementById('permGroups');
+    if (!container) return;
+
+    if (state.permissionLoading) {
+      renderPermissionResultCount(0, 0);
+      container.innerHTML = '<div class="user-access-state">Cargando accesos del usuario seleccionado...</div>';
+      return;
+    }
+
+    if (state.permissionError) {
+      renderPermissionResultCount(0, 0);
+      container.innerHTML = `
+        <div class="user-access-state user-access-state--error">
+          <strong>No se pudieron cargar los accesos.</strong>
+          <span>${escHtml(state.permissionError)}</span>
+          <button class="btn-secondary" id="permRetryLoad" type="button">Reintentar</button>
+        </div>
+      `;
+      return;
+    }
+
+    const sourceMenus = permissionSourceMenus();
+    const filters = getPermissionFilters();
+    const grouped = groupMenus(sourceMenus)
+      .map(group => ({
+        ...group,
+        totalItems: group.items.length,
+        items: group.items.filter(menu => permissionMatchesFilters(menu, group.group, filters)),
+      }))
+      .filter(group => group.items.length);
+
+    const visibleCount = grouped.reduce((total, group) => total + group.items.length, 0);
+    renderPermissionResultCount(visibleCount, sourceMenus.length);
+
     if (!grouped.length) {
-      container.innerHTML = '<div class="mini-empty">Sin menús para mostrar.</div>';
+      container.innerHTML = '<div class="user-access-state">Sin menús para mostrar con los filtros actuales.</div>';
       return;
     }
 
     container.innerHTML = grouped.map(group => `
-      <article class="permission-group">
-        <div class="permission-group__header">
+      <article class="user-access-group">
+        <div class="user-access-group__header">
           <h4>${escHtml(group.group)}</h4>
-          <span class="permission-group__count">${group.items.length} menús</span>
+          <span>${group.items.length}/${group.totalItems} menús</span>
         </div>
-        <div class="permission-list">
+        <div class="user-access-list">
           ${group.items.map(menu => {
-            const checked = Boolean(menu.permitido);
-            const badgeLabel = !checked
-              ? 'Bloqueado'
-              : menu.origen === 'directo'
-                ? 'Asignado'
-                : 'Heredado';
+            const status = permissionStatusInfo(menu);
             const perfiles = Array.isArray(menu.perfiles) && menu.perfiles.length
               ? menu.perfiles.map(perfil => perfil.nombre || perfil.codigo).filter(Boolean).join(', ')
               : '';
             return `
-              <label class="permission-item">
-                <span class="permission-item__label">
-                  <input type="checkbox" data-permission-id="${escHtml(menu.id)}" ${checked ? 'checked' : ''} disabled />
+              <div class="user-access-item">
+                <div class="user-access-item__body">
                   <strong>${escHtml(menu.nombre)}</strong>
-                </span>
-                <span class="badge ${checked ? (menu.origen === 'directo' ? 'badge--info' : 'badge--ok') : 'badge--blocked'}">${escHtml(badgeLabel)}</span>
-                ${perfiles ? `<small class="field-help">Perfil(es): ${escHtml(perfiles)}</small>` : ''}
-              </label>
+                  <small>${perfiles ? `Perfil(es): ${escHtml(perfiles)}` : escHtml(menu.codigo || 'Sin perfiles asociados')}</small>
+                </div>
+                <span class="user-access-status ${status.className}">${escHtml(status.label)}</span>
+              </div>
             `;
           }).join('')}
         </div>
@@ -1799,6 +1929,8 @@
 
   async function renderPermissionPanel() {
     renderPermissionSelects();
+    renderPermissionSelectedUser();
+    renderPermissionGroupOptions();
     renderPermissionSummary();
     renderPermissionGroups();
     const selected = selectedPermissionUser();
@@ -3117,6 +3249,38 @@
       permUserSelect.dataset.bound = '1';
     }
 
+    const permSearchInput = document.getElementById('permSearchInput');
+    if (permSearchInput && !permSearchInput.dataset.bound) {
+      permSearchInput.addEventListener('input', renderPermissionGroups);
+      permSearchInput.dataset.bound = '1';
+    }
+
+    const permGroupFilter = document.getElementById('permGroupFilter');
+    if (permGroupFilter && !permGroupFilter.dataset.bound) {
+      permGroupFilter.addEventListener('change', renderPermissionGroups);
+      permGroupFilter.dataset.bound = '1';
+    }
+
+    const permStatusFilter = document.getElementById('permStatusFilter');
+    if (permStatusFilter && !permStatusFilter.dataset.bound) {
+      permStatusFilter.addEventListener('change', renderPermissionGroups);
+      permStatusFilter.dataset.bound = '1';
+    }
+
+    const permClearFilters = document.getElementById('permClearFilters');
+    if (permClearFilters && !permClearFilters.dataset.bound) {
+      permClearFilters.addEventListener('click', () => {
+        const search = document.getElementById('permSearchInput');
+        const group = document.getElementById('permGroupFilter');
+        const status = document.getElementById('permStatusFilter');
+        if (search) search.value = '';
+        if (group) group.value = '';
+        if (status) status.value = 'todos';
+        renderPermissionGroups();
+      });
+      permClearFilters.dataset.bound = '1';
+    }
+
     const permAreaSelect = document.getElementById('permAreaSelect');
     if (permAreaSelect && !permAreaSelect.dataset.bound) {
       permAreaSelect.dataset.bound = '1';
@@ -3176,6 +3340,13 @@
 
     if (!document.body.dataset.adminBindings) {
       document.body.addEventListener('click', event => {
+        const permissionRetry = event.target.closest('#permRetryLoad');
+        if (permissionRetry) {
+          const selected = selectedPermissionUser();
+          if (selected) syncPermissionDraft(selected.id);
+          return;
+        }
+
         const tabButton = event.target.closest('[data-tab]');
         if (tabButton) {
           state.activeTab = tabButton.dataset.tab;
