@@ -1,0 +1,31 @@
+@import url('../../adquisiciones/adquisiciones/adquisiciones.css?v=1.0.0');
+
+.module-hero {
+  background: linear-gradient(135deg, rgba(0, 226, 167, .13), #fff 58%);
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .07);
+  padding: 2rem;
+}
+
+.module-kicker {
+  display: block;
+  color: #00a983;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.module-hero h2 {
+  margin: .55rem 0 .5rem;
+  font-family: var(--font-primary, Montserrat, sans-serif);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.module-hero p {
+  margin: 0;
+  color: var(--color-gray-dark, #6B7280);
+  line-height: 1.55;
+}

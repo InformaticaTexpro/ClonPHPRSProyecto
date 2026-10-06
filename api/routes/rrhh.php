@@ -10,7 +10,7 @@ return static function (
 ): bool {
     /** @var RrhhService $rrhhService */
     $rrhhService = $services['rrhh'];
-    $payload = require_auth_payload();
+    $payload = require_current_user();
     $result = $rrhhService->route($payload, $method, $path, $query, $body);
 
     if ($method === 'GET' && preg_match('#^/confirmaciones/(\d+)/pdf$#', $path, $matches)) {

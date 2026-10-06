@@ -187,6 +187,12 @@ function require_auth_payload(): array
     return Security::jwt_decode(require_bearer_token(), (string)env('JWT_SECRET', ''));
 }
 
+function require_current_user(): array
+{
+    $authService = new AuthService(new Database());
+    return $authService->current_user_payload(require_bearer_token());
+}
+
 function set_auth_cookie(string $token): void
 {
     $secure = str_starts_with((string)env('FRONTEND_URL', ''), 'https://');

@@ -10,7 +10,7 @@ return static function (
 ): bool {
     /** @var SoporteTiService $soporteTiService */
     $soporteTiService = $services['soporte_ti'];
-    $payload = require_auth_payload();
+    $payload = require_current_user();
 
     json_response($soporteTiService->route($payload, $method, $path, $query, $body));
 };

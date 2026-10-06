@@ -78,6 +78,35 @@ final class AuthService
         ];
     }
 
+    public function current_user_payload(string $token): array
+    {
+        $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
+        $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
+        if ($userId <= 0) {
+            throw new RuntimeException('Token invalido.', 401);
+        }
+
+        $user = $this->db->fetchOne(
+            'SELECT u.id, u.email, u.nombre, u.area, u.is_admin, u.is_active
+             FROM usuario u WHERE u.id = ? LIMIT 1',
+            [$userId]
+        );
+        if (!$user || !(int)$user['is_active']) {
+            throw new RuntimeException('Sesion no valida', 401);
+        }
+
+        $vendedores = $this->load_vendedores($userId);
+        $menusData = $this->load_user_menus($userId);
+
+        return $this->build_payload(
+            $user,
+            $vendedores,
+            $menusData['perfiles'],
+            $menusData['menus'],
+            $menusData['menusDirectos'] ?? []
+        );
+    }
+
     public function refresh(string $token): array
     {
         $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''), true);
@@ -482,6 +511,12 @@ final class AuthService
 final class RecoveryService
 {
     private const TTL_MINUTES = 15;
+    private const REQUEST_LIMIT = 3;
+    private const REQUEST_WINDOW_MINUTES = 15;
+    private const MAX_VERIFY_ATTEMPTS = 5;
+    private const BLOCK_MINUTES = 15;
+    private const GENERIC_RESET_MESSAGE = 'Si el correo está registrado, recibirás el código en breve.';
+    private const GENERIC_OTP_ERROR = 'Código incorrecto o expirado.';
 
     public function __construct(private Database $db)
     {
@@ -492,7 +527,7 @@ final class RecoveryService
         $email = Security::validate_email($email);
         $user = $this->db->fetchOne('SELECT * FROM usuario WHERE email = ? LIMIT 1', [$email]);
 
-        if ($user && (int)$user['is_active'] === 1) {
+        if ($user && (int)$user['is_active'] === 1 && !$this->is_rate_limited($email)) {
             $code = $this->create_otp($email);
             $this->send_otp($email, $code);
         }
@@ -511,21 +546,45 @@ final class RecoveryService
         }
 
         $row = $this->db->fetchOne(
-            'SELECT id FROM otp_tokens
+            'SELECT id, codigo_hash, intentos_fallidos
+             FROM otp_tokens
              WHERE email = ?
-               AND codigo = ?
                AND usado = 0
                AND expira_en > NOW(6)
+               AND codigo_hash IS NOT NULL
+               AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= NOW(6))
+               AND intentos_fallidos < ?
              ORDER BY creado_en DESC
              LIMIT 1',
-            [$email, trim($otp)]
+            [$email, self::MAX_VERIFY_ATTEMPTS]
         );
 
         if (!$row) {
             throw new RuntimeException('Código incorrecto o expirado.', 401);
         }
 
-        $this->db->execute('UPDATE otp_tokens SET usado = 1 WHERE id = ?', [$row['id']]);
+        $expected = (string)($row['codigo_hash'] ?? '');
+        $received = $this->otp_hash($email, trim($otp));
+        if ($expected === '' || !hash_equals($expected, $received)) {
+            $this->register_failed_otp_attempt((int)$row['id']);
+            throw new RuntimeException(self::GENERIC_OTP_ERROR, 401);
+        }
+
+        $updated = $this->db->execute(
+            'UPDATE otp_tokens
+             SET usado = 1,
+                 ultimo_intento_en = NOW(6)
+             WHERE id = ?
+               AND usado = 0
+               AND expira_en > NOW(6)
+               AND codigo_hash IS NOT NULL
+               AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= NOW(6))
+               AND intentos_fallidos < ?',
+            [(int)$row['id'], self::MAX_VERIFY_ATTEMPTS]
+        );
+        if ($updated <= 0) {
+            throw new RuntimeException(self::GENERIC_OTP_ERROR, 401);
+        }
         $token = Security::jwt_encode(['email' => $email, 'purpose' => 'password_reset'], (string)env('JWT_SECRET', ''), '15m');
 
         return [
@@ -570,12 +629,62 @@ final class RecoveryService
     private function create_otp(string $email): string
     {
         $code = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+        $this->cleanup_old_otps();
         $this->db->execute('UPDATE otp_tokens SET usado = 1 WHERE email = ? AND usado = 0', [$email]);
         $this->db->execute(
-            'INSERT INTO otp_tokens (email, codigo, expira_en) VALUES (?, ?, DATE_ADD(NOW(6), INTERVAL ? MINUTE))',
-            [$email, $code, self::TTL_MINUTES]
+            'INSERT INTO otp_tokens
+                (email, codigo, codigo_hash, expira_en, usado, intentos_fallidos, bloqueado_hasta, ultimo_intento_en)
+             VALUES (?, ?, ?, DATE_ADD(NOW(6), INTERVAL ? MINUTE), 0, 0, NULL, NULL)',
+            [$email, '000000', $this->otp_hash($email, $code), self::TTL_MINUTES]
         );
         return $code;
+    }
+
+    private function is_rate_limited(string $email): bool
+    {
+        $row = $this->db->fetchOne(
+            'SELECT COUNT(*) AS total
+             FROM otp_tokens
+             WHERE email = ?
+               AND creado_en >= DATE_SUB(NOW(6), INTERVAL ? MINUTE)',
+            [$email, self::REQUEST_WINDOW_MINUTES]
+        );
+
+        return (int)($row['total'] ?? 0) >= self::REQUEST_LIMIT;
+    }
+
+    private function register_failed_otp_attempt(int $id): void
+    {
+        $this->db->execute(
+            'UPDATE otp_tokens
+             SET intentos_fallidos = intentos_fallidos + 1,
+                 ultimo_intento_en = NOW(6),
+                 bloqueado_hasta = CASE
+                   WHEN intentos_fallidos + 1 >= ? THEN DATE_ADD(NOW(6), INTERVAL ? MINUTE)
+                   ELSE bloqueado_hasta
+                 END
+             WHERE id = ?
+               AND usado = 0',
+            [self::MAX_VERIFY_ATTEMPTS, self::BLOCK_MINUTES, $id]
+        );
+    }
+
+    private function otp_hash(string $email, string $otp): string
+    {
+        $secret = (string)env('JWT_SECRET', '');
+        if ($secret === '') {
+            throw new RuntimeException('JWT_SECRET no está definido en .env', 500);
+        }
+
+        return hash_hmac('sha256', 'password-reset-otp|' . $email . '|' . $otp, $secret);
+    }
+
+    private function cleanup_old_otps(): void
+    {
+        $this->db->execute(
+            'DELETE FROM otp_tokens
+             WHERE creado_en < DATE_SUB(NOW(6), INTERVAL 7 DAY)'
+        );
     }
 
     private function send_otp(string $email, string $code): void
