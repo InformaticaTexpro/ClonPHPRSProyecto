@@ -1383,7 +1383,7 @@
             "vendedorNombre": "OLGA GUTIERREZ",
             "categorias": {
                 "QUIMICOS": {
-                    "promedioBase": "0.00",
+                    "promedioBase": "1218653.00",
                     "meses": {
                         "2026-06": "0.00",
                         "2026-07": "0.00",
@@ -1393,7 +1393,7 @@
                     "fechaBloqueo": "2026-09-26 13:01:29"
                 },
                 "ACCESORIOS": {
-                    "promedioBase": "0.00",
+                    "promedioBase": "3389.00",
                     "meses": {
                         "2026-06": "0.00",
                         "2026-07": "0.00",
@@ -1403,7 +1403,7 @@
                     "fechaBloqueo": "2026-09-26 13:01:29"
                 },
                 "TRAT_AGUA": {
-                    "promedioBase": "60083.33",
+                    "promedioBase": "8131371.00",
                     "meses": {
                         "2026-06": "0.00",
                         "2026-07": "0.00",
@@ -1753,6 +1753,7 @@
                 }
             }
         },
+
         {
             "usuarioId": 30,
             "codigoPrincipal": "012",

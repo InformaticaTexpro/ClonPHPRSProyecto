@@ -9,7 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
-  <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.0.0" />
+  <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.1.0" />
+  <link rel="stylesheet" href="./control-clientes.css?v=1.4.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -32,16 +33,42 @@
       </div>
       <div class="header-right"><span class="header-date" id="headerDate"></span></div>
     </header>
-    <main class="main-content">
-      <section class="module-hero">
-        <span class="module-kicker">Cobranza</span>
-        <h2>Control de Clientes</h2>
-        <p>Página base preparada para el módulo. No contiene lógica de negocio ni consultas.</p>
+    <main class="main-content control-module" id="controlModule" aria-busy="true">
+      <div class="control-loading" id="controlLoading" role="status" aria-live="polite"><div class="control-loading-box"><span class="control-spinner" aria-hidden="true"></span><span id="controlLoadingText">Cargando control de clientes...</span></div></div>
+      <div id="controlContent" inert>
+      <section class="collection-heading"><div><span class="collection-eyebrow">COBRANZA · EMPRESA</span><h2>Control de Clientes</h2><p>Captación, recuperación y participación comercial en un solo lugar.</p></div><span class="collection-badge">Datos de la empresa</span></section>
+      <form id="clientFilters" class="collection-panel client-filters">
+        <label>Desde<input type="date" id="fromDate" name="desde" required min="2000-01-01" /></label>
+        <label>Hasta<input type="date" id="toDate" name="hasta" required min="2000-01-01" /></label>
+        <label>Cliente<input id="clientFilter" name="cliente" placeholder="Nombre contiene..." maxlength="120" autocomplete="off" /></label>
+        <label class="client-vendor">Vendedor<select id="vendorFilter" name="vendedorId"><option value="">Todos los vendedores</option></select></label>
+        <div class="client-filter-actions"><button type="submit" class="client-button" id="queryButton"><span class="client-button-spinner" id="querySpinner" hidden aria-hidden="true"></span><span id="queryLabel">Actualizar</span></button><button type="button" class="client-button client-button--light" id="exportClients" disabled>Exportar Excel</button><button type="button" class="client-button client-button--light" id="clearButton">Limpiar</button></div>
+      </form>
+      <div class="client-status" id="clientStatus" role="status" aria-live="polite">Preparando consulta…</div>
+      <section class="collection-kpis client-kpis" aria-label="Resumen de clientes">
+        <article class="collection-kpi"><span class="client-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M19 7v6m-3-3h6"/></svg></span><div><span class="client-kpi-label">Clientes nuevos</span><strong id="newCount">—</strong><small>Una identidad por RUT</small></div></article>
+        <article class="collection-kpi collection-kpi--blue"><span class="client-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 1 6M3 4v7h7"/></svg></span><div><span class="client-kpi-label">Clientes recuperados</span><strong id="recoveredCount">—</strong><small>Eventos por código cliente</small></div></article>
+        <article class="collection-kpi"><span class="client-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18m5-14c-1-3-10-3-10 1s10 3 10 7-9 4-10 1"/></svg></span><div><span class="client-kpi-label">Venta nuevos</span><strong id="newSales">—</strong><small>Venta total en el rango</small></div></article>
+        <article class="collection-kpi collection-kpi--blue"><span class="client-kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18l6-6 4 3 8-10m-6 0h6v6"/></svg></span><div><span class="client-kpi-label">Venta recuperados</span><strong id="recoveredSales">—</strong><small>Venta del evento en el rango</small></div></article>
       </section>
+      <section class="collection-panel client-results" id="clientResults" aria-busy="false">
+        <div class="client-tabs" role="tablist" aria-label="Categoría de clientes"><button type="button" id="tabNew" role="tab" aria-selected="true" aria-controls="clientPanel" data-kind="nuevos">Clientes Nuevos</button><button type="button" id="tabRecovered" role="tab" aria-selected="false" aria-controls="clientPanel" data-kind="recuperados" tabindex="-1">Clientes Recuperados</button></div>
+        <div id="clientPanel" role="tabpanel" aria-labelledby="tabNew"><div class="client-table-scroll"><table class="client-table"><thead id="clientTableHead"></thead><tbody id="clientTableBody"><tr><td>Seleccione los filtros y consulte.</td></tr></tbody></table></div></div>
+        <div class="client-pagination"><span id="clientRowsInfo"></span><div><button type="button" class="client-button client-button--light" id="previousPage">Anterior</button><button type="button" class="client-button client-button--light" id="nextPage">Siguiente</button></div></div>
+      </section>
+      <section class="collection-panel client-evolution" id="annualSection" aria-busy="false">
+        <div class="collection-panel-title"><div><h3>Evolución de Clientes</h3><p id="evolutionDescription">Montos de venta y cantidad de clientes por mes</p></div><div class="client-annual-actions"><label class="client-year">Año<select id="evolutionYear" aria-label="Año de evolución"></select></label><button type="button" class="client-button client-button--light" id="exportAnnual" disabled>Exportar Excel</button></div></div>
+        <p id="evolutionStatus" class="client-status" role="status"></p>
+        <div class="client-tabs client-annual-tabs" role="tablist" aria-label="Categoría de evolución anual"><button type="button" id="annualNew" role="tab" aria-selected="true" aria-controls="annualContent" data-annual-kind="nuevos">Nuevos</button><button type="button" id="annualRecovered" role="tab" aria-selected="false" aria-controls="annualContent" data-annual-kind="recuperados" tabindex="-1">Recuperados</button></div>
+        <div class="client-annual-body"><div class="client-annual-loading" id="annualLoading" role="status" aria-live="polite" hidden><span class="control-spinner" aria-hidden="true"></span><span id="annualLoadingText">Calculando información...</span></div><div id="annualContent" role="tabpanel" aria-labelledby="annualNew"><div class="collection-chart"><canvas id="clientEvolutionChart" role="img" aria-label="Evolución anual de clientes y ventas"></canvas></div><div id="annualVendors" class="client-annual-vendors"></div></div></div>
+      </section>
+      <dialog id="foliosDialog" class="client-dialog" aria-labelledby="foliosTitle"><div class="collection-panel-title"><div><span class="collection-eyebrow">DETALLE DEL EVENTO</span><h3 id="foliosTitle">Folios</h3><p id="foliosSubtitle"></p></div><button type="button" class="client-button client-button--light" id="closeFolios" aria-label="Cerrar detalle">Cerrar ×</button></div><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Tipo</th><th>Folio</th><th>Fecha</th><th>Código / cliente</th><th>Vendedor origen</th><th>Venta original</th><th>Participante</th><th>Atribución</th><th>%</th><th>Venta atribuida</th></tr></thead><tbody id="foliosBody"></tbody></table></div><div id="foliosTotals" class="client-dialog-total"></div><div id="foliosContest" class="client-contest-detail"></div></dialog>
+      </div>
     </main>
   </div>
-  <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
-  <script src="./control-clientes.js?v=1.0.0"></script>
+  <script src="../../../assets/js/app-sidebar.js?v=1.2.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="./control-clientes.js?v=1.4.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>

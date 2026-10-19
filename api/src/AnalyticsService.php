@@ -274,8 +274,91 @@ final class AnalyticsService
         ];
     }
 
+    public static function newClientIdentitySql(string $rut, string $code): string
+    {
+        $normalized = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(CONVERT(varchar(80), $rut), ''), '.', ''), '-', ''), ' ', ''), CHAR(9), ''), CHAR(10), ''), CHAR(13), ''))";
+        return "CASE WHEN $normalized <> '' THEN 'RUT:' + $normalized ELSE 'CODAUX:' + LTRIM(RTRIM($code)) END";
+    }
+
+    /** Historia global de nuevos; no altera el historial por CodAux de recuperados. */
+    public static function newClientHistoryCtes(string $candidateSql): string
+    {
+        $identity = self::newClientIdentitySql('a.RutAux', 'a.CodAux');
+        return "CodigosActuales AS ($candidateSql),
+            Identidades AS (
+                SELECT LTRIM(RTRIM(a.CodAux)) AS CodAux, $identity AS Identidad
+                FROM [PRODIN].[softland].[cwtauxi] a
+            ),
+            IdentidadesActuales AS (
+                SELECT DISTINCT c.CodAux, COALESCE(i.Identidad, 'CODAUX:' + c.CodAux) AS Identidad
+                FROM CodigosActuales c LEFT JOIN Identidades i ON i.CodAux = c.CodAux
+            ),
+            ComprasRut AS (
+                SELECT COALESCE(i.Identidad, 'CODAUX:' + LTRIM(RTRIM(h.CodAux))) AS Identidad,
+                    LTRIM(RTRIM(h.CodAux)) AS CodAux, LTRIM(RTRIM(h.CodVendedor)) AS Vendedor,
+                    h.Fecha, h.NroInt, h.Folio,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY COALESCE(i.Identidad, 'CODAUX:' + LTRIM(RTRIM(h.CodAux)))
+                        ORDER BY h.Fecha, h.NroInt, h.Folio, h.CodAux, h.CodVendedor
+                    ) AS Orden
+                FROM [PRODIN].[softland].[iw_gsaen] h
+                LEFT JOIN Identidades i ON i.CodAux = LTRIM(RTRIM(h.CodAux))
+                INNER JOIN (SELECT DISTINCT Identidad FROM IdentidadesActuales) buscados
+                    ON buscados.Identidad = COALESCE(i.Identidad, 'CODAUX:' + LTRIM(RTRIM(h.CodAux)))
+                WHERE h.Tipo = 'F' AND h.Estado <> 'A'
+            ),
+            PrimerasComprasRut AS (SELECT * FROM ComprasRut WHERE Orden = 1)";
+    }
+
+    private function concursoDetailClientScope(string $clientCode): array
+    {
+        $identitySql = self::newClientIdentitySql('a.RutAux', 'a.CodAux');
+        $stmt = $this->softland()->prepare("SELECT $identitySql AS Identidad
+            FROM [PRODIN].[softland].[cwtauxi] a WHERE a.CodAux = ?");
+        $stmt->execute([$clientCode]);
+        $identity = ($stmt->fetch(PDO::FETCH_ASSOC) ?: [])['Identidad'] ?? 'CODAUX:' . $clientCode;
+        $codes = [$clientCode];
+        if (str_starts_with($identity, 'RUT:')) {
+            $stmt = $this->softland()->prepare("SELECT LTRIM(RTRIM(a.CodAux)) AS CodAux
+                FROM [PRODIN].[softland].[cwtauxi] a WHERE $identitySql = ?");
+            $stmt->execute([$identity]);
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $codes[] = trim((string)$row['CodAux']);
+        }
+        return ['identity' => $identity, 'codes' => array_values(array_unique($codes))];
+    }
+
+    public function firstPurchasesByRut(array $clientCodes, ?string $resolvedIdentity = null): array
+    {
+        if (!$clientCodes) return [];
+        if ($resolvedIdentity !== null) {
+            $placeholders = implode(',', array_fill(0, count($clientCodes), '?'));
+            $stmt = $this->softland()->prepare("SELECT TOP 1 LTRIM(RTRIM(h.CodAux)) AS CodAuxPrimero,
+                CONVERT(varchar(10), h.Fecha, 23) AS FechaPrimeraRut,
+                LTRIM(RTRIM(h.CodVendedor)) AS Vendedor, h.NroInt, h.Folio
+                FROM [PRODIN].[softland].[iw_gsaen] h
+                WHERE h.CodAux IN ($placeholders) AND h.Tipo = 'F' AND h.Estado <> 'A'
+                ORDER BY h.Fecha, h.NroInt, h.Folio, h.CodAux, h.CodVendedor");
+            $stmt->execute(array_map('strval', array_values($clientCodes)));
+            $first = $stmt->fetch(PDO::FETCH_ASSOC);
+            $firsts = [];
+            if ($first) foreach ($clientCodes as $code) $firsts[$code] = array_replace($first,
+                ['CodAux' => (string)$code, 'Identidad' => $resolvedIdentity]);
+            return $firsts;
+        }
+        $values = implode(',', array_fill(0, count($clientCodes), '(?)'));
+        $ctes = self::newClientHistoryCtes("SELECT CONVERT(varchar(80), CodAux) AS CodAux FROM (VALUES $values) c(CodAux)");
+        $stmt = $this->softland()->prepare("WITH $ctes
+            SELECT ca.CodAux, ca.Identidad, CONVERT(varchar(10), p.Fecha, 23) AS FechaPrimeraRut,
+                p.CodAux AS CodAuxPrimero, p.Vendedor, p.NroInt, p.Folio
+            FROM IdentidadesActuales ca LEFT JOIN PrimerasComprasRut p ON p.Identidad = ca.Identidad");
+        $stmt->execute(array_map('strval', array_values($clientCodes)));
+        $firsts = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $firsts[trim((string)$row['CodAux'])] = $row;
+        return $firsts;
+    }
+
     /** Concurso exclusivamente: criterio del calendario + venta neta atribuida por cliente. */
-    public function concursoClientes(array $relations, int $mes, ?int $detailUser = null, ?string $clientCode = null, bool $includeFolios = false): array
+    public function concursoClientes(array $relations, int $mes, ?int $detailUser = null, ?string $clientCode = null, bool $includeFolios = false, bool $allDetails = false): array
     {
         if ($mes < 1 || $mes > 12) throw new RuntimeException('Mes inválido.', 400);
         $parameters = ConcursoReglasMeta::load();
@@ -298,33 +381,41 @@ final class AnalyticsService
 
         $candidateSql = "SELECT DISTINCT CodAux FROM [PRODIN].[softland].[iw_gsaen]
             WHERE Tipo = 'F' AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
-        $filterClient = $clientCode === null ? '' : ' AND LTRIM(RTRIM(h.CodAux)) = ?';
-        $params = [$desde, $hasta, $desde, $hasta];
-        if ($clientCode !== null) $params[] = $clientCode;
+        $candidateParams = [$desde, $hasta];
+        $detailScope = $clientCode === null ? null : $this->concursoDetailClientScope($clientCode);
+        if ($detailScope !== null) {
+            $candidateSql .= ' AND CodAux IN (' . implode(',', array_fill(0, count($detailScope['codes']), '?')) . ')';
+            $candidateParams = array_merge($candidateParams, $detailScope['codes']);
+        }
+        $params = array_merge($candidateParams, [$desde, $hasta]);
         $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
             SELECT LTRIM(RTRIM(h.CodAux)) AS clienteCodigo, MIN(CONVERT(varchar(10), h.Fecha, 23)) AS primera,
                 MAX(CASE WHEN h.Fecha < ? THEN CONVERT(varchar(10), h.Fecha, 23) END) AS ultimaPrevia,
                 MAX(RTRIM(COALESCE(cli.NomAux, h.NomAux, h.CodAux))) AS cliente
             FROM [PRODIN].[softland].[iw_gsaen] h INNER JOIN Candidatos c ON c.CodAux = h.CodAux
             LEFT JOIN [PRODIN].[softland].[cwtauxi] cli ON cli.CodAux = h.CodAux
-            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha < ? $filterClient
+            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha < ?
             GROUP BY LTRIM(RTRIM(h.CodAux))");
         $stmt->execute($params);
         $clients = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $clients[$row['clienteCodigo']] = $row;
         if (!$clients) return ['resumen' => $summary, 'clientes' => []];
+        $firstsByRut = $detailScope === null ? $this->firstPurchasesByRut(array_keys($clients))
+            : $this->firstPurchasesByRut($detailScope['codes'], $detailScope['identity']);
         $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
             SELECT DISTINCT LTRIM(RTRIM(a.CodAux)) AS clienteCodigo, LTRIM(RTRIM(a.VenCod)) AS vendedor
             FROM [PRODIN].[softland].[cwtauxven] a INNER JOIN Candidatos c ON c.CodAux = a.CodAux");
-        $stmt->execute([$desde, $hasta]);
+        $stmt->execute($candidateParams);
         $assigned = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             foreach ($owners[$this->sharedCodeKey($row['vendedor'])] ?? [] as $id => $_) $assigned[$id][$row['clienteCodigo']] = true;
         }
         // Histórico de compartidas en una consulta; mismos porcentajes acotados que fetchSharedAssignments.
         $shared = [];
+        $sharedPeriodFilter = $detailScope === null ? '' : ' AND fecha >= ?';
+        $sharedParams = $detailScope === null ? [$hasta] : [$hasta, $desde];
         foreach ($this->db->fetchAll("SELECT folio, fecha, porcentaje, cod_vendedor_principal AS origen,
-            cod_vendedor_compartido AS destino FROM factura_compartida WHERE rol = 'compartido' AND fecha < ?", [$hasta]) as $row) {
+            cod_vendedor_compartido AS destino FROM factura_compartida WHERE rol = 'compartido' AND fecha < ? $sharedPeriodFilter", $sharedParams) as $row) {
             $key = substr((string)$row['fecha'], 0, 7) . '|' . $this->sharedCodeKey($row['origen']) . '|' . $this->sharedFolioKey($row['folio']);
             $shared[$key][] = $row;
         }
@@ -348,59 +439,77 @@ final class AnalyticsService
             INNER JOIN Candidatos c ON c.CodAux = h.CodAux
             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
-            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha >= ? AND h.Fecha < ? $filterClient $filterVendor
+            WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha >= ? AND h.Fecha < ? $filterVendor
             GROUP BY h.CodAux, h.CodVendedor, h.NroInt, h.Tipo, h.Folio, CONVERT(varchar(10), h.Fecha, 23)");
-        $documentParams = [$desde, $hasta, $desde, $hasta];
-        if ($clientCode !== null) $documentParams[] = $clientCode;
+        $documentParams = array_merge($candidateParams, [$desde, $hasta]);
         $documentParams = array_merge($documentParams, $detailCodes);
         $stmt->execute($documentParams);
-        $monthly = [];
+        $monthly = $qualificationDocs = [];
         while ($doc = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $client = trim((string)$doc['clienteCodigo']);
             if ($client === '') continue;
             $code = $this->sharedCodeKey($doc['codigoVendedor']);
             $key = substr($doc['fecha'], 0, 7) . '|' . $code . '|' . $this->sharedFolioKey($doc['folio']);
             $shares = $shared[$key] ?? [];
-            $participants = $owners[$code] ?? [];
-            foreach ($shares as $share) $participants += $owners[$this->sharedCodeKey($share['destino'])] ?? [];
-            foreach ($participants as $id => $_) {
-                $type = $types[$id][$code] ?? '';
-                $factor = isset($owners[$code][$id]) ? $this->vendorCodeParticipationFactor($type) : 0.0;
-                $labels = [];
-                foreach ($shares as $share) {
-                    $portion = max(0.0, min(100.0, (float)$share['porcentaje'])) / 100;
-                    if (isset($owners[$code][$id])) {
-                        $factor -= $this->sharedOutgoingAmount($portion, $type);
-                        $labels['COMPARTIDA · ORIGEN'] = true;
-                    }
-                    if (isset($owners[$this->sharedCodeKey($share['destino'])][$id])) {
-                        $factor += $portion;
-                        $labels['COMPARTIDA · RECIBIDA'] = true;
-                    }
-                }
-                if (abs($factor) < 0.000000001) continue;
-                $amount = (float)$doc['original'] * $factor;
+            foreach ($this->clientDocumentAttributions($doc, $owners, $types, $shares) as $id => $attribution) {
+                ['type' => $type, 'factor' => $factor, 'labels' => $labels, 'amount' => $amount] = $attribution;
                 // Solo una factura F constituye venta para nuevo/recuperado.
                 $purchase = $doc['tipo'] !== 'N' && $amount > 0;
-                $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => [],
+                $monthly[$id][$client] ??= ['ventaMes' => 0.0, 'ventaCalificadora' => 0.0, 'cantidadFolios' => 0, 'primeraMes' => null, 'folios' => [],
                     'pointWeight' => 0.0, 'hasSharedSale' => false, 'hasTypeC' => false];
                 $entry = &$monthly[$id][$client];
                 $entry['ventaMes'] += $amount;
+                $documentKey = $doc['tipo'] . '|' . $doc['NroInt'];
+                if (!isset($qualificationDocs[$id][$client][$documentKey])) {
+                    // El minimo usa la venta original compartida; la atribucion no cambia.
+                    $entry['ventaCalificadora'] += $shares ? (float)$doc['original'] : $amount;
+                    $qualificationDocs[$id][$client][$documentKey] = true;
+                }
                 $entry['cantidadFolios']++;
                 $entry['pointWeight'] += max(0.0, $factor);
                 $entry['hasSharedSale'] = $entry['hasSharedSale'] || count($shares) > 0;
                 $entry['hasTypeC'] = $entry['hasTypeC'] || $type === 'C';
                 if ($purchase && ($entry['primeraMes'] === null || $doc['fecha'] < $entry['primeraMes'])) $entry['primeraMes'] = $doc['fecha'];
-                if ($detailUser !== null && $detailUser === $id && ($clientCode !== null || $includeFolios)) $entry['folios'][] = [
+                if ($detailUser !== null && $detailUser === $id && $amount != 0.0 && ($clientCode !== null || $includeFolios)) $entry['folios'][] = [
                     'tipo' => $doc['tipo'], 'folio' => $doc['folio'], 'fecha' => $doc['fecha'], 'codigoVendedor' => $doc['codigoVendedor'],
                     'original' => (float)$doc['original'], 'porcentaje' => $factor * 100, 'atribuida' => $amount,
                     'atribucion' => array_keys($labels) ?: ['DIRECTA']];
                 unset($entry);
             }
         }
+        $newMonthly = $newAssignments = [];
+        foreach ($assigned as $id => $codes) foreach ($codes as $client => $_) {
+            if (isset($firstsByRut[$client])) $newAssignments[$id][$firstsByRut[$client]['Identidad']] = true;
+        }
+        foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
+            $firstRut = $firstsByRut[$client] ?? null;
+            if (!$firstRut || $firstRut['FechaPrimeraRut'] < $desde || $firstRut['FechaPrimeraRut'] >= $hasta) continue;
+            $identity = $firstRut['Identidad'];
+            if (!isset($newAssignments[$id][$identity],
+                $qualificationDocs[$id][$firstRut['CodAuxPrimero']]['F|' . $firstRut['NroInt']])) continue;
+            if (!isset($newMonthly[$id][$identity])) {
+                $newMonthly[$id][$identity] = $entry + ['clienteCodigo' => (string)$firstRut['CodAuxPrimero'], 'newIdentity' => $identity];
+            } else {
+                $group = &$newMonthly[$id][$identity];
+                foreach (['ventaMes', 'ventaCalificadora', 'cantidadFolios', 'pointWeight'] as $field) $group[$field] += $entry[$field];
+                $group['hasSharedSale'] = $group['hasSharedSale'] || $entry['hasSharedSale'];
+                $group['hasTypeC'] = $group['hasTypeC'] || $entry['hasTypeC'];
+                $group['folios'] = array_merge($group['folios'], $entry['folios']);
+                if ($entry['primeraMes'] !== null && ($group['primeraMes'] === null || $entry['primeraMes'] < $group['primeraMes'])) $group['primeraMes'] = $entry['primeraMes'];
+                unset($group);
+            }
+        }
+        $classificationEntries = [];
+        foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
+            // Recuperados conserva el historial y la identidad originales del CodAux.
+            $classificationEntries[] = $entry + ['usuarioId' => $id, 'clienteCodigo' => (string)$client];
+        }
+        foreach ($newMonthly as $id => $entries) foreach ($entries as $entry) $classificationEntries[] = $entry + ['usuarioId' => $id];
         $classified = [];
         $pointParticipants = ['nuevos' => [], 'recuperados' => []];
-        foreach ($monthly as $id => $entries) foreach ($entries as $client => $entry) {
+        foreach ($classificationEntries as $entry) {
+            $id = $entry['usuarioId'];
+            $client = $entry['clienteCodigo'];
             if ($entry['cantidadFolios'] === 0 && $entry['ventaMes'] == 0.0) continue;
             $first = new DateTimeImmutable($clients[$client]['primera']);
             $last = !empty($clients[$client]['ultimaPrevia']) ? new DateTimeImmutable((string)$clients[$client]['ultimaPrevia']) : null;
@@ -408,18 +517,20 @@ final class AnalyticsService
             $diasRecuperacion = $recoveredDaysByUser[$id] ?? $defaultRecoveredDays;
             $classification = $this->clasificarClienteCartera($first, $last, $current,
                 new DateTimeImmutable($desde), (new DateTimeImmutable($hasta))->modify('-1 day'), $diasRecuperacion);
-            $new = $classification['nuevo'] && isset($assigned[$id][$client]);
+            $new = isset($entry['newIdentity']);
             $kind = $new ? 'nuevos' : ($classification['recuperado'] ? 'recuperados' : null);
             if ($kind === null) continue;
+            if (!$new && $clientCode !== null && $client !== $clientCode) continue;
+            $pointClient = $new ? $entry['newIdentity'] : $client;
             $minimum = $new ? $newRules['ventaMinima'] : $recoveredRules['ventaMinima'];
-            $qualifies = $entry['ventaMes'] >= $minimum && ($new || $classification['recuperado']);
+            $qualifies = $entry['ventaCalificadora'] >= $minimum && ($new || $classification['recuperado']);
             $basePoints = $new ? (float)$newRules['puntos'] : (float)$recoveredRules['puntos'];
             $classified[] = $entry + ['usuarioId' => $id, 'clienteCodigo' => (string)$client, 'cliente' => $clients[$client]['cliente'],
                 'categoria' => $kind, 'ultimaCompra' => $last?->format('Y-m-d'), 'dias' => $classification['diasInactividad'],
                 'califica' => $qualifies, 'puntosBase' => $basePoints, 'puntos' => 0.0,
-                'motivo' => $entry['ventaMes'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
+                'motivo' => $entry['ventaCalificadora'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
             if ($qualifies) {
-                $pointParticipants[$kind][$client][$id] = [
+                $pointParticipants[$kind][$pointClient][$id] = [
                     'typeC' => !empty($entry['hasTypeC']),
                     'shared' => !empty($entry['hasSharedSale']),
                     'weight' => (float)$entry['pointWeight'],
@@ -440,16 +551,47 @@ final class AnalyticsService
             $id = (int)$row['usuarioId'];
             $kind = (string)$row['categoria'];
             $client = (string)$row['clienteCodigo'];
-            $points = !empty($row['califica']) ? (float)($distributedPoints[$kind][$client][$id] ?? $row['puntosBase']) : 0.0;
+            $pointClient = $row['newIdentity'] ?? $client;
+            $points = !empty($row['califica']) ? (float)($distributedPoints[$kind][$pointClient][$id] ?? $row['puntosBase']) : 0.0;
             $row['puntos'] = $points;
-            unset($row['puntosBase'], $row['pointWeight'], $row['hasSharedSale'], $row['hasTypeC']);
+            if ($allDetails) $row['ventaCalificadoraMes'] = $row['ventaCalificadora'];
+            unset($row['puntosBase'], $row['pointWeight'], $row['hasSharedSale'], $row['hasTypeC'], $row['ventaCalificadora'], $row['newIdentity']);
             if (!empty($row['califica'])) {
                 $summary[$id][$kind === 'nuevos' ? 'clientesNuevos' : 'clientesRecuperados']++;
                 $summary[$id][$kind === 'nuevos' ? 'puntosNuevos' : 'puntosRecuperados'] += $points;
             }
-            if ($detailUser !== null && $id === $detailUser) $details[] = $row;
+            if ($allDetails || ($detailUser !== null && $id === $detailUser)) $details[] = $row;
         }
         return ['resumen' => $summary, 'clientes' => $details];
+    }
+
+    /** Atribucion compartida comun al Concurso y a Control de Clientes. */
+    public function clientDocumentAttributions(array $doc, array $owners, array $types, array $shares): array
+    {
+        $code = $this->sharedCodeKey($doc['codigoVendedor']);
+        $participants = $owners[$code] ?? [];
+        foreach ($shares as $share) $participants += $owners[$this->sharedCodeKey($share['destino'])] ?? [];
+        $result = [];
+        foreach ($participants as $id => $_) {
+            $type = $types[$id][$code] ?? '';
+            $factor = isset($owners[$code][$id]) ? $this->vendorCodeParticipationFactor($type) : 0.0;
+            $labels = [];
+            foreach ($shares as $share) {
+                $portion = max(0.0, min(100.0, (float)$share['porcentaje'])) / 100;
+                if (isset($owners[$code][$id])) {
+                    $factor -= $this->sharedOutgoingAmount($portion, $type);
+                    $labels['COMPARTIDA · ORIGEN'] = true;
+                }
+                if (isset($owners[$this->sharedCodeKey($share['destino'])][$id])) {
+                    $factor += $portion;
+                    $labels['COMPARTIDA · RECIBIDA'] = true;
+                }
+            }
+            if (abs($factor) < 0.000000001) continue;
+            $result[$id] = ['type' => $type, 'factor' => $factor, 'labels' => $labels,
+                'amount' => (float)$doc['original'] * $factor];
+        }
+        return $result;
     }
 
     public static function splitSharedTypeCClientPoints(array $participants, float $basePoints): array
@@ -544,7 +686,6 @@ final class AnalyticsService
             $dataEnd = $nextMonth;
         }
         $dataEndText = $dataEnd->format('Y-m-d');
-
         $stmt = $pool->prepare(
             "WITH ClientesAsignados AS (
                 SELECT DISTINCT LTRIM(RTRIM(CodAux)) AS CodAux
@@ -552,17 +693,14 @@ final class AnalyticsService
                 WHERE LTRIM(RTRIM(VenCod)) IN ($placeholders)
              ),
              PrimeraCompra AS (
-                SELECT LTRIM(RTRIM(h.CodAux)) AS CodAux,
-                       MIN(CONVERT(date, h.Fecha)) AS FechaPrimera
+                SELECT LTRIM(RTRIM(h.CodAux)) AS CodAux, MIN(CONVERT(date, h.Fecha)) AS FechaPrimera
                 FROM [PRODIN].[softland].[iw_gsaen] h
                 INNER JOIN ClientesAsignados ca ON ca.CodAux = LTRIM(RTRIM(h.CodAux))
-                WHERE h.Tipo IN ('F','N','D')
-                  AND h.Estado <> 'A'
-                  AND h.Fecha < ?
+                WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Fecha < ?
                 GROUP BY LTRIM(RTRIM(h.CodAux))
              ),
              VentasMensuales AS (
-                SELECT LTRIM(RTRIM(h.CodAux)) AS CodAux,
+                SELECT ca.CodAux,
                        YEAR(h.Fecha) AS Anio,
                        MONTH(h.Fecha) AS Mes,
                        SUM(m.TotLinea * ($participationExpression)) AS Monto
@@ -574,7 +712,7 @@ final class AnalyticsService
                   AND h.Estado <> 'A'
                   AND h.Fecha >= ?
                   AND h.Fecha < ?
-                GROUP BY LTRIM(RTRIM(h.CodAux)), YEAR(h.Fecha), MONTH(h.Fecha)
+                GROUP BY ca.CodAux, YEAR(h.Fecha), MONTH(h.Fecha)
              )
              SELECT YEAR(pc.FechaPrimera) AS Anio,
                     MONTH(pc.FechaPrimera) AS Mes,
@@ -904,7 +1042,7 @@ final class AnalyticsService
         }
     }
 
-    private function carteraDaysForArea(string $area): array
+    public function carteraDaysForArea(string $area): array
     {
         $diasInactividad = match ($this->normalizeAreaCode($area)) {
             'TRATAMIENTO_AGUA' => 365,
@@ -1254,7 +1392,7 @@ final class AnalyticsService
         }, $rows);
     }
 
-    private function sharedCodeKey(mixed $value): string
+    public function sharedCodeKey(mixed $value): string
     {
         $code = mb_strtoupper(trim((string)$value));
         if ($code !== '' && preg_match('/^\d+$/', $code)) {
@@ -1263,7 +1401,7 @@ final class AnalyticsService
         return $code;
     }
 
-    private function sharedFolioKey(mixed $value): string
+    public function sharedFolioKey(mixed $value): string
     {
         $folio = trim((string)$value);
         if ($folio !== '' && preg_match('/^\d+$/', $folio)) {
@@ -2885,6 +3023,7 @@ final class AnalyticsService
 
                 $paramsPurchases = [];
         $inPurchases = $this->inClause($clientCodes, $paramsPurchases);
+        $inCurrentVendors = implode(',', array_fill(0, count($vendCodes), '?'));
         $fechaDesde = $desde->format('Y-m-d');
         $fechaHasta = $hasta->format('Y-m-d');
         $fechaActivaDesde = $ventanaActiva->format('Y-m-d');
@@ -2894,10 +3033,11 @@ final class AnalyticsService
                     MIN(CONVERT(date, h.Fecha)) AS FechaPrimera,
                     MAX(CONVERT(date, h.Fecha)) AS FechaUltima,
                     MIN(CASE WHEN h.Fecha >= ? AND h.Fecha <= ? THEN CONVERT(date, h.Fecha) END) AS FechaMinMesActual,
-                    MAX(CASE WHEN h.Fecha >= ? AND h.Fecha <= ? THEN 1 ELSE 0 END) AS TieneMesActual,
+                    MAX(CASE WHEN h.Fecha >= ? AND h.Fecha <= ? AND LTRIM(RTRIM(h.CodVendedor)) IN ($inCurrentVendors) THEN 1 ELSE 0 END) AS TieneMesActual,
                     MAX(CASE WHEN h.Fecha < ? THEN 1 ELSE 0 END) AS TieneHistorialPrevio,
                     MAX(CASE WHEN h.Fecha < ? THEN CONVERT(date, h.Fecha) END) AS FechaUltimaPrevia,
-                    MAX(CASE WHEN h.Fecha >= ? THEN 1 ELSE 0 END) AS EsActivo,
+                    MAX(CASE WHEN h.Fecha >= ? AND LTRIM(RTRIM(h.CodVendedor)) IN ($inCurrentVendors) THEN 1 ELSE 0 END) AS EsActivo,
+                    MAX(CASE WHEN LTRIM(RTRIM(h.CodVendedor)) IN ($inCurrentVendors) THEN CONVERT(date, h.Fecha) END) AS FechaUltimaVendedor,
                     MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.NomAux))), '')) AS NomAux,
                     MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux1))), '')) AS FONAux1,
                     MAX(NULLIF(LTRIM(RTRIM(CONVERT(varchar(max), a.FonAux2))), '')) AS FonAux2,
@@ -2912,7 +3052,11 @@ final class AnalyticsService
              ORDER BY h.CodAux ASC"
         );
         $stmt->execute(array_merge(
-            [$fechaDesde, $fechaHasta, $fechaDesde, $fechaHasta, $fechaDesde, $fechaDesde, $fechaActivaDesde],
+            [$fechaDesde, $fechaHasta, $fechaDesde, $fechaHasta],
+            $vendCodes,
+            [$fechaDesde, $fechaDesde, $fechaActivaDesde],
+            $vendCodes,
+            $vendCodes,
             $paramsPurchases,
             [$fechaHasta]
         ));
@@ -2951,6 +3095,7 @@ final class AnalyticsService
                 'FonAux2' => trim((string)($row['FonAux2'] ?? '')),
                 'EMail' => trim((string)($row['EMail'] ?? '')),
                 'FechaUltimaCompra' => $fechaUltima?->format('Y-m-d'),
+                'FechaUltimaCompraVendedor' => !empty($row['FechaUltimaVendedor']) ? (new DateTimeImmutable((string)$row['FechaUltimaVendedor']))->format('Y-m-d') : null,
                 'FechaPrimeraCompra' => $fechaPrimera?->format('Y-m-d'),
                 'FechaMinMesActual' => $fechaMinMes?->format('Y-m-d'),
                 'FechaUltimaCompraPrevia' => $fechaUltimaPrevia?->format('Y-m-d'),
@@ -3083,8 +3228,9 @@ final class AnalyticsService
         unset($row);
 
         $total = $rows;
-        $activos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivo'] ?? 0) === 1));
-        $inactivos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsInactivo'] ?? 0) === 1));
+        $fechaActividadVendedor = static fn(array $r): array => array_replace($r, ['FechaUltimaCompra' => $r['FechaUltimaCompraVendedor']]);
+        $activos = array_map($fechaActividadVendedor, array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivo'] ?? 0) === 1)));
+        $inactivos = array_map($fechaActividadVendedor, array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsInactivo'] ?? 0) === 1)));
         $nuevos = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsNuevo'] ?? 0) === 1));
         $activosMesActual = array_values(array_filter($rows, static fn(array $r): bool => (int)($r['EsActivoMesActual'] ?? 0) === 1));
 

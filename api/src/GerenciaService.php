@@ -585,8 +585,9 @@ final class GerenciaService
         $vendedores = [];
         foreach ($this->loadVendorRelations() as $relacion) {
             $usuarioId = (int)($relacion['usuarioId'] ?? 0);
-            $codigo = trim((string)($relacion['codigoPrincipal'] ?? ''));
-            if ($usuarioId <= 0 || $codigo === '' || ($relacion['tipo'] ?? '') === 'C' || isset($vendedores[$usuarioId])) {
+            $codigoAsociado = trim((string)($relacion['codigoAsociado'] ?? ''));
+            $codigo = trim((string)($relacion['codigoPrincipal'] ?? '')) ?: $codigoAsociado;
+            if ($usuarioId <= 0 || $codigoAsociado === '' || isset($vendedores[$usuarioId])) {
                 continue;
             }
             $vendedores[$usuarioId] = [

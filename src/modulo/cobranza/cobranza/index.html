@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
-  <link rel="stylesheet" href="./cobranza.css?v=1.0.0" />
+  <link rel="stylesheet" href="./cobranza.css?v=1.1.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -27,11 +27,18 @@
   <div class="main-wrapper" id="mainWrapper">
     <header class="main-header"><div class="header-left"><button class="header-menu-btn" id="headerMenuBtn" type="button" aria-label="Menú móvil">☰</button><h1 class="header-title">Cobranza</h1></div><div class="header-right"><span class="header-date" id="headerDate"></span></div></header>
     <main class="main-content">
-      <section class="module-hero"><span class="module-kicker">Módulo independiente</span><h2>Cobranza</h2><p>Vista inicial del módulo de cobranza. Se mantienen los permisos existentes y no se agregan procesos nuevos.</p></section>
+      <section class="collection-heading"><div><span class="collection-eyebrow">GESTIÓN FINANCIERA</span><h2>Una mirada a la cobranza</h2><p>Estado de la cartera por cobrar y comportamiento de pago.</p></div><span class="collection-badge">Datos demostrativos</span></section>
+      <section class="collection-kpis" id="collectionKpis" aria-label="Indicadores de cobranza"></section>
+      <section class="collection-charts">
+        <article class="collection-panel"><div class="collection-panel-title"><div><h3>Antigüedad de deuda</h3><p>Saldo pendiente por tramo de antigüedad</p></div><span class="collection-dot">CLP</span></div><div class="collection-chart"><canvas id="debtAgeChart" aria-label="Antigüedad de deuda" role="img"></canvas></div></article>
+        <article class="collection-panel"><div class="collection-panel-title"><div><h3>Evolución últimos 6 meses</h3><p>Pendiente de cobro y monto cobrado</p></div></div><div class="collection-chart"><canvas id="collectionEvolutionChart" aria-label="Evolución de cobranza" role="img"></canvas></div></article>
+      </section>
+      <p class="collection-note" id="chartStatus" role="status">Vista demostrativa · Importes expresados en pesos chilenos.</p>
     </main>
   </div>
   <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
-  <script src="./cobranza.js?v=1.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="./cobranza.js?v=1.1.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>
