@@ -8,6 +8,8 @@
  */
 (function () {
   window.__APP_SIDEBAR_LOADED__ = true;
+  let resolveSidebarReady;
+  window.appSidebarReady = new Promise(resolve => { resolveSidebarReady = resolve; });
   const FEATURE_FLAGS = {
     alertas: true,
     mensajeria: false,
@@ -3099,10 +3101,12 @@
   async function init() {
     ensureGlobalTopbar();
     try {
-      await cargarSidebarDesdeSesion();
+      const context = await cargarSidebarDesdeSesion();
+      resolveSidebarReady(context || null);
     } catch (err) {
       console.warn('[app-sidebar] Error al inicializar el sidebar:', err?.message || err);
       renderUsuarioSidebarConEstado(obtenerUsuarioLocal(), obtenerTokenSesion() ? 'Sesión no disponible' : 'Sin sesión activa');
+      resolveSidebarReady(null);
     }
   }
 

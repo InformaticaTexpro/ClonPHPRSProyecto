@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.0.0" />
+  <link rel="stylesheet" href="./control-notas-venta.css?v=1.2.0" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -32,16 +33,48 @@
       </div>
       <div class="header-right"><span class="header-date" id="headerDate"></span></div>
     </header>
-    <main class="main-content">
-      <section class="module-hero">
-        <span class="module-kicker">Cobranza</span>
-        <h2>Control de Notas de Venta</h2>
-        <p>Página base preparada para el módulo. No contiene lógica de negocio ni consultas.</p>
-      </section>
+    <main class="main-content nv-module" id="nvModule" aria-busy="true">
+      <div class="nv-overlay" id="nvLoading" role="status" aria-live="polite"><div><span class="nv-spinner" aria-hidden="true"></span><span id="nvLoadingText">Preparando sesión y navegación...</span></div></div>
+      <div id="nvContent" inert>
+        <section class="collection-heading"><div><span class="collection-eyebrow">COBRANZA · CONTROL OPERATIVO</span><h2>Control de Notas de Venta</h2><p>Emisión, estado y antigüedad de las notas del período.</p></div></section>
+        <form id="nvFilters" class="collection-panel nv-filters">
+          <label>Desde<input type="date" id="nvFrom" name="desde" required min="2000-01-01" /></label>
+          <label>Hasta<input type="date" id="nvTo" name="hasta" required min="2000-01-01" /></label>
+          <label class="nv-vendor">Vendedor<select id="nvVendor" name="vendedor"><option value="">Todos los vendedores</option></select></label>
+          <label>Atención desde<input type="number" id="nvAttention" name="diasAtencion" value="30" min="1" max="2147483646" step="1" required aria-label="Atención desde, días" /></label>
+          <label>Crítica desde<input type="number" id="nvCritical" name="diasCritica" value="60" min="2" max="2147483647" step="1" required aria-label="Crítica desde, días" /></label>
+          <button type="submit" class="nv-button" id="nvUpdate">Actualizar</button>
+        </form>
+        <p class="nv-status" id="nvStatus" role="status" aria-live="polite">Preparando consulta...</p>
+        <section class="nv-kpis" aria-label="Resumen de notas de venta">
+          <article class="nv-kpi"><span class="nv-kpi-icon" aria-hidden="true">▤</span><div><span class="nv-label">Emitidas</span><strong id="nvIssuedCount">—</strong><span class="nv-amount" id="nvIssuedAmount">—</span><small>Todos los estados</small></div></article>
+          <article class="nv-kpi"><span class="nv-kpi-icon" aria-hidden="true">✓</span><div><span class="nv-label">Concluidas</span><strong id="nvClosedCount">—</strong><span class="nv-amount" id="nvClosedAmount">—</span><small id="nvClosedHint">Estado C</small><dl class="nv-closed-breakdown" aria-label="Desglose de concluidas, montos netos"><div><dt>Facturadas</dt><dd id="nvClosedInvoiced">—</dd></div><div><dt>Cierre / Limpieza</dt><dd id="nvClosedCleanup">—</dd></div></dl></div></article>
+          <article class="nv-kpi"><span class="nv-kpi-icon nv-kpi-icon--blue" aria-hidden="true">◷</span><div><span class="nv-label">Pendientes de facturación</span><strong id="nvPendingCount">—</strong><span class="nv-amount" id="nvPendingAmount">—</span><small id="nvPendingHint">Aprobadas + Pendientes</small></div></article>
+          <article class="nv-kpi"><span class="nv-kpi-icon nv-kpi-icon--muted" aria-hidden="true">×</span><div><span class="nv-label">Nulas</span><strong id="nvVoidCount">—</strong><span class="nv-amount" id="nvVoidAmount">—</span><small>Estado N</small></div></article>
+        </section>
+        <section class="nv-alerts" aria-label="Antigüedad de notas pendientes">
+          <button type="button" class="nv-alert nv-alert--critical" data-segment="critica" disabled><span class="nv-label">Crítica</span><strong id="nvCriticalCount">—</strong><span class="nv-amount" id="nvCriticalAmount">—</span><small id="nvCriticalHint">Desde 60 días</small><span class="nv-alert-link">Ver notas →</span></button>
+          <button type="button" class="nv-alert nv-alert--attention" data-segment="atencion" disabled><span class="nv-label">Atención</span><strong id="nvAttentionCount">—</strong><span class="nv-amount" id="nvAttentionAmount">—</span><small id="nvAttentionHint">30 a 59 días</small><span class="nv-alert-link">Ver notas →</span></button>
+          <button type="button" class="nv-alert nv-alert--normal" data-segment="plazo" disabled><span class="nv-label">En plazo</span><strong id="nvNormalCount">—</strong><span class="nv-amount" id="nvNormalAmount">—</span><small id="nvNormalHint">Menos de 30 días</small><span class="nv-alert-link">Ver notas →</span></button>
+        </section>
+        <div class="nv-charts">
+          <section class="collection-panel"><div class="collection-panel-title"><div><h3>Evolución de NV</h3><p id="nvEvolutionHint">Cantidad emitida, concluida y pendiente</p></div></div><div class="nv-chart"><canvas id="nvEvolutionChart" role="img" aria-label="Evolución de notas de venta"></canvas></div></section>
+          <section class="collection-panel"><div class="collection-panel-title"><div><h3>Antigüedad de pendientes</h3><p>Cantidad por segmento · montos en el detalle</p></div></div><div class="nv-chart"><canvas id="nvAgeChart" role="img" aria-label="Cantidad de notas por antigüedad"></canvas></div></section>
+          <section class="collection-panel nv-rank-panel"><div class="collection-panel-title"><div><h3 id="nvRankTitle">Pendientes por vendedor</h3><p id="nvRankHint">Montos pendientes · Aprobadas y Pendientes</p></div></div><div class="nv-chart nv-chart--ranking"><canvas id="nvRankChart" role="img" aria-label="Mayores montos pendientes"></canvas></div></section>
+        </div>
+        <dl class="nv-metrics"><div><dt>Antigüedad promedio de pendientes</dt><dd id="nvAverageAge">—</dd></div><div><dt>NV pendiente más antigua</dt><dd id="nvOldest">—</dd></div><div><dt>Ticket promedio pendiente</dt><dd id="nvAverageTicket">—</dd></div><div><dt>Concluidas / Emitidas</dt><dd id="nvClosedRate">—</dd></div></dl>
+        <section class="collection-panel nv-detail" id="nvDetailSection" aria-busy="false"><div class="collection-panel-title"><div><h3>Detalle de Notas de Venta</h3><p>Consulta bajo demanda · 100 notas por página</p></div><button type="button" class="nv-button nv-button--detail" id="nvShowDetail" disabled>Ver detalle de Notas de Venta</button></div>
+          <div id="nvRangeWarning" class="nv-warning" hidden><p id="nvRangeText"></p><button type="button" class="nv-button" id="nvConfirmDetail">Continuar y ver detalle</button></div>
+          <div class="nv-local-loading" id="nvDetailLoading" role="status" hidden><span class="nv-spinner nv-spinner--small" aria-hidden="true"></span>Cargando Notas de Venta...</div>
+          <p class="nv-status" id="nvDetailStatus" role="status"></p><div id="nvDetailContent"></div><div id="nvDetailPager" class="nv-pagination"></div>
+        </section>
+      </div>
+      <dialog class="nv-dialog" id="nvAlertDialog" aria-labelledby="nvAlertTitle"><div class="nv-dialog-heading"><div><h3 id="nvAlertTitle">Notas de Venta</h3><p id="nvAlertTotals"></p></div><button type="button" class="nv-button nv-button--light" id="nvCloseAlert">Cerrar ×</button></div><div class="nv-local-loading" id="nvAlertLoading" role="status" hidden><span class="nv-spinner nv-spinner--small" aria-hidden="true"></span>Cargando Notas de Venta...</div><p class="nv-status" id="nvAlertStatus" role="status"></p><div id="nvAlertContent"></div><div id="nvAlertPager" class="nv-pagination"></div></dialog>
     </main>
   </div>
-  <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
-  <script src="./control-notas-venta.js?v=1.0.0"></script>
+  <script src="../../../assets/js/app-sidebar.js?v=1.2.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="./control-notas-venta.js?v=1.4.0"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>

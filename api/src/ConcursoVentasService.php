@@ -164,39 +164,29 @@ final class ConcursoVentasService
         $params = [];
         $inVendors = $this->inClause($vendorCodes, $params);
         $amountSql = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
+        $historyCtes = AnalyticsService::newClientHistoryCtes("SELECT DISTINCT LTRIM(RTRIM(CodAux)) AS CodAux
+            FROM [PRODIN].[softland].[cwtauxven] WHERE LTRIM(RTRIM(VenCod)) IN ($inVendors)");
 
         $stmt = $this->softland()->prepare(
-            "WITH ClientesAsignados AS (
-                SELECT DISTINCT LTRIM(RTRIM(CodAux)) AS CodAux
-                FROM [PRODIN].[softland].[cwtauxven]
-                WHERE LTRIM(RTRIM(VenCod)) IN ($inVendors)
-             ),
-             PrimeraCompra AS (
-                SELECT LTRIM(RTRIM(h.CodAux)) AS CodAux,
-                       MIN(CAST(h.Fecha AS date)) AS FechaPrimeraCompra
-                FROM [PRODIN].[softland].[iw_gsaen] h
-                INNER JOIN ClientesAsignados ca ON ca.CodAux = LTRIM(RTRIM(h.CodAux))
-                WHERE h.Tipo = 'F'
-                  AND h.Estado <> 'A'
-                  AND h.Fecha < ?
-                GROUP BY LTRIM(RTRIM(h.CodAux))
-             ),
+            "WITH $historyCtes,
              PrimeraCompraMonto AS (
-                SELECT pc.CodAux,
-                       pc.FechaPrimeraCompra,
+                SELECT pc.Identidad,
+                       CAST(pc.Fecha AS date) AS FechaPrimeraCompra,
                        SUM($amountSql) AS MontoPrimeraCompra
-                FROM PrimeraCompra pc
+                FROM PrimerasComprasRut pc
                 INNER JOIN [PRODIN].[softland].[iw_gsaen] h
-                   ON LTRIM(RTRIM(h.CodAux)) = pc.CodAux
-                  AND CAST(h.Fecha AS date) = pc.FechaPrimeraCompra
+                   ON CAST(h.Fecha AS date) = CAST(pc.Fecha AS date)
+                LEFT JOIN Identidades i ON i.CodAux = LTRIM(RTRIM(h.CodAux))
                 INNER JOIN [PRODIN].[softland].[iw_gmovi] m
                    ON m.NroInt = h.NroInt
                   AND m.Tipo = h.Tipo
                 WHERE h.Tipo = 'F'
                   AND h.Estado <> 'A'
-                  AND pc.FechaPrimeraCompra >= ?
-                  AND pc.FechaPrimeraCompra < ?
-                GROUP BY pc.CodAux, pc.FechaPrimeraCompra
+                  AND COALESCE(i.Identidad, 'CODAUX:' + LTRIM(RTRIM(h.CodAux))) = pc.Identidad
+                  AND pc.Fecha >= ?
+                  AND pc.Fecha < ?
+                  AND pc.Vendedor IN ($inVendors)
+                GROUP BY pc.Identidad, CAST(pc.Fecha AS date)
              )
              SELECT COUNT(*) AS cantidad
              FROM PrimeraCompraMonto
@@ -204,7 +194,9 @@ final class ConcursoVentasService
         );
         $stmt->execute(array_merge(
             $params,
-            [$end->format('Y-m-d'), $start->format('Y-m-d'), $end->format('Y-m-d'), self::CONFIG['montoMinimoNuevo']]
+            [$start->format('Y-m-d'), $end->format('Y-m-d')],
+            $vendorCodes,
+            [self::CONFIG['montoMinimoNuevo']]
         ));
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         return (int)($row['cantidad'] ?? 0);
