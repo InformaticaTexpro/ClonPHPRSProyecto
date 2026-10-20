@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/CobranzaService.php';
+require_once __DIR__ . '/AdquisicionesService.php';
 
 final class ApiApplication
 {
@@ -19,6 +20,7 @@ final class ApiApplication
         $analyticsService = new AnalyticsService($database);
         $gerenciaService = new GerenciaService($database, $analyticsService);
         $cobranzaService = new CobranzaService($database, $analyticsService);
+        $adquisicionesService = new AdquisicionesService($database);
         $concursoVentasService = new ConcursoVentasService($database, $analyticsService, $gerenciaService);
         $salesService = new SalesService($database, $analyticsService);
         $adminService = new AdminService($database);
@@ -52,6 +54,7 @@ final class ApiApplication
             'dashboard' => $dashboardService,
             'gerencia' => $gerenciaService,
             'cobranza' => $cobranzaService,
+            'adquisiciones' => $adquisicionesService,
             'ventas' => $ventasService,
             'indicadores' => $indicadoresService,
         ];
@@ -73,6 +76,7 @@ final class ApiApplication
             '/cartera' => require dirname(__DIR__) . '/routes/cartera.php',
             '/gerencia' => require dirname(__DIR__) . '/routes/gerencia.php',
             '/cobranza' => require dirname(__DIR__) . '/routes/cobranza.php',
+            '/adquisiciones' => require dirname(__DIR__) . '/routes/adquisiciones.php',
         ];
 
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));

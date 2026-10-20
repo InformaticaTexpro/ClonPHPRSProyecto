@@ -431,6 +431,7 @@ final class AdminService
     private function ensureCommonMenus(PDO $pdo): void
     {
         $menus = [
+            ['codigo' => 'adquisiciones_control_oc', 'nombre' => 'Control de OC', 'grupo' => 'Adquisiciones', 'url' => '/src/modulo/adquisiciones/control-oc/index.html', 'icono' => 'cart', 'orden' => 2],
             ['codigo' => 'general', 'nombre' => 'General', 'grupo' => 'General', 'url' => '/src/modulo/general/general/index.html', 'icono' => '🧭', 'orden' => 0],
             ['codigo' => 'alertas', 'nombre' => 'Alertas', 'grupo' => 'General', 'url' => '/src/modulo/varios/alertas/index.html', 'icono' => '🔔', 'orden' => 1],
             ['codigo' => 'mensajeria', 'nombre' => 'Chat', 'grupo' => 'General', 'url' => '/src/modulo/varios/mensajeria/index.html', 'icono' => '💬', 'orden' => 2],

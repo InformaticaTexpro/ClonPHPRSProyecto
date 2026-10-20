@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../adquisiciones/adquisiciones.css?v=1.0.0" />
+  <link rel="stylesheet" href="./control-oc.css?v=1.0.4" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -28,20 +29,64 @@
     <header class="main-header">
       <div class="header-left">
         <button class="header-menu-btn" id="headerMenuBtn" type="button" aria-label="Menú móvil">☰</button>
-        <h1 class="header-title">Control de OC</h1>
+        <h1 class="header-title">Control de Órdenes de Compra</h1>
       </div>
       <div class="header-right"><span class="header-date" id="headerDate"></span></div>
     </header>
-    <main class="main-content">
-      <section class="adq-hero">
-        <span class="adq-kicker">Adquisiciones</span>
-        <h2>Control de OC</h2>
-        <p>Página base preparada para órdenes de compra. No contiene lógica de negocio ni consultas.</p>
-      </section>
+    <main class="main-content oc-module" id="ocModule" aria-busy="true">
+      <div class="oc-overlay" id="ocLoading" role="status" aria-live="polite"><div><span class="oc-spinner" aria-hidden="true"></span><span id="ocLoadingText">Preparando sesión y navegación...</span></div></div>
+      <div id="ocContent" inert>
+        <section class="oc-heading"><span class="oc-eyebrow">ADQUISICIONES · CONTROL OPERATIVO</span><h2>Control de Órdenes de Compra</h2><p>Seguimiento de emisión, recepción, saldos pendientes y cumplimiento de entregas.</p></section>
+        <form id="ocFilters" class="oc-panel oc-filters">
+          <label>Desde<input type="date" id="ocFrom" name="desde" required min="2000-01-01" /></label>
+          <label>Hasta<input type="date" id="ocTo" name="hasta" required min="2000-01-01" /></label>
+          <div class="oc-filter-field"><label for="ocSupplierSearch">Proveedor</label><div class="oc-combo" id="ocSupplierCombo"><input type="text" id="ocSupplierSearch" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ocSupplierList" autocomplete="off" placeholder="Todos" /><input type="hidden" id="ocSupplier" name="proveedor" value="" /><button type="button" class="oc-combo-clear" id="ocSupplierClear" aria-label="Limpiar proveedor y mostrar todos">×</button><div class="oc-combo-list" id="ocSupplierList" role="listbox" aria-label="Proveedores" hidden></div><span class="oc-sr-only" id="ocSupplierMatches" role="status" aria-live="polite"></span></div></div>
+          <div class="oc-filter-field"><label for="ocCenterSearch">Centro de costo</label><div class="oc-combo" id="ocCenterCombo"><input type="text" id="ocCenterSearch" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ocCenterList" autocomplete="off" placeholder="Todos" /><input type="hidden" id="ocCenter" name="centroCosto" value="" /><button type="button" class="oc-combo-clear" id="ocCenterClear" aria-label="Limpiar centro de costo y mostrar todos">×</button><div class="oc-combo-list" id="ocCenterList" role="listbox" aria-label="Centros de costo" hidden></div><span class="oc-sr-only" id="ocCenterMatches" role="status" aria-live="polite"></span></div></div>
+          <label>Estado OC<select id="ocState" name="estadoOC"><option value="">Todos</option><option value="AP">Aprobada</option><option value="PE">Pendiente</option><option value="UN">Nula</option></select></label>
+          <label>Recepción<select id="ocReceptionFilter" name="estadoRecepcion"><option value="">Todas</option><option value="SR">Sin recepción</option><option value="RP">Recepción parcial</option><option value="RC">Recepción completa</option></select></label>
+          <button type="submit" class="oc-button" id="ocUpdate">Actualizar</button>
+        </form>
+        <p class="oc-status" id="ocStatus" role="status" aria-live="polite">Preparando consulta...</p>
+        <section class="oc-grid oc-grid--four" id="ocAdminKpis" aria-label="Estado administrativo"></section>
+        <section class="oc-grid oc-grid--four" id="ocReception" aria-label="Estado real de recepción de aprobadas"></section>
+        <section class="oc-grid oc-grid--alerts" id="ocAlerts" aria-label="Alertas operativas"></section>
+        <section class="oc-finance" aria-label="Finanzas, montos netos CLP">
+          <div class="oc-finance-help-bar"><button type="button" class="oc-button oc-button--light oc-help-toggle" id="ocFinanceHelpToggle" aria-label="Explicación de indicadores de compras pendientes" aria-expanded="false" aria-controls="ocFinanceHelp"><span aria-hidden="true">ⓘ</span> ¿Qué significa?</button></div>
+          <div><span>Valor aún pendiente de recibir</span><strong id="ocPendingNet">—</strong></div><div><span>Valor pendiente con entrega vencida</span><strong id="ocOverdueNet">—</strong></div><div><span>% del valor pendiente que ya está vencido</span><strong id="ocOverdueRate">—</strong></div>
+          <section class="oc-help" id="ocFinanceHelp" aria-labelledby="ocFinanceHelpTitle" hidden>
+            <div class="oc-panel-heading"><h4 id="ocFinanceHelpTitle">Indicadores de compras pendientes</h4><button type="button" class="oc-button oc-button--light" id="ocFinanceHelpClose" aria-label="Cerrar explicación de indicadores de compras pendientes">Cerrar ayuda ×</button></div>
+            <dl><div><dt>Valor aún pendiente de recibir</dt><dd>Valor neto proporcional de las cantidades que todavía faltan por recibir en las órdenes de compra aprobadas.</dd></div><div><dt>Valor pendiente con entrega vencida</dt><dd>Parte del valor pendiente cuya fecha comprometida de entrega ya pasó.</dd></div><div><dt>% del valor pendiente que ya está vencido</dt><dd>Porcentaje del valor aún pendiente de recibir que corresponde a entregas cuya fecha comprometida ya venció.</dd></div></dl>
+            <p>Estos valores son netos y se calculan según el saldo real pendiente de cada línea de la orden de compra.</p>
+            <p>Ejemplo: si existen $100 pendientes de recibir y $80 corresponden a entregas vencidas, el indicador será 80%.</p>
+          </section>
+        </section>
+        <div class="oc-charts">
+          <section class="oc-panel"><div class="oc-panel-heading"><div><h3>Evolución OC</h3><p id="ocEvolutionHint">Emisión y aprobación</p></div></div><div class="oc-chart"><canvas id="ocEvolutionChart" role="img" aria-label="Evolución de emisión y aprobación"></canvas></div></section>
+          <section class="oc-panel"><div class="oc-panel-heading"><div><h3>Estado de recepción</h3><p>Solo OC aprobadas</p></div></div><div class="oc-chart"><canvas id="ocReceptionChart" role="img" aria-label="OC aprobadas por recepción"></canvas></div></section>
+          <section class="oc-panel"><div class="oc-panel-heading"><div><h3>Antigüedad de vencidas</h3><p>Atraso máximo por OC · montos netos</p></div></div><div class="oc-chart"><canvas id="ocAgeChart" role="img" aria-label="Antigüedad de órdenes vencidas"></canvas></div></section>
+          <section class="oc-panel"><div class="oc-panel-heading"><div><h3>Ranking pendiente neto</h3><p id="ocRankHint">OC abiertas de recepción</p></div><label class="oc-rank-label">Agrupar por<select id="ocRanking"><option value="proveedor">Proveedor</option><option value="centro">Centro de costo</option></select></label></div><div class="oc-chart" id="ocRankContainer"><canvas id="ocRankChart" role="img" aria-label="Ranking de montos pendientes netos"></canvas></div></section>
+        </div>
+        <section class="oc-metrics-panel" aria-label="Indicadores de seguimiento de órdenes de compra">
+          <div class="oc-finance-help-bar"><button type="button" class="oc-button oc-button--light oc-help-toggle" id="ocMetricsHelpToggle" aria-label="Explicación de indicadores de seguimiento de órdenes de compra" aria-expanded="false" aria-controls="ocMetricsHelp"><span aria-hidden="true">ⓘ</span> ¿Qué significa?</button></div>
+          <dl class="oc-metrics"><div><dt>Orden pendiente más antigua</dt><dd id="ocOldest">—</dd></div><div><dt>Mayor atraso de entrega</dt><dd id="ocMaxDelay">—</dd></div><div><dt>Valor promedio pendiente por OC abierta</dt><dd id="ocAverageNet">—</dd></div><div><dt>% de OC aprobadas completamente recibidas</dt><dd id="ocCompleteRate">—</dd></div></dl>
+          <section class="oc-help" id="ocMetricsHelp" aria-labelledby="ocMetricsHelpTitle" hidden>
+            <div class="oc-panel-heading"><h4 id="ocMetricsHelpTitle">Seguimiento de órdenes de compra</h4><button type="button" class="oc-button oc-button--light" id="ocMetricsHelpClose" aria-label="Cerrar explicación de indicadores de seguimiento de órdenes de compra">Cerrar ayuda ×</button></div>
+            <dl><div><dt>Orden pendiente más antigua</dt><dd>Fecha de emisión de la orden de compra abierta más antigua que todavía tiene cantidades pendientes de recibir.</dd></div><div><dt>Mayor atraso de entrega</dt><dd>Mayor cantidad de días de atraso entre las líneas que aún tienen saldo pendiente y cuya fecha comprometida de entrega ya venció.</dd></div><div><dt>Valor promedio pendiente por OC abierta</dt><dd>Valor pendiente total dividido por la cantidad de órdenes de compra aprobadas que aún no están completamente recibidas.</dd></div><div><dt>% de OC aprobadas completamente recibidas</dt><dd>Porcentaje de las órdenes de compra aprobadas cuyo saldo real pendiente es cero.</dd></div></dl>
+            <p>Una OC abierta corresponde a una orden aprobada con estado Sin recepción o Recepción parcial.</p>
+          </section>
+        </section>
+        <section class="oc-panel" id="ocDetailSection" aria-busy="false"><div class="oc-panel-heading"><div><h3>Detalle de Órdenes de Compra</h3><p>Consulta bajo demanda · 100 OC por página</p></div><button type="button" class="oc-button oc-button--detail" id="ocShowDetail" disabled>Ver detalle de Órdenes de Compra</button></div>
+          <div id="ocRangeWarning" class="oc-warning" hidden><p id="ocRangeText"></p><button type="button" class="oc-button" id="ocConfirmDetail">Continuar y ver detalle</button></div>
+          <div class="oc-local-loading" id="ocDetailLoading" role="status" hidden><span class="oc-spinner oc-spinner--small" aria-hidden="true"></span>Cargando Órdenes de Compra...</div><p class="oc-status" id="ocDetailStatus" role="status"></p><div id="ocDetailContent" class="oc-table-scroll"></div><div id="ocDetailPager" class="oc-pagination"></div>
+        </section>
+      </div>
+      <dialog class="oc-dialog" id="ocAlertDialog" aria-labelledby="ocAlertTitle"><div class="oc-panel-heading"><div><h3 id="ocAlertTitle">Órdenes de Compra</h3><p id="ocAlertTotals"></p></div><button type="button" class="oc-button oc-button--light" data-close="ocAlertDialog">Cerrar ×</button></div><div class="oc-local-loading" id="ocAlertLoading" role="status" hidden><span class="oc-spinner oc-spinner--small" aria-hidden="true"></span>Cargando Órdenes de Compra...</div><p class="oc-status" id="ocAlertStatus" role="status"></p><div id="ocAlertContent" class="oc-table-scroll"></div><div id="ocAlertPager" class="oc-pagination"></div></dialog>
+      <dialog class="oc-dialog" id="ocLinesDialog" aria-labelledby="ocLinesTitle"><div class="oc-panel-heading"><div><h3 id="ocLinesTitle">Líneas de OC</h3><p id="ocLinesHeader"></p></div><button type="button" class="oc-button oc-button--light oc-help-toggle" id="ocLinesHelpToggle" aria-label="Ayuda sobre estados de recepción y alertas" aria-expanded="false" aria-controls="ocLinesHelp"><span aria-hidden="true">ⓘ</span> ¿Qué significa?</button><button type="button" class="oc-button oc-button--light" data-close="ocLinesDialog">Cerrar ×</button></div><section class="oc-help" id="ocLinesHelp" aria-labelledby="ocLinesHelpTitle" hidden><div class="oc-panel-heading"><h4 id="ocLinesHelpTitle">Estados de recepción y alertas</h4><button type="button" class="oc-button oc-button--light" id="ocLinesHelpClose" aria-label="Cerrar ayuda sobre estados y alertas">Cerrar ayuda ×</button></div><dl><div><dt>Sin recepción</dt><dd>Aún no existen cantidades recibidas para esta línea.</dd></div><div><dt>Recepción parcial</dt><dd>Se ha recibido parte de la cantidad ordenada y todavía queda saldo pendiente.</dd></div><div><dt>Recepción completa</dt><dd>La cantidad recibida cubre la cantidad ordenada.</dd></div><div><dt>Entrega vencida</dt><dd>Existe saldo pendiente y la fecha comprometida de entrega ya pasó.</dd></div><div><dt>Recepción sobre lo ordenado</dt><dd>La cantidad recibida supera la cantidad solicitada en la orden de compra.</dd></div></dl><p>Una recepción puede estar completa y, al mismo tiempo, tener la alerta 'Recepción sobre lo ordenado'.</p></section><div class="oc-local-loading" id="ocLinesLoading" role="status" hidden><span class="oc-spinner oc-spinner--small" aria-hidden="true"></span>Cargando líneas...</div><p class="oc-status" id="ocLinesStatus" role="status"></p><div id="ocLinesContent" class="oc-table-scroll"></div></dialog>
     </main>
   </div>
-  <script src="../../../assets/js/app-sidebar.js?v=1.2.1"></script>
-  <script src="./control-oc.js?v=1.0.0"></script>
+  <script src="../../../assets/js/app-sidebar.js?v=1.2.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="./control-oc.js?v=1.1.4"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>
