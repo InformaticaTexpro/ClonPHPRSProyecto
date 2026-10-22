@@ -371,6 +371,48 @@
     downloadXlsx(`Control_Clientes_${annualData.tipo === 'recuperados' ? 'Recuperados' : 'Nuevos'}_${annualData.anio}.xlsx`, [headers, ...rows], [...monthNames.map((_, i) => i * 2 + 2), 26]);
   }
 
+  // Contenido informativo independiente de las reglas y consultas comerciales.
+  let criteriaPromise = null;
+  function loadClassificationCriteria() {
+    if (!criteriaPromise) criteriaPromise = fetch('./criterios.json', { cache: 'no-cache' }).then(async response => {
+      if (!response.ok) throw new Error('Criterios no disponibles.');
+      const content = await response.json();
+      if (content?.schemaVersion !== 1 || !Number.isInteger(content.versionActual) || content.versionActual < 1 || !Array.isArray(content.versiones)) throw new Error('Formato inválido.');
+      const current = content.versiones.find(item => item?.version === content.versionActual);
+      if (!current || typeof current.titulo !== 'string' || !current.titulo.trim()
+        || typeof current.fechaVersion !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(current.fechaVersion)
+        || new Date(current.fechaVersion + 'T00:00:00Z').toISOString().slice(0, 10) !== current.fechaVersion
+        || !Array.isArray(current.secciones) || !current.secciones.length
+        || !current.secciones.every(section => section && typeof section.titulo === 'string'
+          && Array.isArray(section.contenido) && section.contenido.length && section.contenido.every(item => typeof item === 'string')
+          && (section.introduccion == null || typeof section.introduccion === 'string'))) throw new Error('Versión inválida.');
+      return current;
+    }).catch(error => { criteriaPromise = null; throw error; });
+    return criteriaPromise;
+  }
+  $('openCriteria').addEventListener('click', async () => {
+    const button = $('openCriteria'), dialog = $('criteriaDialog');
+    if (button.disabled) return;
+    button.disabled = true;
+    $('criteriaTitle').textContent = 'Criterios de clasificación'; $('criteriaVersion').textContent = '';
+    $('criteriaContent').textContent = 'Cargando criterios…';
+    dialog.setAttribute('aria-busy', 'true');
+    if (!dialog.open) dialog.showModal();
+    try {
+      const criteria = await loadClassificationCriteria();
+      $('criteriaTitle').textContent = criteria.titulo;
+      $('criteriaVersion').textContent = 'Versión ' + criteria.version + ' · ' + date(criteria.fechaVersion);
+      $('criteriaContent').innerHTML = criteria.secciones.map(section => '<section class="client-criteria-section"><h4>' + escape(section.titulo) + '</h4><p>' + escape(section.contenido[0]) + '</p>'
+        + (section.introduccion ? '<p>' + escape(section.introduccion) + '</p>' : '')
+        + (section.contenido.length > 1 ? '<ul>' + section.contenido.slice(1).map(item => '<li>' + escape(item) + '</li>').join('') + '</ul>' : '') + '</section>').join('');
+    } catch (error) {
+      $('criteriaVersion').textContent = '';
+      $('criteriaContent').textContent = 'No fue posible cargar los criterios de clasificación.';
+    } finally { button.disabled = false; dialog.setAttribute('aria-busy', 'false'); if (!dialog.open) button.focus(); }
+  });
+  ['closeCriteriaX', 'closeCriteria'].forEach(id => $(id).addEventListener('click', () => $('criteriaDialog').close()));
+  $('criteriaDialog').addEventListener('close', () => $('openCriteria').focus());
+
   $('clientFilters').addEventListener('submit', event => { event.preventDefault(); loadReport(); });
   $('clearButton').addEventListener('click', () => { defaults(); loadReport(); });
   $('evolutionYear').addEventListener('change', loadEvolution);

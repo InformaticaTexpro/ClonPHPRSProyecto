@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "versionActual": 1,
+  "versiones": [
+    {
+      "version": 1,
+      "fechaVersion": "2026-10-22",
+      "titulo": "Criterios de clasificación de clientes",
+      "secciones": [
+        {
+          "titulo": "Clientes Activos",
+          "introduccion": "Actualmente:",
+          "contenido": [
+            "Cliente que ha realizado compras dentro de la ventana de actividad definida para su área.",
+            "Productos Químicos: 180 días.",
+            "Tratamiento de Agua: 365 días."
+          ]
+        },
+        {
+          "titulo": "Clientes Inactivos",
+          "contenido": [
+            "Cliente que supera la ventana de actividad definida para su área sin registrar nuevas compras."
+          ]
+        },
+        {
+          "titulo": "Clientes Nuevos",
+          "introduccion": "Para identificar al cliente:",
+          "contenido": [
+            "Cliente cuya primera factura histórica válida ocurre dentro del período consultado.",
+            "Se utiliza el RUT cuando está disponible.",
+            "Si existen varios códigos de cliente asociados al mismo RUT, se consideran una misma identidad.",
+            "Si no existe RUT, se utiliza el código de cliente (CodAux)."
+          ]
+        },
+        {
+          "titulo": "Clientes Recuperados",
+          "introduccion": "Actualmente:",
+          "contenido": [
+            "Cliente que vuelve a comprar después de superar el período de recuperación definido para su área.",
+            "Productos Químicos: más de 180 días sin compras.",
+            "Tratamiento de Agua: más de 365 días sin compras."
+          ]
+        },
+        {
+          "titulo": "Consideraciones generales",
+          "introduccion": "Para los montos de venta asociados a estos clientes:",
+          "contenido": [
+            "Para determinar Clientes Nuevos y Recuperados se consideran facturas válidas y no anuladas.",
+            "Facturas y Notas de Débito suman.",
+            "Notas de Crédito restan."
+          ]
+        }
+      ]
+    }
+  ]
+}
