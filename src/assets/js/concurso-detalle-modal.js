@@ -23,6 +23,9 @@
   let detailSequence = 0;
   let folioSequence = 0;
   let productSequence = 0;
+  let productBaseData = null;
+  let baseMonthSequence = 0;
+  const baseMonthCache = new Map();
   let onCloseCallback = null;
 
   function ensureModal() {
@@ -67,7 +70,9 @@
       <section id="cdmProductos" class="tabla-card concurso-detail-section" hidden>
         <p id="cdmProductosEstado" role="status" aria-live="polite"></p>
         <div class="tabla-wrapper"><table class="dash-tabla concurso-detail-table"><thead><tr><th>Categoría</th><th class="numero">Promedio base</th><th class="numero">Venta mes</th><th class="numero">Superación</th><th class="numero">Puntos</th><th>Acción</th></tr></thead><tbody id="cdmProductosBody"></tbody></table></div>
-        <div id="cdmProductoDetalle" hidden><h4 id="cdmProductoDetalleTitulo"></h4><div id="cdmProductoDetalleEstado" role="status" aria-live="polite"></div><div class="tabla-wrapper"><table class="dash-tabla"><thead id="cdmProductoDetalleHead"></thead><tbody id="cdmProductoDetalleBody"></tbody></table></div></div>
+        <div id="cdmProductoDetalle" hidden><h4 id="cdmProductoDetalleTitulo"></h4><div id="cdmProductoDetalleEstado" role="status" aria-live="polite"></div><div class="tabla-wrapper"><table class="dash-tabla"><thead id="cdmProductoDetalleHead"></thead><tbody id="cdmProductoDetalleBody"></tbody></table></div>
+          <section id="cdmBaseMesDetalle" hidden aria-labelledby="cdmBaseMesTitulo"><h4 id="cdmBaseMesTitulo"></h4><div id="cdmBaseMesEstado" role="status" aria-live="polite"></div><div class="tabla-wrapper"><table class="dash-tabla"><thead id="cdmBaseMesHead"></thead><tbody id="cdmBaseMesBody"></tbody></table></div><p id="cdmBaseMesTotales"></p></section>
+        </div>
       </section>
       <section id="cdmFolios" class="tabla-card concurso-detail-section" hidden>
         <h4 id="cdmFoliosTitulo"></h4><div id="cdmFoliosEstado" role="status" aria-live="polite"></div>
@@ -81,6 +86,7 @@
     $('cdmCerrarX').addEventListener('click', close);
     $('cdmCerrar').addEventListener('click', close);
     dialog.addEventListener('close', () => {
+      productSequence += 1; baseMonthSequence += 1; productBaseData = null; baseMonthCache.clear();
       clearClients();
       onCloseCallback?.();
       onCloseCallback = null;
@@ -98,6 +104,10 @@
       const base = event.target.closest('[data-product-base]');
       if (sale) showProductDetail(sale.dataset.productSale, 'venta', sale);
       else if (base) showProductDetail(base.dataset.productBase, 'base', base);
+    });
+    $('cdmProductoDetalleBody').addEventListener('click', event => {
+      const button = event.target.closest('[data-base-month]');
+      if (button) showBaseMonthDetail(button.dataset.baseCategory, button.dataset.baseMonth, button);
     });
   }
 
@@ -135,6 +145,7 @@
   }
 
   function resetDetailAreas() {
+    productBaseData = null; baseMonthSequence += 1; $('cdmBaseMesDetalle').hidden = true;
     $('cdmCumplimiento').hidden = true;
     $('cdmClientes').hidden = true;
     $('cdmProductos').hidden = true;
@@ -187,6 +198,7 @@
   async function showProductDetail(category, kind, button) {
     if (button?.disabled) return;
     const requestId = ++productSequence;
+    productBaseData = null; baseMonthSequence += 1; $('cdmBaseMesDetalle').hidden = true;
     if (button) button.disabled = true;
     $('cdmProductoDetalle').hidden = false;
     $('cdmProductoDetalle').setAttribute('aria-busy', 'true');
@@ -203,10 +215,13 @@
       if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el detalle.');
       if (requestId !== productSequence) return;
       if (kind === 'base') {
-        $('cdmProductoDetalleHead').innerHTML = '<tr><th>Período</th><th class="numero">Venta oficial</th></tr>';
-        $('cdmProductoDetalleBody').innerHTML = (data.meses || []).map(month => `<tr><td>${esc(month.periodo)}</td><td class="numero">${money(month.venta)}</td></tr>`).join('')
-          + `<tr class="concurso-total-row"><th scope="row">Promedio oficial</th><td class="numero">${money(data.promedioBase)}</td></tr>`;
-        $('cdmProductoDetalleEstado').textContent = data.meses?.length ? '' : 'No hay detalle mensual guardado.';
+        productBaseData = { ...data, categoria: category };
+        $('cdmProductoDetalleHead').innerHTML = '<tr><th>Período</th><th class="numero">Venta oficial</th><th>Acción</th></tr>';
+        $('cdmProductoDetalleBody').innerHTML = (data.baseManual ? [] : data.meses || []).map(month => `<tr><td>${esc(month.periodo)}</td><td class="numero">${money(month.venta)}</td><td>${Number(month.venta) !== 0 ? `<button class="btn-buscar btn-buscar--sm" type="button" data-base-category="${esc(category)}" data-base-month="${esc(month.periodo)}" aria-controls="cdmBaseMesDetalle">Ver detalle</button>` : ''}</td></tr>`).join('')
+          + `<tr class="concurso-total-row"><th scope="row">Promedio oficial</th><td class="numero">${money(data.promedioBase)}</td><td></td></tr>`;
+        $('cdmProductoDetalleEstado').textContent = data.baseManual
+          ? 'Base definida manualmente. Este importe fue definido manualmente para el concurso y no dispone de un desglose automático de documentos.'
+          : data.meses?.length ? '' : 'No hay detalle mensual guardado.';
       } else {
         const headers = ['Fecha', 'Tipo', 'Folio', 'Cliente', 'Cód. vendedor', 'Código producto', 'Producto', 'Categoría original', 'Categoría concurso', 'Tipo atribución', '% atribuido', 'Venta original', 'Venta atribuida'];
         $('cdmProductoDetalleHead').innerHTML = `<tr>${headers.map(label => `<th>${label}</th>`).join('')}</tr>`;
@@ -218,6 +233,50 @@
     finally {
       if (button) button.disabled = false;
       if (requestId === productSequence) $('cdmProductoDetalle').setAttribute('aria-busy', 'false');
+    }
+  }
+
+  async function showBaseMonthDetail(category, month, button) {
+    const context = productBaseData;
+    if (button?.disabled || !context || context.baseManual || context.categoria !== category
+      || !context.meses?.some(item => item.periodo === month && Number(item.venta) !== 0)) return;
+    const requestId = ++baseMonthSequence;
+    if (button) button.disabled = true;
+    $('cdmBaseMesDetalle').hidden = false;
+    $('cdmBaseMesDetalle').setAttribute('aria-busy', 'true');
+    $('cdmBaseMesTitulo').textContent = `${categoryLabels[category] || category} · ${month}`;
+    $('cdmBaseMesEstado').innerHTML = loadingMarkup;
+    $('cdmBaseMesHead').innerHTML = ''; $('cdmBaseMesBody').innerHTML = ''; $('cdmBaseMesTotales').textContent = '';
+    try {
+      const key = `${category}|${month}`;
+      let pending = baseMonthCache.get(key);
+      if (!pending) {
+        pending = (async () => {
+          const response = await fetch(`${apiBase}/productos?${new URLSearchParams({ ...rendered, categoria: category, detalle: 'base', periodoBase: month, ...(apiBase.includes('/gerencia/') ? { vendedorId: row.usuarioId } : {}) })}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}`, Accept: 'application/json' },
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el detalle mensual.');
+          return data;
+        })();
+        baseMonthCache.set(key, pending);
+        pending.catch(() => { if (baseMonthCache.get(key) === pending) baseMonthCache.delete(key); });
+      }
+      const data = await pending;
+      if (requestId !== baseMonthSequence || productBaseData !== context) return;
+      const headers = ['Fecha', 'Tipo', 'Folio', 'Cliente', 'Cód. vendedor', 'Código producto', 'Producto / descripción', 'Cantidad', 'Tipo de atribución', '% atribuido', 'Categoría original', 'Categoría concurso', 'Venta original', 'Venta atribuida'];
+      $('cdmBaseMesHead').innerHTML = `<tr>${headers.map(label => `<th scope="col">${label}</th>`).join('')}</tr>`;
+      $('cdmBaseMesBody').innerHTML = (data.documentos || []).map(doc => `<tr><td>${esc(doc.fecha)}</td><td>${esc(doc.tipo)}</td><td>${esc(doc.folio)}</td><td>${esc(doc.cliente)}</td><td>${esc(doc.codigoVendedor)}</td><td>${esc(doc.codigoProducto)}</td><td>${esc(doc.producto)}</td><td class="numero">${Number(doc.cantidad || 0).toLocaleString('es-CL')}</td><td>${(doc.tipoAtribucion || []).map(label => `<span class="concurso-tipo">${esc(label)}</span>`).join(' ')}</td><td class="numero">${Number(doc.porcentaje || 0).toLocaleString('es-CL', { maximumFractionDigits: 6 })} %</td><td>${esc(doc.categoriaOriginal)}</td><td>${esc(doc.categoriaConcurso)}</td><td class="numero">${money(doc.original)}</td><td class="numero">${money(doc.atribuida)}</td></tr>`).join('') || '<tr><td colspan="14" class="gerencia-empty">No hay productos para este mes y categoría.</td></tr>';
+      const total = (data.documentos || []).reduce((sum, doc) => sum + Number(doc.atribuida || 0), 0);
+      $('cdmBaseMesTotales').textContent = `TOTAL VENTA ATRIBUIDA: ${money(total)} · IMPORTE BASE DEL MES: ${money(data.importeOficial)}`;
+      $('cdmBaseMesEstado').textContent = Math.abs(total - Number(data.importeOficial)) < 0.005
+        ? 'Los documentos de la fuente actual coinciden con el importe oficial de este mes.'
+        : 'La fuente actual difiere del importe utilizado en la base oficial. La base del concurso permanece sin cambios.';
+      $('cdmBaseMesDetalle').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (error) { if (requestId === baseMonthSequence && productBaseData === context) $('cdmBaseMesEstado').textContent = error.message; }
+    finally {
+      if (button) button.disabled = false;
+      if (requestId === baseMonthSequence) $('cdmBaseMesDetalle').setAttribute('aria-busy', 'false');
     }
   }
 
@@ -300,6 +359,7 @@
 
   function openFromRow(options) {
     ensureModal();
+    productSequence += 1; baseMonthCache.clear();
     row = options.row;
     rendered = options.rendered;
     activeView = options.activeView || 'mes';
