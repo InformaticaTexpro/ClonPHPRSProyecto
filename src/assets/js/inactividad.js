@@ -1,54 +1,39 @@
 'use strict';
 
 /**
- * inactividad.js — RSProyecto Texpro v2.3.0
- *
- * Módulo reutilizable de alerta por inactividad.
- * Incluido automáticamente en todos los módulos del sistema.
- *
- * Comportamiento:
- *   1. Detecta actividad (mousemove, keydown, click, scroll, touchstart).
- *   2. Tras IDLE_MS sin actividad muestra un modal de advertencia con countdown.
- *   3. El usuario puede hacer clic en «Continuar» para extender la sesión.
- *   4. Si el countdown llega a 0 cierra sesión automáticamente.
- *
- * Configuración opcional (antes de cargar este script):
- *   window.TEXPRO_IDLE_MS   = 15 * 60 * 1000;  // tiempo inactividad (default 15 min)
- *   window.TEXPRO_WARN_SEC  = 60;               // segundos de countdown (default 60)
- *   window.TEXPRO_LOGIN_URL = '...';            // override ruta login (recomendado definirlo por página)
+ * Gestor central de expiración absoluta de sesión. No observa inactividad.
+ * Los plazos vienen del JWT firmado por PHP; el cliente solo programa la interfaz.
  */
-
 (function () {
+  if (window.TexproSession || !localStorage.getItem('token')) return;
+  const LOGIN_URL = window.TEXPRO_LOGIN_URL || window.location.origin + '/src/modulo/varios/login/index.php';
+  const rawFetch = window.fetch.bind(window);
+  const halted = new Promise(() => {}); // Una sesión terminada no entrega errores funcionales a los módulos.
+  const inertStates = new Map();
+  let timer = null, ended = false, modalVisible = false, refreshing = null, previousFocus = null;
 
-  // ── Configuración ─────────────────────────────────────────────────────────
-  const IDLE_MS   = window.TEXPRO_IDLE_MS   || 15 * 60 * 1000;
-  const WARN_SEC  = window.TEXPRO_WARN_SEC  || 60;
-  const LOGIN_URL = window.TEXPRO_LOGIN_URL || _detectarLoginUrl();
-
-  function _detectarLoginUrl() {
-    // Estrategia: usar origin + ruta absoluta conocida del login.
-    // Evita cálculos relativos frágiles basados en profundidad del path.
-    return window.location.origin + '/src/modulo/varios/login/index.php';
+  function readSession(token) {
+    try {
+      const body = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const claims = JSON.parse(atob(body.padEnd(Math.ceil(body.length / 4) * 4, '=')));
+      if (!Number.isFinite(claims.exp)) return null;
+      // Compatibilidad con JWT anteriores: solo su último minuto; nunca se alarga su exp.
+      const warningAt = Number.isFinite(claims.session_warning_at) ? claims.session_warning_at : claims.exp - 60;
+      if (warningAt > claims.exp) return null;
+      return { warningAt: warningAt * 1000, expiresAt: claims.exp * 1000 };
+    } catch { return null; }
   }
 
-  // Solo activar si hay token activo
-  if (!localStorage.getItem('token')) return;
-
-  // ── Estado ────────────────────────────────────────────────────────────────
-  let idleTimer     = null;
-  let countTimer    = null;
-  let countRestante = WARN_SEC;
-  let modalVisible  = false;
-
-  // ── Crear modal ───────────────────────────────────────────────────────────
   function crearModal() {
     if (document.getElementById('idleOverlay')) return;
 
     const overlay = document.createElement('div');
     overlay.id = 'idleOverlay';
     overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-hidden', 'true');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'idleTitle');
+    overlay.setAttribute('aria-describedby', 'idleDescription idleError');
     overlay.style.cssText = [
       'position:fixed', 'inset:0', 'z-index:99999',
       'display:flex', 'align-items:center', 'justify-content:center',
@@ -62,7 +47,7 @@
         'background:var(--color-surface,#fff);',
         'color:var(--color-text,#1a1a1a);',
         'border-radius:var(--radius-xl,16px);',
-        'padding:2rem 2.5rem;',
+        'padding:clamp(1rem,4vw,2rem);max-height:90vh;overflow-y:auto;box-sizing:border-box;',
         'max-width:420px;width:90%;',
         'box-shadow:0 24px 64px rgba(0,0,0,0.28);',
         'text-align:center;',
@@ -80,10 +65,10 @@
       '</div>',
 
       '<h2 id="idleTitle" style="font-size:1.2rem;font-weight:700;margin-bottom:.5rem;font-family:var(--font-display,inherit)">',
-        'Sesión por expirar',
+        'Tu sesión está por finalizar',
       '</h2>',
-      '<p style="font-size:.9rem;color:var(--color-text-muted,#666);margin-bottom:1.5rem;line-height:1.5">',
-        'Por inactividad, tu sesión se cerrará en',
+      '<p id="idleDescription" style="font-size:.9rem;color:var(--color-text-muted,#666);margin-bottom:1.5rem;line-height:1.5">',
+        'Por seguridad, tu sesión se cerrará automáticamente si no confirmas que deseas continuar.',
       '</p>',
 
       '<div style="position:relative;display:inline-flex;align-items:center;justify-content:center;margin-bottom:1.5rem">',
@@ -100,13 +85,13 @@
           'position:absolute;font-size:1.6rem;font-weight:800;',
           'font-family:var(--font-display,inherit);',
           'color:var(--color-primary,#01696f);letter-spacing:-.02em">',
-          WARN_SEC,
+          0,
         '</span>',
       '</div>',
 
       '<p style="font-size:.78rem;color:var(--color-text-faint,#aaa);margin-bottom:1.75rem">segundos</p>',
 
-      '<div style="display:flex;gap:.75rem;justify-content:center">',
+      '<p id="idleError" role="status" style="font-size:.85rem;color:#a53b31"></p><div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">',
         '<button id="idleBtnContinuar" style="',
           'padding:.6rem 1.5rem;background:var(--color-primary,#01696f);color:#fff;',
           'border:none;border-radius:var(--radius-md,8px);font-weight:600;',
@@ -127,107 +112,145 @@
     ].join('');
 
     document.body.appendChild(overlay);
-    document.getElementById('idleBtnContinuar').addEventListener('click', extenderSesion);
-    document.getElementById('idleBtnSalir').addEventListener('click', cerrarSesion);
+    document.getElementById('idleBtnContinuar').addEventListener('click', refresh);
+    document.getElementById('idleBtnSalir').addEventListener('click', () => logout('closed'));
   }
 
-  // ── Mostrar / ocultar ─────────────────────────────────────────────────────
-  function mostrarModal() {
-    modalVisible = true;
+
+  function showWarning() {
+    crearModal();
     const overlay = document.getElementById('idleOverlay');
-    const card    = document.getElementById('idleCard');
-    if (!overlay) return;
-    overlay.style.pointerEvents = 'all';
-    overlay.offsetHeight;
-    overlay.style.opacity = '1';
-    if (card) card.style.transform = 'translateY(0)';
-    setTimeout(function () {
-      var btn = document.getElementById('idleBtnContinuar');
-      if (btn) btn.focus();
-    }, 260);
-  }
-
-  function ocultarModal() {
-    modalVisible = false;
-    var overlay = document.getElementById('idleOverlay');
-    var card    = document.getElementById('idleCard');
-    if (!overlay) return;
-    overlay.style.opacity = '0';
-    if (card) card.style.transform = 'translateY(12px)';
-    setTimeout(function () { overlay.style.pointerEvents = 'none'; }, 260);
-  }
-
-  // ── Countdown ─────────────────────────────────────────────────────────────
-  var CIRCUNFERENCIA = 2 * Math.PI * 34; // ≈ 213.6
-
-  function iniciarCountdown() {
-    countRestante = WARN_SEC;
-    actualizarUI();
-    clearInterval(countTimer);
-    countTimer = setInterval(function () {
-      countRestante--;
-      actualizarUI();
-      if (countRestante <= 0) {
-        clearInterval(countTimer);
-        cerrarSesion();
-      }
-    }, 1000);
-  }
-
-  function actualizarUI() {
-    var numEl = document.getElementById('idleCount');
-    var arcEl = document.getElementById('idleRingArc');
-    if (numEl) numEl.textContent = countRestante;
-    if (arcEl) {
-      var progreso   = countRestante / WARN_SEC;
-      var dashOffset = CIRCUNFERENCIA * (1 - progreso);
-      arcEl.style.strokeDashoffset = dashOffset;
-      var color;
-      if (countRestante > WARN_SEC * 0.5) {
-        color = 'var(--color-primary,#01696f)';
-      } else if (countRestante > WARN_SEC * 0.2) {
-        color = 'var(--color-warning,#e67e22)';
-      } else {
-        color = 'var(--color-error,#c0392b)';
-      }
-      arcEl.style.stroke = color;
-      if (numEl) numEl.style.color = color;
+    if (!modalVisible) {
+      previousFocus = document.activeElement;
+      for (const child of document.body.children) if (child !== overlay) { inertStates.set(child, child.inert); child.inert = true; }
+      modalVisible = true;
+      document.getElementById('idleBtnContinuar').focus();
     }
+    overlay.setAttribute('aria-hidden', 'false'); overlay.style.pointerEvents = 'all'; overlay.style.opacity = '1';
+    document.getElementById('idleCard').style.transform = 'translateY(0)';
   }
-
-  // ── Acciones ──────────────────────────────────────────────────────────────
-  function extenderSesion() {
-    clearInterval(countTimer);
-    ocultarModal();
-    resetIdle();
+  function hideWarning() {
+    if (!modalVisible) return;
+    const overlay = document.getElementById('idleOverlay');
+    overlay.setAttribute('aria-hidden', 'true'); overlay.style.pointerEvents = 'none'; overlay.style.opacity = '0';
+    for (const [child, inert] of inertStates) child.inert = inert;
+    inertStates.clear(); modalVisible = false; previousFocus?.focus?.();
   }
-
-  function cerrarSesion() {
-    clearInterval(countTimer);
-    clearTimeout(idleTimer);
-    localStorage.removeItem('token');
+  function reschedule() {
+    clearTimeout(timer);
+    if (ended) return false;
+    const token = localStorage.getItem('token'), session = readSession(token || '');
+    if (!token || !session) { logout('expired'); return false; }
+    const now = Date.now(), remaining = session.expiresAt - now;
+    if (remaining <= 0 && !refreshing) { logout('expired'); return false; }
+    if (now >= session.warningAt) {
+      showWarning();
+      document.getElementById('idleCount').textContent = String(Math.max(0, Math.ceil(remaining / 1000)));
+      const ratio = Math.max(0, Math.min(1, remaining / (session.expiresAt - session.warningAt || 1)));
+      document.getElementById('idleRingArc').style.strokeDashoffset = 213.6 * (1 - ratio);
+      timer = setTimeout(reschedule, Math.max(1, Math.min(1000, remaining > 0 ? remaining : 1000)));
+    } else {
+      hideWarning();
+      // 30 días exceden el máximo de setTimeout de varios navegadores.
+      timer = setTimeout(reschedule, Math.min(session.warningAt - now, 2147483647));
+    }
+    return remaining > 0;
+  }
+  function logout(reason = 'expired', notifyServer = true) {
+    if (ended) return;
+    ended = true; clearTimeout(timer); showWarning();
+    document.getElementById('idleTitle').textContent = 'Sesión finalizada';
+    document.getElementById('idleDescription').textContent = 'Tu sesión finalizó por seguridad. Vuelve a ingresar tus credenciales.';
+    document.getElementById('idleCount').textContent = '0'; document.getElementById('idleError').textContent = '';
+    document.getElementById('idleBtnContinuar').disabled = true; document.getElementById('idleBtnSalir').disabled = true;
+    for (const key of ['token', 'user', 'usuario']) localStorage.removeItem(key);
     sessionStorage.removeItem('texpro_user');
-    window.location.href = LOGIN_URL;
+    const url = new URL(LOGIN_URL, window.location.href);
+    url.searchParams.set('session', reason === 'closed' ? 'closed' : 'expired'); url.searchParams.set('logout', '1');
+    let redirected = false;
+    const redirect = () => { if (!redirected) { redirected = true; window.location.replace(url.href); } };
+    // El GET de login también limpia la cookie si la red impide completar este POST.
+    if (notifyServer) {
+      rawFetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', keepalive: true }).catch(() => {}).finally(redirect);
+      setTimeout(redirect, 1200);
+    } else redirect();
+  }
+  function handleUnauthorized() { logout('expired'); return halted; }
+  function refresh() {
+    if (refreshing) return refreshing;
+    if (ended) return halted;
+    const token = localStorage.getItem('token'), session = readSession(token || '');
+    if (!session || Date.now() >= session.expiresAt) return handleUnauthorized();
+    refreshing = (async () => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 10000);
+      crearModal(); document.getElementById('idleBtnContinuar').disabled = true; document.getElementById('idleError').textContent = '';
+      try {
+        const response = await rawFetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin', signal: controller.signal,
+          headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+        if (response.status === 401) { logout('expired'); return false; }
+        const data = await response.json();
+        if (!response.ok || !data.ok || !readSession(data.token || '')) throw new Error('No fue posible renovar.');
+        if (ended) { rawFetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', keepalive: true }).catch(() => {}); return false; }
+        // Otra pestaña puede haber renovado mientras esta petición estaba en tránsito.
+        if (localStorage.getItem('token') !== token) return true;
+        localStorage.setItem('token', data.token);
+        if (data.user) {
+          const user = JSON.stringify(data.user);
+          localStorage.setItem('user', user); localStorage.setItem('usuario', user); sessionStorage.setItem('texpro_user', user);
+        }
+        return true;
+      } catch {
+        document.getElementById('idleError').textContent = 'No fue posible renovar la sesión. Inténtalo antes de que termine el plazo.';
+        return false;
+      } finally {
+        clearTimeout(timeout); refreshing = null;
+        if (!ended) { document.getElementById('idleBtnContinuar').disabled = false; reschedule(); }
+      }
+    })();
+    return refreshing;
   }
 
-  // ── Reset timer ───────────────────────────────────────────────────────────
-  function resetIdle() {
-    if (modalVisible) return;
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(function () {
-      crearModal();
-      mostrarModal();
-      iniciarCountdown();
-    }, IDLE_MS);
-  }
-
-  // ── Listeners de actividad ────────────────────────────────────────────────
-  ['mousemove','mousedown','keydown','scroll','touchstart','wheel'].forEach(function (ev) {
-    window.addEventListener(ev, resetIdle, { passive: true });
+  window.TexproSession = { refresh, logout, handleUnauthorized, reschedule, isEnded: () => ended };
+  window.fetch = async function (input, init = {}) {
+    const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, window.location.href);
+    const isApi = url.origin === window.location.origin && url.pathname.startsWith('/api/');
+    if (!isApi || /^\/api\/auth\/(login|recuperar|verificar-otp|nueva-password|logout)$/.test(url.pathname)) return rawFetch(input, init);
+    reschedule();
+    if (ended) return halted;
+    const current = readSession(localStorage.getItem('token') || '');
+    if (refreshing && current && Date.now() >= current.expiresAt) await refreshing;
+    if (ended) return halted;
+    const headers = new Headers(init.headers || input.headers || {});
+    // También actualiza módulos que capturaron un JWT anterior en una variable.
+    if (/^Bearer\s/i.test(headers.get('Authorization') || '')) headers.set('Authorization', 'Bearer ' + (localStorage.getItem('token') || ''));
+    const response = await rawFetch(input, { ...init, headers });
+    if (ended) return halted;
+    if (response.status === 401) return handleUnauthorized();
+    return response;
+  };
+  document.addEventListener('visibilitychange', reschedule);
+  window.addEventListener('pageshow', reschedule);
+  window.addEventListener('focus', reschedule);
+  window.addEventListener('storage', event => {
+    if (event.key === 'token' || event.key === null) {
+      if (!localStorage.getItem('token')) logout('expired', false);
+      else reschedule();
+    }
   });
-
-  // ── Arranque ──────────────────────────────────────────────────────────────
-  crearModal();
-  resetIdle();
-
+  document.addEventListener('click', event => {
+    if (event.target.closest?.('#btnLogout')) { event.preventDefault(); event.stopImmediatePropagation(); logout('closed'); }
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (!modalVisible) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); }
+    if (event.key === 'Tab') {
+      const buttons = ['idleBtnContinuar', 'idleBtnSalir'].map(id => document.getElementById(id)).filter(button => !button.disabled);
+      if (!buttons.length) { event.preventDefault(); return; }
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  }, true);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', reschedule, { once: true });
+  else reschedule();
 })();

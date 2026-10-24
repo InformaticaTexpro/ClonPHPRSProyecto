@@ -146,13 +146,40 @@ final class Security
         return ['mes' => $mes, 'anio' => $anio];
     }
 
-    public static function jwt_encode(array $payload, string $secret, mixed $expiresIn = '8h'): string
+    public static function sessionPolicyForProfiles(array $profiles): array
+    {
+        $management = false;
+        foreach ($profiles as $profile) {
+            if (isset($profile['activo']) && !$profile['activo']) continue;
+            $code = trim((string)($profile['codigo'] ?? ''));
+            $label = $code !== '' ? $code : (string)($profile['nombre'] ?? '');
+            $normalized = strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label) ?: $label);
+            if (preg_replace('/[^a-z0-9]/', '', $normalized) === 'gerencia') $management = true;
+        }
+        $active = $management ? 30 * 24 * 60 * 60 : 9 * 60 * 60;
+        // Solo desarrollo local: permite probar el aviso sin esperar horas. No se activa por defecto.
+        $testSeconds = env('SESSION_TEST_ACTIVE_SECONDS', '');
+        if (env('APP_ENV', '') === 'local' && ctype_digit((string)$testSeconds) && (int)$testSeconds >= 1 && (int)$testSeconds <= 3600) $active = (int)$testSeconds;
+        return ['name' => $management ? 'gerencia' : 'general', 'activeSeconds' => $active, 'warningSeconds' => 60];
+    }
+
+    public static function jwt_encode_session(array $payload, string $secret): string
+    {
+        $policy = self::sessionPolicyForProfiles($payload['perfiles'] ?? []);
+        $issuedAt = time();
+        $payload = array_merge($payload, ['session_policy' => $policy['name'],
+            'session_warning_at' => $issuedAt + $policy['activeSeconds'], 'session_warning_seconds' => $policy['warningSeconds'],
+            'jti' => bin2hex(random_bytes(16))]);
+        return self::jwt_encode($payload, $secret, $policy['activeSeconds'] + $policy['warningSeconds'], $issuedAt);
+    }
+
+    public static function jwt_encode(array $payload, string $secret, mixed $expiresIn = '8h', ?int $issuedAt = null): string
     {
         if ($secret === '') {
             throw new RuntimeException('JWT_SECRET no está definido en .env', 500);
         }
 
-        $issuedAt = time();
+        $issuedAt ??= time();
         $ttl = self::duration_to_seconds($expiresIn);
 
         $payload = array_merge($payload, [

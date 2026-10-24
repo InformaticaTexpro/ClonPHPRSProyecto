@@ -661,6 +661,7 @@
   }
 
   function cerrarSesion() {
+    if (window.TexproSession) { window.TexproSession.logout('closed'); return; }
     try {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -3012,6 +3013,7 @@
       const res = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401 && window.TexproSession) return window.TexproSession.handleUnauthorized();
 
       const contentType = String(res.headers.get('content-type') || '').toLowerCase();
       const raw = await res.text().catch(() => '');

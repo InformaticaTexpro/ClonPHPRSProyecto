@@ -196,8 +196,9 @@ function require_current_user(): array
 function set_auth_cookie(string $token): void
 {
     $secure = str_starts_with((string)env('FRONTEND_URL', ''), 'https://');
+    $claims = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
     setcookie('texpro_token', $token, [
-        'expires' => 0,
+        'expires' => (int)$claims['exp'],
         'path' => '/',
         'secure' => $secure,
         'httponly' => true,

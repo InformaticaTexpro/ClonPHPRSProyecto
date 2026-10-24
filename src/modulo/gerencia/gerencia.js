@@ -134,6 +134,8 @@
       },
     });
 
+    if (response.status === 401 && window.TexproSession) return window.TexproSession.handleUnauthorized();
+
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) {
       throw new Error(data.error || `Error HTTP ${response.status}`);

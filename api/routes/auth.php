@@ -27,13 +27,14 @@ return static function (
     }
 
     if ($method === 'POST' && $path === '/logout') {
-        require_bearer_token();
         clear_auth_cookie();
         json_response(['ok' => true, 'message' => 'Sesion cerrada']);
     }
 
     if ($method === 'POST' && $path === '/refresh') {
-        json_response($authService->refresh(require_bearer_token()));
+        $response = $authService->refresh(require_bearer_token());
+        set_auth_cookie((string)$response['token']);
+        json_response($response);
     }
 
     if ($method === 'POST' && $path === '/recuperar') {

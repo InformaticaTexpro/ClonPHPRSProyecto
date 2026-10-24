@@ -74,9 +74,14 @@ $authService = new AuthService(new Database());
 $error = '';
 $usuarioValue = '';
 $logoutRequested = isset($_GET['logout']);
+$sessionNotice = match ($_GET['session'] ?? '') {
+    'expired' => 'Tu sesión finalizó por seguridad. Vuelve a ingresar tus credenciales.',
+    'closed' => 'Has cerrado tu sesión. Ingresa tus credenciales para continuar.',
+    default => '',
+};
 $loginResponse = null;
 
-if ($logoutRequested) {
+if ($logoutRequested || $sessionNotice !== '') {
     clear_auth_cookie();
 }
 
@@ -147,6 +152,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <p class="login-subtitle">Ingresa tus credenciales para acceder al sistema</p>
         </div>
 
+        <?php if ($sessionNotice !== ''): ?>
+          <div class="alert-error" role="status" style="display:flex;"><span><?= h($sessionNotice) ?></span></div>
+        <?php endif; ?>
+        <?php if ($logoutRequested || $sessionNotice !== ''): ?>
+          <script>
+            for (const key of ['token', 'user', 'usuario']) localStorage.removeItem(key);
+            sessionStorage.removeItem('texpro_user');
+          </script>
+        <?php endif; ?>
         <?php if ($error !== ''): ?>
           <div class="alert-error" style="display:flex;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>

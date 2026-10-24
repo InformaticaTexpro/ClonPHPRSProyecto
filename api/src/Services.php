@@ -36,7 +36,7 @@ final class AuthService
         $vendedores = $this->load_vendedores((int)$user['id']);
         $menusData = $this->load_user_menus((int)$user['id']);
         $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
-        $token = Security::jwt_encode($payload, (string)env('JWT_SECRET', ''), env('JWT_EXPIRES_IN', '8h'));
+        $token = Security::jwt_encode_session($payload, (string)env('JWT_SECRET', ''));
 
         return [
             'ok' => true,
@@ -109,13 +109,8 @@ final class AuthService
 
     public function refresh(string $token): array
     {
-        $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''), true);
-        $now = time();
-        $exp = (int)($decoded['exp'] ?? 0);
-        $window = 24 * 3600;
-        if ($exp > 0 && ($now - $exp) > $window) {
-            throw new RuntimeException('Token demasiado antiguo para renovar. Inicia sesión nuevamente.', 401);
-        }
+        $decoded = Security::jwt_decode($token, (string)env('JWT_SECRET', ''));
+        if (!isset($decoded['exp']) || !is_int($decoded['exp']) || $decoded['exp'] <= time()) throw new RuntimeException('Sesión finalizada. Inicia sesión nuevamente.', 401);
 
         $userId = (int)($decoded['sub'] ?? $decoded['id'] ?? 0);
         if ($userId <= 0) {
@@ -135,9 +130,12 @@ final class AuthService
         $menusData = $this->load_user_menus($userId);
         $payload = $this->build_payload($user, $vendedores, $menusData['perfiles'], $menusData['menus'], $menusData['menusDirectos'] ?? []);
 
+        if ($decoded['exp'] <= time()) throw new RuntimeException('Sesión finalizada. Inicia sesión nuevamente.', 401);
+
         return [
             'ok' => true,
-            'token' => Security::jwt_encode($payload, (string)env('JWT_SECRET', ''), env('JWT_EXPIRES_IN', '8h')),
+            'token' => Security::jwt_encode_session($payload, (string)env('JWT_SECRET', '')),
+            'user' => $payload,
             'allMenus' => $menusData['allMenus'],
         ];
     }
