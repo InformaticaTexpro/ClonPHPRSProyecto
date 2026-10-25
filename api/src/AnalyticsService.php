@@ -463,7 +463,8 @@ final class AnalyticsService
                 if (!isset($qualificationDocs[$id][$client][$documentKey])) {
                     // El minimo usa la venta original compartida; la atribucion no cambia.
                     $entry['ventaCalificadora'] += $shares ? (float)$doc['original'] : $amount;
-                    $qualificationDocs[$id][$client][$documentKey] = true;
+                    // La presencia evita duplicados; el valor acredita participación positiva compartida.
+                    $qualificationDocs[$id][$client][$documentKey] = $purchase && $factor > 0 && !empty($shares);
                 }
                 $entry['cantidadFolios']++;
                 $entry['pointWeight'] += max(0.0, $factor);
@@ -485,8 +486,8 @@ final class AnalyticsService
             $firstRut = $firstsByRut[$client] ?? null;
             if (!$firstRut || $firstRut['FechaPrimeraRut'] < $desde || $firstRut['FechaPrimeraRut'] >= $hasta) continue;
             $identity = $firstRut['Identidad'];
-            if (!isset($newAssignments[$id][$identity],
-                $qualificationDocs[$id][$firstRut['CodAuxPrimero']]['F|' . $firstRut['NroInt']])) continue;
+            $firstSharedParticipation = $qualificationDocs[$id][$firstRut['CodAuxPrimero']]['F|' . $firstRut['NroInt']] ?? null;
+            if ($firstSharedParticipation === null || (!isset($newAssignments[$id][$identity]) && !$firstSharedParticipation)) continue;
             if (!isset($newMonthly[$id][$identity])) {
                 $newMonthly[$id][$identity] = $entry + ['clienteCodigo' => (string)$firstRut['CodAuxPrimero'], 'newIdentity' => $identity];
             } else {

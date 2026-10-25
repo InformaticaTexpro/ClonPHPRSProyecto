@@ -10,6 +10,8 @@ final class GerenciaService
     use SharedServiceHelpers;
 
     private ?array $vendorRelations = null;
+    // Excepción de trazabilidad: Olga tiene una base manual. Identidad persistente, sin cambiar el JSON oficial.
+    private const BASES_MANUALES_CONCURSO = [49 => '8479'];
 
     public function __construct(private Database $db, private AnalyticsService $analytics)
     {
@@ -438,8 +440,10 @@ final class GerenciaService
                         if ($detail === 'venta') return ['ok' => true, 'documentos' => $product['documentos'], 'total' => $product['ventaMes']];
                         $months = [];
                         foreach ($product['baseMeses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => $sale];
-                        return ['ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($product['promedioBase']),
-                            'fuenteBase' => 'JSON', 'versionBase' => $saved['baseOficial']['version']];
+                        return $this->concursoBaseProductosRespuesta($id, $category, $query, [
+                            'ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($product['promedioBase']),
+                            'baseManual' => (self::BASES_MANUALES_CONCURSO[$id] ?? null) === ($vendor['codigoPrincipal'] ?? ''),
+                            'fuenteBase' => 'JSON', 'versionBase' => $saved['baseOficial']['version']]);
                     }
                 }
                 throw new RuntimeException('Vendedor no encontrado en el snapshot oficial.', 404);
@@ -454,12 +458,28 @@ final class GerenciaService
             if ($values === null) return ['ok' => true, 'meses' => [], 'fuenteBase' => 'JSON'];
             $months = [];
             foreach ($values['meses'] as $period => $sale) $months[] = ['periodo' => $period, 'venta' => (float)$sale];
-            return ['ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($values['promedioBase']),
-                'fuenteBase' => 'JSON', 'versionBase' => $base['version']];
+            return $this->concursoBaseProductosRespuesta($id, $category, $query, [
+                'ok' => true, 'meses' => $months, 'promedioBase' => self::concursoPromedioBaseNormalizado($values['promedioBase']),
+                'baseManual' => (self::BASES_MANUALES_CONCURSO[$id] ?? null) === ($vendorBase['codigoPrincipal'] ?? ''),
+                'fuenteBase' => 'JSON', 'versionBase' => $base['version']]);
         }
         $periodo = sprintf('2026-%02d', $mes);
         $result = (new ConcursoPromediosService($this->db, $this->analytics))->calcular($id, $category, $mes, $periodo, $periodo);
         return ['ok' => true, 'documentos' => $result['documentos'], 'total' => $result['total']];
+    }
+
+    private function concursoBaseProductosRespuesta(int $id, string $category, array $query, array $official): array
+    {
+        if (!array_key_exists('periodoBase', $query)) return $official;
+        if ($official['baseManual']) throw new RuntimeException('Base definida manualmente: no dispone de un desglose automático de documentos.', 409);
+        $period = ConcursoPromediosService::periodo($query['periodoBase'], $query['periodoBase'])['periodo_desde'];
+        $months = array_column($official['meses'], 'venta', 'periodo');
+        if (!array_key_exists($period, $months)) throw new RuntimeException('Mes fuera del período de la base oficial.', 400);
+        // Misma fuente y atribución que Administración; los importes oficiales solo se leen.
+        $result = (new ConcursoPromediosService($this->db, $this->analytics))->calcular($id, $category, (int)substr($period, 5), $period, $period);
+        return ['ok' => true, 'periodo' => $period, 'baseManual' => false, 'documentos' => $result['documentos'],
+            'total' => $result['total'], 'importeOficial' => (float)$months[$period],
+            'coincide' => abs($result['total'] - (float)$months[$period]) < 0.005];
     }
 
     private function concursoDetalleClientes(array $query): array

@@ -233,6 +233,62 @@ foreach ([1, 2] as $user) {
     $tests[] = ["rut-nuevo-compartido-total", array_sum(array_column($result['resumen'], 'puntosNuevos')), 5];
 }
 
+// Primera factura compartida sin asignar artificialmente ambos vendedores en cwtauxven.
+// El tercero tiene propiedad comercial, pero ninguna participación en la primera factura.
+foreach ([
+    ['primera-compartida-origen-propietario', 470914, 50, 'C', ['630', '777']],
+    ['primera-compartida-receptor-propietario', 470914, 50, 'C', ['454', '777']],
+    ['primera-compartida-solo-factura', 470914, 50, 'C', ['777']],
+    ['primera-compartida-pesos-distintos', 470914, 60, 'C', ['630', '777']],
+    ['primera-compartida-bajo-minimo', 199999, 50, 'C', ['630', '777']],
+    ['primera-directa-con-propietario', 300000, null, 'P', ['630', '777']],
+    ['primera-directa-sin-propietario', 300000, null, 'P', ['777']],
+] as [$case, $original, $percentage, $originType, $assignedCodes]) {
+    $relations = [
+        ['usuarioId' => 1, 'codigoAsociado' => '630', 'tipo' => $originType],
+        ['usuarioId' => 2, 'codigoAsociado' => '454', 'tipo' => 'P'],
+        ['usuarioId' => 3, 'codigoAsociado' => '777', 'tipo' => 'P'],
+    ];
+    $doc = ['clienteCodigo' => 'AR', 'codigoVendedor' => '630', 'NroInt' => 381156,
+        'tipo' => 'F', 'folio' => 381156, 'fecha' => '2026-10-05', 'original' => $original];
+    $shares = $percentage === null ? [] : [['folio' => 381156, 'fecha' => '2026-10-05',
+        'porcentaje' => $percentage, 'origen' => '630', 'destino' => '454']];
+    $expectedUsers = $percentage !== null ? [1, 2] : (in_array('630', $assignedCodes, true) ? [1] : []);
+    $qualifies = $original >= 200000;
+    $originFactor = $originType === 'C' ? .5 : 1.0;
+    $weights = $percentage === null ? $originFactor : $originFactor + $percentage / 100;
+    foreach ([null, 1, 2, 3] as $user) {
+        $pdo = new ConcursoClientPDO([
+            [['clienteCodigo' => 'AR', 'cliente' => 'A & R SPA', 'primera' => '2026-10-05', 'ultimaPrevia' => null]],
+            [['CodAux' => 'AR', 'Identidad' => 'RUT:76123456K', 'FechaPrimeraRut' => '2026-10-05',
+                'CodAuxPrimero' => 'AR', 'Vendedor' => '630', 'NroInt' => 381156, 'Folio' => 381156]],
+            array_map(static fn(string $code): array => ['clienteCodigo' => 'AR', 'vendedor' => $code], $assignedCodes),
+            [$doc],
+        ]);
+        $result = (new AnalyticsService(new Database($pdo, $shares)))->concursoClientes($relations, 10, $user, null, true, $user === null);
+        $rows = array_values(array_filter($result['clientes'], static fn(array $row): bool => $row['categoria'] === 'nuevos'));
+        $visible = $user === null ? $expectedUsers : array_values(array_intersect($expectedUsers, [$user]));
+        $scope = $user ?? 'todos';
+        $tests[] = ["$case-$scope-participantes", implode(',', array_column($rows, 'usuarioId')), implode(',', $visible)];
+        $tests[] = ["$case-$scope-tercero-sin-puntos", $result['resumen'][3]['puntosNuevos'], 0];
+        $tests[] = ["$case-$scope-total-puntos", array_sum(array_column($result['resumen'], 'puntosNuevos')), $qualifies && $expectedUsers ? 5 : 0];
+        foreach ($visible as $id) {
+            $row = array_values(array_filter($rows, static fn(array $r): bool => $r['usuarioId'] === $id))[0] ?? [];
+            $factor = $id === 1 ? $originFactor : $percentage / 100;
+            $points = $qualifies ? 5 * $factor / $weights : 0;
+            $tests[] = ["$case-$scope-$id-venta", $row['ventaMes'] ?? -1, $original * $factor];
+            $tests[] = ["$case-$scope-$id-califica", $row['califica'] ?? null, $qualifies];
+            $tests[] = ["$case-$scope-$id-puntos", $row['puntos'] ?? -1, $points];
+            if ($user !== null) {
+                $folio = $row['folios'][0] ?? [];
+                $tests[] = ["$case-$scope-$id-original", $folio['original'] ?? -1, $original];
+                $tests[] = ["$case-$scope-$id-porcentaje", $folio['porcentaje'] ?? -1, $factor * 100];
+                $tests[] = ["$case-$scope-$id-atribuida", $folio['atribuida'] ?? -1, $original * $factor];
+            }
+        }
+    }
+}
+
 // Detalle acotado a un RUT: propios + compartidas recibidas; ajenos y atribucion cero fuera.
 foreach ([false, true] as $sharedOrigin) {
     $relations = [

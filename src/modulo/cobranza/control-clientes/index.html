@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.1.0" />
-  <link rel="stylesheet" href="./control-clientes.css?v=1.4.0" />
+  <link rel="stylesheet" href="./control-clientes.css?v=1.4.1" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -36,7 +36,7 @@
     <main class="main-content control-module" id="controlModule" aria-busy="true">
       <div class="control-loading" id="controlLoading" role="status" aria-live="polite"><div class="control-loading-box"><span class="control-spinner" aria-hidden="true"></span><span id="controlLoadingText">Cargando control de clientes...</span></div></div>
       <div id="controlContent" inert>
-      <section class="collection-heading"><div><span class="collection-eyebrow">COBRANZA · EMPRESA</span><h2>Control de Clientes</h2><p>Captación, recuperación y participación comercial en un solo lugar.</p></div><span class="collection-badge">Datos de la empresa</span></section>
+      <section class="collection-heading"><div><span class="collection-eyebrow">COBRANZA · EMPRESA</span><div class="client-heading-title"><h2>Control de Clientes</h2><button type="button" class="client-button client-button--light client-criteria-trigger" id="openCriteria" aria-haspopup="dialog" aria-controls="criteriaDialog"><span aria-hidden="true">ⓘ</span> Criterios de cálculo</button></div><p>Captación, recuperación y participación comercial en un solo lugar.</p></div><span class="collection-badge">Datos de la empresa</span></section>
       <form id="clientFilters" class="collection-panel client-filters">
         <label>Desde<input type="date" id="fromDate" name="desde" required min="2000-01-01" /></label>
         <label>Hasta<input type="date" id="toDate" name="hasta" required min="2000-01-01" /></label>
@@ -64,11 +64,16 @@
       </section>
       <dialog id="foliosDialog" class="client-dialog" aria-labelledby="foliosTitle"><div class="collection-panel-title"><div><span class="collection-eyebrow">DETALLE DEL EVENTO</span><h3 id="foliosTitle">Folios</h3><p id="foliosSubtitle"></p></div><button type="button" class="client-button client-button--light" id="closeFolios" aria-label="Cerrar detalle">Cerrar ×</button></div><div class="client-table-scroll"><table class="client-table"><thead><tr><th>Tipo</th><th>Folio</th><th>Fecha</th><th>Código / cliente</th><th>Vendedor origen</th><th>Venta original</th><th>Participante</th><th>Atribución</th><th>%</th><th>Venta atribuida</th></tr></thead><tbody id="foliosBody"></tbody></table></div><div id="foliosTotals" class="client-dialog-total"></div><div id="foliosContest" class="client-contest-detail"></div></dialog>
       </div>
+      <dialog id="criteriaDialog" class="client-dialog client-criteria-dialog" aria-labelledby="criteriaTitle" aria-describedby="criteriaVersion">
+        <div class="collection-panel-title"><div><h3 id="criteriaTitle"></h3><p id="criteriaVersion"></p></div><button type="button" class="client-button client-button--light client-criteria-close" id="closeCriteriaX" aria-label="Cerrar criterios de clasificación">×</button></div>
+        <div id="criteriaContent"></div>
+        <div class="client-criteria-footer"><button type="button" class="client-button client-button--light" id="closeCriteria">Cerrar</button></div>
+      </dialog>
     </main>
   </div>
   <script src="../../../assets/js/app-sidebar.js?v=1.2.2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="./control-clientes.js?v=1.4.0"></script>
+  <script src="./control-clientes.js?v=1.4.1"></script>
   <script src="../../../assets/js/inactividad.js?v=2.3.0"></script>
 </body>
 </html>

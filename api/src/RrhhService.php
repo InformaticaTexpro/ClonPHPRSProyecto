@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/VentaCompartidaAssignmentService.php';
+
 final class RrhhService
 {
     public function __construct(private Database $db)
@@ -12,6 +14,16 @@ final class RrhhService
         if (!(bool)($payload['is_admin'] ?? false) && $this->normalizeArea($payload['area'] ?? '') !== 'rrhh') {
             throw new RuntimeException('Solo RRHH o administradores', 403);
         }
+    }
+
+    private function assertControlCompartidas(array $payload): void
+    {
+        $this->parseId($payload['sub'] ?? $payload['id'] ?? null, 'Usuario');
+        if ((bool)($payload['is_admin'] ?? false)) return;
+        foreach (array_merge($payload['menus'] ?? [], $payload['menus_directos'] ?? []) as $menu) {
+            if (($menu['codigo'] ?? '') === 'rrhh_control_ventas_compartidas') return;
+        }
+        throw new RuntimeException('Sin acceso a Control de Compartidos.', 403);
     }
 
     private function normalizeText(mixed $value): string
@@ -853,7 +865,7 @@ final class RrhhService
 
     public function controlVentasCompartidas(array $payload, array $query): array
     {
-        $this->assertRrhh($payload);
+        $this->assertControlCompartidas($payload);
         [$desde, $hasta, $fin] = $this->rangoControlCompartidas($query);
         $estadoFiltro = strtoupper(trim((string)($query['estado'] ?? 'TODOS')));
         if (!in_array($estadoFiltro, ['TODOS', 'ASIGNADA', 'ASIGNADAS', 'NO ASIGNADA', 'NO ASIGNADAS'], true)) {
@@ -936,7 +948,7 @@ final class RrhhService
                 'estado' => $estado, 'porcentaje' => $porcentaje, 'montoAsignado' => $montoAsignado,
                 'montoNoAsignado' => $rows ? 0 : $venta,
                 'asignaciones' => $rows,
-            ];
+            ] + VentaCompartidaAssignmentService::restante($venta, $porcentaje, $montoAsignado);
         }
         $normalizarEstado = ['ASIGNADAS' => 'ASIGNADA', 'NO ASIGNADAS' => 'NO ASIGNADA'];
         $estadoFiltro = $normalizarEstado[$estadoFiltro] ?? $estadoFiltro;
@@ -963,7 +975,7 @@ final class RrhhService
 
     public function detalleControlVentasCompartidas(array $payload, array $query): array
     {
-        $this->assertRrhh($payload);
+        $this->assertControlCompartidas($payload);
         $folio = trim((string)($query['folio'] ?? ''));
         $codigo = trim((string)($query['codigo'] ?? ''));
         $tipo = strtoupper(trim((string)($query['tipo'] ?? '')));
@@ -1002,12 +1014,12 @@ final class RrhhService
         }
         unset($row);
         $asignaciones = $this->db->fetchAll(
-            "SELECT COALESCE(NULLIF(TRIM(nombre_vendedor_compartido), ''), TRIM(cod_vendedor_compartido)) AS vendedor,
+            "SELECT id, COALESCE(NULLIF(TRIM(nombre_vendedor_compartido), ''), TRIM(cod_vendedor_compartido)) AS vendedor,
                     TRIM(cod_vendedor_compartido) AS codigo, porcentaje, monto_asignado AS monto
              FROM factura_compartida WHERE rol = 'compartido' AND CAST(folio AS CHAR) = ?
                AND TRIM(cod_vendedor_principal) = ? AND DATE(fecha) = ? ORDER BY id ASC", [$folio, $codigo, $fecha]
         );
-        foreach ($asignaciones as &$row) { $row['porcentaje'] = (float)$row['porcentaje']; $row['monto'] = (float)$row['monto']; }
+        foreach ($asignaciones as &$row) { $row['id'] = (int)$row['id']; $row['porcentaje'] = (float)$row['porcentaje']; $row['monto'] = (float)$row['monto']; }
         unset($row);
         $total = array_sum(array_column($productos, 'total'));
         $porcentaje = array_sum(array_column($asignaciones, 'porcentaje'));
@@ -1016,7 +1028,25 @@ final class RrhhService
             'fecha' => $productos[0]['fecha'], 'cliente' => $productos[0]['cliente'],
             'codigoCompartido' => $codigo, 'vendedorCompartido' => $productos[0]['vendedorCompartido'], 'ventaTotal' => $total],
             'productos' => $productos, 'asignaciones' => $asignaciones,
-            'resumen' => ['porcentajeAsignado' => $porcentaje, 'montoAsignado' => $monto]];
+            'receptores' => (new VentaCompartidaAssignmentService($this->db))->receptores($payload),
+            'resumen' => ['porcentajeAsignado' => $porcentaje, 'montoAsignado' => $monto]
+                + VentaCompartidaAssignmentService::restante($total, $porcentaje, $monto)];
+    }
+
+    public function asignarControlCompartidas(array $payload, array $body): array
+    {
+        $this->assertControlCompartidas($payload);
+        $origin = Security::validate_cod_vendedor($body['codigo_origen'] ?? null);
+        $catalog = $this->catalogoControlCompartidas();
+        if (!in_array($origin, array_column($catalog['compartidos'], 'codigo'), true)) throw new RuntimeException('Origen compartido no válido.', 400);
+        return (new VentaCompartidaAssignmentService($this->db))->crear($payload, $body, [$origin],
+            ['tipo' => $body['tipo'] ?? '', 'fecha' => $body['fecha'] ?? ''], true);
+    }
+
+    public function modificarControlCompartidas(array $payload, int $id, array $body): array
+    {
+        $this->assertControlCompartidas($payload);
+        return (new VentaCompartidaAssignmentService($this->db))->actualizar($payload, $id, $body, [], true);
     }
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
@@ -1028,6 +1058,8 @@ final class RrhhService
         if ($method === 'GET' && $path === '/ventas-compartidas/revision') return $this->revisionVentasCompartidas($payload, $query);
         if ($method === 'GET' && $path === '/ventas-compartidas') return $this->controlVentasCompartidas($payload, $query);
         if ($method === 'GET' && $path === '/ventas-compartidas/detalle') return $this->detalleControlVentasCompartidas($payload, $query);
+        if ($method === 'POST' && $path === '/ventas-compartidas/asignar') return $this->asignarControlCompartidas($payload, $body);
+        if ($method === 'PUT' && preg_match('#^/ventas-compartidas/asignaciones/(\d+)$#', $path, $m)) return $this->modificarControlCompartidas($payload, (int)$m[1], $body);
         if ($method === 'PATCH' && preg_match('#^/reportes-compartidos/(\d+)/validar$#', $path, $m)) return $this->validarReporteCompartido($payload, (int)$m[1], $body);
         if ($method === 'PATCH' && preg_match('#^/reportes-compartidos/(\d+)/rechazar$#', $path, $m)) return $this->rechazarReporteCompartido($payload, (int)$m[1], $body);
         throw new RuntimeException('Ruta RRHH no encontrada', 404);
