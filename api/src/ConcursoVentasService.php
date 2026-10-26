@@ -40,10 +40,6 @@ final class ConcursoVentasService
             return ['ok' => true, 'activo' => false, 'visible' => false, 'modoValidacion' => false, 'puntos' => 0];
         }
 
-        if ($unavailable = $this->softlandUnavailable('el puntaje de concurso')) {
-            return $unavailable;
-        }
-
         if ($this->gerencia !== null) {
             $puntaje = $this->gerencia->concursoPuntajeUsuario($payload, ['anio' => (string)$anio, 'mes' => (string)$mes]);
             if ($puntaje !== null) {
@@ -55,6 +51,8 @@ final class ConcursoVentasService
                 ], $puntaje);
             }
         }
+
+        if ($unavailable = $this->softlandUnavailable('el puntaje de concurso')) return $unavailable;
 
         $vendorCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
         if (!$vendorCodes) {
@@ -77,7 +75,7 @@ final class ConcursoVentasService
     {
         $periodStart = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));
         $contestStart = new DateTimeImmutable((string)self::CONFIG['fechaInicio']);
-        return $periodStart >= $contestStart;
+        return $anio === 2026 && $mes <= 12 && $periodStart >= $contestStart;
     }
 
     public static function isValidationPeriod(int $anio, int $mes): bool

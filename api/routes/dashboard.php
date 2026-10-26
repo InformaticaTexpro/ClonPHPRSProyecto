@@ -67,6 +67,9 @@ return static function (
     if ($method === 'GET' && $path === '/concurso-detalle') {
         json_response($gerenciaService->concursoDetalleUsuario($payload, $query));
     }
+    if ($method === 'GET' && $path === '/concurso-detalle/mi-base/detalle') {
+        json_response($gerenciaService->concursoMiBaseDetalle($payload));
+    }
     if ($method === 'GET' && $path === '/concurso-detalle/clientes') {
         json_response($gerenciaService->concursoClientesUsuario($payload, $query));
     }

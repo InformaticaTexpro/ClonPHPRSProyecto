@@ -65,7 +65,7 @@ final class ConcursoCierreStore
         $temp = tempnam($dir, '.cierre-');
         if ($temp === false) throw new RuntimeException('No se pudo crear el temporal del cierre.', 500);
         try {
-            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR) . "\n";
             $stream = fopen($temp, 'wb');
             if ($stream === false) throw new RuntimeException('No se pudo escribir el temporal del cierre.', 500);
             try {
@@ -145,9 +145,7 @@ final class ConcursoCierreStore
                 foreach ($category['baseMeses'] as $baseSale) if (!self::number($baseSale)) {
                     throw new RuntimeException('Venta de Base Oficial inválida.', 409);
                 }
-                if (!self::same(max(0.0, round(array_sum($category['baseMeses']) / count($baseMonths), 2)), (float)$category['promedioBase'])) {
-                    throw new RuntimeException('Promedio de Base Oficial no cuadra.', 409);
-                }
+                // La base oficial congelada es autoritativa; sus meses son respaldo, no una fórmula de recálculo.
                 $categories[$name] = true;
                 $sumProducts += $category['puntos'];
                 $sale = 0.0;

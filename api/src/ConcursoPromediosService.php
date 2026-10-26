@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ConcursoBaseOficialStore.php';
 require_once __DIR__ . '/ConcursoCierreStore.php';
 require_once __DIR__ . '/ConcursoReglasMeta.php';
+require_once __DIR__ . '/ConcursoBaseOlgaDetalle.php';
 
 final class ConcursoPromediosService
 {
@@ -33,6 +34,7 @@ final class ConcursoPromediosService
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
         $id = $this->assertAccess($payload);
+        if ($method === 'GET' && $path === '/concurso-promedios/base-privada') return ConcursoBaseOlgaDetalle::consulta($query);
         if ($method === 'GET' && $path === '/concurso-promedios/estado') return ['ok' => true] + $this->estado();
         if ($method === 'GET' && $path === '/concurso-promedios/diagnostico') return $this->diagnostico();
         if ($method === 'GET' && $path === '/concurso-promedios/parametros') {

@@ -1472,7 +1472,7 @@
       ['Clientes nuevos', data?.puntosNuevos],
       ['Clientes recuperados', data?.puntosRecuperados],
       ['Productos / otras reglas', puntosProductos],
-      ['Total del mes', data?.puntosMes ?? data?.puntos],
+      [data?.resultadoRevisado ? 'Total del mes · Resultado revisado' : 'Total del mes', data?.puntosMes ?? data?.puntos],
     ];
 
     desglose.innerHTML = filas.map(([label, value]) => `
@@ -1482,12 +1482,12 @@
       </div>
     `).join('');
 
-    const meses = Array.isArray(data?.historialMensual) ? data.historialMensual : [];
+    const meses = Array.isArray(data?.historialMensual) ? data.historialMensual.filter(item => [10, 11, 12].includes(Number(item.mes))) : [];
     historial.innerHTML = meses.length
       ? meses.map(item => {
           const mes = Number(item.mes || 0);
           const nombreMes = MESES_NOMBRE[mes - 1] || `Mes ${mes || '-'}`;
-          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026</span><strong>${formatPoints(item.totalMes)} pts</strong></div>`;
+          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026${item.resultadoRevisado ? ' · Resultado revisado' : ''}</span><strong>${formatPoints(item.totalMes)} pts</strong></div>`;
         }).join('')
       : '<span class="kpi-concurso-empty">Sin historial mensual disponible.</span>';
   }
