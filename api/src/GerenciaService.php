@@ -19,10 +19,17 @@ final class GerenciaService
 
     public function route(array $payload, string $method, string $path, array $query, array $body): array
     {
-        if ($method === 'POST' && in_array($path, ['/comercial/concurso-ventas/cerrar', '/comercial/concurso-ventas/reabrir'], true)) {
+        if (in_array($path, ['/comercial/concurso-ventas/cerrar', '/comercial/concurso-ventas/reabrir',
+            '/comercial/concurso-ventas/revisar', '/comercial/concurso-ventas/revision-vendedores'], true)) {
             (new ConcursoPromediosService($this->db, $this->analytics))->assertAccess($payload);
         } else {
             $this->assertGerenciaOrAdmin($payload, $this->menuCodesForPath($method, $path));
+        }
+
+        if ($method === 'GET' && $path === '/comercial/concurso-ventas/productos'
+            && (int)($query['vendedorId'] ?? 0) === 49 && ($query['detalle'] ?? '') === 'base'
+            && $this->currentUserIdFromPayload($payload) !== 49) {
+            (new ConcursoPromediosService($this->db, $this->analytics))->assertAccess($payload);
         }
 
         return match (true) {
@@ -31,6 +38,8 @@ final class GerenciaService
             $method === 'GET' && $path === '/comercial/concurso-ventas/productos' => $this->concursoDetalleProductos($query),
             $method === 'POST' && $path === '/comercial/concurso-ventas/cerrar' => $this->concursoCerrar($payload, $body),
             $method === 'POST' && $path === '/comercial/concurso-ventas/reabrir' => $this->concursoReabrir($payload, $body),
+            $method === 'GET' && $path === '/comercial/concurso-ventas/revision-vendedores' => $this->concursoVendedoresRevision($query),
+            $method === 'POST' && $path === '/comercial/concurso-ventas/revisar' => $this->concursoRevisar($payload, $body),
             $method === 'GET' && $path === '/comercial/control-muestras' => $this->controlMuestras($query, false),
             $method === 'GET' && $path === '/comercial/control-muestras/vendedor-detalle' => $this->controlMuestras($query, true),
             $method === 'GET' && $path === '/comercial/dashboard/cliente-detalle' => $this->detalleClienteComercial($query),
@@ -51,6 +60,7 @@ final class GerenciaService
 
     public function concursoPuntajeUsuario(array $payload, array $query): ?array
     {
+        $this->concursoPeriodoVendedor($query);
         $userId = $this->currentUserIdFromPayload($payload);
         $resumen = $this->concursoCumplimiento($query);
 
@@ -69,6 +79,7 @@ final class GerenciaService
                 'productosEstadoBase' => $item['productosEstadoBase'] ?? null,
                 'estadoMes' => $resumen['estadoMes'] ?? null,
                 'historialMensual' => $item['mesesOficiales'] ?? [],
+                'resultadoRevisado' => !empty($item['revision']),
             ];
         }
 
@@ -77,6 +88,7 @@ final class GerenciaService
 
     public function concursoDetalleUsuario(array $payload, array $query): array
     {
+        $this->concursoPeriodoVendedor($query);
         $userId = $this->currentUserIdFromPayload($payload);
         $resumen = $this->concursoCumplimiento($query);
         foreach ($resumen['items'] ?? [] as $item) {
@@ -86,6 +98,7 @@ final class GerenciaService
                     'row' => $item,
                     'rendered' => ['mes' => $resumen['mes'], 'anio' => $resumen['anio']],
                     'estadoMes' => $resumen['estadoMes'] ?? null,
+                    'detalleBasePrivado' => $userId === 49,
                 ];
             }
         }
@@ -94,14 +107,29 @@ final class GerenciaService
 
     public function concursoClientesUsuario(array $payload, array $query): array
     {
+        $this->concursoPeriodoVendedor($query);
         $query['vendedorId'] = (string)$this->currentUserIdFromPayload($payload);
         return $this->concursoDetalleClientes($query);
     }
 
     public function concursoProductosUsuario(array $payload, array $query): array
     {
+        $this->concursoPeriodoVendedor($query);
         $query['vendedorId'] = (string)$this->currentUserIdFromPayload($payload);
         return $this->concursoDetalleProductos($query);
+    }
+
+    private function concursoPeriodoVendedor(array $query): void
+    {
+        if ((string)($query['anio'] ?? '') !== '2026' || !in_array((string)($query['mes'] ?? ''), ['10', '11', '12'], true)) {
+            throw new RuntimeException('El concurso para vendedores comprende octubre, noviembre y diciembre de 2026.', 400);
+        }
+    }
+
+    public function concursoMiBaseDetalle(array $payload): array
+    {
+        if ($this->currentUserIdFromPayload($payload) !== 49) throw new RuntimeException('Sin acceso al detalle privado de esta base.', 403);
+        return ['ok' => true, 'detalle' => ConcursoBaseOlgaDetalle::load()];
     }
 
     public static function evaluarMetaConcurso(float $meta, float $venta, ?array $reglas = null): array
@@ -150,7 +178,7 @@ final class GerenciaService
                 $breakdown[$id][] = ['mes' => $officialMonth, 'tipo' => $item['tipo'],
                     'puntosMeta' => $item['puntosMeta'], 'puntosNuevos' => $item['puntosNuevos'],
                     'puntosRecuperados' => $item['puntosRecuperados'], 'productosPuntos' => $item['productosPuntos'],
-                    'totalMes' => $item['totalMes'], 'acumulado' => $accumulated];
+                    'totalMes' => $item['totalMes'], 'acumulado' => $accumulated, 'resultadoRevisado' => !empty($item['revision'])];
             }
         }
         $allComplete = true;
@@ -165,13 +193,13 @@ final class GerenciaService
         return $current;
     }
 
-    private function concursoResumenMes(array $query): array
+    private function concursoResumenMes(array $query, ?int $selectedUser = null, ?array $frozenBase = null): array
     {
         if ((string)($query['anio'] ?? '') !== '2026' || !preg_match('/^(?:[1-9]|1[0-2])$/', (string)($query['mes'] ?? ''))) {
             throw new RuntimeException('Seleccione un mes válido del año 2026.', 400);
         }
         $mes = (int)$query['mes'];
-        if ($mes >= 10) {
+        if ($mes >= 10 && $selectedUser === null) {
             $saved = (new ConcursoCierreStore())->load($mes);
             if (($saved['estado'] ?? null) === 'CERRADO') return $this->concursoResumenCerrado($saved, $mes);
         }
@@ -182,6 +210,7 @@ final class GerenciaService
         $vendors = $owners = [];
         foreach ($relations as $r) {
             $id = $r['usuarioId'];
+            if ($selectedUser !== null && $id !== $selectedUser) continue;
             $vendors[$id] ??= ['usuarioId' => $id, 'vendedor' => $r['vendedor'], 'codigoPrincipal' => $r['codigoPrincipal'], 'meta' => 0.0,
                 'venta' => 0.0, 'desgloseVenta' => ['baseAsociada' => 0.0, 'compartidaRecibida' => 0.0, 'compartidaCedida' => 0.0]];
             $owners[$this->normalizeCode($r['codigoAsociado'])][$id] = true;
@@ -191,8 +220,9 @@ final class GerenciaService
         // Misma prioridad que AnalyticsService::fetchMetaMes: mensual, luego anual sin prorratear.
         $metas = $this->db->fetchAll("SELECT usuario_id, meta FROM vendedor_meta
             WHERE COALESCE(activo, 1) = 1 AND ((tipo_periodo = 'mensual' AND fecha = ?)
-                OR (tipo_periodo = 'anual' AND fecha >= '2026-01-01' AND fecha < '2027-01-01'))
-            ORDER BY CASE WHEN tipo_periodo = 'mensual' THEN 0 ELSE 1 END, fecha ASC, id ASC", [$desde]);
+                OR (tipo_periodo = 'anual' AND fecha >= '2026-01-01' AND fecha < '2027-01-01'))"
+            . ($selectedUser === null ? '' : ' AND usuario_id = ?') . "
+            ORDER BY CASE WHEN tipo_periodo = 'mensual' THEN 0 ELSE 1 END, fecha ASC, id ASC", $selectedUser === null ? [$desde] : [$desde, $selectedUser]);
         $assigned = [];
         foreach ($metas as $m) {
             $id = (int)$m['usuario_id'];
@@ -202,12 +232,13 @@ final class GerenciaService
             }
         }
         $expression = $this->commercialAmountSql('enc.Tipo', 'm.TotLinea');
+        $saleFilter = $selectedUser === null ? '' : ' AND LTRIM(RTRIM(enc.CodVendedor)) IN (' . implode(',', array_fill(0, count($owners), '?')) . ')';
         $rows = $this->softlandRows("SELECT LTRIM(RTRIM(enc.CodVendedor)) AS codigoVendedor, SUM($expression) AS venta
             FROM [PRODIN].[softland].[iw_gsaen] enc
             INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = enc.NroInt AND m.Tipo = enc.Tipo
             INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
             WHERE enc.Tipo IN ('F', 'N', 'D') AND enc.Estado <> 'A' AND enc.Fecha >= ? AND enc.Fecha < ?
-            GROUP BY LTRIM(RTRIM(enc.CodVendedor))", [$desde, $hasta]);
+            $saleFilter GROUP BY LTRIM(RTRIM(enc.CodVendedor))", array_merge([$desde, $hasta], $selectedUser === null ? [] : array_keys($owners)));
         $rows = $this->analytics->applySharedSalesToVendorRows($rows, $mes, 2026,
             array_column($relations, 'codigoAsociado'), $this->vendorCodeTypeMap($relations), [$desde, $hasta]);
         foreach ($rows as $row) {
@@ -218,17 +249,25 @@ final class GerenciaService
                 $vendors[$id]['desgloseVenta']['compartidaCedida'] += (float)$row['ventaCompartidaEntregada'];
             }
         }
-        $clients = $this->analytics->concursoClientes($relations, $mes);
+        $clients = $this->analytics->concursoClientes($relations, $mes, $selectedUser, null, $selectedUser !== null);
         $periodo = sprintf('2026-%02d', $mes);
-        $sales = (new ConcursoPromediosService($this->db, $this->analytics))->calcular(null, null, null, $periodo, $periodo);
         $monthly = [];
-        foreach ($sales['registros'] as $row) {
-            $monthly[(int)$row['usuario_id']][$row['categoria']] = (float)$row['ventas_mensuales'][$periodo];
+        $productDetails = [];
+        $calculator = new ConcursoPromediosService($this->db, $this->analytics);
+        if ($selectedUser === null) {
+            $sales = $calculator->calcular(null, null, null, $periodo, $periodo);
+            foreach ($sales['registros'] as $row) $monthly[(int)$row['usuario_id']][$row['categoria']] = (float)$row['ventas_mensuales'][$periodo];
+        } else {
+            foreach (ConcursoBaseOficialStore::CATEGORIAS as $category) {
+                $detail = $calculator->calcular($selectedUser, $category, $mes, $periodo, $periodo);
+                $monthly[$selectedUser][$category] = (float)$detail['total'];
+                $productDetails[$category] = $detail['documentos'];
+            }
         }
         $base = null;
         $baseError = 'BASE OFICIAL NO DISPONIBLE';
         try {
-            $base = (new ConcursoBaseOficialStore())->load();
+            $base = $frozenBase ?? (new ConcursoBaseOficialStore())->load();
             if ($base !== null) $baseError = '';
         } catch (RuntimeException $e) {
             if (!str_starts_with($e->getMessage(), 'BASE OFICIAL INVÁLIDA')) throw $e;
@@ -242,6 +281,10 @@ final class GerenciaService
         foreach ($vendors as &$vendor) {
             $vendor += self::evaluarMetaConcurso($vendor['meta'], $vendor['venta'], $reglasMeta);
             $vendor += $clients['resumen'][$vendor['usuarioId']];
+            if ($selectedUser !== null) {
+                $vendor['clientes'] = ['nuevos' => [], 'recuperados' => []];
+                foreach ($clients['clientes'] as $client) $vendor['clientes'][$client['categoria']][] = $client;
+            }
             $id = $vendor['usuarioId'];
             $categories = [];
             $available = true;
@@ -253,6 +296,7 @@ final class GerenciaService
                 $difference = $hasBase ? $sale - $average : null;
                 $categories[] = ['categoria' => $category, 'promedioBase' => $average, 'ventaMes' => $sale,
                     'superacion' => $difference, 'puntos' => $hasBase ? self::puntosProductosConcurso($difference, $reglasMeta) : null];
+                if ($selectedUser !== null) $categories[array_key_last($categories)]['documentos'] = $productDetails[$category];
             }
             $categorySales = array_sum(array_column($categories, 'ventaMes'));
             $otrosSale = round($vendor['venta'] - $categorySales, 2);
@@ -334,9 +378,7 @@ final class GerenciaService
             if ($summary['puntosParciales'] === null || $summary['versionBase'] !== $base['version']) {
                 throw new RuntimeException('Base oficial incompleta o modificada durante el cálculo.', 409);
             }
-            $relations = $this->loadVendorRelations();
             $period = sprintf('2026-%02d', $month);
-            $calculator = new ConcursoPromediosService($this->db, $this->analytics);
             $vendors = [];
             foreach ($summary['items'] as $item) {
                 $id = $item['usuarioId'];
@@ -347,31 +389,7 @@ final class GerenciaService
                 if ($item['productosPuntos'] === null || $item['totalMes'] === null) {
                     throw new RuntimeException('Productos o Total Mes incompletos.', 409);
                 }
-                $clientResult = $this->analytics->concursoClientes($relations, $month, $id, null, true);
-                $item['clientes'] = ['nuevos' => [], 'recuperados' => []];
-                foreach ($clientResult['clientes'] as $client) {
-                    $kind = $client['categoria'];
-                    if (!isset($item['clientes'][$kind])) throw new RuntimeException('Categoría de cliente inválida.', 409);
-                    $item['clientes'][$kind][] = $client;
-                }
-                foreach ($item['productos'] as &$category) {
-                    $name = $category['categoria'];
-                    if ($name === 'OTROS' || !empty($category['informativo'])) continue;
-                    $values = $vendorBase['categorias'][$name] ?? null;
-                    if ($values === null) throw new RuntimeException('Categoría de Base Oficial faltante.', 409);
-                    if (abs(self::concursoPromedioBaseNormalizado($values['promedioBase']) - (float)$category['promedioBase']) > .011) {
-                        throw new RuntimeException('La Base Oficial cambió durante el cálculo.', 409);
-                    }
-                    $category['baseMeses'] = array_map('floatval', $values['meses']);
-                    $detail = $calculator->calcular($id, $name, $month, $period, $period);
-                    if (abs((float)$detail['total'] - (float)$category['ventaMes']) > .011) {
-                        throw new RuntimeException('El detalle de productos no coincide con la venta mensual.', 409);
-                    }
-                    $category['documentos'] = $detail['documentos'];
-                }
-                unset($category);
-                $item['productos'] = array_values(array_filter($item['productos'],
-                    static fn(array $category): bool => $category['categoria'] !== 'OTROS' && empty($category['informativo'])));
+                $item = $this->concursoCongelarVendedor($item, $vendorBase, $month);
                 $vendors[] = $item;
             }
             if ((new ConcursoBaseOficialStore())->load() !== $base) {
@@ -388,6 +406,137 @@ final class GerenciaService
                 'snapshot' => ['vendedores' => $vendors]];
             $saved = $store->save($data, $month);
             return ['ok' => true, 'estadoMes' => 'CERRADO', 'versionCierre' => $saved['version'], 'fechaCierre' => $saved['fechaCierre']];
+        });
+    }
+
+    private function concursoCongelarVendedor(array $item, array $vendorBase, int $month): array
+    {
+        $id = $item['usuarioId'];
+        $relations = $this->loadVendorRelations();
+        $period = sprintf('2026-%02d', $month);
+        $calculator = new ConcursoPromediosService($this->db, $this->analytics);
+        $clientResult = isset($item['clientes']) ? ['clientes' => array_merge(...array_values($item['clientes']))]
+            : $this->analytics->concursoClientes($relations, $month, $id, null, true);
+        $item['clientes'] = ['nuevos' => [], 'recuperados' => []];
+        foreach ($clientResult['clientes'] as $client) {
+            $kind = $client['categoria'];
+            if (!isset($item['clientes'][$kind])) throw new RuntimeException('Categoría de cliente inválida.', 409);
+            $item['clientes'][$kind][] = $client;
+        }
+        foreach ($item['productos'] as &$category) {
+            $name = $category['categoria'];
+            if ($name === 'OTROS' || !empty($category['informativo'])) continue;
+            $values = $vendorBase['categorias'][$name] ?? null;
+            if ($values === null) throw new RuntimeException('Categoría de Base Oficial faltante.', 409);
+            if (abs(self::concursoPromedioBaseNormalizado($values['promedioBase']) - (float)$category['promedioBase']) > .011) {
+                throw new RuntimeException('La Base Oficial cambió durante el cálculo.', 409);
+            }
+            $category['baseMeses'] = array_map('floatval', $values['meses']);
+            $detail = isset($category['documentos']) ? ['total' => array_sum(array_column($category['documentos'], 'atribuida')), 'documentos' => $category['documentos']]
+                : $calculator->calcular($id, $name, $month, $period, $period);
+            if (abs((float)$detail['total'] - (float)$category['ventaMes']) > .011) {
+                throw new RuntimeException('El detalle de productos no coincide con la venta mensual.', 409);
+            }
+            $category['documentos'] = $detail['documentos'];
+        }
+        unset($category);
+        $item['productos'] = array_values(array_filter($item['productos'],
+            static fn(array $category): bool => $category['categoria'] !== 'OTROS' && empty($category['informativo'])));
+        return $item;
+    }
+
+    private function concursoVendedoresRevision(array $query): array
+    {
+        $month = $this->concursoMesSolicitud($query);
+        $saved = (new ConcursoCierreStore())->load($month);
+        if (($saved['estado'] ?? null) !== 'CERRADO') throw new RuntimeException('El mes debe estar cerrado.', 409);
+        return ['ok' => true, 'vendedores' => array_map(static fn(array $vendor): array => [
+            'usuarioId' => $vendor['usuarioId'], 'vendedor' => $vendor['vendedor'],
+        ], $saved['snapshot']['vendedores'])];
+    }
+
+    private function concursoRevisionKey(): string
+    {
+        $secret = (string)env('JWT_SECRET', '');
+        if ($secret === '') throw new RuntimeException('Falta configuración de firma.', 500);
+        return hash_hmac('sha256', 'concurso-revision-2026', $secret);
+    }
+
+    private function concursoRevisar(array $payload, array $body): array
+    {
+        $month = $this->concursoMesSolicitud($body);
+        $actor = $this->concursoActor($payload);
+        $store = new ConcursoCierreStore();
+        return $store->locked(function () use ($month, $actor, $store, $body): array {
+            $saved = $store->load($month);
+            if (($saved['estado'] ?? null) !== 'CERRADO') throw new RuntimeException('El mes debe permanecer cerrado.', 409);
+            $fingerprint = hash('sha256', serialize($saved));
+            if (array_key_exists('revision', $body)) {
+                if (($body['confirmar'] ?? null) !== true) throw new RuntimeException('Debe confirmar explícitamente la revisión.', 400);
+                $preview = Security::jwt_decode((string)$body['revision'], $this->concursoRevisionKey());
+                if (($preview['purpose'] ?? '') !== 'concurso-revision-2026' || ($preview['usuario'] ?? null) !== $actor['usuarioId']
+                    || ($preview['mes'] ?? null) !== $month || ($preview['huella'] ?? '') !== $fingerprint
+                    || empty($preview['vendedores']) || !is_string($preview['motivo'] ?? null)) {
+                    throw new RuntimeException('La vista previa ya no corresponde al cierre vigente. Vuelva a calcularla.', 409);
+                }
+                $before = [];
+                foreach ($preview['vendedores'] as $id => $vendor) {
+                    $found = false;
+                    foreach ($saved['snapshot']['vendedores'] as &$current) {
+                        if ($current['usuarioId'] !== (int)$id || $vendor['usuarioId'] !== (int)$id) continue;
+                        $before[$id] = $current;
+                        $vendor['revision'] = ['numero' => ($current['revision']['numero'] ?? 0) + 1, 'fecha' => date(DATE_ATOM)];
+                        $current = $vendor;
+                        $found = true;
+                        break;
+                    }
+                    unset($current);
+                    if (!$found) throw new RuntimeException('Vendedor fuera del cierre.', 409);
+                }
+                $saved['revisiones'][] = ['fecha' => date(DATE_ATOM), 'motivo' => $preview['motivo'], 'administrador' => $actor,
+                    'corregirBase' => $preview['corregirBase'], 'anteriores' => $before,
+                    'vigentes' => array_values(array_filter($saved['snapshot']['vendedores'], static fn(array $v): bool => isset($before[$v['usuarioId']])))];
+                $saved['version']++;
+                $store->save($saved, $month);
+                return ['ok' => true, 'estadoMes' => 'CERRADO', 'versionCierre' => $saved['version']];
+            }
+            if (($body['confirmar'] ?? false) !== false) throw new RuntimeException('Primero debe generar una vista previa.', 400);
+            $ids = $body['vendedores'] ?? null;
+            $reason = trim((string)($body['motivo'] ?? ''));
+            if (!is_array($ids) || !$ids || count($ids) > count($saved['snapshot']['vendedores']) || $reason === '' || strlen($reason) > 2000) {
+                throw new RuntimeException('Seleccione vendedores e informe un motivo de revisión (máximo 2000 caracteres).', 400);
+            }
+            $ids = array_values(array_unique(array_map(static fn(mixed $id): int => Security::validate_id($id), $ids)));
+            $correctBase = ($body['corregirBase'] ?? false) === true;
+            $official = $correctBase ? (new ConcursoBaseOficialStore())->load() : null;
+            if ($correctBase && ($official === null || $official['periodoDesde'] !== $saved['baseOficial']['periodoDesde']
+                || $official['periodoHasta'] !== $saved['baseOficial']['periodoHasta'])) {
+                throw new RuntimeException('La corrección de base requiere el mismo período de respaldo que el cierre.', 409);
+            }
+            $updated = $comparison = [];
+            foreach ($ids as $id) {
+                $previous = null;
+                foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) { $previous = $vendor; break; }
+                if ($previous === null) throw new RuntimeException('Vendedor fuera del cierre.', 400);
+                $vendorBase = ['usuarioId' => $id, 'categorias' => []];
+                foreach ($previous['productos'] as $category) $vendorBase['categorias'][$category['categoria']] = [
+                    'promedioBase' => $category['promedioBase'], 'meses' => $category['baseMeses']];
+                if ($correctBase) {
+                    $vendorBase = null;
+                    foreach ($official['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) { $vendorBase = $vendor; break; }
+                    if ($vendorBase === null) throw new RuntimeException('Vendedor sin Base Oficial vigente.', 409);
+                }
+                $base = $saved['baseOficial'] + ['vendedores' => [$vendorBase]];
+                $summary = $this->concursoResumenMes(['anio' => '2026', 'mes' => (string)$month], $id, $base);
+                if (count($summary['items']) !== 1 || $summary['items'][0]['totalMes'] === null) {
+                    throw new RuntimeException('No se pudo recalcular al vendedor seleccionado.', 409);
+                }
+                $updated[$id] = $this->concursoCongelarVendedor($summary['items'][0], $vendorBase, $month);
+                $comparison[] = ['usuarioId' => $id, 'vendedor' => $previous['vendedor'], 'anterior' => $previous, 'recalculado' => $updated[$id]];
+            }
+            $token = Security::jwt_encode(['purpose' => 'concurso-revision-2026', 'usuario' => $actor['usuarioId'], 'mes' => $month,
+                'huella' => $fingerprint, 'motivo' => $reason, 'corregirBase' => $correctBase, 'vendedores' => $updated], $this->concursoRevisionKey(), '30m');
+            return ['ok' => true, 'comparacion' => $comparison, 'revision' => $token, 'guardado' => false];
         });
     }
 
@@ -428,14 +577,20 @@ final class GerenciaService
         if (!in_array($category, ['QUIMICOS', 'ACCESORIOS', 'TRAT_AGUA', 'AEROSOLES', 'OTROS'], true)) throw new RuntimeException('Categoría inválida.', 400);
         $detail = $query['detalle'] ?? '';
         if (!in_array($detail, ['base', 'venta'], true)) throw new RuntimeException('Detalle inválido.', 400);
+        if ($id === 49 && $detail === 'base' && $category !== 'OTROS') {
+            return ConcursoBaseOlgaDetalle::consulta(['categoria' => $category]
+                + (isset($query['periodoBase']) ? ['periodo' => $query['periodoBase']] : []));
+        }
         $mes = (int)$query['mes'];
         if ($category === 'OTROS' && $detail === 'base') {
             return ['ok' => true, 'meses' => [], 'fuenteBase' => 'INFORMATIVO'];
         }
-        if ($mes >= 10 && $category !== 'OTROS') {
+        if ($mes >= 10) {
             $saved = (new ConcursoCierreStore())->load($mes);
             if (($saved['estado'] ?? null) === 'CERRADO') {
                 foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) {
+                    if ($category === 'OTROS') return ['ok' => true, 'documentos' => [],
+                        'total' => round($vendor['venta'] - array_sum(array_column($vendor['productos'], 'ventaMes')), 2)];
                     foreach ($vendor['productos'] as $product) if ($product['categoria'] === $category) {
                         if ($detail === 'venta') return ['ok' => true, 'documentos' => $product['documentos'], 'total' => $product['ventaMes']];
                         $months = [];

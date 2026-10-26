@@ -6,6 +6,8 @@
   const monthLabel = period => `${monthNames[Number(period.slice(5)) - 1]} 2026`;
   const periodLabel = period => period ? `${monthLabel(period.periodo_desde)} → ${monthLabel(period.periodo_hasta)}` : 'No generada';
   let renderedPeriod = null;
+  let renderedOfficial = false;
+  let privateDetail = null;
   const $ = id => document.getElementById(id);
   const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -83,6 +85,7 @@
     closeSellerDetail();
     rows = records;
     renderedPeriod = period;
+    renderedOfficial = isOfficial;
     selectedUser = null;
     $('detalleVendedor').hidden = true;
     const vendors = new Map(records.map(row => [row.usuario_id, row]));
@@ -109,19 +112,34 @@
     }
     selectedUser = null;
   }
-  function sellerDetail(id) {
+  async function sellerDetail(id) {
     const closing = selectedUser === id;
     closeSellerDetail();
     if (closing) return;
-    const records = rows.filter(row => row.usuario_id === id);
+    let records = rows.filter(row => row.usuario_id === id);
     if (!records.length) return;
     selectedUser = id;
+    privateDetail = null;
+    let detailPeriod = renderedPeriod;
+    if (id === 49 && renderedOfficial) {
+      const sequence = detailRequest;
+      try {
+        const data = await request('base-privada');
+        if (selectedUser !== id || sequence !== detailRequest) return;
+        privateDetail = data;
+        detailPeriod = data.periodo;
+        records = data.registros.map(item => ({ ...records[0], ...item }));
+      } catch (error) {
+        if (sequence === detailRequest) { selectedUser = null; $('resultadoEstado').textContent = error.message; }
+        return;
+      }
+    }
     $('tituloDetalle').textContent = `Detalle — ${records[0].vendedor_nombre}`;
-    $('detallePeriodo').textContent = renderedPeriod.meses.map(monthLabel).join(' · ');
-    $('categoriasDetalle').innerHTML = `<article class="tabla-card" style="grid-column: 1 / -1"><div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Categoría</th>${renderedPeriod.meses.map(month => `<th class="numero">${monthLabel(month)}</th>`).join('')}<th class="numero">Promedio</th></tr></thead><tbody>${categories.map(([key, label]) => {
+    $('detallePeriodo').textContent = detailPeriod.meses.map(monthLabel).join(' · ');
+    $('categoriasDetalle').innerHTML = `<article class="tabla-card" style="grid-column: 1 / -1"><div class="tabla-wrapper"><table class="dash-tabla"><thead><tr><th>Categoría</th>${detailPeriod.meses.map(month => `<th class="numero">${monthLabel(month)}</th>`).join('')}<th class="numero">Promedio</th></tr></thead><tbody>${categories.map(([key, label]) => {
       const row = records.find(item => item.categoria === key);
       if (!row) return '';
-      return `<tr><th scope="row">${label}${key === 'ACCESORIOS' ? '<p class="gerencia-subtitulo">Incluye Accesorios + Papel + Sachets.</p>' : ''}</th>${renderedPeriod.meses.map(month => Number(row.ventas_mensuales[month]) === 0 ? `<td class="numero">${money(0)}</td>` : `<td class="numero"><button type="button" class="promedios-enlace" data-mes="${month}" data-categoria="${key}" title="Ver documentos de ${monthLabel(month)}">${money(row.ventas_mensuales[month])}</button></td>`).join('')}<td class="numero">${money(row.promedio_base)}</td></tr>`;
+      return `<tr><th scope="row">${label}${key === 'ACCESORIOS' ? '<p class="gerencia-subtitulo">Incluye Accesorios + Papel + Sachets.</p>' : ''}</th>${detailPeriod.meses.map(month => Number(row.ventas_mensuales[month]) === 0 ? `<td class="numero">${money(0)}</td>` : `<td class="numero"><button type="button" class="promedios-enlace" data-mes="${month}" data-categoria="${key}" title="Ver documentos de ${monthLabel(month)}">${money(row.ventas_mensuales[month])}</button></td>`).join('')}<td class="numero">${money(row.promedio_base)}</td></tr>`;
     }).join('')}</tbody></table></div></article>`;
     const button = $('promediosBody').querySelector(`[data-vendedor="${id}"]`);
     const sellerRow = button.closest('tr');
@@ -140,14 +158,14 @@
   async function documents(month, category) {
     if ($('documentosModal').open) return;
     const sequence = ++detailRequest;
-    const row = rows.find(item => item.usuario_id === selectedUser && item.categoria === category);
+    const row = (selectedUser === 49 && privateDetail ? privateDetail.registros : rows).find(item => item.usuario_id === selectedUser && item.categoria === category);
     if (!row) return;
     const expected = Number(row.ventas_mensuales[month]);
     if (expected === 0) return;
     const button = $('categoriasDetalle').querySelector(`[data-mes="${month}"][data-categoria="${category}"]`);
     if (button?.disabled) return;
     if (button) button.disabled = true;
-    $('documentosTitulo').textContent = `Detalle de productos — ${row.vendedor_nombre}`;
+    $('documentosTitulo').textContent = `Detalle de productos — ${row.vendedor_nombre || 'OLGA GUTIERREZ'}`;
     $('documentosSubtitulo').textContent = `${categories.find(item => item[0] === category)[1]} · ${monthLabel(month)}`;
     $('documentosBody').innerHTML = '';
     $('documentosTotal').textContent = '';
@@ -156,11 +174,15 @@
     $('documentosLoading').hidden = false;
     $('documentosModal').showModal();
     try {
-      const data = await request(`detalle?${new URLSearchParams({ usuarioId: selectedUser, periodo: month, categoria: category, desde: renderedPeriod.periodo_desde, hasta: renderedPeriod.periodo_hasta })}`);
+      const data = await request(selectedUser === 49 && privateDetail
+        ? `base-privada?${new URLSearchParams({ periodo: month, categoria: category })}`
+        : `detalle?${new URLSearchParams({ usuarioId: selectedUser, periodo: month, categoria: category, desde: renderedPeriod.periodo_desde, hasta: renderedPeriod.periodo_hasta })}`);
       if (sequence !== detailRequest) return;
-      $('documentosBody').innerHTML = data.documentos.map(doc => `<tr><td>${esc(doc.fecha)}</td><td>${esc(doc.tipo)}</td><td>${esc(doc.folio)}</td><td>${esc(doc.cliente)}</td><td>${esc(doc.codigoVendedor)}</td><td>${esc(doc.codigoProducto)}</td><td>${esc(doc.producto)}</td><td class="numero">${Number(doc.cantidad).toLocaleString('es-CL')}</td><td>${doc.tipoAtribucion.map(label => `<span class="promedios-atribucion ${label === 'DIRECTA' ? '' : 'promedios-atribucion--compartida'}">${esc(label)}</span>`).join('')}${doc.tipoCodigo === 'C' ? '<small class="promedios-codigo">Regla código C</small>' : ''}</td><td class="numero">${Number(doc.porcentaje).toLocaleString('es-CL', { maximumFractionDigits: 6 })} %</td><td>${esc(doc.categoriaOriginal)}</td><td>${esc(doc.categoriaConcurso)}</td><td class="numero">${money(doc.original)}</td><td class="numero">${money(doc.atribuida)}</td></tr>`).join('') || '<tr><td colspan="14" class="gerencia-empty">No hay productos para este mes y categoría.</td></tr>';
+      $('documentosBody').innerHTML = data.documentos.map(doc => `<tr><td>${esc(doc.fecha)}</td><td>${esc(doc.tipo)}</td><td>${esc(doc.folio)}</td><td>${esc(doc.cliente)}</td><td>${esc(doc.codigoVendedor)}</td><td>${esc(doc.codigoProducto)}</td><td>${esc(doc.producto)}</td><td class="numero">${Number(doc.cantidad).toLocaleString('es-CL')}</td><td>${doc.tipoAtribucion.map(label => `<span class="promedios-atribucion ${label === 'DIRECTA' ? '' : 'promedios-atribucion--compartida'}">${esc(label)}</span>`).join('')}${doc.tipoCodigo === 'C' ? '<small class="promedios-codigo">Regla código C</small>' : ''}</td><td class="numero">${Number(doc.porcentaje).toLocaleString('es-CL', { maximumFractionDigits: 6 })} %</td><td>${esc(doc.categoriaOriginal)}</td><td>${esc(doc.categoriaConcurso)}</td><td class="numero">${money(doc.original)}</td><td class="numero">${money(doc.atribuida)}</td></tr>`).join('') || `<tr><td colspan="14" class="gerencia-empty">${data.fuenteBase === 'PRIVADA' ? 'No hay movimientos para este mes y categoría.' : 'No hay productos para este mes y categoría.'}</td></tr>`;
       const matches = Math.abs(Number(data.total) - expected) < 0.005;
       $('documentosEstado').textContent = matches ? 'Documentos de la fuente actual. El total coincide con el importe seleccionado.' : 'La fuente cambió: este detalle actual difiere del importe seleccionado. La base oficial permanece intacta; recalcule para revisar los valores actuales.';
+      if (data.fuenteBase === 'PRIVADA') $('documentosEstado').textContent = data.detalleDisponible
+        ? 'Documentos del respaldo privado de la base de Olga.' : data.observacion;
       $('documentosTotal').textContent = `TOTAL VENTA ATRIBUIDA: ${money(data.total)} · Importe seleccionado: ${money(expected)}`;
     } catch (error) {
       if (sequence === detailRequest) $('documentosEstado').textContent = error.message;
@@ -391,7 +413,7 @@
         ? `<p>Versión ${esc(month.version)} · Cierre: ${esc(dateLabel(month.fechaCierre))} · Por: ${esc(month.cerradoPor || '—')}</p>`
         : `<p>${month.estado === 'PRUEBA' ? 'Período de prueba. Sin cierre oficial.' : month.estado === 'PENDIENTE' ? esc(month.detalle || 'Estado pendiente de revisión.') : 'Cálculo dinámico hasta su cierre.'}</p>`;
       const button = month.estado === 'ABIERTO' || month.estado === 'CERRADO'
-        ? `<button class="btn-buscar" type="button" data-operation-month="${month.mes}" data-operation-action="${month.estado === 'CERRADO' ? 'reabrir' : 'cerrar'}">${month.estado === 'CERRADO' ? 'Reabrir mes' : 'Cerrar mes'}</button>` : '';
+        ? `<button class="btn-buscar" type="button" data-operation-month="${month.mes}" data-operation-action="${month.estado === 'CERRADO' ? 'revisar' : 'cerrar'}">${month.estado === 'CERRADO' ? 'Revisar vendedores' : 'Cerrar mes'}</button>` : '';
       return `<article class="tabla-card"><h3>${esc(label)} 2026</h3><strong>${esc(month.estado)}</strong>${detail}${button}</article>`;
     }).join('');
   }
@@ -402,7 +424,11 @@
     $('operacionEstado').textContent = '';
   }
   async function changeMonth(month, action) {
-    if (operationBusy || ![10, 11, 12].includes(month) || !['cerrar', 'reabrir'].includes(action)) return;
+    if (operationBusy || ![10, 11, 12].includes(month) || !['cerrar', 'revisar'].includes(action)) return;
+    if (action === 'revisar') {
+      if (monthlyStates.find(item => item.mes === month)?.estado === 'CERRADO') await reviewMonth(month);
+      return;
+    }
     const state = monthlyStates.find(item => item.mes === month)?.estado;
     if ((action === 'cerrar' && state !== 'ABIERTO') || (action === 'reabrir' && state !== 'CERRADO')) return;
     const label = `${monthNames[month - 1]} 2026`;
@@ -430,6 +456,82 @@
       operationBusy = false;
       $('operacionLoading').hidden = true;
       $('operacionMeses').querySelectorAll('button').forEach(button => { button.disabled = false; });
+    }
+  }
+  async function revisionRequest(action, data, method = 'POST') {
+    const query = method === 'GET' ? `?${new URLSearchParams(data)}` : '';
+    const response = await fetch(`/api/gerencia/comercial/concurso-ventas/${action}${query}`, {
+      method,
+      headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+      ...(method === 'POST' ? { body: JSON.stringify(data) } : {}),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || 'No se pudo revisar el cierre.');
+    return result;
+  }
+  async function reviewMonth(month) {
+    operationBusy = true;
+    let dialog;
+    try {
+      const data = await revisionRequest('revision-vendedores', { anio: 2026, mes: month }, 'GET');
+      dialog = document.createElement('dialog');
+      dialog.className = 'promedios-modal';
+      dialog.setAttribute('aria-label', `Revisar vendedores de ${monthNames[month - 1]} 2026`);
+      dialog.innerHTML = `<div class="promedios-modal-header"><h3>Revisar vendedores · ${esc(monthNames[month - 1])} 2026</h3><button type="button" class="btn-buscar" data-cancel>Cancelar</button></div>
+        <fieldset><legend>Vendedores</legend>${data.vendedores.map(vendor => `<label><input type="checkbox" name="vendedor" value="${vendor.usuarioId}"> ${esc(vendor.vendedor)}</label>`).join('<br>')}</fieldset>
+        <p><label>Motivo de revisión <textarea name="motivo" maxlength="2000" required></textarea></label></p>
+        <p><label><input type="checkbox" name="corregirBase"> Corregir también la base histórica usando la Base Oficial vigente</label></p>
+        <p>Por defecto se conserva la base congelada. El mes permanece cerrado.</p>
+        <p data-status role="status" aria-live="polite"></p><div class="tabla-wrapper" data-comparison></div>
+        <button type="button" class="btn-buscar" data-preview>Comparar antes / recalculado</button>
+        <button type="button" class="btn-buscar" data-confirm hidden>Confirmar revisión</button>`;
+      document.body.appendChild(dialog);
+      let preview = '';
+      const status = dialog.querySelector('[data-status]');
+      const confirmButton = dialog.querySelector('[data-confirm]');
+      dialog.addEventListener('input', () => {
+        preview = '';
+        confirmButton.hidden = true;
+        dialog.querySelector('[data-comparison]').innerHTML = '';
+      });
+      dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); operationBusy = false; }, { once: true });
+      const run = async confirm => {
+        dialog.querySelectorAll('input, textarea, button').forEach(control => { control.disabled = true; });
+        status.textContent = confirm ? 'Guardando revisión...' : 'Recalculando únicamente los seleccionados...';
+        try {
+          const body = confirm ? { revision: preview, confirmar: true } : {
+            vendedores: [...dialog.querySelectorAll('[name="vendedor"]:checked')].map(input => Number(input.value)),
+            motivo: dialog.querySelector('[name="motivo"]').value,
+            corregirBase: dialog.querySelector('[name="corregirBase"]').checked,
+          };
+          if (confirm && !preview) throw new Error('Genere primero la comparación.');
+          const result = await revisionRequest('revisar', { anio: 2026, mes: month, ...body });
+          if (confirm) {
+            dialog.close();
+            await loadDiagnostics();
+            $('operacionEstado').textContent = 'Revisión confirmada. El mes permanece CERRADO.';
+            return;
+          }
+          preview = result.revision;
+          const fields = [['Venta', 'venta'], ['Meta pts', 'puntosMeta'], ['Nuevos pts', 'puntosNuevos'], ['Recuperados pts', 'puntosRecuperados'], ['Productos pts', 'productosPuntos'], ['Total mes', 'totalMes']];
+          dialog.querySelector('[data-comparison]').innerHTML = result.comparacion.map(item => {
+            const cells = fields.map(([label, key]) => `<tr><th>${label}</th><td class="numero">${esc(item.anterior[key])}</td><td class="numero">${esc(item.recalculado[key])}</td></tr>`).join('');
+            const bases = item.recalculado.productos.map(category => `<tr><th>Base ${esc(category.categoria)}</th><td class="numero">${money(item.anterior.productos.find(value => value.categoria === category.categoria)?.promedioBase)}</td><td class="numero">${money(category.promedioBase)}</td></tr>`).join('');
+            return `<h4>${esc(item.vendedor)}</h4><table class="dash-tabla"><thead><tr><th>Concepto</th><th>Anterior</th><th>Recalculado</th></tr></thead><tbody>${cells}${bases}</tbody></table>`;
+          }).join('');
+          confirmButton.hidden = false;
+          status.textContent = 'Vista previa. No se ha guardado ningún cambio.';
+        } catch (error) { status.textContent = error.message; }
+        finally { dialog.querySelectorAll('input, textarea, button').forEach(control => { control.disabled = false; }); }
+      };
+      dialog.querySelector('[data-preview]').addEventListener('click', () => run(false));
+      confirmButton.addEventListener('click', () => run(true));
+      dialog.showModal();
+    } catch (error) {
+      dialog?.remove();
+      operationBusy = false;
+      $('operacionEstado').textContent = error.message;
     }
   }
   async function init() {
