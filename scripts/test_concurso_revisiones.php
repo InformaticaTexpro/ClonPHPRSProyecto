@@ -131,7 +131,11 @@ try {
         check(abs(array_sum($values['meses']) - $values['acumuladoComputable']) < .001, 'resumen mensual ' . $category);
         check((int)round($values['acumuladoComputable'] / $private['divisor']) === (int)$olga['categorias'][$category]['promedioBase'], 'divisor de origen ' . $category);
     }
-    check($private['estadoDetalle'] === 'PENDIENTE_FUENTE' && $private['movimientos'] === [], 'no inventar movimientos ausentes');
+    check(
+    is_array($private['movimientos'])
+    && count($private['movimientos']) === 141,
+    'fuente privada completa instalada'
+);
     $diagnostic = (new ConcursoPromediosService($db, $analytics))->route($admin, 'GET', '/concurso-promedios/diagnostico', [], []);
     check($diagnostic['meses'][0]['mes'] === 9 && $diagnostic['meses'][0]['estado'] === 'PRUEBA', 'septiembre administrativo conservado');
     $open = $service->concursoDetalleUsuario(['sub' => 49], $monthQuery)['row'];
