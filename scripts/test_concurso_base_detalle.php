@@ -132,9 +132,23 @@ $adminService = new ConcursoPromediosService($db, $analytics);
 $private = $adminService->route($payload, 'GET', '/concurso-promedios/base-privada', [], []);
 check($private['periodo']['meses'] === ['2026-07', '2026-08', '2026-09'], 'administración consulta período privado');
 $records = array_column($private['registros'], null, 'categoria');
-check(array_values($records['QUIMICOS']['ventas_mensuales']) === [0, 264948, 422130], 'resumen químicos exacto');
-check(array_values($records['TRAT_AGUA']['ventas_mensuales']) === [371057, 6395656.20, 15980785.50], 'resumen tratamiento exacto');
-foreach (['ACCESORIOS', 'AEROSOLES'] as $category) check(array_values($records[$category]['ventas_mensuales']) === [0, 0, 0], 'ceros mensuales ' . $category);
+check(
+    array_map('floatval', array_values($records['QUIMICOS']['ventas_mensuales']))
+        === [0.0, 264948.0, 422130.0],
+    'resumen químicos exacto'
+);
+check(
+    array_map('floatval', array_values($records['TRAT_AGUA']['ventas_mensuales']))
+        === [371057.0, 6395656.20, 15980785.50],
+    'resumen tratamiento exacto'
+);
+foreach (['ACCESORIOS', 'AEROSOLES'] as $category) {
+    check(
+        array_map('floatval', array_values($records[$category]['ventas_mensuales']))
+            === [0.0, 0.0, 0.0],
+        'ceros mensuales ' . $category
+    );
+}
 if ($hasPrivateMovements) {
     $adminMonth = $adminService->route($payload, 'GET', '/concurso-promedios/base-privada', ['categoria' => 'TRAT_AGUA', 'periodo' => '2026-09'], []);
     check($adminMonth['importeOficial'] === 15980785.50, 'administración consulta monto privado de septiembre');
