@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../cobranza/cobranza.css?v=1.1.0" />
   <link rel="stylesheet" href="./control-clientes.css?v=1.4.1" />
+  <link rel="stylesheet" href="./control-clientes-overrides.css?v=2" />
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -69,11 +70,55 @@
         <div id="criteriaContent"></div>
         <div class="client-criteria-footer"><button type="button" class="client-button client-button--light" id="closeCriteria">Cerrar</button></div>
       </dialog>
+      <details id="overridePanel" class="collection-panel override-panel" hidden>
+        <summary>Excepciones manuales</summary>
+        <p>Las excepciones activas se aplican a Cobranzas, Cartera y Concurso. Los meses cerrados mantienen su resultado oficial.</p>
+        <form id="overrideFilters" class="override-fields">
+          <label>Período<input type="month" name="periodo" /></label>
+          <label>Tipo<select name="tipoEvento"><option value="">Todos</option><option value="NUEVO">Nuevo</option><option value="RECUPERADO">Recuperado</option></select></label>
+          <label>RUT<input name="rut" maxlength="20" /></label>
+          <label>Estado<select name="activo"><option value="1">Activas</option><option value="0">Revertidas</option><option value="">Todas</option></select></label>
+          <button class="client-button client-button--light" type="submit">Consultar excepciones</button>
+          <button class="client-button" id="overrideAdd" type="button">+ Agregar cliente</button>
+        </form>
+        <p id="overrideStatus" role="status" aria-live="polite"></p>
+        <div class="client-table-scroll"><table class="client-table"><thead><tr><th>Estado</th><th>Tipo</th><th>Acción</th><th>Cliente</th><th>RUT</th><th>CodAux</th><th>Folio</th><th>Período</th><th>Motivo</th><th>Usuario</th><th>Fecha</th><th>Acción</th></tr></thead><tbody id="overrideRows"></tbody></table></div>
+      </details>
+      <dialog id="overrideDialog" class="client-dialog override-dialog" aria-labelledby="overrideTitle">
+        <form id="overrideForm">
+          <h3 id="overrideTitle">Agregar cliente</h3>
+          <p>La excepción quedará auditada y se aplicará a Cobranzas, Cartera y Concurso en meses abiertos.</p>
+          <div class="override-fields" id="overrideIdentity">
+            <label>Tipo evento<select name="tipoEvento" required><option value="NUEVO">Nuevo</option><option value="RECUPERADO">Recuperado</option></select></label>
+            <label>Período<input type="month" name="periodo" required /></label>
+            <label>RUT<input name="rut" maxlength="20" required /></label>
+            <label>Código cliente<input name="codaux" maxlength="30" required /></label>
+            <label>Folio<input name="folio" inputmode="numeric" pattern="[0-9]+" maxlength="10" required /></label>
+            <label id="overrideDocChoiceLabel" hidden>Documento de referencia<select id="overrideDocChoice"></select></label>
+          </div>
+          <button type="button" id="overrideValidate" class="client-button client-button--light">Validar</button>
+          <div id="overrideEvidence" aria-live="polite"></div>
+          <div class="override-fields" id="overrideReasons" hidden>
+            <label>Motivo *<select id="overrideReason" name="motivoCodigo" required></select></label>
+            <label>Observación<textarea id="overrideDetail" name="motivoDetalle" maxlength="1000" rows="3"></textarea></label>
+          </div>
+          <p id="overrideDialogStatus" role="status" aria-live="polite"></p>
+          <div class="override-actions"><button type="button" id="overrideCancel" class="client-button client-button--light">Cancelar</button><button type="submit" id="overrideSave" class="client-button" disabled>Confirmar inclusión</button></div>
+        </form>
+      </dialog>
+      <dialog id="overrideRevertDialog" class="client-dialog override-dialog" aria-labelledby="overrideRevertTitle">
+        <form id="overrideRevertForm"><h3 id="overrideRevertTitle">Revertir excepción</h3><p id="overrideRevertClient"></p>
+          <label>Motivo de reversión *<textarea name="motivo" required maxlength="1000" rows="3"></textarea></label>
+          <p id="overrideRevertStatus" role="status" aria-live="polite"></p>
+          <div class="override-actions"><button type="button" id="overrideRevertCancel" class="client-button client-button--light">Cancelar</button><button type="submit" id="overrideRevertSave" class="client-button">Confirmar reversión</button></div>
+        </form>
+      </dialog>
     </main>
   </div>
   <script src="../../../assets/js/app-sidebar.js?v=1.1.1"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="./control-clientes.js?v=1.4.1"></script>
+  <script src="./control-clientes.js?v=1.4.3"></script>
+  <script src="./control-clientes-overrides.js?v=3"></script>
   <script src="../../../assets/js/inactividad.js?v=3.0.0"></script>
 </body>
 </html>

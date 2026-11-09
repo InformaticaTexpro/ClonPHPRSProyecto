@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/CobranzaService.php';
+require_once __DIR__ . '/CobranzaOverridesService.php';
 require_once __DIR__ . '/AdquisicionesService.php';
 
 final class ApiApplication
@@ -17,9 +18,11 @@ final class ApiApplication
         $database = new Database();
         $authService = new AuthService($database);
         $recoveryService = new RecoveryService($database);
-        $analyticsService = new AnalyticsService($database);
+        $clienteOverrides = new ClienteClasificacionOverrideService($database);
+        $analyticsService = new AnalyticsService($database, $clienteOverrides);
         $gerenciaService = new GerenciaService($database, $analyticsService);
-        $cobranzaService = new CobranzaService($database, $analyticsService);
+        $cobranzaService = new CobranzaService($database, $analyticsService, $clienteOverrides);
+        $cobranzaOverrides = new CobranzaOverridesService($database, $analyticsService, $clienteOverrides);
         $adquisicionesService = new AdquisicionesService($database);
         $concursoVentasService = new ConcursoVentasService($database, $analyticsService, $gerenciaService);
         $salesService = new SalesService($database, $analyticsService);
@@ -54,6 +57,8 @@ final class ApiApplication
             'dashboard' => $dashboardService,
             'gerencia' => $gerenciaService,
             'cobranza' => $cobranzaService,
+            'cliente_clasificacion_override' => $clienteOverrides,
+            'cobranza_overrides' => $cobranzaOverrides,
             'adquisiciones' => $adquisicionesService,
             'ventas' => $ventasService,
             'indicadores' => $indicadoresService,

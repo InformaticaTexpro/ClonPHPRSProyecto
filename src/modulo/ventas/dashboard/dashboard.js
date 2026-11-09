@@ -1445,16 +1445,27 @@
   async function cargarPuntajeConcurso() {
     const card = document.getElementById('kpiConcursoCard');
     try {
-      const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams(getParams())}`, { headers:{ Authorization:`Bearer ${token()}` } });
+      const params = getParams();
+      const res = await fetch(`${API}/concurso-puntaje?${new URLSearchParams({ ...params, historial: '1' })}`, { headers:{ Authorization:`Bearer ${token()}` } });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error al cargar puntaje');
       const visible = data.visible === true || data.activo === true;
-      if (card) card.hidden = !visible;
+      const historyPanel = document.getElementById('kpiConcursoHistorialPanel');
+      if (historyPanel) historyPanel.hidden = !visible;
+      if (card) {
+        card.hidden = !visible;
+        card.dataset.futuro = String(data.estadoMes === 'PRÓXIMO');
+        const personal = document.getElementById('kpiConcursoToggle');
+        if (personal) personal.disabled = data.estadoMes === 'PRÓXIMO';
+      }
+      setText('kpiConcursoPeriodo', `${MESES_NOMBRE[params.mes - 1]} ${params.anio}`);
       setText('kpiConcursoPuntos', Number(data.puntosMes ?? data.puntos ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 2 }));
       renderDetalleConcurso(data);
     } catch (err) {
       console.error('[cargarPuntajeConcurso]', err);
       if (card) card.hidden = true;
+      const historyPanel = document.getElementById('kpiConcursoHistorialPanel');
+      if (historyPanel) historyPanel.hidden = true;
       setText('kpiConcursoPuntos', '0');
       renderDetalleConcurso(null);
     }
@@ -1482,14 +1493,52 @@
       </div>
     `).join('');
 
-    const meses = Array.isArray(data?.historialMensual) ? data.historialMensual.filter(item => [10, 11, 12].includes(Number(item.mes))) : [];
-    historial.innerHTML = meses.length
-      ? meses.map(item => {
-          const mes = Number(item.mes || 0);
-          const nombreMes = MESES_NOMBRE[mes - 1] || `Mes ${mes || '-'}`;
-          return `<div class="kpi-concurso-mes"><span>${escHtml(nombreMes)} 2026${item.resultadoRevisado ? ' · Resultado revisado' : ''}</span><strong>${formatPoints(item.totalMes)} pts</strong></div>`;
-        }).join('')
-      : '<span class="kpi-concurso-empty">Sin historial mensual disponible.</span>';
+    const meses = Array.isArray(data?.historialConcurso) ? data.historialConcurso : [];
+    historial.innerHTML = [10, 11, 12].map(mes => {
+      const item = meses.find(row => Number(row.mes) === mes);
+      const closed = item?.cerrado === true && item?.clickeable === true;
+      const tag = closed ? 'button' : 'div';
+      const hint = closed ? 'Ver resultados oficiales' : item?.estado === 'EN CURSO' ? 'Ranking disponible al cierre' : 'Próximo mes del Concurso';
+      return `<${tag} class="concurso-mes${item?.actual ? ' concurso-mes--actual' : ''}${closed ? ' concurso-mes--cerrado' : ''}" title="${hint}" ${closed ? `type="button" data-ranking-mes="${mes}"` : ''}>
+        <span class="concurso-mes-nombre">${escHtml(MESES_NOMBRE[mes - 1])}</span>
+        <strong>${item?.puntos == null ? '—' : `${formatPoints(item.puntos)} pts`}</strong>
+        <span class="concurso-mes-estado">${escHtml(item?.estado || 'Cargando')}</span>
+      </${tag}>`;
+    }).join('');
+    historial.onclick = event => {
+      const button = event.target.closest('[data-ranking-mes]');
+      if (button) abrirRankingConcurso(Number(button.dataset.rankingMes));
+    };
+  }
+
+  async function abrirRankingConcurso(mes) {
+    let dialog = document.getElementById('concursoRankingDialog');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'concursoRankingDialog';
+      dialog.className = 'concurso-ranking-dialog';
+      dialog.setAttribute('aria-labelledby', 'concursoRankingTitulo');
+      dialog.innerHTML = `<header class="concurso-ranking-header"><div><span>Resultados oficiales</span><h2 id="concursoRankingTitulo"></h2><small>CERRADO</small></div><button type="button" aria-label="Cerrar resultados">×</button></header><div class="concurso-ranking-body" aria-live="polite"></div>`;
+      dialog.querySelector('button').onclick = () => dialog.close();
+      dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+      document.body.appendChild(dialog);
+    }
+    dialog.querySelector('h2').textContent = `${MESES_NOMBRE[mes - 1]} 2026`;
+    dialog.dataset.mes = String(mes);
+    const body = dialog.querySelector('.concurso-ranking-body');
+    body.innerHTML = '<p role="status">Cargando resultados oficiales…</p>';
+    if (!dialog.open) dialog.showModal();
+    try {
+      const res = await fetch(`${API}/concurso-ranking?${new URLSearchParams({ anio: '2026', mes })}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const data = await res.json();
+      if (dialog.dataset.mes !== String(mes)) return;
+      if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudieron cargar los resultados.');
+      body.innerHTML = data.tramos.map(group => `<section class="concurso-ranking-grupo"><h3>${group.tramo === 'SIN META' ? 'Sin meta' : `Tramo ${escHtml(group.tramo)}`}</h3>
+        <table><thead><tr><th scope="col">Vendedor</th><th scope="col">Tramo</th><th scope="col">Total mes</th></tr></thead><tbody>${group.vendedores.length ? group.vendedores.map(row => `<tr><td>${escHtml(row.vendedor)}</td><td>${escHtml(row.tramo)}</td><td>${Number(row.totalMes).toLocaleString('es-CL', { maximumFractionDigits: 2 })}</td></tr>`).join('') : '<tr><td colspan="3">Sin vendedores en este tramo.</td></tr>'}</tbody></table></section>`).join('');
+    } catch (error) {
+      if (dialog.dataset.mes !== String(mes)) return;
+      body.innerHTML = `<p role="alert">${escHtml(error.message || 'No se pudieron cargar los resultados.')}</p>`;
+    }
   }
 
   function initConcursoCard() {
@@ -1500,7 +1549,7 @@
     const setLoading = (loading) => {
       card.classList.toggle('is-loading', loading);
       card.setAttribute('aria-busy', String(loading));
-      toggle.disabled = loading;
+      toggle.disabled = loading || card.dataset.futuro === 'true';
       const chevron = card.querySelector('.kpi-concurso-chevron');
       if (chevron) chevron.textContent = loading ? 'Cargando' : 'Ver';
     };

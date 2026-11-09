@@ -1,14 +1,21 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ConcursoReglasMeta.php';
+require_once __DIR__ . '/ClienteClasificacionEfectivaService.php';
 
 final class AnalyticsService
 {
     use SharedServiceHelpers;
 
     private ?string $quoteVendorField = null;
+    private array $concursoDiagnosticosOverride = [];
+    private array $concursoTrazabilidadOverride = [];
 
-    public function __construct(private Database $db)
+    /** Solo para diagnóstico administrativo y congelación; nunca se agrega a respuestas del vendedor. */
+    public function concursoOverrideDiagnosticos(): array { return $this->concursoDiagnosticosOverride; }
+    public function concursoOverrideTrazabilidad(): array { return $this->concursoTrazabilidadOverride; }
+
+    public function __construct(private Database $db, private ?ClienteClasificacionOverrideService $overridesCartera = null)
     {
     }
 
@@ -360,6 +367,7 @@ final class AnalyticsService
     /** Concurso exclusivamente: criterio del calendario + venta neta atribuida por cliente. */
     public function concursoClientes(array $relations, int $mes, ?int $detailUser = null, ?string $clientCode = null, bool $includeFolios = false, bool $allDetails = false): array
     {
+        $this->concursoDiagnosticosOverride = $this->concursoTrazabilidadOverride = [];
         if ($mes < 1 || $mes > 12) throw new RuntimeException('Mes inválido.', 400);
         $parameters = ConcursoReglasMeta::load();
         $newRules = $parameters['clientesNuevos'];
@@ -378,6 +386,7 @@ final class AnalyticsService
                 $this->concursoRecoveredDaysForArea((string)($relation['area'] ?? ''), $defaultRecoveredDays));
         }
         if (!$owners) return ['resumen' => [], 'clientes' => []];
+        $overrides = $this->overridesCartera?->listar(['periodo' => sprintf('2026-%02d', $mes), 'activo' => 1]) ?? [];
 
         $candidateSql = "SELECT DISTINCT CodAux FROM [PRODIN].[softland].[iw_gsaen]
             WHERE Tipo = 'F' AND Estado <> 'A' AND Fecha >= ? AND Fecha < ?";
@@ -399,7 +408,10 @@ final class AnalyticsService
         $stmt->execute($params);
         $clients = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $clients[$row['clienteCodigo']] = $row;
-        if (!$clients) return ['resumen' => $summary, 'clientes' => []];
+        if (!$clients) {
+            foreach ($overrides as $override) if ($override['accion'] === 'INCLUIR') $this->concursoVerificarInclusionSinCandidato($override, $desde, $hasta);
+            return ['resumen' => $summary, 'clientes' => []];
+        }
         $firstsByRut = $detailScope === null ? $this->firstPurchasesByRut(array_keys($clients))
             : $this->firstPurchasesByRut($detailScope['codes'], $detailScope['identity']);
         $stmt = $this->softland()->prepare("WITH Candidatos AS ($candidateSql)
@@ -530,12 +542,19 @@ final class AnalyticsService
                 'categoria' => $kind, 'ultimaCompra' => $last?->format('Y-m-d'), 'dias' => $classification['diasInactividad'],
                 'califica' => $qualifies, 'puntosBase' => $basePoints, 'puntos' => 0.0,
                 'motivo' => $entry['ventaCalificadora'] < $minimum ? 'VENTA < $' . number_format($minimum, 0, ',', '.') : ''];
-            if ($qualifies) {
+        }
+        $classified = $this->concursoAplicarClasificacionEfectiva($classified, $monthly, $clients, $firstsByRut, $overrides, $mes, $clientCode, $newRules, $recoveredRules);
+        // Distribuir solo después de retirar eventos excluidos y forzar categorías sobre ventas reales.
+        foreach ($classified as $entry) {
+            $id = $entry['usuarioId'];
+            $kind = $entry['categoria'];
+            $pointClient = $entry['newIdentity'] ?? $entry['clienteCodigo'];
+            if ($entry['califica']) {
                 $pointParticipants[$kind][$pointClient][$id] = [
                     'typeC' => !empty($entry['hasTypeC']),
                     'shared' => !empty($entry['hasSharedSale']),
                     'weight' => (float)$entry['pointWeight'],
-                    'basePoints' => $basePoints,
+                    'basePoints' => $entry['puntosBase'],
                 ];
             }
         }
@@ -564,6 +583,100 @@ final class AnalyticsService
             if ($allDetails || ($detailUser !== null && $id === $detailUser)) $details[] = $row;
         }
         return ['resumen' => $summary, 'clientes' => $details];
+    }
+
+    private function concursoAplicarClasificacionEfectiva(array $classified, array $monthly, array $clients, array $firsts, array $overrides,
+        int $month, ?string $clientCode, array $newRules, array $recoveredRules): array
+    {
+        if (!$overrides) return $classified;
+        $period = sprintf('2026-%02d', $month);
+        $ruts = [];
+        foreach ($firsts as $code => $first) {
+            if (str_starts_with($first['Identidad'], 'RUT:')) {
+                $ruts[(string)$code] = substr($first['Identidad'], 4);
+                $ruts[(string)$first['CodAuxPrimero']] = substr($first['Identidad'], 4);
+            }
+        }
+        // Recuperados sigue agrupado por CodAux; el RUT solo sirve para resolver la decisión global.
+        $missing = array_values(array_diff(array_map('strval', array_keys($clients)), array_map('strval', array_keys($ruts))));
+        foreach (array_chunk($missing, 500) as $batch) {
+            $stmt = $this->softland()->prepare('SELECT LTRIM(RTRIM(CodAux)) AS CodAux, RutAux FROM [PRODIN].[softland].[cwtauxi] WHERE CodAux IN (' . implode(',', array_fill(0, count($batch), '?')) . ')');
+            $stmt->execute($batch);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) $ruts[(string)$row['CodAux']] = $row['RutAux'];
+        }
+        $identity = static fn(array $entry): ?string => ClienteClasificacionEfectivaService::clave($period, $ruts[$entry['clienteCodigo']] ?? null);
+        $byUser = [];
+        foreach ($classified as $row) $byUser[$row['usuarioId']][$row['categoria']][] = $row;
+        $allKeys = [];
+        foreach ($monthly as $entries) foreach ($entries as $code => $entry) {
+            $key = ClienteClasificacionEfectivaService::clave($period, $ruts[(string)$code] ?? null);
+            if ($key !== null) $allKeys[$key] = true;
+        }
+        $verified = [];
+        foreach ($overrides as $row) if ($row['accion'] === 'INCLUIR') {
+            try { ClienteClasificacionEfectivaService::evidencia($row); $verified[$row['id']] = true; }
+            catch (RuntimeException) { $this->concursoDiagnosticosOverride[] = ['overrideId' => (int)$row['id'], 'condicion' => 'EVIDENCIA_INSUFICIENTE']; }
+            if (!isset($allKeys[ClienteClasificacionEfectivaService::clave($period, $row['rut_normalizado'])])) {
+                $this->concursoVerificarInclusionSinCandidato($row, $period . '-01', (new DateTimeImmutable($period . '-01'))->modify('+1 month')->format('Y-m-d'));
+            }
+        }
+        $effective = [];
+        foreach ($monthly as $id => $entries) {
+            $plan = ClienteClasificacionEfectivaService::planificar($byUser[$id]['nuevos'] ?? [], $byUser[$id]['recuperados'] ?? [], $overrides, $identity);
+            foreach ($plan['inclusiones'] as $inclusion) {
+                $override = $inclusion['override'];
+                if (!isset($verified[$override['id']])) continue;
+                $kind = $inclusion['categoria'];
+                $candidates = [];
+                foreach ($entries as $code => $entry) {
+                    if ($identity(['clienteCodigo' => (string)$code]) === ClienteClasificacionEfectivaService::clave($period, $override['rut_normalizado'])) $candidates[(string)$code] = $entry;
+                }
+                if (!$candidates) continue; // Sin atribución real para este vendedor, no se crea una participación.
+                $code = isset($candidates[$override['codaux']]) ? $override['codaux'] : (string)array_key_first($candidates);
+                $entry = $candidates[$code];
+                if ($kind === 'nuevos') {
+                    foreach ($candidates as $otherCode => $other) {
+                        if ((string)$otherCode === (string)$code) continue;
+                        foreach (['ventaMes','ventaCalificadora','cantidadFolios','pointWeight'] as $field) $entry[$field] += $other[$field];
+                        $entry['hasSharedSale'] = $entry['hasSharedSale'] || $other['hasSharedSale'];
+                        $entry['hasTypeC'] = $entry['hasTypeC'] || $other['hasTypeC'];
+                        $entry['folios'] = array_merge($entry['folios'], $other['folios']);
+                        if ($other['primeraMes'] !== null && ($entry['primeraMes'] === null || $other['primeraMes'] < $entry['primeraMes'])) $entry['primeraMes'] = $other['primeraMes'];
+                    }
+                    $entry['newIdentity'] = 'RUT:' . $override['rut_normalizado'];
+                } elseif ($clientCode !== null && $code !== $clientCode) continue;
+                $last = $clients[$code]['ultimaPrevia'] ?? null;
+                $days = $last && $entry['primeraMes'] ? (new DateTimeImmutable($last))->diff(new DateTimeImmutable($entry['primeraMes']))->days : null;
+                $rules = $kind === 'nuevos' ? $newRules : $recoveredRules;
+                $qualifies = $entry['ventaCalificadora'] >= $rules['ventaMinima'];
+                $plan[$kind][] = $entry + ['usuarioId' => $id, 'clienteCodigo' => (string)$code, 'cliente' => $clients[$code]['cliente'],
+                    'categoria' => $kind, 'ultimaCompra' => $last, 'dias' => $days, 'califica' => $qualifies,
+                    'puntosBase' => (float)$rules['puntos'], 'puntos' => 0.0,
+                    'motivo' => $qualifies ? '' : 'VENTA < $' . number_format($rules['ventaMinima'], 0, ',', '.')];
+                $this->concursoTrazabilidadOverride[$id][$kind][(string)$code] = ['origen' => 'OVERRIDE_VALIDADO',
+                    'overrideId' => (int)$override['id'], 'accion' => 'INCLUIR', 'tipoEvento' => $override['tipo_evento'],
+                    'periodo' => $period, 'rutNormalizado' => $override['rut_normalizado']];
+            }
+            array_push($effective, ...array_values($plan['nuevos']), ...array_values($plan['recuperados']));
+        }
+        return $effective;
+    }
+
+    private function concursoVerificarInclusionSinCandidato(array $override, string $desde, string $hasta): void
+    {
+        try { ClienteClasificacionEfectivaService::evidencia($override); }
+        catch (RuntimeException) { $this->concursoDiagnosticosOverride[] = ['overrideId' => (int)$override['id'], 'condicion' => 'EVIDENCIA_INSUFICIENTE']; return; }
+        // Reconstrucción prudente: verifica el documento, pero no inventa atribuciones ni puntos.
+        try {
+            $stmt = $this->softland()->prepare("SELECT h.NroInt FROM [PRODIN].[softland].[iw_gsaen] h
+                WHERE h.Tipo = 'F' AND h.Estado <> 'A' AND h.Folio = ? AND h.NroInt = ? AND h.CodAux = ? AND h.Fecha >= ? AND h.Fecha < ?
+                AND EXISTS (SELECT 1 FROM [PRODIN].[softland].[iw_gmovi] m INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd=m.CodProd WHERE m.NroInt=h.NroInt AND m.Tipo=h.Tipo)");
+            $stmt->execute([$override['folio'], $override['nroint'], $override['codaux'], $desde, $hasta]);
+            $condition = $stmt->fetch(PDO::FETCH_ASSOC) ? 'SIN_ATRIBUCION_CONCURSO' : 'DOCUMENTO_NO_VERIFICABLE';
+        } catch (PDOException) {
+            $condition = 'VERIFICACION_NO_DISPONIBLE';
+        }
+        $this->concursoDiagnosticosOverride[] = ['overrideId' => (int)$override['id'], 'condicion' => $condition];
     }
 
     /** Atribucion compartida comun al Concurso y a Control de Clientes. */
@@ -2881,7 +2994,7 @@ final class AnalyticsService
 
     public function cartera(array $payload, array $query): array
     {
-        return $this->carteraOptimizada($payload, $query);
+        return $this->carteraConClasificacionEfectiva($payload, $query);
     }
 
     public function carteraForUser(
@@ -2898,7 +3011,88 @@ final class AnalyticsService
             throw new RuntimeException('Las ventanas de cartera deben ser positivas.', 400);
         }
 
-        return $this->carteraOptimizada(['sub' => $userId], $query, $diasRecuperacion, $diasInactividad);
+        return $this->carteraConClasificacionEfectiva(['sub' => $userId], $query, $diasRecuperacion, $diasInactividad);
+    }
+
+    /** Punto único para /cartera y dashboardForUser(), sin alterar el motor histórico. */
+    private function carteraConClasificacionEfectiva(array $payload, array $query, ?int $diasRecuperacion = null, int $diasInactividad = 90): array
+    {
+        $automatico = $this->carteraOptimizada($payload, $query, $diasRecuperacion, $diasInactividad);
+        return $this->carteraEfectiva($automatico, $payload, $query);
+    }
+
+    /** Conserva todas las métricas y listas ajenas a clasificación. */
+    private function carteraEfectiva(array $automatico, array $payload, array $query): array
+    {
+        if ($this->overridesCartera === null || !isset($automatico['nuevos'], $automatico['recuperados'])) return $automatico;
+        $date = $this->monthYear($query);
+        $period = sprintf('%04d-%02d', $date['anio'], $date['mes']);
+        $overrides = $this->overridesCartera->listar(['periodo' => $period, 'activo' => 1]);
+        if (!$overrides) return $automatico;
+        $codes = $this->getVendorCodes($this->currentUserIdFromPayload($payload));
+        $filter = trim((string)($query['cod_vendedor'] ?? ''));
+        if ($filter !== '') $codes = in_array($filter, $codes, true) ? [$filter] : [];
+        if (!$codes) return $automatico;
+        $rutByCode = [];
+        $clientCodes = array_values(array_unique(array_filter(array_merge(
+            array_column($automatico['nuevos'], 'CodAux'), array_column($automatico['recuperados'], 'CodAux')))));
+        // La cartera histórica no expone RUT. Solo se usa este mapa interno de lectura en bloque.
+        foreach (array_chunk($clientCodes, 500) as $batch) {
+            $in = implode(',', array_fill(0, count($batch), '?'));
+            $stmt = $this->softland()->prepare("SELECT LTRIM(RTRIM(CodAux)) AS CodAux, RutAux FROM [PRODIN].[softland].[cwtauxi] WHERE CodAux IN ($in)");
+            $stmt->execute($batch);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) $rutByCode[trim((string)$row['CodAux'])] = $row['RutAux'];
+        }
+        $identity = static fn(array $event): ?string => ClienteClasificacionEfectivaService::clave($period, $rutByCode[trim((string)$event['CodAux'])] ?? null);
+        $plan = ClienteClasificacionEfectivaService::planificar($automatico['nuevos'], $automatico['recuperados'], $overrides, $identity,
+            static function (array &$events, array $matches): void {
+                // Cartera no suma importes por segmento: conserva un único cliente existente.
+                foreach (array_slice($matches, 1) as $id) unset($events[$id]);
+            });
+        $assigned = array_fill_keys(array_map('strval', array_column($automatico['total'], 'CodAux')), true);
+        $newCodes = [];
+        foreach ($plan['inclusiones'] as $item) if ($item['categoria'] === 'nuevos') $newCodes[] = $item['override']['codaux'];
+        foreach (array_chunk(array_values(array_unique(array_filter($newCodes))), 500) as $batch) {
+            $inClients = implode(',', array_fill(0, count($batch), '?'));
+            $inVendors = implode(',', array_fill(0, count($codes), '?'));
+            $stmt = $this->softland()->prepare("SELECT DISTINCT LTRIM(RTRIM(CodAux)) AS CodAux FROM [PRODIN].[softland].[cwtauxven] WHERE CodAux IN ($inClients) AND VenCod IN ($inVendors)");
+            $stmt->execute(array_merge($batch, $codes));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) $assigned[trim((string)$row['CodAux'])] = true;
+        }
+        $vendorKeys = array_map($this->sharedCodeKey(...), $codes);
+        $baseRows = array_column($automatico['total'], null, 'CodAux');
+        foreach ($plan['inclusiones'] as $item) {
+            $row = $item['override'];
+            $kind = $item['categoria'];
+            // Respeta los dos criterios históricos: nuevos por asignación, recuperados por factura del vendedor.
+            if ($kind === 'nuevos' && !isset($assigned[$row['codaux']])) continue;
+            if ($kind === 'recuperados' && !in_array($this->sharedCodeKey($row['codigo_vendedor_origen']), $vendorKeys, true)) continue;
+            $evidence = ClienteClasificacionEfectivaService::evidencia($row);
+            $base = $baseRows[$row['codaux']] ?? ['CodAux' => $row['codaux'], 'NomAux' => $row['cliente_nombre'],
+                'FONAUX1' => '', 'FonAux2' => '', 'EMail' => '', 'FechaUltimaCompra' => null,
+                'FechaUltimaCompraVendedor' => null, 'FechaPrimeraCompra' => null, 'FechaMinMesActual' => null,
+                'FechaUltimaCompraPrevia' => null, 'DiasInactividadPrevia' => null,
+                'EsActivo' => 0, 'EsInactivo' => 0, 'EsActivoMesActual' => 0];
+            if ($kind === 'nuevos') {
+                $event = array_replace($base, ['NomAux' => $row['cliente_nombre'], 'EsNuevo' => 1, 'EsRecuperado' => 0]);
+            } else {
+                $event = ['CodAux' => $row['codaux'], 'CodCliente' => $row['codaux'], 'CodVendedor' => $row['codigo_vendedor_origen'],
+                    'Folio' => $row['folio'], 'NroInt' => $row['nroint'], 'NomAux' => $row['cliente_nombre'],
+                    'FONAUX1' => $base['FONAUX1'], 'FonAux2' => $base['FonAux2'], 'EMail' => $base['EMail'],
+                    'FechaUltimaCompra' => $evidence['fecha'], 'FechaCompra' => $evidence['fecha'],
+                    'FechaUltimaCompraPrevia' => $base['FechaUltimaCompraPrevia'], 'FechaCompraAnterior' => $base['FechaUltimaCompraPrevia'],
+                    'DiasInactividadPrevia' => $base['DiasInactividadPrevia'], 'DiasSinComprar' => $base['DiasInactividadPrevia'],
+                    'DiasRecuperacion' => $automatico['DiasRecuperacion'], 'Area' => $this->userAreaFromPayload($payload),
+                    'EsRecuperado' => 1, 'Recuperado' => true];
+            }
+            // Solo campos del contrato público; nunca enviar evidencia ni auditoría administrativa.
+            $plan[$kind][] = $event;
+        }
+        $automatico['nuevos'] = array_values($plan['nuevos']);
+        $automatico['recuperados'] = array_values($plan['recuperados']);
+        $automatico['ClientesNuevos'] = count($automatico['nuevos']);
+        $automatico['ClientesRecuperados'] = count($automatico['recuperados']);
+        return $automatico;
     }
 
     private function clasificarClienteCartera(

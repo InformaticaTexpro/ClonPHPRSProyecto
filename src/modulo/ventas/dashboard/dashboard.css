@@ -384,6 +384,43 @@ img, svg, canvas, table { max-width: 100%; }
 
 .kpi-card--concurso {
   min-width: 0;
+  height:auto;
+}
+
+#kpiConcursoPeriodo { color:#6B7280; font-size:.65rem; line-height:1.1; }
+.kpi-card--concurso .kpi-info { gap:0; }
+.kpi-concurso-months { margin:0; padding:0; border-top:1px solid #E8EAF0; }
+.kpi-concurso-months[hidden] { display:none; }
+.kpi-concurso-months .kpi-concurso-lista { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; }
+.concurso-mes { min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:0; border-radius:0; background:transparent; color:#475569; padding:10px 3px; font:inherit; line-height:1.2; text-align:center; }
+.concurso-mes + .concurso-mes { border-left:1px solid #E8EAF0; }
+.concurso-mes-nombre { font-size:.6rem; font-weight:700; text-transform:uppercase; }
+.concurso-mes strong { font-size:.95rem; color:#182433; font-variant-numeric:tabular-nums; }
+.concurso-mes-estado { font-size:.52rem; font-weight:700; letter-spacing:.02em; }
+.concurso-mes--actual { background:#F4F6FA; }
+.concurso-mes--cerrado { cursor:pointer; color:#176E58; }
+.concurso-mes--cerrado:hover { background:#F0FAF7; }
+.concurso-mes:focus-visible { outline:2px solid #4F46E5; outline-offset:-3px; }
+.concurso-ranking-dialog { width:min(780px,calc(100% - 24px)); max-height:88dvh; margin:auto; padding:0; border:0; border-radius:18px; color:#182433; box-shadow:0 24px 80px #0F172A40; }
+.concurso-ranking-dialog::backdrop { background:#0F172A99; }
+.concurso-ranking-header { position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; align-items:center; padding:22px 26px; background:#102A2C; color:#FFF; }
+.concurso-ranking-header span { text-transform:uppercase; letter-spacing:.12em; font-size:.7rem; color:#97DAC6; }
+.concurso-ranking-header h2 { margin:5px 0 8px; font-size:1.4rem; }
+.concurso-ranking-header small { border:1px solid #97DAC6; border-radius:20px; padding:3px 10px; font-size:.65rem; }
+.concurso-ranking-header button { background:transparent; color:white; border:0; font-size:2rem; cursor:pointer; padding:8px; }
+.concurso-ranking-body { padding:4px 26px 26px; }
+.concurso-ranking-grupo { scroll-margin-top:140px; }
+.concurso-ranking-grupo h3 { font-size:.85rem; text-transform:uppercase; margin:24px 0 10px; color:#176E58; }
+.concurso-ranking-grupo table { width:100%; border-collapse:collapse; font-size:.8rem; table-layout:fixed; }
+.concurso-ranking-grupo th { background:#F1F5F9; color:#64748B; font-size:.65rem; text-transform:uppercase; text-align:left; }
+.concurso-ranking-grupo td, .concurso-ranking-grupo th { padding:10px 12px; border-bottom:1px solid #E8EEF2; overflow-wrap:anywhere; }
+.concurso-ranking-grupo th:first-child { width:62%; }
+.concurso-ranking-grupo td:last-child, .concurso-ranking-grupo th:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+.concurso-ranking-grupo td:last-child { font-weight:800; }
+@media(max-width:640px) {
+  .concurso-ranking-header { padding:18px; }
+  .concurso-ranking-body { padding:0 12px 18px; }
+  .concurso-ranking-grupo td, .concurso-ranking-grupo th { padding:10px 6px; }
 }
 
 .kpi-card--concurso-expandible {
@@ -397,7 +434,8 @@ img, svg, canvas, table { max-width: 100%; }
 
 .kpi-concurso-toggle {
   width:100%;
-  min-height:88px;
+  height:88px;
+  min-height:0;
   display:flex;
   align-items:center;
   gap:clamp(10px, .85vw, 16px);

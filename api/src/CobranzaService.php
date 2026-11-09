@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/ConcursoCierreStore.php';
+require_once __DIR__ . '/ClienteClasificacionEfectivaService.php';
 
 final class CobranzaService
 {
@@ -9,7 +10,9 @@ final class CobranzaService
 
     private ?array $relations = null;
 
-    public function __construct(private Database $db, private AnalyticsService $analytics) {}
+    // Sin proveedor explícito conserva el cálculo automático para consumidores aislados antiguos.
+    public function __construct(private Database $db, private AnalyticsService $analytics,
+        private ?ClienteClasificacionOverrideService $overrides = null) {}
 
     public function route(array $payload, string $method, string $path, array $query): array
     {
@@ -484,7 +487,6 @@ final class CobranzaService
             $key = $doc['clienteCodigo'] . '|' . substr($doc['fecha'], 0, 7);
             if (isset($recovered[$key])) $this->addDocument($recovered[$key], $doc);
         }
-        $contest = [];
         foreach (['nuevos' => &$new, 'recuperados' => &$recovered] as &$groups) {
             foreach ($groups as $key => &$group) {
                 $group['codigos'] = array_map('strval', array_keys($group['codigos']));
@@ -493,6 +495,14 @@ final class CobranzaService
                 $groupOwners = [];
                 foreach (array_unique(array_merge($group['codigos'], [$group['codigoCliente']])) as $code) $groupOwners += $owners[$code] ?? [];
                 $group['propietarios'] = array_values($groupOwners);
+            }
+            unset($group);
+        }
+        unset($groups);
+        [$new, $recovered] = $this->aplicarOverridesClasificacion($new, $recovered, $filters);
+        $contest = [];
+        foreach (['nuevos' => &$new, 'recuperados' => &$recovered] as &$groups) {
+            foreach ($groups as $key => &$group) {
                 // Filtrar el nombre consolidado sin recortar documentos de una misma identidad RUT.
                 if ($filters['cliente'] !== '' && !preg_match('/' . preg_quote($filters['cliente'], '/') . '/iu', $group['cliente'])) {
                     unset($groups[$key]);
@@ -516,6 +526,92 @@ final class CobranzaService
             'resumen' => ['clientesNuevos' => count($new), 'clientesRecuperados' => count($recovered),
                 'ventaNuevos' => array_sum(array_column($new, 'ventaTotal')), 'ventaRecuperados' => array_sum(array_column($recovered, 'ventaTotal'))],
             'nuevos' => array_values($new), 'recuperados' => array_values($recovered)];
+    }
+
+    /** Capa posterior al motor histórico. Una consulta de overrides por rango, sin N+1. */
+    private function aplicarOverridesClasificacion(array $nuevos, array $recuperados, array $filters): array
+    {
+        if ($this->overrides === null) return [$nuevos, $recuperados];
+        $rows = $this->overrides->listar(['activo' => 1,
+            'periodoDesde' => substr($filters['desde'], 0, 7), 'periodoHasta' => substr($filters['hasta'], 0, 7)]);
+        if (!$rows) return [$nuevos, $recuperados];
+        $plan = ClienteClasificacionEfectivaService::planificar($nuevos, $recuperados, $rows,
+            static fn(array $event): ?string => ClienteClasificacionEfectivaService::clave($event['periodo'], $event['rut'] ?? null),
+            function (array &$events, array $matches): void { $this->unificarEventoManual($events, $matches); });
+        $effective = ['nuevos' => $plan['nuevos'], 'recuperados' => $plan['recuperados']];
+        $pending = [];
+        foreach ($plan['inclusiones'] as $inclusion) {
+            $row = $inclusion['override'];
+            if ($filters['identidad'] !== null && 'RUT:' . $row['rut_normalizado'] !== $filters['identidad']) continue;
+            if (!is_string($row['fecha_documento']) || $row['fecha_documento'] < $filters['desde'] || $row['fecha_documento'] > $filters['hasta']) continue;
+            $pending[] = [$inclusion['categoria'], $row['periodo'] . '|' . $row['rut_normalizado'], $row];
+        }
+        // La propiedad sigue siendo cwtauxven, nunca los participantes compartidos.
+        $owners = $this->clientOwners(array_values(array_unique(array_column(array_column($pending, 2), 'codaux'))));
+        foreach ($pending as [$kind, $key, $row]) {
+            $event = $this->eventoManualOverride($row, $kind, $owners[$row['codaux']] ?? []);
+            $effective[$kind]['override:' . $row['id']] = $event;
+        }
+        return [$effective['nuevos'], $effective['recuperados']];
+    }
+
+    private function unificarEventoManual(array &$events, array $matches): void
+    {
+        $first = $matches[0];
+        $event = $events[$first];
+        $documents = $owners = [];
+        foreach ($matches as $key) {
+            $event['fecha'] = min($event['fecha'], $events[$key]['fecha']);
+            foreach ($events[$key]['folios'] as $doc) {
+                $docKey = implode('|', [$doc['tipo'], $doc['NroInt'], $doc['folio'], $doc['clienteCodigo']]);
+                $documents[$docKey] = $doc;
+            }
+            foreach ($events[$key]['propietarios'] as $owner) $owners[$owner['usuarioId']] = $owner;
+            unset($events[$key]);
+        }
+        $event = array_replace($event, ['folios' => [], 'codigos' => [], 'participantes' => [], 'ventaTotal' => 0.0, 'compartida' => false]);
+        foreach ($documents as $doc) $this->addDocument($event, $doc);
+        $event['codigos'] = array_map('strval', array_keys($event['codigos']));
+        $event['participantes'] = array_values($event['participantes']);
+        $event['cantidadFolios'] = count($event['folios']);
+        $event['propietarios'] = array_values($owners);
+        $events[$first] = $event;
+    }
+
+    /** Reconstruye exclusivamente el documento validado y persistido; no inventa historial ni puntos. */
+    private function eventoManualOverride(array $row, string $kind, array $owners): array
+    {
+        $evidence = ClienteClasificacionEfectivaService::evidencia($row);
+        $vendor = $evidence['vendedorOrigen'];
+        $amount = (float)$evidence['monto'];
+        $shares = $evidence['compartidos'];
+        $parts = [];
+        $originPercent = 100.0 - array_sum(array_column($shares, 'porcentaje'));
+        foreach (array_merge([$vendor + ['porcentaje' => $originPercent]], $shares) as $part) {
+            if (!is_string($part['codigo'] ?? null) || !is_string($part['nombre'] ?? null) || !is_numeric($part['porcentaje'] ?? null)
+                || (float)$part['porcentaje'] < 0 || (float)$part['porcentaje'] > 100) throw new RuntimeException('Participación manual inválida.', 409);
+            $matches = [];
+            foreach ($this->relations() as $relation) {
+                if ($this->analytics->sharedCodeKey($relation['codigoAsociado']) === $this->analytics->sharedCodeKey($part['codigo'])) $matches[(int)$relation['usuarioId']] = $relation;
+            }
+            $relation = count($matches) === 1 ? reset($matches) : null;
+            $parts[] = ['usuarioId' => $relation === null ? null : (int)$relation['usuarioId'], 'nombre' => $part['nombre'],
+                'area' => $relation['area'] ?? '', 'porcentaje' => (float)$part['porcentaje'],
+                'ventaAsignada' => $amount * (float)$part['porcentaje'] / 100,
+                'atribucion' => $part['codigo'] === $vendor['codigo'] ? ['DIRECTA'] : ['COMPARTIDA']];
+        }
+        $doc = ['tipo' => 'F', 'folio' => $row['folio'], 'NroInt' => $row['nroint'], 'fecha' => $row['fecha_documento'],
+            'clienteCodigo' => $row['codaux'], 'cliente' => $row['cliente_nombre'], 'rut' => $row['rut_original'],
+            'codigoVendedor' => $row['codigo_vendedor_origen'], 'vendedor' => $vendor['nombre'],
+            'original' => $amount, 'compartida' => (bool)$shares, 'atribuciones' => $parts];
+        $event = $this->group($kind, 'manual:' . $row['id'], $doc, []);
+        $this->addDocument($event, $doc);
+        $event['codigos'] = array_map('strval', array_keys($event['codigos']));
+        $event['participantes'] = array_values($event['participantes']);
+        $event['propietarios'] = array_values($owners);
+        $event['cantidadFolios'] = 1;
+        if ($kind === 'recuperados') $event += ['ultimaCompra' => null, 'diasInactividad' => null, 'reglas' => []];
+        return $event;
     }
 
     private function contest(string $period): array

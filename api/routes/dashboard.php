@@ -64,6 +64,9 @@ return static function (
     if ($method === 'GET' && $path === '/concurso-puntaje') {
         json_response($concursoVentasService->puntaje($payload, $query));
     }
+    if ($method === 'GET' && $path === '/concurso-ranking') {
+        json_response($concursoVentasService->ranking($payload, $query));
+    }
     if ($method === 'GET' && $path === '/concurso-detalle') {
         json_response($gerenciaService->concursoDetalleUsuario($payload, $query));
     }

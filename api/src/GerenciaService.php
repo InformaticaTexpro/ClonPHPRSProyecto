@@ -417,10 +417,14 @@ final class GerenciaService
         $calculator = new ConcursoPromediosService($this->db, $this->analytics);
         $clientResult = isset($item['clientes']) ? ['clientes' => array_merge(...array_values($item['clientes']))]
             : $this->analytics->concursoClientes($relations, $month, $id, null, true);
+        $manualProofs = method_exists($this->analytics, 'concursoOverrideTrazabilidad') ? $this->analytics->concursoOverrideTrazabilidad() : [];
         $item['clientes'] = ['nuevos' => [], 'recuperados' => []];
         foreach ($clientResult['clientes'] as $client) {
             $kind = $client['categoria'];
             if (!isset($item['clientes'][$kind])) throw new RuntimeException('Categoría de cliente inválida.', 409);
+            if (isset($manualProofs[$id][$kind][$client['clienteCodigo']])) {
+                $client['_clasificacionEfectiva'] = $manualProofs[$id][$kind][$client['clienteCodigo']];
+            }
             $item['clientes'][$kind][] = $client;
         }
         foreach ($item['productos'] as &$category) {
@@ -653,7 +657,7 @@ final class GerenciaService
                 foreach ($saved['snapshot']['vendedores'] as $vendor) if ($vendor['usuarioId'] === $id) {
                     $rows = $vendor['clientes'][$kind];
                     if ($client !== null) $rows = array_values(array_filter($rows, static fn(array $row): bool => $row['clienteCodigo'] === $client));
-                    return ['ok' => true, 'clientes' => $rows];
+                    return ['ok' => true, 'clientes' => array_map(static fn(array $row): array => array_diff_key($row, ['_clasificacionEfectiva' => true]), $rows)];
                 }
                 throw new RuntimeException('Vendedor no encontrado en el snapshot oficial.', 404);
             }
