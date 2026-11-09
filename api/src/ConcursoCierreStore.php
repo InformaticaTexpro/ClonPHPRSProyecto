@@ -173,7 +173,8 @@ final class ConcursoCierreStore
                         || !is_string($client['clienteCodigo'] ?? null) || !is_string($client['cliente'] ?? null)
                         || ($client['cantidadFolios'] ?? null) !== count($client['folios'])
                         || ($client['cantidadFolios'] === 0 && self::same((float)$client['ventaMes'], 0.0))
-                        || ($kind === 'recuperados' && (!is_numeric($client['dias'] ?? null) || (int)$client['dias'] < 180))) {
+                        || ($kind === 'recuperados' && (!is_numeric($client['dias'] ?? null) || (int)$client['dias'] < 180)
+                            && !self::inclusionRecuperadoValidada($client, $data['periodo']))) {
                         throw new RuntimeException('Cliente inválido.', 409);
                     }
                     $total = 0.0;
@@ -196,6 +197,17 @@ final class ConcursoCierreStore
                 throw new RuntimeException('Total Mes no cuadra.', 409);
             }
         }
+    }
+
+    /** Prueba congelada, sin consultar overrides actuales ni cambiar la validación de cierres históricos. */
+    private static function inclusionRecuperadoValidada(array $client, string $periodo): bool
+    {
+        $proof = $client['_clasificacionEfectiva'] ?? null;
+        return is_array($proof) && ($proof['origen'] ?? null) === 'OVERRIDE_VALIDADO'
+            && ($proof['accion'] ?? null) === 'INCLUIR' && ($proof['tipoEvento'] ?? null) === 'RECUPERADO'
+            && ($proof['periodo'] ?? null) === $periodo && is_int($proof['overrideId'] ?? null) && $proof['overrideId'] > 0
+            && is_string($proof['rutNormalizado'] ?? null) && preg_match('/^[0-9]{1,19}[0-9K]$/D', $proof['rutNormalizado']) === 1
+            && (($client['dias'] ?? null) === null || (is_numeric($client['dias']) && (float)$client['dias'] >= 0));
     }
 
     private static function number(mixed $value): bool

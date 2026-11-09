@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/src/Env.php';
 require_once __DIR__ . '/src/Http.php';
 require_once __DIR__ . '/src/Database.php';
+require_once __DIR__ . '/src/ClienteClasificacionOverrideService.php';
+require_once __DIR__ . '/src/ClienteClasificacionEfectivaService.php';
 require_once __DIR__ . '/src/Security.php';
 require_once __DIR__ . '/src/Pdf.php';
 require_once __DIR__ . '/src/Services.php';

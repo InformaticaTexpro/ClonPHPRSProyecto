@@ -1,0 +1,16 @@
+.override-panel { margin-top:24px; padding:18px; }
+.override-panel summary { cursor:pointer; font-weight:700; }
+.override-fields { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin:16px 0; }
+.override-fields label,.override-dialog label { display:flex; flex-direction:column; gap:6px; font-size:.85rem; }
+.override-dialog input,.override-dialog select,.override-dialog textarea,.override-panel input,.override-panel select { font:inherit; border:1px solid #b9c7cc; border-radius:6px; padding:9px; max-width:100%; box-sizing:border-box; }
+.override-dialog { width:min(740px,90vw); }
+.override-dialog .override-fields label { flex:1 1 200px; }
+.override-dialog #overrideEvidence { padding-block:12px; line-height:1.7; }
+.override-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+.override-negative,.override-panel .override-negative { color:#a02323; }
+.override-positive { color:#187048; }
+.override-alert { padding:12px; border:1px solid #d9a6a6; border-radius:6px; background:#fff4f4; font-weight:600; }
+.override-panel[hidden],.override-panel [hidden],.override-dialog [hidden] { display:none; }
+.override-dialog textarea { width:100%; }
+.override-panel .client-table small { display:block; }
+@media(max-width:767px) { .override-fields { align-items:stretch; flex-direction:column; } .override-dialog .override-fields label { flex:auto; } }

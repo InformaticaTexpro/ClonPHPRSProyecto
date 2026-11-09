@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/ConcursoReglasMeta.php';
+require_once __DIR__ . '/ConcursoHistorialRankingService.php';
 
 final class ConcursoVentasService
 {
@@ -21,7 +22,8 @@ final class ConcursoVentasService
     public function __construct(
         private Database $db,
         private AnalyticsService $analytics,
-        private ?GerenciaService $gerencia = null
+        private ?GerenciaService $gerencia = null,
+        private ?ConcursoHistorialRankingService $historialRanking = null
     )
     {
     }
@@ -40,37 +42,28 @@ final class ConcursoVentasService
             return ['ok' => true, 'activo' => false, 'visible' => false, 'modoValidacion' => false, 'puntos' => 0];
         }
 
-        if ($this->gerencia !== null) {
-            $puntaje = $this->gerencia->concursoPuntajeUsuario($payload, ['anio' => (string)$anio, 'mes' => (string)$mes]);
-            if ($puntaje !== null) {
-                return array_merge([
-                    'ok' => true,
-                    'activo' => $activoOficial,
-                    'visible' => true,
-                    'modoValidacion' => $modoValidacion,
-                ], $puntaje);
-            }
-        }
-
-        if ($unavailable = $this->softlandUnavailable('el puntaje de concurso')) return $unavailable;
-
-        $vendorCodes = $this->normalizeVendorCodes($this->getVendorCodes($userId));
-        if (!$vendorCodes) {
-            return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => 0, 'puntosMes' => 0, 'historialMensual' => []];
-        }
-
-        $meta = $this->fetchMetaMes($userId, $anio, $mes);
-        $ventas = $this->ventasAcumuladasPeriodo($payload, $mes, $anio);
-        $area = $this->userArea($payload, $userId);
-        $diasRecuperacion = $this->diasRecuperacionPorArea($area);
-
-        $puntos = self::progressPoints($meta, $ventas)
-            + ($this->clientesNuevosPuntuables($vendorCodes, $anio, $mes) * (int)self::CONFIG['puntosNuevo'])
-            + ($this->clientesRecuperadosPuntuables($vendorCodes, $anio, $mes, $diasRecuperacion) * (int)self::CONFIG['puntosRecuperado']);
-
-        return ['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion, 'puntos' => $puntos, 'puntosMes' => $puntos, 'historialMensual' => []];
+        // También sin inyección explícita se usa la fuente central; no hay fallback automático divergente.
+        require_once __DIR__ . '/GerenciaService.php';
+        $gerencia = $this->gerencia ?? new GerenciaService($this->db,
+            new AnalyticsService($this->db, new ClienteClasificacionOverrideService($this->db)));
+        $history = $this->historialRanking ?? new ConcursoHistorialRankingService();
+        $cache = [];
+        $score = static function (int $month) use (&$cache,$gerencia,$payload,$anio): array {
+            return $cache[$month] ??= $gerencia->concursoPuntajeUsuario($payload,['anio'=>(string)$anio,'mes'=>(string)$month]) ?? ['puntosMes'=>0];
+        };
+        $puntaje = $history->esFuturo($anio,$mes) ? ['puntos'=>0,'puntosMes'=>0,'estadoMes'=>'PRÓXIMO'] : $score($mes);
+        $result = array_merge(['ok' => true, 'activo' => $activoOficial, 'visible' => true, 'modoValidacion' => $modoValidacion],
+            $puntaje ?? ['puntos' => 0, 'puntosMes' => 0, 'historialMensual' => []]);
+        // Opt-in del Dashboard; conserva el contrato y las lecturas aisladas de consumidores anteriores.
+        if (filter_var($query['historial']??false,FILTER_VALIDATE_BOOL)) $result['historialConcurso'] = $history->historial($userId,$score);
+        return $result;
     }
 
+    public function ranking(array $payload, array $query): array
+    {
+        $this->currentUserIdFromPayload($payload);
+        return ($this->historialRanking ?? new ConcursoHistorialRankingService())->ranking($query);
+    }
     public static function isActiveForPeriod(int $anio, int $mes): bool
     {
         $periodStart = new DateTimeImmutable(sprintf('%04d-%02d-01', $anio, $mes));

@@ -199,9 +199,9 @@
       const rules = (event.reglas || []).map(r => `${escape(r.vendedor)}: ${number(r.dias)} días`).join('<br>');
       return `<tr><td>${date(event.fecha)}</td><td><strong>${escape(event.codigoCliente)}</strong>${event.codigos.length > 1 ? `<small>+${event.codigos.length - 1} código${event.codigos.length > 2 ? 's' : ''}</small>` : ''}<small>${escape(event.rut || 'Sin RUT')}</small></td>
         <td class="client-name">${escape(event.cliente)}${event.codigoCaptacion ? `<small>Captación · código ${escape(event.codigoCaptacion)}</small>` : ''}</td>
-        <td class="client-participants">${owners}</td>${recovered ? `<td>${date(event.ultimaCompra)}</td><td>${number(event.diasInactividad)} días<small>${rules}</small></td>` : ''}
+        <td class="client-participants">${owners}</td>${recovered ? `<td>${date(event.ultimaCompra)}</td><td>${event.diasInactividad == null ? '—' : `${number(event.diasInactividad)} días`}<small>${rules}</small></td>` : ''}
         <td class="client-money">${money(event.ventaTotal)}</td><td><span class="client-tag${event.compartida ? ' client-tag--shared' : ' client-tag--muted'}">${event.compartida ? 'Venta compartida' : 'Directa'}</span></td>
-        <td class="client-numeric">${number(event.cantidadFolios)}</td><td>${contestBadge(event.concurso)}${contestParticipants}</td><td><button type="button" class="client-button client-button--light" data-event="${page * pageSize + i}">Ver folios</button></td></tr>`;
+        <td class="client-numeric">${number(event.cantidadFolios)}</td><td>${contestBadge(event.concurso)}${contestParticipants}</td><td><button type="button" class="client-button client-button--light" data-event="${page * pageSize + i}">Ver folios</button>${window.cobranzaOverridesAdmin ? `<button type="button" class="client-button client-button--light override-negative" data-exclude="${page * pageSize + i}">Excluir</button>` : ''}</td></tr>`;
     }).join('') || `<tr><td colspan="${headers.length}" class="client-empty">No hay ${recovered ? 'clientes recuperados' : 'clientes nuevos'} para los filtros aplicados.</td></tr>`;
     $('clientRowsInfo').textContent = events.length ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, events.length)} de ${number(events.length)} eventos` : '0 eventos';
     $('previousPage').disabled = page === 0;
@@ -225,6 +225,18 @@
     $('foliosContest').innerHTML = `<strong>Concurso ${escape(contest?.periodo || event.periodo)}</strong><br>${contestBadge(contest)}${contest?.participa ? `<p>Participantes Concurso · Resultado oficial del mes completo; la venta de esta vista corresponde al rango consultado.</p>${contest.participantes.map(p => `<div>${escape(p.nombre || names.get(p.usuarioId) || `Vendedor ${p.usuarioId}`)} · Venta atribuida ${money(p.ventaMes)} · ${number(p.puntos)} pts · ${p.califica ? 'Califica' : escape(p.motivo || 'No califica')}${p.ventaCalificadoraMes != null ? ` · Venta calificadora mensual ${money(p.ventaCalificadoraMes)}` : ''}</div>`).join('')}` : ''}`;
     $('foliosDialog').showModal();
   }
+
+  window.addEventListener('cobranza-overrides-ready', renderTable);
+  window.addEventListener('cobranza-overrides-changed', () => {
+    evolutionCache.clear(); monthDetailCache.clear();
+    closeMonthDetail(); loadReport();
+  });
+  $('clientTableBody').addEventListener('click', event => {
+    const button = event.target.closest('[data-exclude]');
+    if (button && window.cobranzaOverridesAdmin) {
+      window.dispatchEvent(new CustomEvent('cobranza-override-excluir', { detail: data[mainTab][Number(button.dataset.exclude)] }));
+    }
+  });
 
   async function loadReport({ initial = false } = {}) {
     if (!$('clientFilters').reportValidity()) return;
