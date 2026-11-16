@@ -1,0 +1,23 @@
+@import url('../../ventas/clientes-prospectos/clientes-prospectos.css?v=2.3.0');
+.request-dialog{width:min(900px,92vw);max-height:88vh;box-sizing:border-box;border:1px solid #e4e9f0;border-radius:18px;padding:22px;color:#344054;background:#fff}
+.request-dialog::backdrop{background:rgba(15,23,42,.55)}
+.request-dialog .panel-heading{padding:0 0 16px}.request-dialog .action-buttons{margin:18px 0;flex-wrap:wrap}
+.request-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.request-detail dt{font-size:.72rem;color:#64748b}.request-detail dd{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}
+.responsable-flags{display:flex;flex-wrap:wrap;gap:18px;padding:20px 0;font-size:.8rem}
+#responsableForm{padding-bottom:24px}
+@media(max-width:780px){.request-detail{grid-template-columns:1fr}.request-dialog{padding:16px}.list-tools{width:100%}.list-tools select{width:100%}}
+.request-dialog{position:fixed;inset:0;margin:auto;width:min(960px,calc(100vw - 32px));max-height:90vh;max-height:90dvh;overflow:auto;padding:20px}
+.request-dialog>.panel-heading{position:sticky;top:-20px;z-index:2;background:#fff;padding:12px 0;align-items:center}
+.request-dialog .panel-heading h3{margin:0}.request-dialog #closeDetail{flex:none;width:auto}
+.detail-section{padding:12px 0;border-bottom:1px solid #e5e9f0}.request-dialog h4{font-size:.78rem;letter-spacing:.05em;color:#365166;margin:0 0 10px}
+.request-detail{gap:12px 20px;margin:0}.request-detail dd{margin-top:3px;line-height:1.45}
+.management-section{padding:16px 0}.management-section .detail-section{padding-top:0}.management-section .detail-section h4:empty{display:none}.management-section p{font-size:.8rem;color:#64748b}
+.detail-history{padding-top:16px;border-top:1px solid #e5e9f0}.history-event{padding:10px 0}.request-dialog .field textarea{min-height:76px}
+@media(max-width:780px){.request-dialog{width:calc(100vw - 20px);padding:14px}.request-dialog>.panel-heading{top:-14px}.request-dialog .form-grid.two{grid-template-columns:1fr}}
+.request-dialog{padding:16px}.request-dialog>.panel-heading{top:-16px;padding:8px 0}.request-dialog .detail-section{padding:8px 0}.request-dialog .origin-note{margin:8px 0}.request-dialog .request-detail{gap:8px 14px}.request-dialog .management-section{padding:10px 0}.request-dialog .action-buttons{margin:10px 0;gap:8px}
+.request-dialog h4{margin-bottom:8px}.request-dialog .detail-history{padding-top:12px}.request-dialog .history-event{padding:8px 0}.request-dialog .history-event p{margin:4px 0}.request-dialog .field textarea{min-height:76px}
+.responsable-flags{padding:12px 0;gap:10px 16px}#responsableForm{padding-bottom:16px}
+@media(max-width:600px){.request-dialog{padding:12px}.request-dialog>.panel-heading{top:-12px}.request-dialog .request-detail{gap:8px}}
+
+.config-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}.config-tabs button{cursor:pointer;white-space:nowrap}.config-tabs .is-active{background:#e8f1fa;color:#204c76}#catalogForm{padding-bottom:12px}#catalogBody .action-buttons{display:flex;flex-wrap:wrap;gap:6px;margin:0}#catalogBody small{display:block;max-width:380px;margin-top:6px;color:#64748b}#catalogBody td{overflow-wrap:anywhere}

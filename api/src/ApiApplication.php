@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/CobranzaService.php';
 require_once __DIR__ . '/CobranzaOverridesService.php';
 require_once __DIR__ . '/AdquisicionesService.php';
+require_once __DIR__ . '/ClienteSolicitudesService.php';
 
 final class ApiApplication
 {
@@ -40,6 +41,7 @@ final class ApiApplication
         $indicadoresService = new IndicadoresService();
 
         $services = [
+            'cliente_solicitudes' => new ClienteSolicitudesService($database),
             'auth' => $authService,
             'recovery' => $recoveryService,
             'analytics' => $analyticsService,
@@ -65,6 +67,7 @@ final class ApiApplication
         ];
 
         $routes = [
+            '/clientes-prospectos' => require dirname(__DIR__) . '/routes/clientes-prospectos.php',
             '/auth' => require dirname(__DIR__) . '/routes/auth.php',
             '/admin' => require dirname(__DIR__) . '/routes/admin.php',
             '/dashboard' => require dirname(__DIR__) . '/routes/dashboard.php',

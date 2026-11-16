@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Clientes y Prospectos</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../../ventas/dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="clientes-prospectos.css?v=2.4.0" />
+</head>
+<body class="prospectos-page module-locked">
+  <section id="moduleGate" class="session-gate" aria-live="polite">
+    <div><h2 id="gateTitle">Validando sesión...</h2><p id="gateText"></p><a id="gateLogin" class="btn-primary-design" hidden>Iniciar sesión</a></div>
+  </section>
+  <aside class="sidebar" id="sidebar" hidden>
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <span aria-hidden="true">⎋</span><span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper" hidden>
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Clientes y Prospectos</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo">Marcar todo leído</button>
+            </div>
+            <ul class="notif-lista" id="notifLista"><li class="notif-empty">Sin notificaciones nuevas</li></ul>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="hero-card"><div><span class="eyebrow">COBRANZA</span><h2>Clientes y Prospectos</h2><p>Revisa las solicitudes de prospectos y registra el auxiliar creado manualmente en Softland.</p></div></section>
+      <nav class="module-tabs"><span class="module-tab is-active">Solicitudes de Prospectos y Clientes</span></nav>
+      <section class="summary-grid">
+        <article class="summary-card"><span class="summary-dot pending"></span><div><span>Pendientes</span><strong data-count="PENDIENTE">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot draft"></span><div><span>En revisión</span><strong data-count="EN_REVISION">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot observed"></span><div><span>Observadas</span><strong data-count="OBSERVADA">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot done"></span><div><span>Completadas</span><strong data-count="COMPLETADA">0</strong></div></article>
+      </section>
+      <section class="panel list-panel">
+        <div class="panel-heading list-heading"><h3>Gestión de solicitudes</h3>
+          <form id="filterForm" class="list-tools"><select id="filterType" aria-label="Tipo"><option value="">Todos los tipos</option><option value="PROSPECTO">Prospectos</option><option value="FICHA">Fichas Cliente</option></select><select id="filterState" aria-label="Estado"></select><select id="filterSeller" aria-label="Vendedor"></select><input id="filterSearch" type="search" placeholder="RUT o cliente" aria-label="RUT o cliente" /><button type="submit" class="btn-secondary-design">Filtrar</button></form>
+        </div>
+        <div class="table-wrap"><table class="requests-table"><thead><tr><th>Solicitud</th><th>Tipo</th><th>Fecha</th><th>Vendedor</th><th>Código vendedor</th><th>Cliente</th><th>RUT</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="requestsBody"><tr><td colspan="9">Cargando...</td></tr></tbody></table></div>
+        <div class="pagination"><button id="pagePrevious" type="button" class="btn-secondary-design">Anterior</button><span id="pageInfo"></span><button id="pageNext" type="button" class="btn-secondary-design">Siguiente</button></div>
+      </section>
+      <section class="panel list-panel" id="responsablesSection" hidden>
+        <div class="panel-heading"><h3>Configuración</h3></div>
+        <nav class="config-tabs" role="tablist" aria-label="Configuración">
+          <button type="button" class="module-tab is-active" role="tab" aria-selected="true" data-config-tab="RESPONSABLES" aria-controls="responsablesPanel">Responsables</button>
+          <button type="button" class="module-tab" role="tab" aria-selected="false" data-config-tab="ORIGEN" aria-controls="catalogPanel">Orígenes</button>
+          <button type="button" class="module-tab" role="tab" aria-selected="false" data-config-tab="RUBRO" aria-controls="catalogPanel">Rubros</button>
+          <button type="button" class="module-tab" role="tab" aria-selected="false" data-config-tab="FORMA_PAGO" aria-controls="catalogPanel">Formas de pago</button>
+        </nav>
+        <div id="responsablesPanel" role="tabpanel">
+        <form id="responsableForm" class="form-section">
+          <input id="responsableId" type="hidden" />
+          <div class="form-grid two"><div class="field"><label for="responsableName">Nombre</label><input id="responsableName" maxlength="255" required /></div><div class="field"><label for="responsableEmail">Correo</label><input id="responsableEmail" type="email" maxlength="254" required /></div></div>
+          <div class="responsable-flags"><label><input id="recibe_prospecto" type="checkbox" checked /> Recibe Prospectos</label><label><input id="recibe_ficha" type="checkbox" checked /> Recibe Fichas</label><label><input id="recibe_correo" type="checkbox" checked /> Recibe correo</label><label><input id="activo" type="checkbox" checked /> Activo</label></div>
+          <div class="action-buttons"><button type="submit" class="btn-primary-design">Guardar responsable</button><button id="newResponsable" type="button" class="btn-secondary-design">Nuevo / cancelar edición</button></div>
+        </form>
+        <div class="table-wrap"><table class="requests-table"><thead><tr><th>Nombre</th><th>Correo</th><th>Prospectos</th><th>Fichas</th><th>Correo</th><th>Activo</th><th>Acción</th></tr></thead><tbody id="responsablesBody"></tbody></table></div>
+        </div>
+        <div id="catalogPanel" role="tabpanel" hidden>
+          <form id="catalogForm" class="form-section">
+            <input id="catalogId" type="hidden" />
+            <div class="form-grid two"><div class="field"><label for="catalogName">Nombre</label><input id="catalogName" required maxlength="120" /></div><div class="field"><label for="catalogOrder">Orden</label><input id="catalogOrder" type="number" step="1" min="-2147483648" max="2147483647" value="0" required /></div></div>
+            <div class="responsable-flags"><label><input id="catalogActive" type="checkbox" checked /> Activo</label></div>
+            <div class="action-buttons"><button type="submit" class="btn-primary-design">Guardar</button><button id="newCatalog" type="button" class="btn-secondary-design">+ Nuevo</button></div>
+          </form>
+          <div class="table-wrap"><table class="requests-table"><thead><tr><th>Nombre</th><th>Código</th><th>Orden</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="catalogBody"></tbody></table></div>
+        </div>
+      </section>
+      <dialog id="detailDialog" class="request-dialog" aria-labelledby="detailTitle">
+        <div class="panel-heading"><h3 id="detailTitle"></h3><button id="closeDetail" type="button" class="btn-secondary-design">Cerrar</button></div>
+        <div id="requestDetail"></div>
+        <section id="detailFicha" hidden></section>
+        <section class="management-section"><h4>GESTIÓN COBRANZA</h4><div id="managementSummary"></div>
+        <section class="form-grid two" id="internalFields" hidden></section>
+        <div id="processFields" class="form-grid two"><div class="field"><label for="reviewComment">Comentario (obligatorio al observar)</label><textarea id="reviewComment" maxlength="4000"></textarea></div><div class="field"><label for="auxCode">Código auxiliar Softland (obligatorio al completar)</label><input id="auxCode" maxlength="30" /></div></div>
+        <div class="action-buttons"><button id="btnRevision" class="btn-secondary-design" type="button">Iniciar revisión</button><button id="btnObserve" class="btn-secondary-design" type="button">Observar</button><button id="btnComplete" class="btn-primary-design" type="button">Completar</button></div>
+        </section>
+        <section class="detail-history"><h4>HISTORIAL</h4><div id="requestHistory"></div></section>
+      </dialog>
+    </main>
+  </div>
+  <script data-module-src="../../../assets/js/app-sidebar.js?v=1.1.1"></script>
+  <script src="../../../assets/js/clientes-prospectos.js?v=2.4.0"></script>
+  <script src="clientes-prospectos.js?v=2.2.0"></script>
+  <script data-module-src="../../ventas/dashboard/notificaciones-ui.js?v=2.0.1"></script>
+  <script data-module-src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+  <script data-module-src="../../../assets/js/inactividad.js?v=3.0.0"></script>
+</body>
+</html>

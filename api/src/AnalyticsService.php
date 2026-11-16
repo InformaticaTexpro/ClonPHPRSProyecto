@@ -51,6 +51,15 @@ final class AnalyticsService
         $desde = (new DateTimeImmutable($desdePeriodo . '-01'))->format('Ymd');
         $hasta = (new DateTimeImmutable($hastaPeriodo . '-01'))->modify('+1 month')->format('Ymd');
         $amount = $this->commercialAmountSql('h.Tipo', 'm.TotLinea');
+        // Separar SA- solo en noviembre/diciembre 2026, según el período de cada fila.
+        // Fuera de esos meses se conserva también la agrupación/redondeo histórico.
+        // SQL Server LTRIM/RTRIM solo quita espacios. Convertir los otros blancos
+        // de trim() a espacios conserva la prueba del prefijo, sin concatenar letras.
+        $saCode = 'm.CodProd';
+        foreach ([9,10,11,13] as $blank) $saCode = "REPLACE($saCode, CHAR($blank), ' ')";
+        $saCode = "UPPER(LTRIM(RTRIM($saCode)))";
+        $saGroup = "CASE WHEN h.Fecha >= '20261101' AND h.Fecha < '20270101'
+            AND $saCode LIKE 'SA-%' THEN 1 ELSE 0 END";
         $productSelect = $productos ? ', RTRIM(m.CodProd) AS codigoProducto, MAX(CONVERT(varchar(250), t.DesProd)) AS producto, SUM(m.CantFacturada) AS cantidad' : '';
         $productGroup = $productos ? ', m.CodProd' : '';
         $stmt = $this->softland()->prepare(
@@ -59,12 +68,13 @@ final class AnalyticsService
                     RTRIM(h.CodAux) AS clienteCodigo, MAX(CONVERT(varchar(250), h.NomAux)) AS cliente,
                     RTRIM(h.CodVendedor) AS codigoVendedor,
                     LTRIM(RTRIM(COALESCE(t.CtaVentas, ''))) AS cuentaCategoria,
+                    $saGroup AS grupoPrefijoSA, MIN(LTRIM(RTRIM(m.CodProd))) AS codigoProductoClasificacion,
                     SUM(CONVERT(decimal(38,6), $amount)) AS original $productSelect
              FROM [PRODIN].[softland].[iw_gsaen] h
              INNER JOIN [PRODIN].[softland].[iw_gmovi] m ON m.NroInt = h.NroInt AND m.Tipo = h.Tipo
              INNER JOIN [PRODIN].[softland].[iw_tprod] t ON t.CodProd = m.CodProd
              WHERE h.Fecha >= ? AND h.Fecha < ? AND h.Tipo IN ('F','N','D') AND h.Estado <> 'A'
-             GROUP BY h.NroInt, h.Tipo, h.Folio, h.Fecha, h.CodAux, h.CodVendedor, t.CtaVentas $productGroup
+             GROUP BY h.NroInt, h.Tipo, h.Folio, h.Fecha, h.CodAux, h.CodVendedor, t.CtaVentas, $saGroup $productGroup
              ORDER BY h.Fecha, h.NroInt, h.Tipo, t.CtaVentas $productGroup"
         );
         $stmt->execute([$desde, $hasta]);
@@ -77,7 +87,7 @@ final class AnalyticsService
                 continue;
             }
             // Conserva el nivel de agregación y redondeo del cálculo principal.
-            $groupKey = json_encode([$row['documentoId'], $row['tipo'], $row['fecha'], $row['codigoVendedor'], $row['cuentaCategoria']]);
+            $groupKey = json_encode([$row['documentoId'], $row['tipo'], $row['fecha'], $row['codigoVendedor'], $row['cuentaCategoria'], $row['grupoPrefijoSA']]);
             if (!isset($rows[$groupKey])) $rows[$groupKey] = array_merge($row, ['original' => 0.0, 'productos' => []]);
             $rows[$groupKey]['original'] += (float)$row['original'];
             $rows[$groupKey]['productos'][] = ['codigoProducto' => $row['codigoProducto'], 'producto' => $row['producto'], 'cantidad' => (float)$row['cantidad'], 'original' => (float)$row['original']];

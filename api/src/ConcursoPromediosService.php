@@ -163,9 +163,13 @@ final class ConcursoPromediosService
             'fuenteBase' => 'JSON', 'versionBase' => $base['version']];
     }
 
-    private function categoria(string $name): ?string
+    private function categoria(string $name, string $productCode, bool $shared, string $periodo): ?string
     {
-        // Agrupa nombres del catálogo existente; no clasifica productos por su cuenta.
+        // Excepción exclusiva de los períodos calculados de noviembre y diciembre 2026.
+        if (in_array($periodo, ['2026-11','2026-12'], true)
+            && str_starts_with(strtoupper(trim($productCode)), 'SA-')) return 'ACCESORIOS';
+        if ($shared) return 'TRAT_AGUA';
+        // Mantener la clasificación anterior para todos los demás productos.
         $key = mb_strtoupper(trim($name));
         return match ($key) {
             'QUIMICOS', 'QUÍMICOS' => 'QUIMICOS',
@@ -224,7 +228,8 @@ final class ConcursoPromediosService
                 if (abs($totals[$key] ?? 0) >= 0.000001) $factor += ($adjustments[$key][$id] ?? 0) / $totals[$key];
                 if (abs($factor) < 0.000000001) continue;
                 // Regla exclusiva del concurso, aplicada después de determinar la participación.
-                $category = isset($attribution[$key][$id]) ? 'TRAT_AGUA' : $this->categoria($categoryName);
+                $periodoFila = sprintf('%s-%02d', substr($desde, 0, 4), (int)$row['mes']);
+                $category = $this->categoria($categoryName, (string)($row['codigoProductoClasificacion'] ?? ''), isset($attribution[$key][$id]), $periodoFila);
                 if ($detailCategory === 'OTROS') {
                     if ($category !== null) continue;
                     $category = 'OTROS';
