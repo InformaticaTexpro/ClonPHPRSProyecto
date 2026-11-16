@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texpro - Clientes y Prospectos</title>
+  <link rel="icon" type="image/png" href="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
+  <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.7" />
+  <link rel="stylesheet" href="clientes-prospectos.css?v=2.3.0" />
+</head>
+<body class="prospectos-page module-locked">
+  <section id="moduleGate" class="session-gate" aria-live="polite">
+    <div><h2 id="gateTitle">Validando sesión...</h2><p id="gateText"></p><a id="gateLogin" class="btn-primary-design" hidden>Iniciar sesión</a></div>
+  </section>
+  <aside class="sidebar" id="sidebar" hidden>
+    <div class="sidebar-header">
+      <img src="../../../assets/images/Isotipo-TEXPRO_fondo_blanco.png" alt="Texpro" class="sidebar-logo" onerror="this.style.display='none'" />
+      <span class="sidebar-brand">TEXPRO</span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Colapsar menú">‹</button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="userName">Cargando...</span>
+          <span class="user-area" id="userArea"></span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Cerrar sesión">
+        <span aria-hidden="true">⎋</span><span class="btn-logout-text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper" id="mainWrapper" hidden>
+    <header class="main-header">
+      <div class="header-left">
+        <button class="header-menu-btn" id="headerMenuBtn" aria-label="Menú móvil">☰</button>
+        <h1 class="header-title">Clientes y Prospectos</h1>
+      </div>
+      <div class="header-right">
+        <span class="header-date" id="headerDate"></span>
+        <span class="header-indicadores" id="headerIndicadores" aria-label="Indicadores económicos">
+          <span class="hind-label">USD</span><span class="hind-valor">—</span>
+          <span class="hind-sep">|</span>
+          <span class="hind-label">UF</span><span class="hind-valor">—</span>
+        </span>
+        <div class="notif-wrapper" id="notifWrapper">
+          <button class="notif-btn" id="notifBtn" aria-label="Notificaciones">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notifPanel">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-leer-todo" id="notifLeerTodo">Marcar todo leído</button>
+            </div>
+            <ul class="notif-lista" id="notifLista"><li class="notif-empty">Sin notificaciones nuevas</li></ul>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="hero-card">
+        <div>
+          <span class="eyebrow">GESTIÓN COMERCIAL</span>
+          <h2>Clientes y Prospectos</h2>
+          <p>Solicita la creación de un prospecto en Softland para habilitar su uso en CRM y cotizaciones.</p>
+        </div>
+        <span class="design-badge">Gestión de solicitudes</span>
+      </section>
+
+      <nav class="module-tabs" aria-label="Secciones">
+        <button class="module-tab is-active" data-type="PROSPECTO" type="button">Prospectos</button>
+        <button class="module-tab" data-type="FICHA" type="button">Clientes</button>
+      </nav>
+
+      <section class="summary-grid">
+        <article class="summary-card"><span class="summary-dot draft"></span><div><span>Borradores</span><strong data-count="BORRADOR">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot pending"></span><div><span>Pendientes</span><strong data-count="PENDIENTE">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot observed"></span><div><span>Observadas</span><strong data-count="OBSERVADA">0</strong></div></article>
+        <article class="summary-card"><span class="summary-dot done"></span><div><span>Completadas</span><strong data-count="COMPLETADA">0</strong></div></article>
+      </section>
+
+      <section class="prospect-layout">
+        <article class="panel form-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-kicker">NUEVA SOLICITUD</span>
+              <h3 id="requestFormTitle">Prospecto</h3><button id="newRequest" class="btn-secondary-design" type="button">Nueva solicitud</button>
+              <p id="requestDescription">Completa los antecedentes mínimos para solicitar la creación del auxiliar en Softland.</p>
+            </div>
+            <span class="status-pill" id="formStatus">Borrador</span>
+            <button id="createFicha" class="btn-primary-design" type="button" hidden>Crear Ficha de Cliente</button>
+          </div>
+
+          <form id="prospectForm" novalidate>
+            <p id="originBanner" class="origin-note" hidden></p>
+            <p id="fichaObservation" class="ficha-observation" role="status" hidden></p>
+            <div class="form-section">
+              <div class="section-title"><span>1</span><div><h4>Datos de la solicitud</h4><p>Información obtenida desde tu usuario GICOTEX.</p></div></div>
+              <div class="form-grid three">
+                <div class="field"><label for="requestDate">Fecha</label><input id="requestDate" type="text" readonly /></div>
+                <div class="field"><label for="sellerName">Vendedor</label><input id="sellerName" type="text" value="Cargando..." readonly /></div>
+                <div class="field">
+                  <label for="sellerCode">Código vendedor / CRM <b>*</b></label>
+                  <select id="sellerCode" required><option value="">Cargando códigos...</option></select>
+                  <small>Se selecciona por defecto el código principal.</small>
+                </div>
+              </div>
+              <div id="originInfo" class="form-grid two" hidden><div class="field"><label for="originDisplay">Prospecto origen</label><input id="originDisplay" readonly /></div><div class="field"><label for="originAux">Código Auxiliar Softland</label><input id="originAux" readonly /></div></div>
+            </div>
+
+            <div class="form-section" id="prospectData">
+              <div class="section-title"><span>2</span><div><h4>Datos del prospecto</h4><p>Información necesaria para que Crédito pueda crear el auxiliar.</p></div></div>
+              <div class="form-grid two" id="prospectFields">
+                <div class="field"><label for="rut">RUT <b>*</b></label><input id="rut" type="text" aria-describedby="rutHelp" placeholder="76.123.456-7" required /><small id="rutHelp" aria-live="polite">Ingresa el RUT con o sin puntos y guion.</small></div>
+                <div class="field"><label for="businessName">Razón social <b>*</b></label><input id="businessName" type="text" maxlength="120" placeholder="Empresa Industrial SpA" required /></div>
+                <div class="field"><label for="contactName">Nombre del contacto <b>*</b></label><input id="contactName" type="text" maxlength="100" placeholder="Nombre del contacto" required /></div>
+                <div class="field"><label for="contactEmail">Correo del contacto <b>*</b></label><input id="contactEmail" type="email" maxlength="150" placeholder="contacto@empresa.cl" required /></div>
+                <div class="field"><label for="phone">Teléfono del contacto <b>*</b></label><input id="phone" type="tel" maxlength="30" placeholder="+56 9 1234 5678" required /></div>
+                <div class="field full"><label for="products">Productos o línea de interés <b>*</b></label><textarea id="products" rows="3" maxlength="800" placeholder="Indica productos, línea o necesidad del prospecto..." required></textarea></div>
+                <div class="field full"><label for="observations">Observaciones</label><textarea id="observations" rows="3" maxlength="1000" placeholder="Información adicional para Crédito (opcional)"></textarea></div>
+              </div>
+            </div>
+
+            <section id="fichaSection" class="form-section" hidden><h3>Ficha Cliente</h3><div id="fichaFields"></div></section>
+            <div class="form-actions">
+              <div class="form-note">Guarda tus avances o envía la solicitud a Cobranza para su revisión.</div>
+              <div class="action-buttons">
+                <button class="btn-secondary-design" id="btnDraft" type="button">Guardar borrador</button>
+                <button class="btn-primary-design" id="btnSend" type="submit">Enviar solicitud →</button>
+              </div>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="panel list-panel">
+        <div class="panel-heading list-heading">
+          <div><span class="panel-kicker">SEGUIMIENTO</span><h3 id="myRequestsTitle">Mis solicitudes</h3><p>Consulta tus solicitudes de prospectos y fichas de clientes.</p></div>
+          <form id="filterForm" class="list-tools">
+            <select id="filterState" aria-label="Estado"></select>
+            <input id="filterSearch" type="search" placeholder="Buscar RUT o cliente..." aria-label="RUT o cliente" /><button class="btn-secondary-design" type="submit">Filtrar</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table class="requests-table">
+            <thead><tr id="requestsHead"><th>Solicitud</th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Cód. vendedor</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody id="requestsBody"><tr><td colspan="8">Cargando solicitudes...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pagination"><button id="pagePrevious" type="button" class="btn-secondary-design">Anterior</button><span id="pageInfo"></span><button id="pageNext" type="button" class="btn-secondary-design">Siguiente</button></div>
+      </section>
+      <section class="panel history-panel" id="requestHistory"></section>
+    </main>
+  </div>
+
+  <script data-module-src="../../../assets/js/app-sidebar.js?v=1.1.1"></script>
+  <script src="../../../assets/js/clientes-prospectos.js?v=2.4.0"></script>
+  <script src="clientes-prospectos.js?v=2.2.0"></script>
+  <script data-module-src="../dashboard/notificaciones-ui.js?v=2.0.1"></script>
+  <script data-module-src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>
+  <script data-module-src="../../../assets/js/inactividad.js?v=3.0.0"></script>
+</body>
+</html>

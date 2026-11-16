@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../../../api/bootstrap.php';
+require_once __DIR__ . '/return-url.php';
 
 function h(mixed $value): string
 {
@@ -59,6 +60,17 @@ function resolve_login_route(array $user): string
         }
     }
 
+    // Un vendedor con área vacía/no reconocida entra al Dashboard accesible,
+    // sin depender del orden de Solicitudes C&P. Las otras áreas conservan su fallback.
+    $esVendedor = (bool)array_filter($user['vendedores'] ?? [],
+        static fn(array $vendedor): bool => trim((string)($vendedor['cod_vendedor'] ?? '')) !== '');
+    if (!$preferida && $esVendedor) {
+        foreach ($menus as $menu) {
+            if ($menu['url'] === '/src/modulo/ventas/dashboard/index.html') {
+                return $menu['url'];
+            }
+        }
+    }
     usort($menus, static function (array $a, array $b): int {
         return ($a['orden'] <=> $b['orden']) ?: strcmp($a['nombre'], $b['nombre']);
     });
@@ -80,6 +92,7 @@ $sessionNotice = match ($_GET['session'] ?? '') {
     default => '',
 };
 $loginResponse = null;
+$returnUrl = clientes_prospectos_return_url($_POST['returnUrl'] ?? $_GET['returnUrl'] ?? '');
 
 if ($logoutRequested || $sessionNotice !== '') {
     clear_auth_cookie();
@@ -170,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if (is_array($loginResponse) && !empty($loginResponse['token'])): ?>
           <?php
-            $redirectRoute = resolve_login_route($loginResponse['user'] ?? []);
+            $redirectRoute = $returnUrl !== '' ? $returnUrl : resolve_login_route($loginResponse['user'] ?? []);
             $payload = [
               'token' => (string)$loginResponse['token'],
               'user' => $loginResponse['user'] ?? null,
@@ -204,6 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form class="login-form" method="post" action="">
+          <input type="hidden" name="returnUrl" value="<?= h($returnUrl) ?>" />
           <div class="form-group">
             <label class="form-label" for="usuario">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
