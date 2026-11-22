@@ -19,15 +19,14 @@ final class CobranzaOverridesService
         if (!$user) throw new RuntimeException('Usuario no disponible.', 403);
         $menus = array_column(array_merge($payload['menus'] ?? [], $payload['menus_directos'] ?? []), 'codigo');
         $isAdmin = (bool)$user['is_admin'];
-        if (!$isAdmin && !in_array('cobranza_control_clientes', $menus, true)) {
+        $canManage = $isAdmin || in_array('cobranza_control_clientes', $menus, true);
+        if (!$canManage) {
             throw new RuntimeException('Sin acceso a Control de Clientes.', 403);
         }
-        $canManage = $isAdmin || in_array('administracion', $menus, true);
         $base = '/control-clientes/overrides';
         if ($method === 'GET' && $path === $base . '/permisos') {
             return ['ok' => true, 'puedeAdministrar' => $canManage, 'motivos' => self::MOTIVOS];
         }
-        if (!$canManage) throw new RuntimeException('Se requiere acceso administrativo para gestionar excepciones.', 403);
         $actor = ['usuarioId' => $id, 'nombre' => (string)$user['nombre']];
         if ($method === 'GET' && $path === $base) {
             $filters = array_intersect_key($query, array_flip(['periodo', 'tipoEvento', 'rut', 'activo']));

@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../../../assets/styles/tokens.css?v=2.3.1" />
   <link rel="stylesheet" href="../dashboard/dashboard.css?v=2.3.7" />
-  <link rel="stylesheet" href="clientes-prospectos.css?v=2.3.0" />
+  <link rel="stylesheet" href="clientes-prospectos.css?v=3.5.0" />
 </head>
 <body class="prospectos-page module-locked">
   <section id="moduleGate" class="session-gate" aria-live="polite">
@@ -144,13 +144,16 @@
           <div><span class="panel-kicker">SEGUIMIENTO</span><h3 id="myRequestsTitle">Mis solicitudes</h3><p>Consulta tus solicitudes de prospectos y fichas de clientes.</p></div>
           <form id="filterForm" class="list-tools">
             <select id="filterState" aria-label="Estado"></select>
+            <select id="filterValidity" aria-label="Vigencia"><option value="">Toda vigencia</option><option value="POR_VENCER">Por vencer (hasta 10 días)</option></select>
+            <select id="filterOrder" aria-label="Orden"><option value="">Más recientes</option><option value="vigencia">Vencimiento más próximo</option></select>
             <input id="filterSearch" type="search" placeholder="Buscar RUT o cliente..." aria-label="RUT o cliente" /><button class="btn-secondary-design" type="submit">Filtrar</button>
+            <button id="btnRefresh" class="btn-secondary-design" type="button">↻ Refrescar</button><span id="refreshStatus" class="refresh-status" role="status" aria-live="polite"></span>
           </form>
         </div>
         <div class="table-wrap">
           <table class="requests-table">
-            <thead><tr id="requestsHead"><th>Solicitud</th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Cód. vendedor</th><th>Estado</th><th>Acción</th></tr></thead>
-            <tbody id="requestsBody"><tr><td colspan="8">Cargando solicitudes...</td></tr></tbody>
+            <thead><tr id="requestsHead"><th>Solicitud</th><th>Fecha</th><th>Cliente / RUT</th><th title="Código vendedor" aria-label="Código vendedor">CodV</th><th>Estado</th><th>Cot.</th><th>NV</th><th>Fact.</th><th>Vigencia</th><th>Acción</th></tr></thead>
+            <tbody id="requestsBody"><tr><td colspan="10">Cargando solicitudes...</td></tr></tbody>
           </table>
         </div>
         <div class="pagination"><button id="pagePrevious" type="button" class="btn-secondary-design">Anterior</button><span id="pageInfo"></span><button id="pageNext" type="button" class="btn-secondary-design">Siguiente</button></div>
@@ -160,7 +163,7 @@
   </div>
 
   <script data-module-src="../../../assets/js/app-sidebar.js?v=1.1.1"></script>
-  <script src="../../../assets/js/clientes-prospectos.js?v=2.4.0"></script>
+  <script src="../../../assets/js/clientes-prospectos.js?v=3.5.0"></script>
   <script src="clientes-prospectos.js?v=2.2.0"></script>
   <script data-module-src="../dashboard/notificaciones-ui.js?v=2.0.1"></script>
   <script data-module-src="../../../assets/js/indicadores-header.js?v=1.0.0"></script>

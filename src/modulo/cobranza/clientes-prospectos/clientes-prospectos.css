@@ -1,4 +1,4 @@
-@import url('../../ventas/clientes-prospectos/clientes-prospectos.css?v=2.3.0');
+@import url('../../ventas/clientes-prospectos/clientes-prospectos.css?v=3.5.0');
 .request-dialog{width:min(900px,92vw);max-height:88vh;box-sizing:border-box;border:1px solid #e4e9f0;border-radius:18px;padding:22px;color:#344054;background:#fff}
 .request-dialog::backdrop{background:rgba(15,23,42,.55)}
 .request-dialog .panel-heading{padding:0 0 16px}.request-dialog .action-buttons{margin:18px 0;flex-wrap:wrap}
